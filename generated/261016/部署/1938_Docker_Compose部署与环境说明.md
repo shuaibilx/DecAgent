@@ -3,7 +3,7 @@ title: DecAgent Docker Compose 部署与环境说明
 type: how-to
 audience: [A1, A4]
 runs: no
-verified_on: 2026-10-16
+verified_on: 2026-10-17
 sources:
   - compose.yaml
   - compose.windows.yaml
@@ -109,6 +109,10 @@ Runner 默认安装在 `%USERPROFILE%\DecAgentRunner\actions-runner`，由当前
 
 仓库环境 `local-deploy` 限制为 `v*` 标签。GHCR package 默认私有，发布工作流只使用短期 `GITHUB_TOKEN`：发布 job 仅有 `packages: write`，本机部署 job 仅有 `packages: read`。没有把 Qwen、Jev 或 GitHub 业务凭据上传到 Actions secrets；部署时仍从本机项目目录读取 `.env` 和 `.decagent/secrets/`。
 
+私有 GHCR 镜像还必须允许 `DecAgent` 工作流读取。首次发布创建 `decagent-control`、`decagent-executor`、`decagent-runner` 三个 package 后，在每个 package 的 **Package settings → Manage Actions access** 中添加仓库 `shuaibilx/DecAgent`，权限选 **Read**。这会让仓库的短期 `GITHUB_TOKEN` 按 job 声明的 `packages: read` 拉取镜像，package 仍保持私有；仅在 YAML 中声明 `packages: read` 不会自动授予私有 package 的仓库级 Actions 访问权。缺少此设置时，部署会在 GHCR 登录步骤失败，数据库备份和 Compose 更新步骤不会运行。
+
+三个 package 页面：[control](https://github.com/users/shuaibilx/packages/container/package/decagent-control)、[executor](https://github.com/users/shuaibilx/packages/container/package/decagent-executor)、[runner](https://github.com/users/shuaibilx/packages/container/package/decagent-runner)。
+
 通过 CI 后，首次发布可从 DecAgent 根目录推送 `v0.1.0` 标签：
 
 ```powershell
@@ -126,4 +130,4 @@ git push origin v0.1.0
 
 ## 部署状态
 
-本机 Windows Docker Desktop 现有 Compose 服务已通过 `/health` 检查，隔离离线 smoke 通过。GHCR 自动发布与本机 Runner 工作流已加入项目；首次版本发布、本机 Runner 注册和带备份的真实更新必须在本轮完成后，才能把 CD 标记为已验证。新实例完整网页闭环与独立 Linux 主机验收仍未完成。
+本机 Windows Docker Desktop 现有 Compose 服务已通过 `/health` 检查，隔离离线 smoke 通过；本轮 `v0.1.0` 的完整 CI 和三个 GHCR 镜像发布已通过，本机 Runner 已注册并在线。运行 [38931396165](https://github.com/shuaibilx/DecAgent/actions/runs/38931396165) 的部署 job 在私有 GHCR 登录时收到 `denied`，因此没有创建预部署数据库备份，也没有开始更新现有 Compose 服务。为三个 package 添加仓库的 **Read** Actions access 后，需要重新运行失败的部署 job，再核查备份、服务健康和数据卷。新实例完整网页闭环与独立 Linux 主机验收仍未完成。

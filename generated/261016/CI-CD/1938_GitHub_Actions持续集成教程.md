@@ -3,7 +3,7 @@ title: DecAgent GitHub Actions 持续集成与镜像发布
 type: tutorial
 audience: [A1, A4]
 runs: yes
-verified_on: 2026-10-16
+verified_on: 2026-10-17
 sources:
   - .github/workflows/ci.yml
   - .github/workflows/release.yml
@@ -58,7 +58,7 @@ GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用�
 
 本机运行了 Ruff、Compose 安全配置回归和离线 Docker smoke，均通过。完整数据库集成套件由 GitHub Actions 的一次性 PostgreSQL 服务运行并通过；本机没有对当前业务数据库运行整套集成测试。
 
-CI 运行 38904507234 已在 GitHub 仓库 `shuaibilx/DecAgent` 的 commit `21b7570` 上完整通过。文档 commit `89588a6` 对应运行 38915020277 因 30 分钟 job 上限，在数据库集成测试仍进行时被取消；没有测试失败结论。本轮把检查 job 上限增加到 60 分钟，后续需以新运行的完整结果确认。GitHub Runner 的容器通过不替代目标 Linux 主机验收。
+最新 main CI 运行 [38924980607](https://github.com/shuaibilx/DecAgent/actions/runs/38924980607) 在 commit `5d3c23b` 上通过 Python 3.11/3.13、数据库集成测试、安装包验证和隔离 Compose smoke。版本发布运行 [38931396165](https://github.com/shuaibilx/DecAgent/actions/runs/38931396165) 也通过完整 release gate，并成功发布三个 GHCR 镜像。其本机部署 job 在私有 GHCR 登录时被拒绝；备份与 Compose 更新步骤均跳过，因此本机 CD 尚未验收。GitHub Runner 的容器通过不替代目标 Linux 主机验收。
 
 安装 wheel 时，本机 pip 仍提示配置的 `pypi.ngc.nvidia.com` 索引发生 SSL EOF；命令跳过该索引并成功完成安装。这个警告来自当前本机 pip 索引配置，工作流没有设置该索引，不能据此预判 GitHub Runner 的网络结果。
 
@@ -68,7 +68,7 @@ CI 运行 38904507234 已在 GitHub 仓库 `shuaibilx/DecAgent` 的 commit `21b7
 
 打开 [DecAgent Actions](https://github.com/shuaibilx/DecAgent/actions)，选择 `CI` 并查看对应 commit 或 Pull Request。绿色勾表示该次工作流全部成功；红色叉表示某个 job 或步骤失败。点开失败步骤，查看首个异常并回到本地复现。
 
-当前公开仓库已存在，commit `21b7570` 的 Actions 运行 [38904507234](https://github.com/shuaibilx/DecAgent/actions/runs/38904507234) 全绿。配置文件本身不代表后续每次提交都通过；每次变更仍需查看对应运行记录。
+公开仓库 `shuaibilx/DecAgent` 的最新 main CI 为 [运行 38924980607](https://github.com/shuaibilx/DecAgent/actions/runs/38924980607)，全部 job 通过。配置文件本身不代表后续每次提交都通过；每次变更仍需查看对应运行记录。
 
 ## 版本发布与 GHCR
 
@@ -81,6 +81,10 @@ git push origin v0.1.0
 
 `release.yml` 会再次执行完整 CI，因此 PR 代码不会直接进入发布。标签必须严格符合 `vMAJOR.MINOR.PATCH`，并指向 `main` 历史中的提交。发布 job 使用 GitHub 托管 runner 和只具备 `packages: write` 的短期 `GITHUB_TOKEN`；部署 job 仅获 `packages: read`。镜像 package 首次创建默认保持私有，源代码仓库仍公开；工作流通过短期令牌拉取镜像，不把模型或 GitHub 凭据保存为 Actions secret。
 
+`v0.1.0` 指向 `main` 当前提交 `5d3c23b`，完整 release gate 和 control、executor、runner 三个镜像的 GHCR 发布均已通过。由于 package 是私有的，首次发布后还要在每个 package 的 **Package settings → Manage Actions access** 添加 `shuaibilx/DecAgent` 并授予 **Read**；这是 GHCR package 级的 Actions 读取授权，单独声明 `permissions: packages: read` 不会替代它。保持 package 私有即可。缺少该授权时，本机部署在登录 GHCR 时失败，且不会进行数据库备份或服务更新。
+
+Package 设置入口：[control](https://github.com/users/shuaibilx/packages/container/package/decagent-control)、[executor](https://github.com/users/shuaibilx/packages/container/package/decagent-executor)、[runner](https://github.com/users/shuaibilx/packages/container/package/decagent-runner)。添加 Read access 后，可在 Actions 运行 [38931396165](https://github.com/shuaibilx/DecAgent/actions/runs/38931396165) 中重试失败的本机部署 job。
+
 ## 产物与边界
 
 普通 CI 会构建 Python wheel、source distribution 和容器镜像，并在 GitHub Runner 临时磁盘上验证；只有推送版本标签才会发布 GHCR 镜像并触发本机自动部署。CI 全绿说明代码通过设定检查；CD 结果还要看发布 workflow 的镜像发布和本机健康检查，且不代表独立 Linux 部署已验收。
@@ -89,4 +93,4 @@ pip 下载缓存按 `requirements.lock` 复用。技能提供的缓存分析器�
 
 触发 GitHub Actions 可能消耗 GitHub Actions 的账户额度。普通测试不需要配置 Qwen、OpenRouter 或 GitHub API 密钥；不要把它们添加为 CI secrets，除非未来某个经批准的测试确实需要真实外部服务。
 
-GitHub 官方文档：[Docker 镜像发布](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images)、[自托管 Runner 安全使用](https://docs.github.com/en/actions/reference/security/secure-use)。本机 Runner 只匹配受信任的版本发布工作流，不接 Pull Request；但它能访问本机 Docker daemon 和 Compose secret 文件，仓库管理员必须谨慎审查发布流程改动。
+GitHub 官方文档：[Docker 镜像发布](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images)、[Package Actions access 与可见性](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)、[自托管 Runner 安全使用](https://docs.github.com/en/actions/reference/security/secure-use)。本机 Runner 只匹配受信任的版本发布工作流，不接 Pull Request；但它能访问本机 Docker daemon 和 Compose secret 文件，仓库管理员必须谨慎审查发布流程改动。
