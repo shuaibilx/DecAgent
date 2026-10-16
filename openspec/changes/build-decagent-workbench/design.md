@@ -189,12 +189,21 @@ DecAgent 支持 Python >=3.11，发行 runner 默认 Python 3.11；CI 检查 3.1
 
 样本保存许可、来源、base SHA、问题、固定验收与人工标签；不使用被评测模型自动产生真值。对照保留错误和预算中断，报告误放行、误中断、候选写入/读取质量、完整修复成功率、P50/P95 延迟和调用成本。少量一次运行只支持初步观察，不声称统计显著改善。测试层级为离线单元、PostgreSQL/容器集成、显式 live 和完整交付验收；未运行的层级独立显示。
 
+### 12. GHCR release and Windows local deployment
+
+版本标签采用 `vMAJOR.MINOR.PATCH`。独立 release workflow 在 GitHub 托管 runner 上复用完整 CI；只有测试全通过且标签提交可从 `main` 到达时，才构建并发布 control、executor、runner 三个镜像。每个镜像发布版本标签和完整 commit SHA 标签，部署使用 registry 返回的 digest 而不是可变标签。GitHub token 按 job 最小授权：发布 job 仅有 `packages: write`，部署 job 仅有 `packages: read`。
+
+本机 Windows Docker Desktop 通过仓库级自托管 Runner 执行最后一步。Runner 只匹配 `v*` 发布 workflow，并置于限制为版本标签的 `local-deploy` environment；Pull Request 和普通 CI 永远使用 GitHub 托管 runner。Runner 以当前用户登录任务启动，等待 Docker Desktop Linux engine 可用，不注册 Windows 服务，因此用户登出或 Docker Desktop 未启动时部署会排队或失败。该 Runner 可访问本机 Docker daemon 和 Compose 配置；由于仓库公开，仍需把受信任发布 workflow 的修改视为高权限变更。
+
+部署脚本使用现有 `.env`、secret 文件、Compose project name 和 `compose.windows.yaml`，不改写凭据文件，不执行 `down` 或删除卷。运行迁移前从现有 PostgreSQL 容器导出本地备份；镜像更新后等待 Compose health 状态并探测本机 API。失败时 workflow 返回失败并保留备份；不会盲目自动恢复数据库，因为迁移可能不向后兼容。上线和恢复仍由备份与数据库兼容性策略控制。
+
 ## Risks / Trade-offs
 
 - [模型判断受到恶意输入影响] -> 输入最小化、来源标识、硬拒绝先行、人工保留集与错误追踪；Jev 不拥有执行权限。
 - [shell 命令语义无法被规则完整证明] -> 仅执行已认可代码、限制环境和凭据、语义风险审核；不宣称支持恶意代码安全运行。
 - [公网允许项目内容外发] -> 仅挂载任务必要数据、阻断控制网络和秘密；用户认可代码仍需承担其公网行为边界。
 - [普通 Docker 与 broker socket 的宿主权限] -> broker 独立且接口最小、无公网入口，不允许任务触及管理接口；边界自检失败则停止执行。
+- [公开仓库上的自托管 Runner 持久化风险] -> PR 与普通 CI 仅使用 GitHub 托管 runner；本机 runner 仅处理 `main` 可达的版本标签、最小包读取权限和本地部署步骤。Docker daemon 仍具有高权限，必须保护 release workflow 与本机账户。
 - [自动生成的验证可能误解业务] -> 保留相关基线、独立复现及测试变化记录；验收无法证明时请求用户确认。
 - [模型或策略升级导致旧阈值失效] -> 实际模型、问题和数据集版本绑定校准；升级先回到保守策略。
 - [外部请求已完成但本地未知] -> 执行凭据和 reconciliation；无法核实时人工处理，不承诺 exactly-once。

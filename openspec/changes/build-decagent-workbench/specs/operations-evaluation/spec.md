@@ -70,3 +70,18 @@
 #### Scenario: End-to-end release verification
 - **WHEN** 在授权 Python 仓库完成真实复现、修复、验证、草稿 PR 和一次中断恢复
 - **THEN** 发布报告关联真实任务与 PR 证据，未完成的检查仍明确列出
+
+### Requirement: Verified GHCR release and local deployment
+版本发布 MUST 在完整 CI 通过后，才将 control、executor 和 runner 镜像发布到 GHCR；镜像 MUST 同时具有语义版本标签和不可变 digest。发布标签 MUST 符合 `vMAJOR.MINOR.PATCH`，且对应提交必须是 `main` 的祖先。部署 MUST 通过专用 `local-deploy` environment 和本机 Windows Docker Desktop Runner 执行；Runner MUST 不接收 Pull Request 或其他不受信任的工作流任务。部署必须沿用当前 Compose 项目与 Windows override，迁移前创建数据库备份，启动后通过健康检查；不得删除或重建持久卷。
+
+#### Scenario: Pull Request cannot reach the local runner
+- **WHEN** 外部或内部 Pull Request 触发检查
+- **THEN** 所有检查仅使用 GitHub 托管 runner，本机 Runner 不会接收该工作流任务
+
+#### Scenario: Versioned release passes CI
+- **WHEN** `main` 可达的版本标签完成全部 CI 检查
+- **THEN** 发布工作流向 GHCR 推送三类镜像，并以对应 digest 更新本机服务
+
+#### Scenario: Local deployment fails health verification
+- **WHEN** 迁移或服务更新未通过本机健康检查
+- **THEN** 发布任务失败且部署前数据库备份保留，现有数据卷不被删除

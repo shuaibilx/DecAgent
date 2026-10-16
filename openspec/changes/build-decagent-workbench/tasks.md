@@ -116,9 +116,14 @@
 - [x] 12.4 演练备份到新实例、graph/schema 不兼容升级阻止及镜像回滚；验证不清空原 Waku、故障卷或现有用户数据。
 - [x] 12.5 实现 release gate 汇总静态检查、离线、数据库/容器、live 和真实仓库闭环；验证缺凭据或 skipped 检查不会显示成完整通过。
 - [x] 12.6 汇总发布说明、已验证模型/平台、限制和规格来源，并导出 release report；核查所有任务的测试/文档证据及真实服务结果，缺少任一首发必需能力不宣称产品完成。
+- [ ] 12.7 增加版本标签 release workflow，复用完整 CI，通过后发布 control/executor/runner 三个 GHCR 镜像及不可变 digest；验证非 semver 标签或非 main 祖先提交不能发布。
+- [ ] 12.8 配置 Windows Docker Desktop 的仓库级自托管 Runner，只允许本地受信任 release 部署工作流使用；验证 PR 与普通 CI 永不匹配该 Runner，登录后自动启动并等待 Docker engine。
+- [ ] 12.9 编写本机 Compose 部署脚本：保留现有配置、Compose project 与数据卷，升级前备份 PostgreSQL，按 digest 拉取镜像，完成迁移并验证 API 健康；在当前服务上执行一次版本发布闭环并保留备份证据。
+- [ ] 12.10 更新 CI/CD、部署、索引和 README 指南，说明 GHCR 包权限、Runner 安全边界、启动条件、失败排查、备份位置及 Linux 待办；检查所有文档链接和命令。
 
 ## Workflow follow-up
 
-- 规划审阅后，由新的明确实施请求启动 `openspec-apply-change`，按目标目录和依赖顺序实施。
-- DecAgent 已推送到公开仓库 `https://github.com/shuaibilx/DecAgent`，当前 `main` 为 `21b7570`；GitHub Actions 运行 `38904507234` 全部通过。没有推送 Waku 源码。CD 自动镜像发布/服务器部署尚未配置；此前范围决定先完成 CI 和手动 Compose 指南，待确定部署主机后再实施自动部署。
+- 用户已授权继续实施 `build-decagent-workbench`，并选择将版本化镜像发布到 GHCR、由本机 Windows Docker Desktop 自动部署。发布只接受经过完整 CI 且指向 `main` 祖先的版本标签；PR 与普通 CI 不使用本机 Runner。
+- DecAgent 已推送到公开仓库 `https://github.com/shuaibilx/DecAgent`；最近一次完整通过运行 `38904507234` 对应 `21b7570`。后续文档 commit `89588a6` 的运行 `38915020277` 在集成测试 30 分钟作业上限被取消；本次将提高检查作业上限并以新的完整绿灯作为首次发布前置条件。没有推送 Waku 源码。
+- Linux 主机新实例安装及部署验收仍是未完成任务；本机 Windows 现有服务健康和一次 GHCR 更新不能代替新实例网页闭环或 Linux 验收。
 - 功能、真实接入与发布验收完成后，再执行 OpenSpec 归档并检查主规格同步结果；归档不属于本实施清单的完成标记。

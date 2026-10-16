@@ -14,7 +14,7 @@ sources:
 ---
 # DecAgent Docker Compose 部署与环境说明
 
-CI 负责检查和构建；部署负责在某台机器上配置密钥、启动服务并验证健康状态。当前没有独立 Linux 主机，因此本文把现有运行方式和部署前提讲清楚，Linux 操作仍需在真实主机上验收。
+CI 负责检查和构建；CD 在版本标签通过检查后，把镜像发布到 GHCR 并更新已配置的本机 Windows Docker Desktop。当前没有独立 Linux 主机，因此本文也把 Linux 部署前提单独保留，不能用本机部署替代 Linux 验收。
 
 ## 先区分两种运行环境
 
@@ -93,10 +93,35 @@ docker compose -f compose.yaml ps
 
 停止容器可使用 `docker compose -f compose.yaml down`，它会保留命名数据卷。不要使用 `down -v`，除非你明确要删除数据库及其他持久化数据并已有可验证备份。
 
+## GHCR 发布与本机自动部署
+
+`.github/workflows/release.yml` 只响应 `v*` 标签。它先在 GitHub 托管 Runner 上复用完整 CI，再检查标签格式为 `vMAJOR.MINOR.PATCH`、提交位于 `main` 历史中；随后发布 control、executor 和 runner 镜像到 GHCR，使用 Registry 返回的 digest 部署。普通 push 和 Pull Request 不会使用本机 Runner。
+
+首次安装本机 Runner 前，确认 GitHub CLI 已以仓库管理员账号登录，当前用户已经配置 `.env` 与 `.decagent/secrets/`，Docker Desktop Linux engine 正在运行。然后在 DecAgent 根目录的 PowerShell 执行：
+
+```powershell
+.\ops\deploy\install-local-runner.ps1
+```
+
+脚本会下载官方 Windows x64 Actions Runner、注册仓库级 `decagent-local-deploy` Runner，并创建当前用户登录时启动的计划任务。此终端没有管理员权限，所以 Runner 不注册为 Windows 服务。任务启动后会等待 Docker Desktop Linux engine 就绪；用户登出、Docker Desktop 未启动或电脑休眠期间，本机 Runner 不在线，发布部署会等待或失败。若希望开机后自动部署，请在 Docker Desktop 设置中启用登录时启动，并保持当前 Windows 用户处于登录状态。
+
+仓库环境 `local-deploy` 限制为 `v*` 标签。GHCR package 默认私有，发布工作流只使用短期 `GITHUB_TOKEN`：发布 job 仅有 `packages: write`，本机部署 job 仅有 `packages: read`。没有把 Qwen、Jev 或 GitHub 业务凭据上传到 Actions secrets；部署时仍从本机项目目录读取 `.env` 和 `.decagent/secrets/`。
+
+通过 CI 后，首次发布可从 DecAgent 根目录推送 `v0.1.0` 标签：
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+部署脚本 `ops/deploy/deploy-local.ps1` 会先检查当前 API、PostgreSQL、Compose 项目名、密钥文件和配置，再将数据库备份写入 `.decagent/backups/predeploy-<版本>-<UTC时间>.dump`；然后按 digest 拉取三类镜像、执行 Compose 迁移与更新，并等待 `/health` 返回 `ok`。脚本使用 `compose.yaml` 和 `compose.windows.yaml`，不运行 owner 初始化，不重写 `.env`，也不删除 Compose 卷。备份文件在 `.decagent/` 下，已被 Git 忽略。
+
+若更新或健康检查失败，GitHub Actions 会标记失败并保留更新前备份；脚本不会自动恢复数据库，因为迁移不一定能由旧版程序读取。先查看 Actions 的错误步骤与本机容器状态，再根据迁移兼容性选择恢复方案；不要使用 `docker compose down -v` 排障。Runner 具有本机 Docker daemon 权限，因此即使仓库公开，仍应把 `.github/workflows/release.yml` 和 `ops/deploy/` 的变更按高权限代码审查。
+
 ## Windows 本机说明
 
 当前 Windows 模拟环境使用 `compose.windows.yaml`，将 PostgreSQL 暴露到本机 `127.0.0.1:55432`，broker 暴露到本机 `127.0.0.1:8002`；MCP、业务 API 和 Worker 由 `python -m ops.local.start` 在宿主机运行。2026-10-16 验证时，Docker Compose 服务处于运行状态，API `/health` 返回 `ok`。隔离离线 smoke 通过；它使用临时项目，不重置当前用户数据。历史[本机使用指南](../../261014/1646_MCP业务Agent使用指南.md)按 schema 11 编写，而当前源码 README 是 schema 17，使用前需先按当前迁移与数据状态核对；不要对已有业务数据库盲目重建或重置。
 
 ## 部署状态
 
-本轮没有创建服务器、向镜像 Registry 上传镜像或配置自动部署。GitHub Actions 的容器镜像只在 Runner 上构建并用于临时 smoke，没有作为长期交付物发布。Windows Docker Desktop 本机服务已通过健康检查，隔离离线 smoke 也通过；尚未完成新实例完整 UI 验收。Linux 主机验收仍是后续工作。当前只交付 CI 和手动 Compose 指南，CD 自动发布/部署等待目标服务器与发布策略确定后再做。
+本机 Windows Docker Desktop 现有 Compose 服务已通过 `/health` 检查，隔离离线 smoke 通过。GHCR 自动发布与本机 Runner 工作流已加入项目；首次版本发布、本机 Runner 注册和带备份的真实更新必须在本轮完成后，才能把 CD 标记为已验证。新实例完整网页闭环与独立 Linux 主机验收仍未完成。
