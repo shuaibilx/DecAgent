@@ -50,9 +50,9 @@ GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用�
 .\.venv\Scripts\python.exe -m pytest evals/deterministic -q
 ```
 
-本机已经运行以上检查：Ruff 通过；确定性测试为 **1388 passed, 3 skipped**。本机尚未针对一次性 PostgreSQL 实例运行整个 `evals/integration`；CI 会在它自己的干净 PostgreSQL 服务上执行，避免碰到本机业务数据库。
+本机运行了 Ruff、Compose 安全配置回归和离线 Docker smoke，均通过。完整数据库集成套件由 GitHub Actions 的一次性 PostgreSQL 服务运行并通过；本机没有对当前业务数据库运行整套集成测试。
 
-本机还成功构建了 `decagent-0.1.0` 的 sdist 和 wheel，将 wheel 安装到源码目录外的临时目录，验证导入路径确实来自该 wheel，并通过 `python -m decagent --help`。Compose 静态配置检查通过；本机 Docker daemon 在等待后仍无响应，因此没有启动容器，也没有运行需要 PostgreSQL 的 MCP wheel 烟测。GitHub Actions 上的真实结果要等首次推送后查看。
+CI 运行 38904507234 已在 GitHub 仓库 `shuaibilx/DecAgent` 的 commit `21b7570` 上通过。工作流成功构建 sdist/wheel 和容器镜像，并完成源码目录外的 wheel 导入、MCP 调用及隔离离线 Compose smoke。GitHub Runner 的容器通过不替代目标 Linux 主机验收。
 
 安装 wheel 时，本机 pip 仍提示配置的 `pypi.ngc.nvidia.com` 索引发生 SSL EOF；命令跳过该索引并成功完成安装。这个警告来自当前本机 pip 索引配置，工作流没有设置该索引，不能据此预判 GitHub Runner 的网络结果。
 
@@ -60,9 +60,9 @@ GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用�
 
 ## 如何查看 GitHub 结果
 
-先按照[代码仓库教程](../代码仓库/1938_代码仓库与首次推送教程.md)将项目推送到 GitHub。打开仓库的 **Actions** 页面，选择 `CI`，再点开对应的 commit 或 Pull Request。绿色勾表示该次工作流全部成功；红色叉表示某个 job 或步骤失败。点开失败步骤，查看首个异常并回到本地复现。
+打开 [DecAgent Actions](https://github.com/shuaibilx/DecAgent/actions)，选择 `CI` 并查看对应 commit 或 Pull Request。绿色勾表示该次工作流全部成功；红色叉表示某个 job 或步骤失败。点开失败步骤，查看首个异常并回到本地复现。
 
-工作流受限于当前状态：DecAgent 目录没有 Git 仓库或 remote，因此 GitHub 上目前没有运行记录。配置文件存在不等于 CI 已在线通过。
+当前公开仓库已存在，commit `21b7570` 的 Actions 运行 [38904507234](https://github.com/shuaibilx/DecAgent/actions/runs/38904507234) 全绿。配置文件本身不代表后续每次提交都通过；每次变更仍需查看对应运行记录。
 
 ## 产物与边界
 

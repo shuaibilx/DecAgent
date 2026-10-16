@@ -112,7 +112,7 @@
 
 - [x] 12.1 完成 API/worker/数据库/broker/代理的完整 Compose 启动与恢复编排；验证健康诊断、启动迁移顺序及没有对公网暴露数据库和 broker。
 - [x] 12.2 演练同一真实任务在命令执行、审批和发布响应未知阶段的重启；核查动作凭据、PR 去重、审批绑定和审计链一致。
-- [ ] 12.3 在 Linux 和 Windows Docker Desktop/WSL2 各进行新实例安装、网络隔离、资源限制及网页闭环验收；未验证环境明确保留未完成状态。
+- [ ] 12.3 在 Linux 和 Windows Docker Desktop/WSL2 各进行新实例安装、网络隔离、资源限制及网页闭环验收；未验证环境明确保留未完成状态。进度：Windows Docker Desktop 现有服务健康，隔离离线 Compose smoke 通过；新实例完整网页闭环与 Linux 主机验收仍未完成。
 - [x] 12.4 演练备份到新实例、graph/schema 不兼容升级阻止及镜像回滚；验证不清空原 Waku、故障卷或现有用户数据。
 - [x] 12.5 实现 release gate 汇总静态检查、离线、数据库/容器、live 和真实仓库闭环；验证缺凭据或 skipped 检查不会显示成完整通过。
 - [x] 12.6 汇总发布说明、已验证模型/平台、限制和规格来源，并导出 release report；核查所有任务的测试/文档证据及真实服务结果，缺少任一首发必需能力不宣称产品完成。
@@ -120,5 +120,5 @@
 ## Workflow follow-up
 
 - 规划审阅后，由新的明确实施请求启动 `openspec-apply-change`，按目标目录和依赖顺序实施。
-- 当前目录没有 Git 仓库；DecAgent 的提交和远程发布仅面向用户自己的已配置仓库，不向原项目上游推送。
+- DecAgent 已推送到公开仓库 `https://github.com/shuaibilx/DecAgent`，当前 `main` 为 `21b7570`；GitHub Actions 运行 `38904507234` 全部通过。没有推送 Waku 源码。CD 自动镜像发布/服务器部署尚未配置；此前范围决定先完成 CI 和手动 Compose 指南，待确定部署主机后再实施自动部署。
 - 功能、真实接入与发布验收完成后，再执行 OpenSpec 归档并检查主规格同步结果；归档不属于本实施清单的完成标记。

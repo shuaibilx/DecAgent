@@ -56,7 +56,7 @@ flowchart TD
 
 未来部署需要一台独立 Linux 主机、Docker Engine 与 Compose 插件、DecAgent 代码、可持久化备份的数据库卷、模型/API 凭据、安全的 HTTPS 入口，以及和当前源码版本一致的迁移计划。部署负责人还要确认 runner 镜像、宿主机 Docker socket 与执行隔离策略。
 
-当前没有 Linux 主机；本机 Docker Desktop 状态也未用于本轮部署验收。因此不要将下面的准备步骤视为已经执行的生产部署记录。
+当前没有独立 Linux 主机。Windows Docker Desktop 已用于恢复并检查本机现有服务，也运行了隔离离线 Compose smoke；这些检查不等同于新机器安装、完整网页闭环或生产部署。
 
 ## 未来 Linux Compose 部署准备
 
@@ -95,8 +95,8 @@ docker compose -f compose.yaml ps
 
 ## Windows 本机说明
 
-当前 Windows 模拟环境使用 `compose.windows.yaml`，将 PostgreSQL 暴露到本机 `127.0.0.1:55432`，broker 暴露到 `127.0.0.1:8002`；MCP、业务 API 和 Worker 由 `python -m ops.local.start` 在宿主机运行。历史[本机使用指南](../../261014/1646_MCP业务Agent使用指南.md)按 schema 11 编写，而当前源码 README 是 schema 17，使用前需先按当前迁移与数据状态核对；不要对已有业务数据库盲目重建或重置。
+当前 Windows 模拟环境使用 `compose.windows.yaml`，将 PostgreSQL 暴露到本机 `127.0.0.1:55432`，broker 暴露到本机 `127.0.0.1:8002`；MCP、业务 API 和 Worker 由 `python -m ops.local.start` 在宿主机运行。2026-10-16 验证时，Docker Compose 服务处于运行状态，API `/health` 返回 `ok`。隔离离线 smoke 通过；它使用临时项目，不重置当前用户数据。历史[本机使用指南](../../261014/1646_MCP业务Agent使用指南.md)按 schema 11 编写，而当前源码 README 是 schema 17，使用前需先按当前迁移与数据状态核对；不要对已有业务数据库盲目重建或重置。
 
 ## 部署状态
 
-本轮没有创建服务器、上传镜像、运行迁移或配置自动部署。Linux 主机验收仍是后续工作；当前 CI 与部署保持分离。
+本轮没有创建服务器、向镜像 Registry 上传镜像或配置自动部署。GitHub Actions 的容器镜像只在 Runner 上构建并用于临时 smoke，没有作为长期交付物发布。Windows Docker Desktop 本机服务已通过健康检查，隔离离线 smoke 也通过；尚未完成新实例完整 UI 验收。Linux 主机验收仍是后续工作。当前只交付 CI 和手动 Compose 指南，CD 自动发布/部署等待目标服务器与发布策略确定后再做。
