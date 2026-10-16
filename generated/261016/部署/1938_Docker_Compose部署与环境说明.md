@@ -105,6 +105,8 @@ docker compose -f compose.yaml ps
 
 脚本会下载官方 Windows x64 Actions Runner、注册仓库级 `decagent-local-deploy` Runner，并创建当前用户登录时启动的计划任务。此终端没有管理员权限，所以 Runner 不注册为 Windows 服务。任务启动后会等待 Docker Desktop Linux engine 就绪；用户登出、Docker Desktop 未启动或电脑休眠期间，本机 Runner 不在线，发布部署会等待或失败。若希望开机后自动部署，请在 Docker Desktop 设置中启用登录时启动，并保持当前 Windows 用户处于登录状态。
 
+Runner 默认安装在 `%USERPROFILE%\DecAgentRunner\actions-runner`，由当前用户的计划任务写入和更新；启动诊断记录位于该目录的 `_diag\local-bootstrap.log`。如果曾经按旧版本安装在 `%LOCALAPPDATA%\DecAgent\actions-runner`，安装脚本会把现有 Runner 配置迁移到用户目录。
+
 仓库环境 `local-deploy` 限制为 `v*` 标签。GHCR package 默认私有，发布工作流只使用短期 `GITHUB_TOKEN`：发布 job 仅有 `packages: write`，本机部署 job 仅有 `packages: read`。没有把 Qwen、Jev 或 GitHub 业务凭据上传到 Actions secrets；部署时仍从本机项目目录读取 `.env` 和 `.decagent/secrets/`。
 
 通过 CI 后，首次发布可从 DecAgent 根目录推送 `v0.1.0` 标签：

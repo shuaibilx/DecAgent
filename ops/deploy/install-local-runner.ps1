@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Repository = 'shuaibilx/DecAgent',
-    [string]$RunnerDirectory = (Join-Path $env:LOCALAPPDATA 'DecAgent\actions-runner')
+    [string]$RunnerDirectory = (Join-Path $env:USERPROFILE 'DecAgentRunner\actions-runner')
 )
 
 Set-StrictMode -Version Latest
@@ -33,6 +33,12 @@ if ($LASTEXITCODE -ne 0) {
 $runnerRoot = [System.IO.Path]::GetFullPath($RunnerDirectory)
 New-Item -ItemType Directory -Path $runnerRoot -Force | Out-Null
 $runnerMarker = Join-Path $runnerRoot '.runner'
+if (-not (Test-Path -LiteralPath $runnerMarker -PathType Leaf)) {
+    $legacyRunnerRoot = Join-Path $env:LOCALAPPDATA 'DecAgent\actions-runner'
+    if (Test-Path -LiteralPath (Join-Path $legacyRunnerRoot '.runner') -PathType Leaf) {
+        Get-ChildItem -LiteralPath $legacyRunnerRoot -Force | Copy-Item -Destination $runnerRoot -Recurse -Force
+    }
+}
 if (-not (Test-Path -LiteralPath $runnerMarker -PathType Leaf)) {
     $releaseJson = & gh api repos/actions/runner/releases/latest
     if ($LASTEXITCODE -ne 0) {
@@ -95,11 +101,24 @@ if (-not (Test-Path -LiteralPath $runnerMarker -PathType Leaf)) {
 }
 
 $runnerStartScript = Join-Path $runnerRoot 'start-runner.ps1'
+$projectDirectoryFile = Join-Path $runnerRoot 'project-directory.txt'
+$existingTask = Get-ScheduledTask -TaskName 'DecAgentLocalDeployRunner' -ErrorAction SilentlyContinue
+if ($null -ne $existingTask) {
+    Stop-ScheduledTask -TaskName 'DecAgentLocalDeployRunner' -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+}
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'start-runner.ps1') -Destination $runnerStartScript -Force
+Set-Content -LiteralPath $projectDirectoryFile -Value $projectDirectory -Encoding UTF8
 $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-$actionArguments = '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -RunnerDirectory "{1}" -ProjectDirectory "{2}"' -f $runnerStartScript, $runnerRoot, $projectDirectory
-$taskAction = New-ScheduledTaskAction -Execute $windowsPowerShell -Argument $actionArguments
+$scriptLiteral = "'" + $runnerStartScript.Replace("'", "''") + "'"
+$runnerRootLiteral = "'" + $runnerRoot.Replace("'", "''") + "'"
+$taskLogLiteral = "'" + (Join-Path $runnerRoot '_diag\local-task-launch.log').Replace("'", "''") + "'"
+$taskStartupCommand = "Add-Content -LiteralPath $taskLogLiteral -Value 'Task PowerShell bootstrap started.' -Encoding UTF8; try { & $scriptLiteral -RunnerDirectory $runnerRootLiteral } catch { Add-Content -LiteralPath $taskLogLiteral -Value ('Task bootstrap failed with ' + `$_.Exception.GetType().Name) -Encoding UTF8; exit 1 }"
+$encodedRunnerCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($taskStartupCommand))
+$actionArguments = '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand {0}' -f $encodedRunnerCommand
+$taskWorkingDirectory = Join-Path $env:SystemRoot 'System32'
+$taskAction = New-ScheduledTaskAction -Execute $windowsPowerShell -Argument $actionArguments -WorkingDirectory $taskWorkingDirectory
 $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $identity
 $taskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName 'DecAgentLocalDeployRunner' -Action $taskAction -Trigger $taskTrigger -Settings $taskSettings -User $identity -RunLevel Limited -Description 'Runs the repository-scoped DecAgent release deployment Runner after this user signs in.' -Force | Out-Null
