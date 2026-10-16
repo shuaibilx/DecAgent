@@ -1,0 +1,302 @@
+{
+  "format_version": "1",
+  "source": "synthetic_fixture",
+  "samples": [
+    {
+      "id": "repeated_failure",
+      "source": "synthetic_fixture",
+      "state": {
+        "steps": [
+          {
+            "id": "1",
+            "number": 1,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "e8bfd0f979a42dc01ca8a27da33813767cd0656b301947098f00cf5813481711",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"fixed failure\",\"status\":\"failed\"}"
+          },
+          {
+            "id": "2",
+            "number": 2,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "e8bfd0f979a42dc01ca8a27da33813767cd0656b301947098f00cf5813481711",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"fixed failure\",\"status\":\"failed\"}"
+          }
+        ],
+        "total": 2,
+        "replans": 0,
+        "episode_start": 0,
+        "checked_total": 0
+      },
+      "expected_route": "replan",
+      "actual_route": "replan",
+      "behavior_conforms": true,
+      "human_label": null,
+      "labeler": null
+    },
+    {
+      "id": "distinct_failures",
+      "source": "synthetic_fixture",
+      "state": {
+        "steps": [
+          {
+            "id": "1",
+            "number": 1,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "015081a2c14ebd2a6afbcfef770e2137c2b3d1bf1bcc135fc883d6a517532fa0",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"missing import\",\"status\":\"failed\"}"
+          },
+          {
+            "id": "2",
+            "number": 2,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "15e0357217ff554076cf39826eafc7948a272f89c56419151c1353b7fa3c1bfc",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"new boundary evidence\",\"status\":\"failed\"}"
+          }
+        ],
+        "total": 2,
+        "replans": 0,
+        "episode_start": 0,
+        "checked_total": 0
+      },
+      "expected_route": "continue",
+      "actual_route": "continue",
+      "behavior_conforms": true,
+      "human_label": null,
+      "labeler": null
+    },
+    {
+      "id": "repeat_safe_read",
+      "source": "synthetic_fixture",
+      "state": {
+        "steps": [
+          {
+            "id": "1",
+            "number": 1,
+            "tool": "read_file",
+            "action_hash": "b089e26373090f2e2d92d1a15e8b0cb48f5c2f2c4bdce7b347efd16dd12d833d",
+            "result_hash": "3f3c62e8d362aec3bd86f5e550efd023bfd1e7b38813c5df8de7d762713993dc",
+            "outcome": "succeeded",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"content\":\"same\",\"status\":\"succeeded\"}"
+          },
+          {
+            "id": "2",
+            "number": 2,
+            "tool": "read_file",
+            "action_hash": "b089e26373090f2e2d92d1a15e8b0cb48f5c2f2c4bdce7b347efd16dd12d833d",
+            "result_hash": "3f3c62e8d362aec3bd86f5e550efd023bfd1e7b38813c5df8de7d762713993dc",
+            "outcome": "succeeded",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"content\":\"same\",\"status\":\"succeeded\"}"
+          }
+        ],
+        "total": 2,
+        "replans": 0,
+        "episode_start": 0,
+        "checked_total": 0
+      },
+      "expected_route": "replan",
+      "actual_route": "replan",
+      "behavior_conforms": true,
+      "human_label": null,
+      "labeler": null
+    },
+    {
+      "id": "new_source_observation",
+      "source": "synthetic_fixture",
+      "state": {
+        "steps": [
+          {
+            "id": "1",
+            "number": 1,
+            "tool": "read_file",
+            "action_hash": "b089e26373090f2e2d92d1a15e8b0cb48f5c2f2c4bdce7b347efd16dd12d833d",
+            "result_hash": "d4b89b212131163e7abff6c2967167d30e9ad0793fe4b6969270c5dfd6d9150d",
+            "outcome": "succeeded",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"content\":\"old\",\"status\":\"succeeded\"}"
+          },
+          {
+            "id": "2",
+            "number": 2,
+            "tool": "read_file",
+            "action_hash": "b089e26373090f2e2d92d1a15e8b0cb48f5c2f2c4bdce7b347efd16dd12d833d",
+            "result_hash": "1fea3acbb5fb56e5b7fc2208351c97697a5f9a4564b682016e380e5d00dae6cf",
+            "outcome": "succeeded",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"content\":\"new\",\"status\":\"succeeded\"}"
+          }
+        ],
+        "total": 2,
+        "replans": 0,
+        "episode_start": 0,
+        "checked_total": 0
+      },
+      "expected_route": "continue",
+      "actual_route": "continue",
+      "behavior_conforms": true,
+      "human_label": null,
+      "labeler": null
+    },
+    {
+      "id": "unknown_receipt",
+      "source": "synthetic_fixture",
+      "state": {
+        "steps": [
+          {
+            "id": "1",
+            "number": 1,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "a8e0ba654ce651dc312b81ee49fe54ecc3d8f326dcb8086581341823c2ed4139",
+            "outcome": "unknown",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"status\":\"unknown\"}"
+          }
+        ],
+        "total": 1,
+        "replans": 0,
+        "episode_start": 0,
+        "checked_total": 0
+      },
+      "expected_route": "reconcile",
+      "actual_route": "reconcile",
+      "behavior_conforms": true,
+      "human_label": null,
+      "labeler": null
+    },
+    {
+      "id": "adjustment_limit",
+      "source": "synthetic_fixture",
+      "state": {
+        "steps": [
+          {
+            "id": "1",
+            "number": 1,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "e8bfd0f979a42dc01ca8a27da33813767cd0656b301947098f00cf5813481711",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"fixed failure\",\"status\":\"failed\"}"
+          },
+          {
+            "id": "2",
+            "number": 2,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "e8bfd0f979a42dc01ca8a27da33813767cd0656b301947098f00cf5813481711",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"fixed failure\",\"status\":\"failed\"}"
+          }
+        ],
+        "total": 2,
+        "replans": 2,
+        "episode_start": 0,
+        "checked_total": 0
+      },
+      "expected_route": "escalate",
+      "actual_route": "escalate",
+      "behavior_conforms": true,
+      "human_label": null,
+      "labeler": null
+    },
+    {
+      "id": "feedback_cycle",
+      "source": "synthetic_fixture",
+      "state": {
+        "steps": [
+          {
+            "id": "1",
+            "number": 1,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "e8bfd0f979a42dc01ca8a27da33813767cd0656b301947098f00cf5813481711",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"fixed failure\",\"status\":\"failed\"}"
+          },
+          {
+            "id": "2",
+            "number": 2,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "e8bfd0f979a42dc01ca8a27da33813767cd0656b301947098f00cf5813481711",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"fixed failure\",\"status\":\"failed\"}"
+          }
+        ],
+        "total": 2,
+        "replans": 0,
+        "episode_start": 2,
+        "checked_total": 2,
+        "feedback_id": "synthetic-feedback"
+      },
+      "expected_route": "continue",
+      "actual_route": "continue",
+      "behavior_conforms": true,
+      "human_label": null,
+      "labeler": null
+    },
+    {
+      "id": "adjustment_observation_window",
+      "source": "synthetic_fixture",
+      "state": {
+        "steps": [
+          {
+            "id": "1",
+            "number": 1,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "e8bfd0f979a42dc01ca8a27da33813767cd0656b301947098f00cf5813481711",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"fixed failure\",\"status\":\"failed\"}"
+          },
+          {
+            "id": "2",
+            "number": 2,
+            "tool": "run_command",
+            "action_hash": "4ee6b57f6e6a4945c4dad526f1d3c5dcc4f33aa52ed26295c1705f024fe04966",
+            "result_hash": "e8bfd0f979a42dc01ca8a27da33813767cd0656b301947098f00cf5813481711",
+            "outcome": "failed",
+            "target": "{\"path\":\"bug.py\"}",
+            "excerpt": "{\"reason\":\"fixed failure\",\"status\":\"failed\"}"
+          }
+        ],
+        "total": 2,
+        "replans": 1,
+        "episode_start": 0,
+        "checked_total": 2
+      },
+      "expected_route": "continue",
+      "actual_route": "continue",
+      "behavior_conforms": true,
+      "human_label": null,
+      "labeler": null
+    }
+  ],
+  "behavior_conformance": {
+    "planned": 8,
+    "passed": 8,
+    "failed": 0
+  },
+  "human_labeled_samples": 0,
+  "decision_accuracy": null,
+  "task_benefit": null,
+  "limitations": "Synthetic behavior constraints; no model quality comparison or independent human labels. Replay does not establish task benefit."
+}

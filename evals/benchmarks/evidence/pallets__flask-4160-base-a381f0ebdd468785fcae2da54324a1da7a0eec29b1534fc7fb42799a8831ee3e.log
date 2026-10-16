@@ -1,0 +1,58 @@
+SOURCE_MODULE /repo/src/flask/__init__.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________________ test_bug ___________________________________
+
+    def test_bug():
+>       assert json.dumps(Decimal("0.003")) == '"0.003"'
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/acceptance/test_bug.py:5: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/repo/src/flask/json/__init__.py:129: in dumps
+    rv = _json.dumps(obj, **kwargs)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:238: in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+/usr/local/lib/python3.11/json/encoder.py:200: in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/encoder.py:258: in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+/repo/src/flask/json/__init__.py:56: in default
+    return super().default(o)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <flask.json.JSONEncoder object at 0x7f7e900f54d0>, o = Decimal('0.003')
+
+    def default(self, o):
+        """Implement this method in a subclass such that it returns
+        a serializable object for ``o``, or calls the base implementation
+        (to raise a ``TypeError``).
+    
+        For example, to support arbitrary iterators, you could
+        implement default like this::
+    
+            def default(self, o):
+                try:
+                    iterable = iter(o)
+                except TypeError:
+                    pass
+                else:
+                    return list(iterable)
+                # Let the base class default method raise the TypeError
+                return super().default(o)
+    
+        """
+>       raise TypeError(f'Object of type {o.__class__.__name__} '
+                        f'is not JSON serializable')
+E       TypeError: Object of type Decimal is not JSON serializable
+
+/usr/local/lib/python3.11/json/encoder.py:180: TypeError
+=========================== short test summary info ============================
+FAILED ../acceptance/test_bug.py::test_bug - TypeError: Object of type Decima...
+1 failed in 0.12s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcyBuYW1lPSJweXRlc3QgdGVzdHMiPjx0ZXN0c3VpdGUgbmFtZT0icHl0ZXN0IiBlcnJvcnM9IjAiIGZhaWx1cmVzPSIxIiBza2lwcGVkPSIwIiB0ZXN0cz0iMSIgdGltZT0iMC4xMjQiIHRpbWVzdGFtcD0iMjAyNi0xMC0xMFQxNzowNzoyOS45NDk5ODIrMDA6MDAiIGhvc3RuYW1lPSI4NGFmZjIzMDUwM2MiPjx0ZXN0Y2FzZSBjbGFzc25hbWU9InRlc3RfYnVnIiBuYW1lPSJ0ZXN0X2J1ZyIgdGltZT0iMC4wMDAiPjxmYWlsdXJlIG1lc3NhZ2U9IlR5cGVFcnJvcjogT2JqZWN0IG9mIHR5cGUgRGVjaW1hbCBpcyBub3QgSlNPTiBzZXJpYWxpemFibGUiPmRlZiB0ZXN0X2J1ZygpOgomZ3Q7ICAgICAgIGFzc2VydCBqc29uLmR1bXBzKERlY2ltYWwoIjAuMDAzIikpID09ICciMC4wMDMiJwogICAgICAgICAgICAgICBeXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eCgovYWNjZXB0YW5jZS90ZXN0X2J1Zy5weTo1OiAKXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyAKL3JlcG8vc3JjL2ZsYXNrL2pzb24vX19pbml0X18ucHk6MTI5OiBpbiBkdW1wcwogICAgcnYgPSBfanNvbi5kdW1wcyhvYmosICoqa3dhcmdzKQogICAgICAgICBeXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXgovdXNyL2xvY2FsL2xpYi9weXRob24zLjExL2pzb24vX19pbml0X18ucHk6MjM4OiBpbiBkdW1wcwogICAgKiprdykuZW5jb2RlKG9iaikKICAgICAgICAgIF5eXl5eXl5eXl5eCi91c3IvbG9jYWwvbGliL3B5dGhvbjMuMTEvanNvbi9lbmNvZGVyLnB5OjIwMDogaW4gZW5jb2RlCiAgICBjaHVua3MgPSBzZWxmLml0ZXJlbmNvZGUobywgX29uZV9zaG90PVRydWUpCiAgICAgICAgICAgICBeXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eCi91c3IvbG9jYWwvbGliL3B5dGhvbjMuMTEvanNvbi9lbmNvZGVyLnB5OjI1ODogaW4gaXRlcmVuY29kZQogICAgcmV0dXJuIF9pdGVyZW5jb2RlKG8sIDApCiAgICAgICAgICAgXl5eXl5eXl5eXl5eXl5eXl4KL3JlcG8vc3JjL2ZsYXNrL2pzb24vX19pbml0X18ucHk6NTY6IGluIGRlZmF1bHQKICAgIHJldHVybiBzdXBlcigpLmRlZmF1bHQobykKICAgICAgICAgICBeXl5eXl5eXl5eXl5eXl5eXl4KXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyAKCnNlbGYgPSAmbHQ7Zmxhc2suanNvbi5KU09ORW5jb2RlciBvYmplY3QgYXQgMHg3ZjdlOTAwZjU0ZDAmZ3Q7LCBvID0gRGVjaW1hbCgnMC4wMDMnKQoKICAgIGRlZiBkZWZhdWx0KHNlbGYsIG8pOgogICAgICAgICIiIkltcGxlbWVudCB0aGlzIG1ldGhvZCBpbiBhIHN1YmNsYXNzIHN1Y2ggdGhhdCBpdCByZXR1cm5zCiAgICAgICAgYSBzZXJpYWxpemFibGUgb2JqZWN0IGZvciBgYG9gYCwgb3IgY2FsbHMgdGhlIGJhc2UgaW1wbGVtZW50YXRpb24KICAgICAgICAodG8gcmFpc2UgYSBgYFR5cGVFcnJvcmBgKS4KICAgIAogICAgICAgIEZvciBleGFtcGxlLCB0byBzdXBwb3J0IGFyYml0cmFyeSBpdGVyYXRvcnMsIHlvdSBjb3VsZAogICAgICAgIGltcGxlbWVudCBkZWZhdWx0IGxpa2UgdGhpczo6CiAgICAKICAgICAgICAgICAgZGVmIGRlZmF1bHQoc2VsZiwgbyk6CiAgICAgICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICAgICAgaXRlcmFibGUgPSBpdGVyKG8pCiAgICAgICAgICAgICAgICBleGNlcHQgVHlwZUVycm9yOgogICAgICAgICAgICAgICAgICAgIHBhc3MKICAgICAgICAgICAgICAgIGVsc2U6CiAgICAgICAgICAgICAgICAgICAgcmV0dXJuIGxpc3QoaXRlcmFibGUpCiAgICAgICAgICAgICAgICAjIExldCB0aGUgYmFzZSBjbGFzcyBkZWZhdWx0IG1ldGhvZCByYWlzZSB0aGUgVHlwZUVycm9yCiAgICAgICAgICAgICAgICByZXR1cm4gc3VwZXIoKS5kZWZhdWx0KG8pCiAgICAKICAgICAgICAiIiIKJmd0OyAgICAgICByYWlzZSBUeXBlRXJyb3IoZidPYmplY3Qgb2YgdHlwZSB7by5fX2NsYXNzX18uX19uYW1lX199ICcKICAgICAgICAgICAgICAgICAgICAgICAgZidpcyBub3QgSlNPTiBzZXJpYWxpemFibGUnKQpFICAgICAgIFR5cGVFcnJvcjogT2JqZWN0IG9mIHR5cGUgRGVjaW1hbCBpcyBub3QgSlNPTiBzZXJpYWxpemFibGUKCi91c3IvbG9jYWwvbGliL3B5dGhvbjMuMTEvanNvbi9lbmNvZGVyLnB5OjE4MDogVHlwZUVycm9yPC9mYWlsdXJlPjwvdGVzdGNhc2U+PC90ZXN0c3VpdGU+PC90ZXN0c3VpdGVzPg==

@@ -1,0 +1,70 @@
+{
+  "format_version": "1",
+  "policies": [
+    {
+      "question_id": "action_risk",
+      "question_version": "1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "dataset_version": "synthetic-tooling-1",
+      "policy_version": "synthetic-policy-1",
+      "threshold": 0.9,
+      "calibration_ids": [
+        "action_risk-fixture-0",
+        "action_risk-fixture-1"
+      ],
+      "format_version": "1"
+    },
+    {
+      "question_id": "intervention",
+      "question_version": "1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "dataset_version": "synthetic-tooling-1",
+      "policy_version": "synthetic-policy-1",
+      "threshold": 0.9,
+      "calibration_ids": [
+        "intervention-fixture-0",
+        "intervention-fixture-1"
+      ],
+      "format_version": "1"
+    },
+    {
+      "question_id": "memory_write",
+      "question_version": "1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "dataset_version": "synthetic-tooling-1",
+      "policy_version": "synthetic-policy-1",
+      "threshold": 0.9,
+      "calibration_ids": [
+        "memory_write-fixture-0",
+        "memory_write-fixture-1"
+      ],
+      "format_version": "1"
+    },
+    {
+      "question_id": "memory_read_needed",
+      "question_version": "1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "dataset_version": "synthetic-tooling-1",
+      "policy_version": "synthetic-policy-1",
+      "threshold": 0.9,
+      "calibration_ids": [
+        "memory_read_needed-fixture-0",
+        "memory_read_needed-fixture-1"
+      ],
+      "format_version": "1"
+    },
+    {
+      "question_id": "memory_relevant",
+      "question_version": "1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "dataset_version": "synthetic-tooling-1",
+      "policy_version": "synthetic-policy-1",
+      "threshold": 0.9,
+      "calibration_ids": [
+        "memory_relevant-fixture-0",
+        "memory_relevant-fixture-1"
+      ],
+      "format_version": "1"
+    }
+  ]
+}

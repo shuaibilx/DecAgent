@@ -1,0 +1,229 @@
+{
+  "format_version": "1",
+  "source": "observed_task_trace",
+  "task_id": "96b6bf44-539b-42c1-908d-32eccdb88d87",
+  "history_is_bounded": true,
+  "events": [
+    {
+      "kind": "progress.observed",
+      "payload": {
+        "id": "fixture-1",
+        "tool": "read_file",
+        "number": 1,
+        "target": "{\"path\":\"src/range.py\"}",
+        "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+        "outcome": "failed",
+        "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+        "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+      },
+      "seq": 1
+    },
+    {
+      "kind": "progress.observed",
+      "payload": {
+        "id": "fixture-2",
+        "tool": "read_file",
+        "number": 2,
+        "target": "{\"path\":\"src/range.py\"}",
+        "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+        "outcome": "failed",
+        "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+        "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+      },
+      "seq": 2
+    },
+    {
+      "kind": "intervention.replan",
+      "payload": {
+        "round": 1,
+        "fixture": true
+      },
+      "seq": 3
+    },
+    {
+      "kind": "progress.observed",
+      "payload": {
+        "id": "fixture-3",
+        "tool": "read_file",
+        "number": 3,
+        "target": "{\"path\":\"src/range.py\"}",
+        "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+        "outcome": "failed",
+        "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+        "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+      },
+      "seq": 4
+    },
+    {
+      "kind": "progress.observed",
+      "payload": {
+        "id": "fixture-4",
+        "tool": "read_file",
+        "number": 4,
+        "target": "{\"path\":\"src/range.py\"}",
+        "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+        "outcome": "failed",
+        "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+        "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+      },
+      "seq": 5
+    },
+    {
+      "kind": "intervention.replan",
+      "payload": {
+        "round": 2,
+        "fixture": true
+      },
+      "seq": 6
+    },
+    {
+      "kind": "progress.observed",
+      "payload": {
+        "id": "fixture-5",
+        "tool": "read_file",
+        "number": 5,
+        "target": "{\"path\":\"src/range.py\"}",
+        "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+        "outcome": "failed",
+        "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+        "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+      },
+      "seq": 7
+    },
+    {
+      "kind": "progress.observed",
+      "payload": {
+        "id": "fixture-6",
+        "tool": "read_file",
+        "number": 6,
+        "target": "{\"path\":\"src/range.py\"}",
+        "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+        "outcome": "failed",
+        "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+        "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+      },
+      "seq": 8
+    },
+    {
+      "kind": "intervention.checked",
+      "payload": {
+        "basis": "adjustment_limit",
+        "route": "escalate",
+        "signals": {
+          "meaning": "Fingerprint changes describe observation novelty, not verified progress",
+          "stalled": true,
+          "needs_check": true,
+          "repeat_count": 6,
+          "replans_used": 2,
+          "failure_streak": 6,
+          "latest_outcome": "failed",
+          "observed_steps": 6,
+          "replans_remaining": 0
+        },
+        "calibrated": false,
+        "model_suggestion": null
+      },
+      "seq": 9
+    },
+    {
+      "kind": "intervention.requested",
+      "payload": {
+        "subject": {
+          "goal": "[OFFLINE FIXTURE] Help after repeated evidence and two adjustment prompts",
+          "type": "adaptive_intervention",
+          "basis": "adjustment_limit",
+          "route": "escalate",
+          "signals": {
+            "meaning": "Fingerprint changes describe observation novelty, not verified progress",
+            "stalled": true,
+            "needs_check": true,
+            "repeat_count": 6,
+            "replans_used": 2,
+            "failure_streak": 6,
+            "latest_outcome": "failed",
+            "observed_steps": 6,
+            "replans_remaining": 0
+          },
+          "attempts": [
+            {
+              "id": "fixture-1",
+              "tool": "read_file",
+              "number": 1,
+              "target": "{\"path\":\"src/range.py\"}",
+              "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+              "outcome": "failed",
+              "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+              "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+            },
+            {
+              "id": "fixture-2",
+              "tool": "read_file",
+              "number": 2,
+              "target": "{\"path\":\"src/range.py\"}",
+              "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+              "outcome": "failed",
+              "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+              "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+            },
+            {
+              "id": "fixture-3",
+              "tool": "read_file",
+              "number": 3,
+              "target": "{\"path\":\"src/range.py\"}",
+              "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+              "outcome": "failed",
+              "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+              "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+            },
+            {
+              "id": "fixture-4",
+              "tool": "read_file",
+              "number": 4,
+              "target": "{\"path\":\"src/range.py\"}",
+              "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+              "outcome": "failed",
+              "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+              "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+            },
+            {
+              "id": "fixture-5",
+              "tool": "read_file",
+              "number": 5,
+              "target": "{\"path\":\"src/range.py\"}",
+              "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+              "outcome": "failed",
+              "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+              "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+            },
+            {
+              "id": "fixture-6",
+              "tool": "read_file",
+              "number": 6,
+              "target": "{\"path\":\"src/range.py\"}",
+              "excerpt": "{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}",
+              "outcome": "failed",
+              "action_hash": "eeadb8f2183bef61fa14e971b9b486bd44849ae462177a37db67777586e2350b",
+              "result_hash": "06cf9f3fe60cef5df15c1e14ca1406f42158e8877d3f12ea944d1fe686d6d089"
+            }
+          ],
+          "progress_hash": "3a88992c8430f9ce8bdeabfe1d87ac99219cf1a1dce7707c17a9b192c1719396"
+        },
+        "summary": "已发出 2 次策略调整提示，仍出现重复观察。",
+        "question": "已发出 2 次策略调整提示，仍出现重复观察。 最近操作：read_file {\"path\":\"src/range.py\"}；结果：{\"reason\":\"No new boundary evidence\",\"status\":\"failed\"}。请提供尚未尝试的定位线索，例如相关模块、最小复现或一组输入及期望输出。",
+        "needed_input": "请提供尚未尝试的定位线索，例如相关模块、最小复现或一组输入及期望输出。"
+      },
+      "seq": 10
+    }
+  ],
+  "event_counts": {
+    "progress.observed": 6,
+    "intervention.replan": 2,
+    "intervention.checked": 1,
+    "intervention.requested": 1
+  },
+  "samples": [],
+  "human_labeled_samples": 0,
+  "decision_accuracy": null,
+  "task_benefit": null,
+  "limitations": "Task API returns a bounded history window; counts do not describe the full run. Owner help text is not a correctness label."
+}

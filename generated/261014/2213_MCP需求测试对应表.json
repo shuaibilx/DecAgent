@@ -1,0 +1,1250 @@
+{
+  "change": "mcp-business-runtime",
+  "schema": "spec-driven",
+  "requirements": 34,
+  "scenarios": 66,
+  "unmapped": 0,
+  "evidence_scope": "Current Windows and owned Docker Desktop tests; manual artifacts distinct from automated assertions; no real company API or model-performance claim",
+  "records": [
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Persistent authenticated ticket lifecycle",
+      "scenario": "Multi-role lifecycle",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:12",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_fixed_multirole_acceptance",
+          "path": "../../evals/benchmarks/business/test_mcp_acceptance.py:80"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Persistent authenticated ticket lifecycle",
+      "scenario": "Close before resolution",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:16",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_unresolved_close_is_rejected_before_dispatch",
+          "path": "../../evals/integration/test_business_services.py:78"
+        },
+        {
+          "kind": "test",
+          "test": "test_illegal_transition_and_stale_revision_do_not_mutate",
+          "path": "../../evals/integration/test_business_tickets.py:67"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Responsibility-based action permissions",
+      "scenario": "Employee assigns another person",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:23",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_role_actions_bind_requester_and_validate_assignment_target",
+          "path": "../../evals/integration/test_business_access.py:166"
+        },
+        {
+          "kind": "test",
+          "test": "test_fixed_multirole_acceptance",
+          "path": "../../evals/benchmarks/business/test_mcp_acceptance.py:80"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Responsibility-based action permissions",
+      "scenario": "Handler closes someone else's request",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:27",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_role_actions_bind_requester_and_validate_assignment_target",
+          "path": "../../evals/integration/test_business_access.py:166"
+        },
+        {
+          "kind": "test",
+          "test": "test_fixed_multirole_acceptance",
+          "path": "../../evals/benchmarks/business/test_mcp_acceptance.py:80"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Responsibility-based action permissions",
+      "scenario": "Supervisor performs a sensitive change",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:31",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_commit_sensitive_operation_needs_approval_and_consumes_it_with_business_write",
+          "path": "../../evals/integration/test_business_operations.py:315"
+        },
+        {
+          "kind": "test",
+          "test": "test_authenticated_reply_resumes_production_graph_and_verifies_real_receipt",
+          "path": "../../evals/integration/test_business_gateway.py:264"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Principal-bound creation and real directory selection",
+      "scenario": "Caller supplies another requester",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:38",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_role_actions_bind_requester_and_validate_assignment_target",
+          "path": "../../evals/integration/test_business_access.py:166"
+        },
+        {
+          "kind": "test",
+          "test": "test_mcp_create_requester_is_only_trusted_result_data",
+          "path": "../../evals/deterministic/test_business_mcp_contract.py:90"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Principal-bound creation and real directory selection",
+      "scenario": "Ambiguous handler name",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:42",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_worker_duplicate_name_waits_for_fact_then_uses_exact_directory_person",
+          "path": "../../evals/integration/test_business_mcp_worker.py:220"
+        },
+        {
+          "kind": "test",
+          "test": "test_duplicate_names_require_explicit_disambiguation_even_with_selected_id",
+          "path": "../../evals/deterministic/test_business_actions.py:75"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Fresh revision and retained evidence",
+      "scenario": "Concurrent modification",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:49",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_stale_approved_revision_and_expired_approval_cannot_commit",
+          "path": "../../evals/integration/test_business_operations.py:404"
+        },
+        {
+          "kind": "test",
+          "test": "test_changed_resource_requires_reassessment_and_edited_fields_validate",
+          "path": "../../evals/integration/test_business_gateway.py:206"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Fresh revision and retained evidence",
+      "scenario": "Invented repair evidence",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:53",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_unknown_goal_is_not_proven_by_a_successful_registered_action",
+          "path": "../../evals/deterministic/test_business_completion_claims.py:197"
+        },
+        {
+          "kind": "test",
+          "test": "test_prepare_waits_for_employee_approval_and_never_claims_completion",
+          "path": "../../evals/integration/test_business_mcp_execution.py:82"
+        },
+        {
+          "kind": "test",
+          "test": "test_worker_edit_replans_new_operation_and_requires_new_specific_approval",
+          "path": "../../evals/integration/test_business_mcp_worker.py:269"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Safe legacy data boundary",
+      "scenario": "Legacy ticket lacks requester",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:60",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_receipts_and_legacy_rows_do_not_become_other_employee_property",
+          "path": "../../evals/integration/test_business_access.py:145"
+        }
+      ]
+    },
+    {
+      "capability": "authenticated-service-tickets",
+      "requirement": "Safe legacy data boundary",
+      "scenario": "Inspect historical receipt",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/authenticated-service-tickets/spec.md:64",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_receipts_and_legacy_rows_do_not_become_other_employee_property",
+          "path": "../../evals/integration/test_business_access.py:145"
+        },
+        {
+          "kind": "test",
+          "test": "test_identity_upgrade_preserves_legacy_ticket_receipt_history_and_task",
+          "path": "../../evals/integration/test_business_identity_migration.py:47"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Independent synthetic employee login",
+      "scenario": "Employee signs in",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:12",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_employee_login_uses_account_identity_and_rejects_bad_or_forged_credentials",
+          "path": "../../evals/integration/test_business_employee_auth.py:55"
+        },
+        {
+          "kind": "test",
+          "test": "test_accounts_seed_creates_exact_distinct_directory_accounts_and_private_passwords",
+          "path": "../../evals/integration/test_business_employee_accounts.py:44"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Independent synthetic employee login",
+      "scenario": "Owner token used as employee token",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:16",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_employee_login_uses_account_identity_and_rejects_bad_or_forged_credentials",
+          "path": "../../evals/integration/test_business_employee_auth.py:55"
+        },
+        {
+          "kind": "test",
+          "test": "test_owner_v1_cannot_start_or_resume_business_writes",
+          "path": "../../evals/integration/test_business_workbench_v2.py:258"
+        },
+        {
+          "kind": "test",
+          "test": "test_http_auth_origin_input_and_body_bounds_have_no_side_effect",
+          "path": "../../evals/integration/test_business_mcp_server.py:239"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Authenticated MCP credentials",
+      "scenario": "Forged employee identity",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:23",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_prepare_rejects_source_and_identity_forgery",
+          "path": "../../evals/integration/test_business_operations.py:112"
+        },
+        {
+          "kind": "test",
+          "test": "test_wire_prepare_rejects_identity_in_wrapper_and_business_params",
+          "path": "../../evals/deterministic/test_business_mcp_contract.py:281"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Authenticated MCP credentials",
+      "scenario": "Account disabled with an existing connection",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:27",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_employee_connections_are_isolated_and_revocation_closes_one",
+          "path": "../../evals/integration/test_business_mcp_client.py:145"
+        },
+        {
+          "kind": "test",
+          "test": "test_mcp_token_revocation_is_checked_after_connection",
+          "path": "../../evals/integration/test_business_mcp_server.py:304"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Fixed task principal",
+      "scenario": "Login changed during a paused task",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:34",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_task_reauthentication_requires_same_employee_and_database_freezes_identity",
+          "path": "../../evals/integration/test_business_mcp_worker.py:156"
+        },
+        {
+          "kind": "test",
+          "test": "test_agent_action_reply_uses_original_employee_and_server_operation",
+          "path": "../../evals/integration/test_business_workbench_v2.py:358"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Fixed task principal",
+      "scenario": "Original employee loses permission",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:38",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_commit_role_or_revision_drift_does_not_write_and_domain_failure_rolls_back",
+          "path": "../../evals/integration/test_business_operations.py:337"
+        },
+        {
+          "kind": "test",
+          "test": "test_each_access_reloads_current_role_account_and_directory_state",
+          "path": "../../evals/integration/test_business_access.py:290"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Role and resource authorization",
+      "scenario": "Guess another ticket ID",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:45",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_ticket_history_and_list_scope_survive_person_filter_and_reassignment",
+          "path": "../../evals/integration/test_business_access.py:106"
+        },
+        {
+          "kind": "test",
+          "test": "test_employee_task_events_and_ticket_views_do_not_cross_account",
+          "path": "../../evals/integration/test_business_workbench_v2.py:199"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Role and resource authorization",
+      "scenario": "Handler reads assigned work",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:49",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_ticket_history_and_list_scope_survive_person_filter_and_reassignment",
+          "path": "../../evals/integration/test_business_access.py:106"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Employee-bound operation and audit",
+      "scenario": "Permission revoked after prepare",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:56",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_revoked_credential_denial_is_audited_and_can_be_seen_after_same_employee_login",
+          "path": "../../evals/integration/test_business_operations.py:551"
+        },
+        {
+          "kind": "test",
+          "test": "test_commit_role_or_revision_drift_does_not_write_and_domain_failure_rolls_back",
+          "path": "../../evals/integration/test_business_operations.py:337"
+        }
+      ]
+    },
+    {
+      "capability": "business-employee-identity",
+      "requirement": "Employee-bound operation and audit",
+      "scenario": "Legacy anonymous task inspected",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-employee-identity/spec.md:60",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_identity_upgrade_preserves_legacy_ticket_receipt_history_and_task",
+          "path": "../../evals/integration/test_business_identity_migration.py:47"
+        },
+        {
+          "kind": "test",
+          "test": "test_owner_v1_cannot_start_or_resume_business_writes",
+          "path": "../../evals/integration/test_business_workbench_v2.py:258"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Durable immutable preparation",
+      "scenario": "Prepare a create",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:12",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_prepare_has_no_ticket_history_or_receipt_side_effects_and_replays_same_input",
+          "path": "../../evals/integration/test_business_operations.py:65"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Durable immutable preparation",
+      "scenario": "Repeated preparation",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:16",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_prepare_request_key_conflict_and_cross_employee_query_are_safe",
+          "path": "../../evals/integration/test_business_operations.py:82"
+        },
+        {
+          "kind": "test",
+          "test": "test_repeated_prepare_returns_original_handle_after_resource_changes",
+          "path": "../../evals/integration/test_business_operations.py:172"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Unified server-owned approval",
+      "scenario": "Direct MCP bypass attempted",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:23",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_legacy_client_cannot_commit_sensitive_operation_without_browser_approval",
+          "path": "../../evals/integration/test_business_mcp_server.py:199"
+        },
+        {
+          "kind": "test",
+          "test": "test_agent_prepare_and_commit_require_hidden_bound_grant",
+          "path": "../../evals/integration/test_business_operations.py:459"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Unified server-owned approval",
+      "scenario": "Another employee approves",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:27",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_approval_requires_original_browser_session_and_is_specific_and_idempotent",
+          "path": "../../evals/integration/test_business_operations.py:194"
+        },
+        {
+          "kind": "test",
+          "test": "test_operation_inbox_requires_original_browser_approval_and_preserves_original_commit",
+          "path": "../../evals/integration/test_business_workbench_v2.py:81"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Specific expiring confirmation",
+      "scenario": "Confirmed resource changes",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:34",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_expired_approval_and_resource_drift_do_not_keep_old_authority",
+          "path": "../../evals/integration/test_business_operations.py:258"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Specific expiring confirmation",
+      "scenario": "Approval expires",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:38",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_stale_approved_revision_and_expired_approval_cannot_commit",
+          "path": "../../evals/integration/test_business_operations.py:404"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Guarded commit",
+      "scenario": "Commit a valid operation",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:45",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_mcp_action_attaches_server_operation_and_verifies_one_write",
+          "path": "../../evals/integration/test_business_mcp_execution.py:69"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Guarded commit",
+      "scenario": "Stale worker or cancelled task",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:49",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_agent_commit_rechecks_each_execution_guard",
+          "path": "../../evals/integration/test_business_operations.py:486"
+        },
+        {
+          "kind": "test",
+          "test": "test_exhausted_durable_budget_blocks_new_action_before_mcp_prepare",
+          "path": "../../evals/integration/test_business_execution.py:104"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Transactional employee-bound receipts",
+      "scenario": "Concurrent duplicate commit",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:56",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_commit_create_binds_employee_receipt_and_concurrent_replay_writes_once",
+          "path": "../../evals/integration/test_business_operations.py:286"
+        },
+        {
+          "kind": "test",
+          "test": "test_fixed_multirole_acceptance",
+          "path": "../../evals/benchmarks/business/test_mcp_acceptance.py:80"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Transactional employee-bound receipts",
+      "scenario": "Different employee reuses handle",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:60",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_prepare_request_key_conflict_and_cross_employee_query_are_safe",
+          "path": "../../evals/integration/test_business_operations.py:82"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Reconciliation before retry",
+      "scenario": "Commit succeeds but response is lost",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:67",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_response_lost_after_commit_is_verified_from_receipt_without_rewrite",
+          "path": "../../evals/integration/test_business_operations.py:626"
+        },
+        {
+          "kind": "test",
+          "test": "test_lost_mcp_commit_response_reconciles_original_id_without_duplicate",
+          "path": "../../evals/integration/test_business_mcp_execution.py:107"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Reconciliation before retry",
+      "scenario": "No conclusive evidence",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:71",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_query_during_in_flight_commit_does_not_infer_uncommitted_effect",
+          "path": "../../evals/integration/test_business_operations.py:647"
+        },
+        {
+          "kind": "test",
+          "test": "test_inconsistent_receipt_remains_unknown_and_never_retries_write",
+          "path": "../../evals/integration/test_business_operations.py:676"
+        },
+        {
+          "kind": "test",
+          "test": "test_invalid_post_commit_result_preserves_unknown_and_original_receipt",
+          "path": "../../evals/integration/test_business_mcp_execution.py:132"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Evidence-specific completion",
+      "scenario": "Prepared action described as completed",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:78",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_prepare_waits_for_employee_approval_and_never_claims_completion",
+          "path": "../../evals/integration/test_business_mcp_execution.py:82"
+        },
+        {
+          "kind": "test",
+          "test": "test_unknown_or_other_task_action_ids_cannot_be_claimed",
+          "path": "../../evals/deterministic/test_business_completion_claims.py:117"
+        }
+      ]
+    },
+    {
+      "capability": "business-operation-governance",
+      "requirement": "Evidence-specific completion",
+      "scenario": "Create and assign goal proven",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/business-operation-governance/spec.md:82",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_main_planner_create_and_assign_completes_with_receipts_not_ticket_closure",
+          "path": "../../evals/integration/test_business_services.py:161"
+        },
+        {
+          "kind": "test",
+          "test": "test_completed_create_assign_does_not_require_citing_auxiliary_reads",
+          "path": "../../evals/deterministic/test_business_completion_claims.py:73"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Modern wire-level acceptance",
+      "scenario": "Server passes only in-memory tests",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:12",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_modern_catalog_and_employee_scoped_create_commit_replay",
+          "path": "../../evals/integration/test_business_mcp_server.py:116"
+        },
+        {
+          "kind": "test",
+          "test": "test_fixed_multirole_acceptance",
+          "path": "../../evals/benchmarks/business/test_mcp_acceptance.py:80"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Independent legacy client acceptance",
+      "scenario": "Client prints success-like text",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:19",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_isolated_mcp_cli_legacy_schema_and_sensitive_commit",
+          "path": "../../evals/integration/test_business_mcp_server.py:380"
+        },
+        {
+          "kind": "test",
+          "test": "test_legacy_client_cannot_commit_sensitive_operation_without_browser_approval",
+          "path": "../../evals/integration/test_business_mcp_server.py:199"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Reproducible multi-role business acceptance",
+      "scenario": "Employee asks for supervisor action",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:26",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_role_actions_bind_requester_and_validate_assignment_target",
+          "path": "../../evals/integration/test_business_access.py:166"
+        },
+        {
+          "kind": "test",
+          "test": "test_fixed_multirole_acceptance",
+          "path": "../../evals/benchmarks/business/test_mcp_acceptance.py:80"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Reproducible multi-role business acceptance",
+      "scenario": "Full multi-role sequence",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:30",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_fixed_multirole_acceptance",
+          "path": "../../evals/benchmarks/business/test_mcp_acceptance.py:80"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Fault and restart acceptance",
+      "scenario": "Response lost after commit",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:37",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_lost_commit_response_requires_querying_original_operation",
+          "path": "../../evals/integration/test_business_mcp_client.py:174"
+        },
+        {
+          "kind": "test",
+          "test": "test_fixed_multirole_acceptance",
+          "path": "../../evals/benchmarks/business/test_mcp_acceptance.py:80"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Fault and restart acceptance",
+      "scenario": "Old worker resumes",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:41",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_agent_commit_rechecks_each_execution_guard",
+          "path": "../../evals/integration/test_business_operations.py:486"
+        },
+        {
+          "kind": "test",
+          "test": "test_lease_takeover_uses_new_grant_for_same_original_operation",
+          "path": "../../evals/integration/test_business_operations.py:576"
+        },
+        {
+          "kind": "test",
+          "test": "test_worker_lease_takeover_after_committed_action_replays_checkpoint_without_rewrite",
+          "path": "../../evals/integration/test_business_mcp_worker.py:321"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Honest scoped measurements",
+      "scenario": "New MCP timings collected",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:48",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "manual_artifact_fixed_scope",
+          "paths": [
+            "1649_MCP多角色业务验收.json"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Honest scoped measurements",
+      "scenario": "Scripted planner used",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:52",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "manual_artifact_fixed_scope",
+          "paths": [
+            "1649_MCP多角色业务验收.json"
+          ]
+        },
+        {
+          "kind": "test",
+          "test": "test_main_planner_create_and_assign_completes_with_receipts_not_ticket_closure",
+          "path": "../../evals/integration/test_business_services.py:161"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Installation and deployment evidence",
+      "scenario": "Local container passes",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:59",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "manual_artifact_docker_scope",
+          "paths": [
+            "../../.decagent/mcp-migration/docker-results/summary.json"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-acceptance",
+      "requirement": "Installation and deployment evidence",
+      "scenario": "Wheel misses runtime resources",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-acceptance/spec.md:63",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_plugin_wheel_contains_runtime_resources",
+          "path": "../../evals/deterministic/test_business_package.py:10"
+        },
+        {
+          "kind": "manual_artifact_wheel",
+          "paths": [
+            "../../.decagent/mcp-migration/wheel-recovery-verification.json"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Explicit modern primary protocol",
+      "scenario": "Modern connection accepted",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:12",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_modern_catalog_and_employee_scoped_create_commit_replay",
+          "path": "../../evals/integration/test_business_mcp_server.py:116"
+        },
+        {
+          "kind": "test",
+          "test": "test_modern_client_reuses_one_connection_and_closes_it",
+          "path": "../../evals/integration/test_business_mcp_client.py:98"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Explicit modern primary protocol",
+      "scenario": "Legacy-only endpoint rejected",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:16",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_modern_client_rejects_a_legacy_handshake_without_fallback",
+          "path": "../../evals/integration/test_business_mcp_client.py:115"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Governed legacy compatibility",
+      "scenario": "Older client connects",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:23",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_isolated_mcp_cli_legacy_schema_and_sensitive_commit",
+          "path": "../../evals/integration/test_business_mcp_server.py:380"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Governed legacy compatibility",
+      "scenario": "Legacy write without approval",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:27",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_legacy_client_cannot_commit_sensitive_operation_without_browser_approval",
+          "path": "../../evals/integration/test_business_mcp_server.py:199"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Trusted versioned service catalog",
+      "scenario": "Catalog drift",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:34",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_tool_catalog_can_be_permission_filtered_but_schemas_cannot_drift",
+          "path": "../../evals/deterministic/test_business_mcp_contract.py:390"
+        },
+        {
+          "kind": "test",
+          "test": "test_registry_checks_skill_integrity_on_registration_and_registered_load",
+          "path": "../../evals/deterministic/test_business_mcp_contract.py:543"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Trusted versioned service catalog",
+      "scenario": "Permission-filtered catalog",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:38",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_modern_catalog_and_employee_scoped_create_commit_replay",
+          "path": "../../evals/integration/test_business_mcp_server.py:116"
+        },
+        {
+          "kind": "test",
+          "test": "test_tool_catalog_can_be_permission_filtered_but_schemas_cannot_drift",
+          "path": "../../evals/deterministic/test_business_mcp_contract.py:390"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Schema-derived structured capabilities",
+      "scenario": "Extra authorization argument",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:45",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_http_auth_origin_input_and_body_bounds_have_no_side_effect",
+          "path": "../../evals/integration/test_business_mcp_server.py:239"
+        },
+        {
+          "kind": "test",
+          "test": "test_wire_prepare_rejects_identity_in_wrapper_and_business_params",
+          "path": "../../evals/deterministic/test_business_mcp_contract.py:281"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Schema-derived structured capabilities",
+      "scenario": "Invalid returned data",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:49",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_invalid_post_commit_result_preserves_unknown_and_original_receipt",
+          "path": "../../evals/integration/test_business_mcp_execution.py:132"
+        },
+        {
+          "kind": "test",
+          "test": "test_succeeded_operation_requires_a_result_matching_its_business_command",
+          "path": "../../evals/deterministic/test_business_mcp_contract.py:237"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Bounded credential-isolated connections",
+      "scenario": "Two employees reuse the application",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:56",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_employee_connections_are_isolated_and_revocation_closes_one",
+          "path": "../../evals/integration/test_business_mcp_client.py:145"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Bounded credential-isolated connections",
+      "scenario": "Write response interrupted",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:60",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_cancelled_commit_returns_unknown_and_original_receipt_can_be_queried",
+          "path": "../../evals/integration/test_business_mcp_client.py:203"
+        },
+        {
+          "kind": "test",
+          "test": "test_lost_commit_response_requires_querying_original_operation",
+          "path": "../../evals/integration/test_business_mcp_client.py:174"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Unified direct business execution",
+      "scenario": "Business command contains shell syntax",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:67",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_modern_catalog_and_employee_scoped_create_commit_replay",
+          "path": "../../evals/integration/test_business_mcp_server.py:116"
+        },
+        {
+          "kind": "manual_artifact_static_transport",
+          "paths": [
+            "../../.decagent/mcp-migration/static-transport-verification.json"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-execution",
+      "requirement": "Unified direct business execution",
+      "scenario": "Control plane reads before approval",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-execution/spec.md:71",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_configured_repair_clients_stay_lazy_for_business_startup",
+          "path": "../../evals/integration/test_business_startup.py:12"
+        },
+        {
+          "kind": "manual_artifact_browser",
+          "paths": [
+            "0644_员工原操作待确认.png",
+            "0645_原操作提交核实回执.png",
+            "0646_切换员工后隔离视图.png",
+            "0647_操作选中态对比度修复.png"
+          ]
+        },
+        {
+          "kind": "manual_artifact_local_smoke",
+          "paths": [
+            "1646_MCP本机启动烟测.json"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-workbench",
+      "requirement": "Employee-first business workspace",
+      "scenario": "Employee opens the workspace",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-workbench/spec.md:12",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_default_business_page_uses_employee_entry_and_keeps_repair_link",
+          "path": "../../evals/integration/test_business_workbench_v2.py:245"
+        },
+        {
+          "kind": "test",
+          "test": "test_employee_submission_and_clarification_are_scoped_idempotent_and_durable",
+          "path": "../../evals/integration/test_business_workbench_v2.py:295"
+        },
+        {
+          "kind": "manual_artifact_browser",
+          "paths": [
+            "0644_员工原操作待确认.png",
+            "0645_原操作提交核实回执.png",
+            "0646_切换员工后隔离视图.png",
+            "0647_操作选中态对比度修复.png"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-workbench",
+      "requirement": "Employee-first business workspace",
+      "scenario": "Switch account",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-workbench/spec.md:16",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_employee_task_events_and_ticket_views_do_not_cross_account",
+          "path": "../../evals/integration/test_business_workbench_v2.py:199"
+        },
+        {
+          "kind": "manual_artifact_browser",
+          "paths": [
+            "0644_员工原操作待确认.png",
+            "0645_原操作提交核实回执.png",
+            "0646_切换员工后隔离视图.png",
+            "0647_操作选中态对比度修复.png"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-workbench",
+      "requirement": "Shared cross-client operation inbox",
+      "scenario": "External client prepares a sensitive action",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-workbench/spec.md:23",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_operation_inbox_requires_original_browser_approval_and_preserves_original_commit",
+          "path": "../../evals/integration/test_business_workbench_v2.py:81"
+        },
+        {
+          "kind": "manual_artifact_browser",
+          "paths": [
+            "0644_员工原操作待确认.png",
+            "0645_原操作提交核实回执.png",
+            "0646_切换员工后隔离视图.png",
+            "0647_操作选中态对比度修复.png"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-workbench",
+      "requirement": "Concrete approval and safe editing",
+      "scenario": "Approve then resume",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-workbench/spec.md:30",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_worker_restart_after_browser_approval_keeps_original_service_operation",
+          "path": "../../evals/integration/test_business_mcp_worker.py:93"
+        },
+        {
+          "kind": "test",
+          "test": "test_agent_action_reply_uses_original_employee_and_server_operation",
+          "path": "../../evals/integration/test_business_workbench_v2.py:358"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-workbench",
+      "requirement": "Concrete approval and safe editing",
+      "scenario": "Forged browser approval",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-workbench/spec.md:34",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_operation_inbox_requires_original_browser_approval_and_preserves_original_commit",
+          "path": "../../evals/integration/test_business_workbench_v2.py:81"
+        },
+        {
+          "kind": "test",
+          "test": "test_browser_session_enforces_origin_csrf_expiry_and_account_state",
+          "path": "../../evals/integration/test_business_employee_auth.py:94"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-workbench",
+      "requirement": "Honest resumable state display",
+      "scenario": "RPC succeeds before business commit",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-workbench/spec.md:41",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_prepare_waits_for_employee_approval_and_never_claims_completion",
+          "path": "../../evals/integration/test_business_mcp_execution.py:82"
+        },
+        {
+          "kind": "test",
+          "test": "test_operation_inbox_requires_original_browser_approval_and_preserves_original_commit",
+          "path": "../../evals/integration/test_business_workbench_v2.py:81"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-workbench",
+      "requirement": "Honest resumable state display",
+      "scenario": "Restart during confirmation",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-workbench/spec.md:45",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_pending_operation_and_original_session_survive_workbench_restart",
+          "path": "../../evals/integration/test_business_workbench_v2.py:485"
+        },
+        {
+          "kind": "test",
+          "test": "test_worker_restart_after_browser_approval_keeps_original_service_operation",
+          "path": "../../evals/integration/test_business_mcp_worker.py:93"
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-workbench",
+      "requirement": "Current visual operating documentation",
+      "scenario": "Follow the MCP guide",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-workbench/spec.md:52",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "test",
+          "test": "test_isolated_mcp_cli_legacy_schema_and_sensitive_commit",
+          "path": "../../evals/integration/test_business_mcp_server.py:380"
+        },
+        {
+          "kind": "manual_artifact_docs",
+          "paths": [
+            "1646_MCP业务Agent使用指南.md",
+            "1646_MCP业务Agent架构详解.md",
+            "1646_MCP业务Agent架构图册.html",
+            "../../.decagent/mcp-migration/diagram-verification.json"
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "mcp-business-workbench",
+      "requirement": "Current visual operating documentation",
+      "scenario": "Read the project description",
+      "spec_path": "../../../12-hermes-agent-small/openspec/changes/mcp-business-runtime/specs/mcp-business-workbench/spec.md:56",
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "manual_artifact_docs",
+          "paths": [
+            "1646_MCP业务Agent使用指南.md",
+            "1646_MCP业务Agent架构详解.md",
+            "1646_MCP业务Agent架构图册.html",
+            "../../.decagent/mcp-migration/diagram-verification.json"
+          ]
+        },
+        {
+          "kind": "manual_artifact_fixed_scope",
+          "paths": [
+            "1649_MCP多角色业务验收.json"
+          ]
+        }
+      ]
+    }
+  ]
+}

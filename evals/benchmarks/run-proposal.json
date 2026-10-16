@@ -1,0 +1,61 @@
+{
+  "format_version": "proposal-1",
+  "status": "awaiting_user_manifest_selection",
+  "paid_run_authorized": false,
+  "primary_model_requested": "qwen3.8-flash",
+  "primary_model_actual": null,
+  "jev_provider": "openrouter",
+  "jev_endpoint": "https://openrouter.ai/api/alpha/decisions",
+  "jev_requested_model": "~typesafe/jev-latest",
+  "jev_actual_model": null,
+  "strategies": [
+    "rule",
+    "main-llm",
+    "jev"
+  ],
+  "decision_dataset": {
+    "path": "evals/benchmarks/decision-proposal.json",
+    "version": "decision-proposal-120-v1",
+    "sha256": "60a435d6e42910330fc4066107bab27cbdb038fe2f1578e4407744297d92e716",
+    "proposed_samples": 120,
+    "human_labeled": 0,
+    "selected_sample_ids": null
+  },
+  "repair_dataset": {
+    "path": "evals/benchmarks/python-bugs.json",
+    "version": "upstream-python-bugs-1",
+    "sha256": "0d91a6ec98a49fc2c9d6532e8e58b8f0ce59f65044a272b60f57031eb3a5500b",
+    "proposed_task_ids": [
+      "pallets__flask-4045",
+      "pallets__flask-4160",
+      "pallets__flask-4935",
+      "pallets__flask-5014",
+      "psf__requests-5087",
+      "psf__requests-5414",
+      "psf__requests-6028",
+      "pytest-dev__pytest-10051",
+      "pytest-dev__pytest-10356",
+      "pytest-dev__pytest-10482",
+      "pytest-dev__pytest-10624",
+      "pytest-dev__pytest-11143"
+    ],
+    "selected_task_ids": null
+  },
+  "authorization_sha256": null,
+  "tools_sha256": null,
+  "hard_policy_sha256": null,
+  "acceptance_sha256": null,
+  "max_calls": null,
+  "max_tokens": null,
+  "max_usd": null,
+  "model_prices": null,
+  "shared_budget_note": "The user authorized 1 USD for the entire diagnostic session. An unresolved primary-model request still has a hold; only the root ledger can determine remaining capacity. This proposal authorizes no new spend.",
+  "required_confirmation": [
+    "exact task/sample IDs",
+    "primary and judge requested/resolved model IDs",
+    "common authorization/tool/hard-policy/acceptance hashes",
+    "each resolved model price basis and date",
+    "call/token/USD caps within remaining shared session budget",
+    "owner confirmation reference bound to final RunManifest.sha256"
+  ]
+}

@@ -1,0 +1,252 @@
+{
+  "format": "decagent.plan-examples.v1",
+  "examples": {
+    "directory": {
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "instruction": {
+            "type": "string"
+          }
+        }
+      },
+      "plan": {
+        "content_digest": "b2c38dfe9d760ae5ae8c609259a863847c1abebefe28554029161b6f925b2acd",
+        "entry": "directory",
+        "goal": {
+          "description": "Read current directory",
+          "evidence": [
+            {
+              "description": "Verified directory",
+              "id": "observed",
+              "kind": "tool_result",
+              "source": {
+                "node_id": "directory",
+                "nullable": false,
+                "path": [
+                  "categories"
+                ],
+                "provenance": "tool_result",
+                "source": "node_output",
+                "value_type": "array"
+              }
+            }
+          ]
+        },
+        "nodes": [
+          {
+            "depends_on": [],
+            "id": "directory",
+            "inputs": {},
+            "next": [
+              "done"
+            ],
+            "on_error": {
+              "stop": "error"
+            },
+            "on_missing": {
+              "stop": "missing_input"
+            },
+            "tool": {
+              "command": "directory",
+              "plugin_id": "service-tickets"
+            },
+            "type": "read_tool"
+          },
+          {
+            "depends_on": [
+              "directory"
+            ],
+            "evidence": [
+              "observed"
+            ],
+            "id": "done",
+            "on_error": {
+              "stop": "error"
+            },
+            "on_missing": {
+              "stop": "missing_input"
+            },
+            "type": "complete"
+          }
+        ],
+        "plan_id": "directory",
+        "registry_fingerprint": "f1acf1ce7a502fce1db8d34d75cda7db10ac243b93252ab0ab6f2d6cff987df0",
+        "revision": 1,
+        "schema_version": "1"
+      }
+    },
+    "create_with_category": {
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "instruction": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "instruction",
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "plan": {
+        "content_digest": "7a4ca91d72408c3da2da910bd1aea2dcde593d0ed54914575c57bcbf177eadc6",
+        "entry": "directory",
+        "goal": {
+          "description": "Create requested ticket using the current category directory",
+          "evidence": [
+            {
+              "description": "Actual committed creation receipt",
+              "id": "created",
+              "kind": "write_receipt",
+              "source": {
+                "node_id": "create",
+                "nullable": false,
+                "path": [
+                  "receipt",
+                  "operation_id"
+                ],
+                "provenance": "write_receipt",
+                "source": "node_output",
+                "value_type": "string"
+              }
+            }
+          ]
+        },
+        "nodes": [
+          {
+            "depends_on": [],
+            "id": "directory",
+            "inputs": {},
+            "next": [
+              "category"
+            ],
+            "on_error": {
+              "stop": "error"
+            },
+            "on_missing": {
+              "stop": "missing_input"
+            },
+            "tool": {
+              "command": "directory",
+              "plugin_id": "service-tickets"
+            },
+            "type": "read_tool"
+          },
+          {
+            "depends_on": [
+              "directory"
+            ],
+            "id": "category",
+            "inputs": {
+              "directory": {
+                "node_id": "directory",
+                "nullable": false,
+                "path": [],
+                "provenance": "tool_result",
+                "source": "node_output",
+                "value_type": "object"
+              },
+              "instruction": {
+                "nullable": false,
+                "path": [
+                  "instruction"
+                ],
+                "provenance": "user_input",
+                "source": "task_input",
+                "value_type": "string"
+              }
+            },
+            "next": [
+              "create"
+            ],
+            "on_error": {
+              "stop": "error"
+            },
+            "on_missing": {
+              "stop": "missing_input"
+            },
+            "on_no_match": {
+              "stop": "no_match"
+            },
+            "policy": {
+              "policy_id": "category-policy",
+              "version": "1"
+            },
+            "question": {
+              "question_id": "category",
+              "type": "choice",
+              "version": "1.0.0-business-1"
+            },
+            "type": "decide"
+          },
+          {
+            "command": {
+              "command": "create",
+              "plugin_id": "service-tickets"
+            },
+            "depends_on": [
+              "category"
+            ],
+            "id": "create",
+            "inputs": {
+              "category_id": {
+                "node_id": "category",
+                "nullable": false,
+                "path": [
+                  "choice"
+                ],
+                "provenance": "accepted_decision",
+                "source": "accepted_decision",
+                "value_type": "string"
+              },
+              "title": {
+                "nullable": false,
+                "path": [
+                  "title"
+                ],
+                "provenance": "user_input",
+                "source": "task_input",
+                "value_type": "string"
+              }
+            },
+            "next": [
+              "done"
+            ],
+            "on_error": {
+              "stop": "error"
+            },
+            "on_missing": {
+              "stop": "missing_input"
+            },
+            "type": "governed_write"
+          },
+          {
+            "depends_on": [
+              "create"
+            ],
+            "evidence": [
+              "created"
+            ],
+            "id": "done",
+            "on_error": {
+              "stop": "error"
+            },
+            "on_missing": {
+              "stop": "missing_input"
+            },
+            "type": "complete"
+          }
+        ],
+        "plan_id": "create-with-category",
+        "registry_fingerprint": "f1acf1ce7a502fce1db8d34d75cda7db10ac243b93252ab0ab6f2d6cff987df0",
+        "revision": 1,
+        "schema_version": "1"
+      }
+    }
+  }
+}

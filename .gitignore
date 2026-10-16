@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+.decagent/
+.waku-source-baseline.json
+*.egg-info/
+dist/
+.idea/
+.playwright-cli/
+output/

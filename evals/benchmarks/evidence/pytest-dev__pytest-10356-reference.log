@@ -1,0 +1,5 @@
+SOURCE_MODULE /repo/src/pytest/__init__.py
+.                                                                        [100%]
+--------------------- generated xml file: /tmp/result.xml ----------------------
+1 passed in 0.02s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcz48dGVzdHN1aXRlIG5hbWU9InB5dGVzdCIgZXJyb3JzPSIwIiBmYWlsdXJlcz0iMCIgc2tpcHBlZD0iMCIgdGVzdHM9IjEiIHRpbWU9IjAuMDIwIiB0aW1lc3RhbXA9IjIwMjYtMTAtMTBUMDk6MTI6MDIuMDQwMDc2IiBob3N0bmFtZT0iZjZmYjQ0Yzk0YTExIj48dGVzdGNhc2UgY2xhc3NuYW1lPSJ0ZXN0X2J1ZyIgbmFtZT0idGVzdF9idWciIHRpbWU9IjAuMDAwIiAvPjwvdGVzdHN1aXRlPjwvdGVzdHN1aXRlcz4=

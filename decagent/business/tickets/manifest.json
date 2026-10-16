@@ -1,0 +1,3614 @@
+{
+  "id": "service-tickets",
+  "version": "2.0.0",
+  "level": "enhanced",
+  "skill": "decagent.business.tickets:SKILL.md",
+  "skill_summary": "Manage persistent synthetic enterprise service tickets through authenticated MCP operations.",
+  "skill_digest": "cb1f376344ebeab7a75a43e0476f337e8cf7b518354625d178e3af560dc88e9c",
+  "limits": {
+    "timeout_seconds": 15,
+    "max_output_bytes": 262144,
+    "max_processes": 2
+  },
+  "commands": {
+    "directory": {
+      "description": "Query real synthetic people and category candidates; retain every duplicate name with its ID and team",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "people",
+              "categories",
+              "all"
+            ]
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "team": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": []
+      },
+      "effect": "read",
+      "confirmation": "auto",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "team": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "active": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "team",
+                "active"
+              ]
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "people",
+          "categories"
+        ]
+      }
+    },
+    "create": {
+      "description": "Create an open ticket. Priority may be suggested for a new ticket; do not claim an enterprise system was repaired",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "category_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "high",
+              "urgent"
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "category_id"
+        ]
+      },
+      "effect": "write",
+      "confirmation": "auto",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "category_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requester_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assignee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "assigned",
+                  "in_progress",
+                  "resolved",
+                  "closed"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "resolution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "category_id",
+              "requester_id",
+              "assignee_id",
+              "status",
+              "priority",
+              "resolution",
+              "revision",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "input_hash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "command": {
+                "const": "create"
+              },
+              "resource_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "result": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ticket": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "requester_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assignee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "assigned",
+                          "in_progress",
+                          "resolved",
+                          "closed"
+                        ]
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "normal",
+                          "high",
+                          "urgent"
+                        ]
+                      },
+                      "resolution": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "employee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "description",
+                      "category_id",
+                      "requester_id",
+                      "assignee_id",
+                      "status",
+                      "priority",
+                      "resolution",
+                      "revision",
+                      "created_at",
+                      "updated_at"
+                    ]
+                  }
+                },
+                "required": [
+                  "ticket"
+                ]
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contract_digest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "operation_id",
+              "input_hash",
+              "command",
+              "resource_id",
+              "revision",
+              "result"
+            ]
+          }
+        },
+        "required": [
+          "ticket",
+          "receipt"
+        ]
+      }
+    },
+    "assign": {
+      "description": "Assign a directory person ID. First assignment may be automatic; changing an existing assignee requires confirmation",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "person_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "ticket_id",
+          "expected_revision",
+          "person_id"
+        ]
+      },
+      "effect": "write",
+      "confirmation": "initial_assignment",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "category_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requester_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assignee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "assigned",
+                  "in_progress",
+                  "resolved",
+                  "closed"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "resolution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "category_id",
+              "requester_id",
+              "assignee_id",
+              "status",
+              "priority",
+              "resolution",
+              "revision",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "input_hash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "command": {
+                "const": "assign"
+              },
+              "resource_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "result": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ticket": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "requester_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assignee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "assigned",
+                          "in_progress",
+                          "resolved",
+                          "closed"
+                        ]
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "normal",
+                          "high",
+                          "urgent"
+                        ]
+                      },
+                      "resolution": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "employee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "description",
+                      "category_id",
+                      "requester_id",
+                      "assignee_id",
+                      "status",
+                      "priority",
+                      "resolution",
+                      "revision",
+                      "created_at",
+                      "updated_at"
+                    ]
+                  }
+                },
+                "required": [
+                  "ticket"
+                ]
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contract_digest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "operation_id",
+              "input_hash",
+              "command",
+              "resource_id",
+              "revision",
+              "result"
+            ]
+          }
+        },
+        "required": [
+          "ticket",
+          "receipt"
+        ]
+      }
+    },
+    "start": {
+      "description": "start",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "ticket_id",
+          "expected_revision"
+        ]
+      },
+      "effect": "write",
+      "confirmation": "auto",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "category_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requester_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assignee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "assigned",
+                  "in_progress",
+                  "resolved",
+                  "closed"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "resolution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "category_id",
+              "requester_id",
+              "assignee_id",
+              "status",
+              "priority",
+              "resolution",
+              "revision",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "input_hash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "command": {
+                "const": "start"
+              },
+              "resource_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "result": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ticket": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "requester_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assignee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "assigned",
+                          "in_progress",
+                          "resolved",
+                          "closed"
+                        ]
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "normal",
+                          "high",
+                          "urgent"
+                        ]
+                      },
+                      "resolution": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "employee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "description",
+                      "category_id",
+                      "requester_id",
+                      "assignee_id",
+                      "status",
+                      "priority",
+                      "resolution",
+                      "revision",
+                      "created_at",
+                      "updated_at"
+                    ]
+                  }
+                },
+                "required": [
+                  "ticket"
+                ]
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contract_digest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "operation_id",
+              "input_hash",
+              "command",
+              "resource_id",
+              "revision",
+              "result"
+            ]
+          }
+        },
+        "required": [
+          "ticket",
+          "receipt"
+        ]
+      }
+    },
+    "close": {
+      "description": "close",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "ticket_id",
+          "expected_revision"
+        ]
+      },
+      "effect": "write",
+      "confirmation": "confirm",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "category_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requester_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assignee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "assigned",
+                  "in_progress",
+                  "resolved",
+                  "closed"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "resolution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "category_id",
+              "requester_id",
+              "assignee_id",
+              "status",
+              "priority",
+              "resolution",
+              "revision",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "input_hash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "command": {
+                "const": "close"
+              },
+              "resource_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "result": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ticket": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "requester_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assignee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "assigned",
+                          "in_progress",
+                          "resolved",
+                          "closed"
+                        ]
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "normal",
+                          "high",
+                          "urgent"
+                        ]
+                      },
+                      "resolution": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "employee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "description",
+                      "category_id",
+                      "requester_id",
+                      "assignee_id",
+                      "status",
+                      "priority",
+                      "resolution",
+                      "revision",
+                      "created_at",
+                      "updated_at"
+                    ]
+                  }
+                },
+                "required": [
+                  "ticket"
+                ]
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contract_digest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "operation_id",
+              "input_hash",
+              "command",
+              "resource_id",
+              "revision",
+              "result"
+            ]
+          }
+        },
+        "required": [
+          "ticket",
+          "receipt"
+        ]
+      }
+    },
+    "reopen": {
+      "description": "reopen",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "ticket_id",
+          "expected_revision"
+        ]
+      },
+      "effect": "write",
+      "confirmation": "confirm",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "category_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requester_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assignee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "assigned",
+                  "in_progress",
+                  "resolved",
+                  "closed"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "resolution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "category_id",
+              "requester_id",
+              "assignee_id",
+              "status",
+              "priority",
+              "resolution",
+              "revision",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "input_hash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "command": {
+                "const": "reopen"
+              },
+              "resource_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "result": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ticket": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "requester_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assignee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "assigned",
+                          "in_progress",
+                          "resolved",
+                          "closed"
+                        ]
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "normal",
+                          "high",
+                          "urgent"
+                        ]
+                      },
+                      "resolution": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "employee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "description",
+                      "category_id",
+                      "requester_id",
+                      "assignee_id",
+                      "status",
+                      "priority",
+                      "resolution",
+                      "revision",
+                      "created_at",
+                      "updated_at"
+                    ]
+                  }
+                },
+                "required": [
+                  "ticket"
+                ]
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contract_digest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "operation_id",
+              "input_hash",
+              "command",
+              "resource_id",
+              "revision",
+              "result"
+            ]
+          }
+        },
+        "required": [
+          "ticket",
+          "receipt"
+        ]
+      }
+    },
+    "comment": {
+      "description": "comment",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "ticket_id",
+          "expected_revision",
+          "body"
+        ]
+      },
+      "effect": "write",
+      "confirmation": "auto",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "category_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requester_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assignee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "assigned",
+                  "in_progress",
+                  "resolved",
+                  "closed"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "resolution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "category_id",
+              "requester_id",
+              "assignee_id",
+              "status",
+              "priority",
+              "resolution",
+              "revision",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "input_hash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "command": {
+                "const": "comment"
+              },
+              "resource_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "result": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ticket": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "requester_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assignee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "assigned",
+                          "in_progress",
+                          "resolved",
+                          "closed"
+                        ]
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "normal",
+                          "high",
+                          "urgent"
+                        ]
+                      },
+                      "resolution": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "employee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "description",
+                      "category_id",
+                      "requester_id",
+                      "assignee_id",
+                      "status",
+                      "priority",
+                      "resolution",
+                      "revision",
+                      "created_at",
+                      "updated_at"
+                    ]
+                  }
+                },
+                "required": [
+                  "ticket"
+                ]
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contract_digest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "operation_id",
+              "input_hash",
+              "command",
+              "resource_id",
+              "revision",
+              "result"
+            ]
+          }
+        },
+        "required": [
+          "ticket",
+          "receipt"
+        ]
+      }
+    },
+    "resolve": {
+      "description": "Record user-provided resolution after confirmation; never invent actual enterprise repair evidence",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "resolution": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "ticket_id",
+          "expected_revision",
+          "resolution"
+        ]
+      },
+      "effect": "write",
+      "confirmation": "confirm",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "category_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requester_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assignee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "assigned",
+                  "in_progress",
+                  "resolved",
+                  "closed"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "resolution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "category_id",
+              "requester_id",
+              "assignee_id",
+              "status",
+              "priority",
+              "resolution",
+              "revision",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "input_hash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "command": {
+                "const": "resolve"
+              },
+              "resource_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "result": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ticket": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "requester_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assignee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "assigned",
+                          "in_progress",
+                          "resolved",
+                          "closed"
+                        ]
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "normal",
+                          "high",
+                          "urgent"
+                        ]
+                      },
+                      "resolution": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "employee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "description",
+                      "category_id",
+                      "requester_id",
+                      "assignee_id",
+                      "status",
+                      "priority",
+                      "resolution",
+                      "revision",
+                      "created_at",
+                      "updated_at"
+                    ]
+                  }
+                },
+                "required": [
+                  "ticket"
+                ]
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contract_digest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "operation_id",
+              "input_hash",
+              "command",
+              "resource_id",
+              "revision",
+              "result"
+            ]
+          }
+        },
+        "required": [
+          "ticket",
+          "receipt"
+        ]
+      }
+    },
+    "set_priority": {
+      "description": "set priority",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "high",
+              "urgent"
+            ]
+          }
+        },
+        "required": [
+          "ticket_id",
+          "expected_revision",
+          "priority"
+        ]
+      },
+      "effect": "write",
+      "confirmation": "confirm",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "category_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requester_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assignee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "assigned",
+                  "in_progress",
+                  "resolved",
+                  "closed"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "resolution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "category_id",
+              "requester_id",
+              "assignee_id",
+              "status",
+              "priority",
+              "resolution",
+              "revision",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "input_hash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "command": {
+                "const": "set_priority"
+              },
+              "resource_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "result": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ticket": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "requester_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "assignee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "assigned",
+                          "in_progress",
+                          "resolved",
+                          "closed"
+                        ]
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "normal",
+                          "high",
+                          "urgent"
+                        ]
+                      },
+                      "resolution": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "employee_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "description",
+                      "category_id",
+                      "requester_id",
+                      "assignee_id",
+                      "status",
+                      "priority",
+                      "resolution",
+                      "revision",
+                      "created_at",
+                      "updated_at"
+                    ]
+                  }
+                },
+                "required": [
+                  "ticket"
+                ]
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contract_digest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "operation_id",
+              "input_hash",
+              "command",
+              "resource_id",
+              "revision",
+              "result"
+            ]
+          }
+        },
+        "required": [
+          "ticket",
+          "receipt"
+        ]
+      }
+    },
+    "get": {
+      "description": "get",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "ticket_id"
+        ]
+      },
+      "effect": "read",
+      "confirmation": "auto",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "category_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requester_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assignee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "assigned",
+                  "in_progress",
+                  "resolved",
+                  "closed"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ]
+              },
+              "resolution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "employee_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "category_id",
+              "requester_id",
+              "assignee_id",
+              "status",
+              "priority",
+              "resolution",
+              "revision",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "ticket_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "command": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "details": {
+                  "type": "object"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "employee_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "operation_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "external_mcp",
+                        "decagent"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "ticket_id",
+                "revision",
+                "command",
+                "details",
+                "created_at"
+              ]
+            }
+          }
+        },
+        "required": [
+          "ticket",
+          "history"
+        ]
+      }
+    },
+    "list": {
+      "description": "list",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "assigned",
+              "in_progress",
+              "resolved",
+              "closed"
+            ]
+          },
+          "person_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": []
+      },
+      "effect": "read",
+      "confirmation": "auto",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tickets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "category_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requester_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "assignee_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "assigned",
+                    "in_progress",
+                    "resolved",
+                    "closed"
+                  ]
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "normal",
+                    "high",
+                    "urgent"
+                  ]
+                },
+                "resolution": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "employee_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "description",
+                "category_id",
+                "requester_id",
+                "assignee_id",
+                "status",
+                "priority",
+                "resolution",
+                "revision",
+                "created_at",
+                "updated_at"
+              ]
+            }
+          }
+        },
+        "required": [
+          "tickets"
+        ]
+      }
+    },
+    "receipt": {
+      "description": "receipt",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "effect": "read",
+      "confirmation": "auto",
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receipt": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "operation_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "input_hash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "command": {
+                    "enum": [
+                      "create",
+                      "assign",
+                      "start",
+                      "close",
+                      "reopen",
+                      "comment",
+                      "resolve",
+                      "set_priority",
+                      "seed"
+                    ]
+                  },
+                  "resource_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "revision": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "result": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "ticket": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "title": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 300
+                              },
+                              "description": {
+                                "type": "string",
+                                "maxLength": 10000
+                              },
+                              "category_id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "requester_id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "assignee_id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "open",
+                                  "assigned",
+                                  "in_progress",
+                                  "resolved",
+                                  "closed"
+                                ]
+                              },
+                              "priority": {
+                                "type": "string",
+                                "enum": [
+                                  "normal",
+                                  "high",
+                                  "urgent"
+                                ]
+                              },
+                              "resolution": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "revision": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "created_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "updated_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "employee_id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title",
+                              "description",
+                              "category_id",
+                              "requester_id",
+                              "assignee_id",
+                              "status",
+                              "priority",
+                              "resolution",
+                              "revision",
+                              "created_at",
+                              "updated_at"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "ticket"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "people": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "categories": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        },
+                        "required": [
+                          "people",
+                          "categories"
+                        ]
+                      }
+                    ]
+                  },
+                  "employee_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "contract_digest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "operation_id",
+                  "input_hash",
+                  "command",
+                  "resource_id",
+                  "revision",
+                  "result"
+                ],
+                "oneOf": [
+                  {
+                    "properties": {
+                      "command": {
+                        "const": "seed"
+                      },
+                      "result": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "people": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "categories": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        },
+                        "required": [
+                          "people",
+                          "categories"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "command": {
+                        "enum": [
+                          "create",
+                          "assign",
+                          "start",
+                          "close",
+                          "reopen",
+                          "comment",
+                          "resolve",
+                          "set_priority"
+                        ]
+                      },
+                      "result": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "ticket": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "title": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 300
+                              },
+                              "description": {
+                                "type": "string",
+                                "maxLength": 10000
+                              },
+                              "category_id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "requester_id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "assignee_id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "open",
+                                  "assigned",
+                                  "in_progress",
+                                  "resolved",
+                                  "closed"
+                                ]
+                              },
+                              "priority": {
+                                "type": "string",
+                                "enum": [
+                                  "normal",
+                                  "high",
+                                  "urgent"
+                                ]
+                              },
+                              "resolution": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "revision": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "created_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "updated_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "employee_id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title",
+                              "description",
+                              "category_id",
+                              "requester_id",
+                              "assignee_id",
+                              "status",
+                              "priority",
+                              "resolution",
+                              "revision",
+                              "created_at",
+                              "updated_at"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "ticket"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "receipt"
+        ]
+      }
+    }
+  },
+  "receipts": {
+    "command": "receipt",
+    "key": "operation_id"
+  },
+  "workflow": {
+    "version": "1.0.0",
+    "states": [
+      "open",
+      "assigned",
+      "in_progress",
+      "resolved",
+      "closed"
+    ],
+    "transitions": {
+      "assign": {
+        "from": [
+          "open",
+          "assigned",
+          "in_progress"
+        ],
+        "to": "assigned"
+      },
+      "start": {
+        "from": [
+          "assigned"
+        ],
+        "to": "in_progress"
+      },
+      "resolve": {
+        "from": [
+          "in_progress"
+        ],
+        "to": "resolved"
+      },
+      "close": {
+        "from": [
+          "resolved"
+        ],
+        "to": "closed"
+      },
+      "reopen": {
+        "from": [
+          "resolved",
+          "closed"
+        ],
+        "to": "open"
+      }
+    },
+    "branches": [
+      {
+        "condition": "missing required user fact",
+        "route": "request_user"
+      },
+      {
+        "condition": "multiple exact person names",
+        "route": "request_user"
+      },
+      {
+        "condition": "missing calibration or low certainty",
+        "route": "main_planner"
+      },
+      {
+        "condition": "validated explicitly requested legal command",
+        "route": "validate_and_execute"
+      }
+    ],
+    "questions": [
+      {
+        "id": "operation",
+        "type": "choice",
+        "candidates": [
+          "directory",
+          "create",
+          "assign",
+          "start",
+          "close",
+          "reopen",
+          "comment",
+          "resolve",
+          "set_priority",
+          "get",
+          "list",
+          "receipt"
+        ],
+        "no_match": true
+      },
+      {
+        "id": "explicit_assignee",
+        "type": "noul",
+        "proposition": "User specified an assignee"
+      },
+      {
+        "id": "multi_person",
+        "type": "noul",
+        "proposition": "More than one person is affected"
+      },
+      {
+        "id": "work_blockage",
+        "type": "score",
+        "scale": [
+          {
+            "score": 0,
+            "context": "work unaffected"
+          },
+          {
+            "score": 1,
+            "context": "work can continue with a workaround"
+          },
+          {
+            "score": 2,
+            "context": "work blocked"
+          }
+        ]
+      }
+    ],
+    "parameter_sources": {
+      "ticket_id": "get/list directory result",
+      "person_id": "directory.people unique selected ID",
+      "category_id": "directory.categories selected ID",
+      "expected_revision": "fresh get.ticket.revision",
+      "title": "user text or primary planner preserving meaning",
+      "description": "user text",
+      "body": "user text",
+      "resolution": "explicit user supplied resolution",
+      "priority": "new ticket: weighted score; existing ticket: explicit confirmed choice"
+    },
+    "completion": {
+      "create_and_assign": "verified create receipt and requested assign receipt referencing the same ticket ID; closing is not required",
+      "write": "matching operation_id receipt and resource revision",
+      "read": "validated result schema"
+    }
+  },
+  "connection": {
+    "service_id": "service-tickets",
+    "transport": "streamable-http",
+    "protocol_version": "2026-07-28",
+    "endpoint_ref": "DECAGENT_TICKETS_MCP_URL"
+  },
+  "recovery": {
+    "version": "2.0.0",
+    "prepare_prefix": "tickets_prepare_",
+    "commit_tool": "business_commit_operation",
+    "get_operation_tool": "business_get_operation",
+    "request_key": "request_id",
+    "operation_key": "operation_id",
+    "receipt_command": "receipt",
+    "resource_command": "get",
+    "immutable": true
+  }
+}

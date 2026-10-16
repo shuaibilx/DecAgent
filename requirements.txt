@@ -1,0 +1,4 @@
+# Run from the DecAgent root; pin both direct and transitive dependencies.
+-r requirements.lock
+-e .
+

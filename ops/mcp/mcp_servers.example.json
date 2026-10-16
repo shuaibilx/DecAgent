@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "decagent-tickets": {
+      "url": "http://127.0.0.1:8001/mcp",
+      "headers": {
+        "Authorization": "Bearer ${DECAGENT_EMPLOYEE_MCP_TOKEN}"
+      }
+    }
+  }
+}

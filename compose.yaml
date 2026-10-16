@@ -1,0 +1,142 @@
+name: ${DECAGENT_COMPOSE_PROJECT:-decagent}
+x-control: &control
+  image: ${DECAGENT_CONTROL_IMAGE:-decagent-control:local}
+  build: {context: ., dockerfile: ops/control/Dockerfile}
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  mem_limit: 1g
+  tmpfs: ["/tmp:size=64m,nosuid,nodev"]
+  volumes: [control_data:/data]
+  environment: &control-environment
+    DECAGENT_DATA_DIR: /data
+    DECAGENT_PUBLIC_URL: ${DECAGENT_PUBLIC_URL:-http://127.0.0.1:8000}
+    DECAGENT_BROKER_URL: http://executor-broker:8081
+    DECAGENT_RUNNER_IMAGE: ${DECAGENT_RUNNER_IMAGE:?Build runner then set its immutable sha256 image ID}
+    DECAGENT_MAIN_MODEL: ${DECAGENT_MAIN_MODEL:-gpt-4.1}
+    DECAGENT_MAIN_BASE_URL: ${DECAGENT_MAIN_BASE_URL:-https://api.openai.com/v1}
+    DECAGENT_JEV_MODEL: ${DECAGENT_JEV_MODEL:-jev-1.13.0}
+    DECAGENT_JEV_PROVIDER: ${DECAGENT_JEV_PROVIDER:-typesafe}
+    DECAGENT_DECISION_STRATEGY: ${DECAGENT_DECISION_STRATEGY:-jev}
+    DECAGENT_GIT_AUTHOR_NAME: ${DECAGENT_GIT_AUTHOR_NAME:-DecAgent}
+    DECAGENT_GIT_AUTHOR_EMAIL: ${DECAGENT_GIT_AUTHOR_EMAIL:-}
+    DECAGENT_MAIN_PRICE_VERSION: ${DECAGENT_MAIN_PRICE_VERSION:-}
+    DECAGENT_MAIN_INPUT_PER_MILLION: ${DECAGENT_MAIN_INPUT_PER_MILLION:-}
+    DECAGENT_MAIN_OUTPUT_PER_MILLION: ${DECAGENT_MAIN_OUTPUT_PER_MILLION:-}
+    DECAGENT_MAIN_UNKNOWN_RESERVATION: ${DECAGENT_MAIN_UNKNOWN_RESERVATION:-}
+    DECAGENT_JEV_RESERVATION: ${DECAGENT_JEV_RESERVATION:-0.01}
+    DECAGENT_CONTEXT_TOKENS: ${DECAGENT_CONTEXT_TOKENS:-65536}
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    container_name: ${DECAGENT_INSTANCE_PREFIX:-decagent}-postgres
+    environment:
+      POSTGRES_DB: decagent
+      POSTGRES_USER: decagent
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [control]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U decagent -d decagent]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    <<: *control
+    command: [migrate]
+    secrets: [postgres_password]
+    networks: [control]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+  owner-init:
+    <<: *control
+    profiles: [setup]
+    command: [init]
+    secrets: [postgres_password]
+    networks: [control]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: "no"
+  api:
+    <<: *control
+    container_name: ${DECAGENT_INSTANCE_PREFIX:-decagent}-api
+    command: [api]
+    secrets: [postgres_password, broker_token, github_token, main_api_key, jev_api_key]
+    networks: [control, public]
+    ports: ["127.0.0.1:${DECAGENT_API_PORT:-8000}:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      executor-broker: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  worker:
+    <<: *control
+    container_name: ${DECAGENT_INSTANCE_PREFIX:-decagent}-worker
+    command: [worker, --kind, repository_repair]
+    secrets: [postgres_password, broker_token, github_token, main_api_key, jev_api_key]
+    networks: [control, public]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      executor-broker: {condition: service_healthy}
+    restart: unless-stopped
+  egress-proxy:
+    image: ${DECAGENT_EXECUTOR_IMAGE:-decagent-executor:local}
+    build: {context: ., dockerfile: ops/executor/Dockerfile}
+    container_name: ${DECAGENT_INSTANCE_PREFIX:-decagent}-egress-proxy
+    command: [python, -m, decagent.executor.proxy]
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 1
+    tmpfs: ["/tmp:size=32m,nosuid,nodev"]
+    sysctls: {net.ipv4.ip_forward: "0", net.ipv6.conf.all.forwarding: "0"}
+    networks: [public]
+    restart: unless-stopped
+  executor-broker:
+    image: ${DECAGENT_EXECUTOR_IMAGE:-decagent-executor:local}
+    build: {context: ., dockerfile: ops/executor/Dockerfile}
+    container_name: ${DECAGENT_INSTANCE_PREFIX:-decagent}-executor-broker
+    environment:
+      DECAGENT_RUNNER_IMAGE: ${DECAGENT_RUNNER_IMAGE:?Build runner then set its immutable sha256 image ID}
+      DECAGENT_PROXY_CONTAINER: ${DECAGENT_INSTANCE_PREFIX:-decagent}-egress-proxy
+      DECAGENT_CONTROL_CONTAINERS: ${DECAGENT_INSTANCE_PREFIX:-decagent}-postgres,${DECAGENT_INSTANCE_PREFIX:-decagent}-api,${DECAGENT_INSTANCE_PREFIX:-decagent}-worker,${DECAGENT_INSTANCE_PREFIX:-decagent}-executor-broker
+    secrets: [broker_token, postgres_password]
+    volumes: [/var/run/docker.sock:/var/run/docker.sock, broker_receipts:/receipts]
+    networks: [control]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=64m,nosuid,nodev"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      egress-proxy: {condition: service_started}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request,pathlib; r=urllib.request.Request('http://127.0.0.1:8081/health',headers={'Authorization':'Bearer '+pathlib.Path('/run/secrets/broker_token').read_text().strip()}); urllib.request.urlopen(r,timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+networks:
+  control: {internal: true}
+  public: {}
+volumes:
+  postgres_data: {}
+  broker_receipts: {}
+  control_data: {}
+secrets:
+  broker_token: {file: "${DECAGENT_SECRETS_DIR:-.decagent/secrets}/broker_token"}
+  postgres_password: {file: "${DECAGENT_SECRETS_DIR:-.decagent/secrets}/postgres_password"}
+  github_token: {file: "${DECAGENT_SECRETS_DIR:-.decagent/secrets}/github_token"}
+  main_api_key: {file: "${DECAGENT_SECRETS_DIR:-.decagent/secrets}/main_api_key"}
+  jev_api_key: {file: "${DECAGENT_SECRETS_DIR:-.decagent/secrets}/jev_api_key"}

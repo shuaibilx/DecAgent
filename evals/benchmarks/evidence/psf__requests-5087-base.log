@@ -1,0 +1,20 @@
+SOURCE_MODULE /repo/requests/__init__.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________________ test_bug ___________________________________
+
+    def test_bug():
+        response = Response()
+        response.status_code = 200
+        response.raw = BrokenStream()
+        for _ in range(2):
+>           with pytest.raises(ChunkedEncodingError):
+E           Failed: DID NOT RAISE ChunkedEncodingError
+
+/acceptance/test_bug.py:22: Failed
+=========================== short test summary info ============================
+FAILED ../acceptance/test_bug.py::test_bug - Failed: DID NOT RAISE ChunkedEnc...
+1 failed in 0.10s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcyBuYW1lPSJweXRlc3QgdGVzdHMiPjx0ZXN0c3VpdGUgbmFtZT0icHl0ZXN0IiBlcnJvcnM9IjAiIGZhaWx1cmVzPSIxIiBza2lwcGVkPSIwIiB0ZXN0cz0iMSIgdGltZT0iMC4xMTAiIHRpbWVzdGFtcD0iMjAyNi0xMC0xMFQwOToxMTo0OC4yMTk4NDErMDA6MDAiIGhvc3RuYW1lPSI3NjI4OTE4OWFhMDgiPjx0ZXN0Y2FzZSBjbGFzc25hbWU9InRlc3RfYnVnIiBuYW1lPSJ0ZXN0X2J1ZyIgdGltZT0iMC4wMDEiPjxmYWlsdXJlIG1lc3NhZ2U9IkZhaWxlZDogRElEIE5PVCBSQUlTRSBDaHVua2VkRW5jb2RpbmdFcnJvciI+ZGVmIHRlc3RfYnVnKCk6CiAgICAgICAgcmVzcG9uc2UgPSBSZXNwb25zZSgpCiAgICAgICAgcmVzcG9uc2Uuc3RhdHVzX2NvZGUgPSAyMDAKICAgICAgICByZXNwb25zZS5yYXcgPSBCcm9rZW5TdHJlYW0oKQogICAgICAgIGZvciBfIGluIHJhbmdlKDIpOgomZ3Q7ICAgICAgICAgICB3aXRoIHB5dGVzdC5yYWlzZXMoQ2h1bmtlZEVuY29kaW5nRXJyb3IpOgpFICAgICAgICAgICBGYWlsZWQ6IERJRCBOT1QgUkFJU0UgQ2h1bmtlZEVuY29kaW5nRXJyb3IKCi9hY2NlcHRhbmNlL3Rlc3RfYnVnLnB5OjIyOiBGYWlsZWQ8L2ZhaWx1cmU+PC90ZXN0Y2FzZT48L3Rlc3RzdWl0ZT48L3Rlc3RzdWl0ZXM+
+/repo/requests/__init__.py:89: RequestsDependencyWarning: urllib3 (1.26.20) or chardet (3.0.4) doesn't match a supported version!
+  warnings.warn("urllib3 ({}) or chardet ({}) doesn't match a supported "

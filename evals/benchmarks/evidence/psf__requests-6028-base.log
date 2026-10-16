@@ -1,0 +1,19 @@
+SOURCE_MODULE /repo/requests/__init__.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________________ test_bug ___________________________________
+
+    def test_bug():
+        value = "http://user:pass@example.com/path?query"
+>       assert prepend_scheme_if_needed(value, "http") == value
+E       AssertionError: assert 'http://examp...om/path?query' == 'http://user:...om/path?query'
+E         
+E         - http://user:pass@example.com/path?query
+E         ?        ----------
+E         + http://example.com/path?query
+
+/acceptance/test_bug.py:5: AssertionError
+=========================== short test summary info ============================
+FAILED ../acceptance/test_bug.py::test_bug - AssertionError: assert 'http://e...
+1 failed in 0.07s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcyBuYW1lPSJweXRlc3QgdGVzdHMiPjx0ZXN0c3VpdGUgbmFtZT0icHl0ZXN0IiBlcnJvcnM9IjAiIGZhaWx1cmVzPSIxIiBza2lwcGVkPSIwIiB0ZXN0cz0iMSIgdGltZT0iMC4wNzYiIHRpbWVzdGFtcD0iMjAyNi0xMC0xMFQwOToxMTo1Mi41Mzk4OTYrMDA6MDAiIGhvc3RuYW1lPSI0NTIyMTEzNzVlYTkiPjx0ZXN0Y2FzZSBjbGFzc25hbWU9InRlc3RfYnVnIiBuYW1lPSJ0ZXN0X2J1ZyIgdGltZT0iMC4wMDEiPjxmYWlsdXJlIG1lc3NhZ2U9IkFzc2VydGlvbkVycm9yOiBhc3NlcnQgJ2h0dHA6Ly9leGFtcC4uLm9tL3BhdGg/cXVlcnknID09ICdodHRwOi8vdXNlcjouLi5vbS9wYXRoP3F1ZXJ5JyYjMTA7ICAmIzEwOyAgLSBodHRwOi8vdXNlcjpwYXNzQGV4YW1wbGUuY29tL3BhdGg/cXVlcnkmIzEwOyAgPyAgICAgICAgLS0tLS0tLS0tLSYjMTA7ICArIGh0dHA6Ly9leGFtcGxlLmNvbS9wYXRoP3F1ZXJ5Ij5kZWYgdGVzdF9idWcoKToKICAgICAgICB2YWx1ZSA9ICJodHRwOi8vdXNlcjpwYXNzQGV4YW1wbGUuY29tL3BhdGg/cXVlcnkiCiZndDsgICAgICAgYXNzZXJ0IHByZXBlbmRfc2NoZW1lX2lmX25lZWRlZCh2YWx1ZSwgImh0dHAiKSA9PSB2YWx1ZQpFICAgICAgIEFzc2VydGlvbkVycm9yOiBhc3NlcnQgJ2h0dHA6Ly9leGFtcC4uLm9tL3BhdGg/cXVlcnknID09ICdodHRwOi8vdXNlcjouLi5vbS9wYXRoP3F1ZXJ5JwpFICAgICAgICAgCkUgICAgICAgICAtIGh0dHA6Ly91c2VyOnBhc3NAZXhhbXBsZS5jb20vcGF0aD9xdWVyeQpFICAgICAgICAgPyAgICAgICAgLS0tLS0tLS0tLQpFICAgICAgICAgKyBodHRwOi8vZXhhbXBsZS5jb20vcGF0aD9xdWVyeQoKL2FjY2VwdGFuY2UvdGVzdF9idWcucHk6NTogQXNzZXJ0aW9uRXJyb3I8L2ZhaWx1cmU+PC90ZXN0Y2FzZT48L3Rlc3RzdWl0ZT48L3Rlc3RzdWl0ZXM+

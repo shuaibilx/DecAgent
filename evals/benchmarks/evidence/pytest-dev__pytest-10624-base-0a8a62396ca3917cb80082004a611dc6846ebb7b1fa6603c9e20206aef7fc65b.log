@@ -1,0 +1,43 @@
+SOURCE_MODULE /repo/src/pytest/__init__.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________________ test_bug ___________________________________
+
+    def test_bug():
+>       explanation = pytest.approx({"foo": 0.0})._repr_compare({"foo": 42.0})
+
+/acceptance/test_bug.py:4: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = approx({'foo': 0.0 ± 1.0e-12}), other_side = {'foo': 42.0}
+
+    def _repr_compare(self, other_side: Mapping[object, float]) -> List[str]:
+        import math
+    
+        approx_side_as_map = {
+            k: self._approx_scalar(v) for k, v in self.expected.items()
+        }
+    
+        number_of_elements = len(approx_side_as_map)
+        max_abs_diff = -math.inf
+        max_rel_diff = -math.inf
+        different_ids = []
+        for (approx_key, approx_value), other_value in zip(
+            approx_side_as_map.items(), other_side.values()
+        ):
+            if approx_value != other_value:
+                max_abs_diff = max(
+                    max_abs_diff, abs(approx_value.expected - other_value)
+                )
+                max_rel_diff = max(
+                    max_rel_diff,
+>                   abs((approx_value.expected - other_value) / approx_value.expected),
+                )
+E               ZeroDivisionError: float division by zero
+
+/repo/src/_pytest/python_api.py:274: ZeroDivisionError
+--------------------- generated xml file: /tmp/result.xml ----------------------
+=========================== short test summary info ============================
+FAILED ../acceptance/test_bug.py::test_bug - ZeroDivisionError: float divisio...
+1 failed in 0.29s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcz48dGVzdHN1aXRlIG5hbWU9InB5dGVzdCIgZXJyb3JzPSIwIiBmYWlsdXJlcz0iMSIgc2tpcHBlZD0iMCIgdGVzdHM9IjEiIHRpbWU9IjAuMjkzIiB0aW1lc3RhbXA9IjIwMjYtMTAtMTBUMTc6MDc6NTYuODgyMjM4IiBob3N0bmFtZT0iMzA2OTE5YTg4YTAwIj48dGVzdGNhc2UgY2xhc3NuYW1lPSJ0ZXN0X2J1ZyIgbmFtZT0idGVzdF9idWciIHRpbWU9IjAuMDAwIj48ZmFpbHVyZSBtZXNzYWdlPSJaZXJvRGl2aXNpb25FcnJvcjogZmxvYXQgZGl2aXNpb24gYnkgemVybyI+ZGVmIHRlc3RfYnVnKCk6CiZndDsgICAgICAgZXhwbGFuYXRpb24gPSBweXRlc3QuYXBwcm94KHsiZm9vIjogMC4wfSkuX3JlcHJfY29tcGFyZSh7ImZvbyI6IDQyLjB9KQoKL2FjY2VwdGFuY2UvdGVzdF9idWcucHk6NDogCl8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gXyBfIF8gCgpzZWxmID0gYXBwcm94KHsnZm9vJzogMC4wIMKxIDEuMGUtMTJ9KSwgb3RoZXJfc2lkZSA9IHsnZm9vJzogNDIuMH0KCiAgICBkZWYgX3JlcHJfY29tcGFyZShzZWxmLCBvdGhlcl9zaWRlOiBNYXBwaW5nW29iamVjdCwgZmxvYXRdKSAtJmd0OyBMaXN0W3N0cl06CiAgICAgICAgaW1wb3J0IG1hdGgKICAgIAogICAgICAgIGFwcHJveF9zaWRlX2FzX21hcCA9IHsKICAgICAgICAgICAgazogc2VsZi5fYXBwcm94X3NjYWxhcih2KSBmb3IgaywgdiBpbiBzZWxmLmV4cGVjdGVkLml0ZW1zKCkKICAgICAgICB9CiAgICAKICAgICAgICBudW1iZXJfb2ZfZWxlbWVudHMgPSBsZW4oYXBwcm94X3NpZGVfYXNfbWFwKQogICAgICAgIG1heF9hYnNfZGlmZiA9IC1tYXRoLmluZgogICAgICAgIG1heF9yZWxfZGlmZiA9IC1tYXRoLmluZgogICAgICAgIGRpZmZlcmVudF9pZHMgPSBbXQogICAgICAgIGZvciAoYXBwcm94X2tleSwgYXBwcm94X3ZhbHVlKSwgb3RoZXJfdmFsdWUgaW4gemlwKAogICAgICAgICAgICBhcHByb3hfc2lkZV9hc19tYXAuaXRlbXMoKSwgb3RoZXJfc2lkZS52YWx1ZXMoKQogICAgICAgICk6CiAgICAgICAgICAgIGlmIGFwcHJveF92YWx1ZSAhPSBvdGhlcl92YWx1ZToKICAgICAgICAgICAgICAgIG1heF9hYnNfZGlmZiA9IG1heCgKICAgICAgICAgICAgICAgICAgICBtYXhfYWJzX2RpZmYsIGFicyhhcHByb3hfdmFsdWUuZXhwZWN0ZWQgLSBvdGhlcl92YWx1ZSkKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgIG1heF9yZWxfZGlmZiA9IG1heCgKICAgICAgICAgICAgICAgICAgICBtYXhfcmVsX2RpZmYsCiZndDsgICAgICAgICAgICAgICAgICAgYWJzKChhcHByb3hfdmFsdWUuZXhwZWN0ZWQgLSBvdGhlcl92YWx1ZSkgLyBhcHByb3hfdmFsdWUuZXhwZWN0ZWQpLAogICAgICAgICAgICAgICAgKQpFICAgICAgICAgICAgICAgWmVyb0RpdmlzaW9uRXJyb3I6IGZsb2F0IGRpdmlzaW9uIGJ5IHplcm8KCi9yZXBvL3NyYy9fcHl0ZXN0L3B5dGhvbl9hcGkucHk6Mjc0OiBaZXJvRGl2aXNpb25FcnJvcjwvZmFpbHVyZT48L3Rlc3RjYXNlPjwvdGVzdHN1aXRlPjwvdGVzdHN1aXRlcz4=

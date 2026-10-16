@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "decagent"
+version = "0.1.0"
+description = "A governed business agent for authenticated MCP and Skill workflows with durable execution"
+requires-python = ">=3.11"
+license = "MIT"
+readme = "README.md"
+dependencies = [
+  "langchain>=1.2,<2", "langgraph>=1.2,<2", "langchain-openai>=1.1,<2",
+  "langgraph-checkpoint-postgres>=3,<4", "fastapi>=0.120,<1",
+  "uvicorn>=0.38,<1", "psycopg[binary,pool]>=3.2,<4",
+  "httpx>=0.28,<1", "python-dotenv>=1.1,<2", "rich>=14,<15",
+  "jsonschema>=4.23,<5",
+  "mcp==2.3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.14,<1", "pytest-asyncio>=1,<2"]
+
+[project.scripts]
+decagent = "decagent.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["decagent"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["evals/benchmarks/research", "evals/benchmarks/vendor_cache", ".decagent", "generated"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["evals"]
+norecursedirs = ["research", "fixtures", ".venv", ".decagent", ".git", "__pycache__"]
+addopts = "-m 'not live' --strict-markers"
+markers = [
+  "integration: requires disposable PostgreSQL or container services",
+  "live: explicitly authorized external credentials and spend required",
+]
+

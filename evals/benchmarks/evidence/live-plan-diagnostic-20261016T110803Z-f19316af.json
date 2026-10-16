@@ -1,0 +1,64 @@
+{
+  "schema_version": "decagent-live-plan-diagnostic-1",
+  "created_at": "2026-10-16T11:08:03.895463+00:00",
+  "previous_evidence": "evals/benchmarks/evidence/live-smoke-20261016T110552Z-a1c44379.json",
+  "status": "failed",
+  "output": {
+    "reason": "invalid_plan"
+  },
+  "turns": [
+    {
+      "turn_type": "ModelTurn",
+      "model": "qwen3.8-flash",
+      "usage": {
+        "input_tokens": 11344,
+        "output_tokens": 768
+      },
+      "tool_names": [],
+      "text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text_chars": 0,
+      "validation": "invalid",
+      "error_type": "JSONDecodeError",
+      "error_code": null,
+      "error": "Expecting value: line 1 column 1 (char 0)"
+    },
+    {
+      "turn_type": "ModelTurn",
+      "model": "qwen3.8-flash",
+      "usage": {
+        "input_tokens": 11379,
+        "output_tokens": 768
+      },
+      "tool_names": [],
+      "text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text_chars": 0,
+      "validation": "invalid",
+      "error_type": "JSONDecodeError",
+      "error_code": null,
+      "error": "Expecting value: line 1 column 1 (char 0)"
+    }
+  ],
+  "attempts": [
+    {
+      "attempt": 1,
+      "provider": "primary",
+      "reserved_tokens": 49480,
+      "reserved_cost_usd": "0",
+      "status": "responded",
+      "actual_tokens": 12112,
+      "actual_cost_usd": "0",
+      "error_code": null
+    },
+    {
+      "attempt": 1,
+      "provider": "primary",
+      "reserved_tokens": 49694,
+      "reserved_cost_usd": "0",
+      "status": "responded",
+      "actual_tokens": 12147,
+      "actual_cost_usd": "0",
+      "error_code": null
+    }
+  ],
+  "secret_values_recorded": false
+}

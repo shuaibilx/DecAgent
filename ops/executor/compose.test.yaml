@@ -1,0 +1,16 @@
+# Disposable evaluator override. No production volumes, credentials, or service names are reused.
+services:
+  postgres:
+    container_name: decagent-executor-compose-pg
+  egress-proxy:
+    container_name: decagent-executor-compose-proxy
+  executor-broker:
+    container_name: decagent-executor-compose-broker
+    environment:
+      DECAGENT_PROXY_CONTAINER: decagent-executor-compose-proxy
+      DECAGENT_CONTROL_CONTAINERS: decagent-executor-compose-pg,decagent-executor-compose-broker
+secrets:
+  broker_token:
+    file: ${DECAGENT_EXECUTOR_TEST_SECRETS_DIR:?Set dedicated evaluator secret directory}/broker_token
+  postgres_password:
+    file: ${DECAGENT_EXECUTOR_TEST_SECRETS_DIR:?Set dedicated evaluator secret directory}/postgres_password

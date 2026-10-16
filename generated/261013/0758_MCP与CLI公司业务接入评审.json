@@ -1,0 +1,129 @@
+{
+  "schema": "business-execution-route-review-1",
+  "objective": "Compare MCP and CLI for company business API execution and assess current DecAgent route",
+  "report": "generated/261013/0758_MCP与CLI公司业务接入评审.md",
+  "report_sha256": "1e27b26be056acbf1ff27c7005b6211ca18986196f724d15b93f989df98f58f2",
+  "sources": [
+    {
+      "path": "decagent/business/contracts.py",
+      "sha256": "92e4895c1fe306cec5943325d60e0da011381dc00aeacd86418b38e4f1c7c5c0"
+    },
+    {
+      "path": "decagent/business/runner.py",
+      "sha256": "441389e84befd852ab0fb0aaed302714b0782f239f2d12acdb6157f82251ef7f"
+    },
+    {
+      "path": "decagent/business/execution.py",
+      "sha256": "9cf709193f63a6bc9f46cedf98990a5d548983896ec1f746640b67b54dcd9f7e"
+    },
+    {
+      "path": "decagent/business/planner.py",
+      "sha256": "b3004b76e2f848f23c814e570f75d9645740aa4c95f46a098aa3294b8c1b9275"
+    },
+    {
+      "path": "decagent/business/registry.py",
+      "sha256": "c3f060b3b1247812aa790cd01d48b8896aa2d6be428f92b8a76ccff3cd961a16"
+    },
+    {
+      "path": "decagent/gateway/auth.py",
+      "sha256": "67a6a0f4ee5d723a0ff2ba87cccf8e0fa0db1d65ed465fef45a915e727ce38bd"
+    },
+    {
+      "path": "decagent/evaluation/business/harness.py",
+      "sha256": "095b83e0d48afe69bd18d63470be55e0027a20193e136702244497d58bea4dc1"
+    },
+    {
+      "path": "external/yulong-plugin-main/yulong-cli/src/commands/schema.ts",
+      "sha256": "9e9179d8b036114e80ef4db03af2ca8b7ab7c5ec55b418a947d2dce6aaf865ea"
+    },
+    {
+      "path": "external/yulong-plugin-main/yulong-cli/src/commands/business.ts",
+      "sha256": "aecaef6446c200de995b89d33345ba34e078cb3cf1e4dc8b9587baefb5ffd99d"
+    },
+    {
+      "path": "external/yulong-plugin-main/yulong-cli/src/core/api-client.ts",
+      "sha256": "6b239e0f52b0e79b0e05343bf7e4e4ee423cdcac6852b133c4c636bacd304a48"
+    },
+    {
+      "path": "external/yulong-plugin-main/yulong-cli/src/core/envelope.ts",
+      "sha256": "381fee0e225f2f67015d3c6829ee53101a980dc12216f6f11777b68a660b35ef"
+    },
+    {
+      "path": "external/yulong-plugin-main/yulong-cli/src/core/config.ts",
+      "sha256": "0b532e947cb4bf58dba8f266629461f5a006deb0410102d528d06f98eeb97e1f"
+    },
+    {
+      "path": "external/yulong-plugin-main/yulong-skill/yulong-shared/SKILL.md",
+      "sha256": "8bc92b6b347dd3abac409039c1031e22517adeb1c8690df367d315b44c28ffbf"
+    },
+    {
+      "path": "external/yulong-plugin-main/yulong-skill/references/recovery-guide.md",
+      "sha256": "14c6086f54d1761114cda22482165c68e5fb68d1a55c531efc5d33b28cefdd84"
+    }
+  ],
+  "local_links_checked": 15,
+  "broken_links": [],
+  "registered_plugins_observed": [
+    {
+      "plugin_id": "service-tickets",
+      "version": "1.0.0",
+      "enabled": true
+    }
+  ],
+  "safe_contract_probe": {
+    "missing_receipts_accepted": true,
+    "unregistered_receipt_command_accepted": true,
+    "network_or_database_used": false
+  },
+  "confirmed_user_priority": "self-developed DecAgent",
+  "employee_identity_preference": "current operating employee; user confirmed; no shared-service-account fallback proposed",
+  "implementation_changes": false,
+  "company_api_calls": 0,
+  "protocol_sources": [
+    "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports",
+    "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+    "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization",
+    "https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices",
+    "https://www.anthropic.com/engineering/code-execution-with-mcp"
+  ],
+  "confirmed_decisions": [
+    {
+      "question": "Q1 integration priority",
+      "answer": "优先自研 DecAgent（推荐）"
+    },
+    {
+      "question": "Q2 company API identity",
+      "answer": "按当前员工身份调用（推荐）"
+    }
+  ],
+  "review_updated_at_utc": "2026-10-13 00:24:06 UTC",
+  "review_status": "comparison and current-route assessment complete; recommendations not implemented",
+  "verification": {
+    "sources_checked": 14,
+    "source_hash_mismatches": [],
+    "mermaid": {
+      "version": "11.16.0",
+      "diagrams": 2,
+      "failed": 0
+    },
+    "comparison_scope": "source-based engineering assessment, not a head-to-head performance benchmark",
+    "requirements_review": [
+      {
+        "requirement": "Compare MCP and CLI company API execution routes",
+        "evidence": "Report route descriptions and eight-dimension comparison with official protocol citations"
+      },
+      {
+        "requirement": "Assess current DecAgent and Yulong implementation",
+        "evidence": "Reviewed source files have unchanged hashes; report documents actual invocation, schema, identity and recovery behavior"
+      },
+      {
+        "requirement": "Identify concrete improvement opportunities",
+        "evidence": "Twelve source-grounded gaps, employee identity constraints and three-stage improvement order"
+      },
+      {
+        "requirement": "Honor user priorities and keep Jev out of scope",
+        "evidence": "Self-developed DecAgent and employee identity choices recorded; model-decision changes excluded"
+      }
+    ]
+  }
+}

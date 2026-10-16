@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.decagent
+.venv
+.git
+.agents
+openspec
+.pytest_cache
+.ruff_cache
+**/__pycache__
+**/*.pyc
+generated
+*.egg-info
+evals/benchmarks/cache
+evals/benchmarks/research

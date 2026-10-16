@@ -1,0 +1,106 @@
+{
+  "schema_version": "decagent-live-model-smoke-1",
+  "started_at": "2026-10-16T11:05:52.245225+00:00",
+  "purpose": "bounded synthetic planning and memory-decision connectivity check; no MCP execution",
+  "primary": {
+    "requested_model": "qwen3.8-flash",
+    "base_url": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+    "price_version": "owner-confirmed-free-quota-20261011",
+    "attempts": [
+      {
+        "attempt": 1,
+        "provider": "primary",
+        "reserved_tokens": 49480,
+        "reserved_cost_usd": "0",
+        "metadata": {
+          "model_family": "primary",
+          "purpose": "plan",
+          "plan_revision": 1,
+          "node_id": null,
+          "node_ids": null,
+          "exception_reason": null
+        },
+        "status": "responded",
+        "actual_tokens": 12112,
+        "actual_cost_usd": "0",
+        "error_code": null
+      },
+      {
+        "attempt": 1,
+        "provider": "primary",
+        "reserved_tokens": 49694,
+        "reserved_cost_usd": "0",
+        "metadata": {
+          "model_family": "primary",
+          "purpose": "format_repair",
+          "plan_revision": 1,
+          "node_id": null,
+          "node_ids": null,
+          "exception_reason": "format_repair"
+        },
+        "status": "responded",
+        "actual_tokens": 12147,
+        "actual_cost_usd": "0",
+        "error_code": null
+      }
+    ],
+    "status": "failed",
+    "error_type": "PlanProposalInvalid"
+  },
+  "jev": {
+    "requested_model": "~typesafe/jev-latest",
+    "provider": "openrouter",
+    "reservation_usd": "0.02",
+    "attempts": [
+      {
+        "attempt": 1,
+        "requested_model": "~typesafe/jev-latest",
+        "actual_model": "typesafe/jev-1.14-20261014",
+        "started_at": "2026-10-16T11:06:27.665379+00:00",
+        "elapsed_seconds": 0.642348099994706,
+        "status_code": 200,
+        "error": null,
+        "usage": {
+          "input_tokens": 428,
+          "output_tokens": 39
+        },
+        "reserved_usd": 0.02,
+        "cost_usd": 1.7976e-05
+      }
+    ],
+    "status": "valid_decision",
+    "actual_model": "typesafe/jev-1.14-20261014",
+    "error": null,
+    "answer": {
+      "type": "choice",
+      "choice": "retain",
+      "probabilities": {
+        "retain": 0.87,
+        "discard": 0.02,
+        "review": 0.11
+      },
+      "confidence": 0.8
+    },
+    "input_hash": "f31747950675e910fd1bdbeac522b30f1679507f37c9db32611cb217369836f2"
+  },
+  "jev_ledger_before": {
+    "spent_usd": "0.007450422",
+    "held_usd": "0",
+    "remaining_usd": "0.992549578",
+    "blocked_unknown_or_pending": false,
+    "within_cap": true
+  },
+  "data": {
+    "business_dataset_version": "business-synthetic-reference-v2",
+    "business_dataset_checksum": "974c7425830481e3bbc0a3719b0abd70e60b7a2d2539ef46877988fa80fc1aba",
+    "source_manifest_validated_before_call": true
+  },
+  "jev_ledger_after": {
+    "spent_usd": "0.007468398",
+    "held_usd": "0",
+    "remaining_usd": "0.992531602",
+    "blocked_unknown_or_pending": false,
+    "within_cap": true
+  },
+  "finished_at": "2026-10-16T11:06:28.319556+00:00"
+}

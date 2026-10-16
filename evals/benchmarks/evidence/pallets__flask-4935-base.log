@@ -1,0 +1,23 @@
+SOURCE_MODULE /repo/src/flask/__init__.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________________ test_bug ___________________________________
+
+    def test_bug():
+        app = Flask(__name__)
+        parent = Blueprint("parent", __name__)
+        child = Blueprint("child", __name__)
+        child.add_url_rule("/child/", view_func=lambda: "child")
+        parent.register_blueprint(child)
+        app.register_blueprint(parent, subdomain="api")
+        app.config["SERVER_NAME"] = "domain.tld"
+        response = app.test_client().get("/child/", base_url="http://api.domain.tld")
+>       assert response.status_code == 200
+E       assert 404 == 200
+E        +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code
+
+/acceptance/test_bug.py:12: AssertionError
+=========================== short test summary info ============================
+FAILED ../acceptance/test_bug.py::test_bug - assert 404 == 200
+1 failed in 0.12s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcyBuYW1lPSJweXRlc3QgdGVzdHMiPjx0ZXN0c3VpdGUgbmFtZT0icHl0ZXN0IiBlcnJvcnM9IjAiIGZhaWx1cmVzPSIxIiBza2lwcGVkPSIwIiB0ZXN0cz0iMSIgdGltZT0iMC4xMjMiIHRpbWVzdGFtcD0iMjAyNi0xMC0xMFQwOToxMTo0Mi44MDI5NjArMDA6MDAiIGhvc3RuYW1lPSJhYzMwNDljYmE0MzMiPjx0ZXN0Y2FzZSBjbGFzc25hbWU9InRlc3RfYnVnIiBuYW1lPSJ0ZXN0X2J1ZyIgdGltZT0iMC4wMTkiPjxmYWlsdXJlIG1lc3NhZ2U9ImFzc2VydCA0MDQgPT0gMjAwJiMxMDsgKyAgd2hlcmUgNDA0ID0gJmx0O1dyYXBwZXJUZXN0UmVzcG9uc2Ugc3RyZWFtZWQgWzQwNCBOT1QgRk9VTkRdJmd0Oy5zdGF0dXNfY29kZSI+ZGVmIHRlc3RfYnVnKCk6CiAgICAgICAgYXBwID0gRmxhc2soX19uYW1lX18pCiAgICAgICAgcGFyZW50ID0gQmx1ZXByaW50KCJwYXJlbnQiLCBfX25hbWVfXykKICAgICAgICBjaGlsZCA9IEJsdWVwcmludCgiY2hpbGQiLCBfX25hbWVfXykKICAgICAgICBjaGlsZC5hZGRfdXJsX3J1bGUoIi9jaGlsZC8iLCB2aWV3X2Z1bmM9bGFtYmRhOiAiY2hpbGQiKQogICAgICAgIHBhcmVudC5yZWdpc3Rlcl9ibHVlcHJpbnQoY2hpbGQpCiAgICAgICAgYXBwLnJlZ2lzdGVyX2JsdWVwcmludChwYXJlbnQsIHN1YmRvbWFpbj0iYXBpIikKICAgICAgICBhcHAuY29uZmlnWyJTRVJWRVJfTkFNRSJdID0gImRvbWFpbi50bGQiCiAgICAgICAgcmVzcG9uc2UgPSBhcHAudGVzdF9jbGllbnQoKS5nZXQoIi9jaGlsZC8iLCBiYXNlX3VybD0iaHR0cDovL2FwaS5kb21haW4udGxkIikKJmd0OyAgICAgICBhc3NlcnQgcmVzcG9uc2Uuc3RhdHVzX2NvZGUgPT0gMjAwCkUgICAgICAgYXNzZXJ0IDQwNCA9PSAyMDAKRSAgICAgICAgKyAgd2hlcmUgNDA0ID0gJmx0O1dyYXBwZXJUZXN0UmVzcG9uc2Ugc3RyZWFtZWQgWzQwNCBOT1QgRk9VTkRdJmd0Oy5zdGF0dXNfY29kZQoKL2FjY2VwdGFuY2UvdGVzdF9idWcucHk6MTI6IEFzc2VydGlvbkVycm9yPC9mYWlsdXJlPjwvdGVzdGNhc2U+PC90ZXN0c3VpdGU+PC90ZXN0c3VpdGVzPg==

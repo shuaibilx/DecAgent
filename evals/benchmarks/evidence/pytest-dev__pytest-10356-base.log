@@ -1,0 +1,26 @@
+SOURCE_MODULE /repo/src/pytest/__init__.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________________ test_bug ___________________________________
+
+    def test_bug():
+        marker = pytest.mark.xfail
+        @marker("a")
+        class A:
+            pass
+        @marker("b")
+        class B:
+            pass
+        @marker("c")
+        class C(A, B):
+            pass
+>       assert get_unpacked_marks(C) == [marker("c").mark, marker("a").mark, marker("b").mark]
+E       AssertionError: assert <generator ob...x7caba01ac240> == [Mark(name='x...), kwargs={})]
+E         Use -v to get more diff
+
+/acceptance/test_bug.py:15: AssertionError
+--------------------- generated xml file: /tmp/result.xml ----------------------
+=========================== short test summary info ============================
+FAILED ../acceptance/test_bug.py::test_bug - AssertionError: assert <generato...
+1 failed in 0.27s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcz48dGVzdHN1aXRlIG5hbWU9InB5dGVzdCIgZXJyb3JzPSIwIiBmYWlsdXJlcz0iMSIgc2tpcHBlZD0iMCIgdGVzdHM9IjEiIHRpbWU9IjAuMjc4IiB0aW1lc3RhbXA9IjIwMjYtMTAtMTBUMDk6MTE6NTkuODI5NDQ1IiBob3N0bmFtZT0iMjQyNmEyZDIzYTNiIj48dGVzdGNhc2UgY2xhc3NuYW1lPSJ0ZXN0X2J1ZyIgbmFtZT0idGVzdF9idWciIHRpbWU9IjAuMDAxIj48ZmFpbHVyZSBtZXNzYWdlPSJBc3NlcnRpb25FcnJvcjogYXNzZXJ0ICZsdDtnZW5lcmF0b3Igb2IuLi54N2NhYmEwMWFjMjQwJmd0OyA9PSBbTWFyayhuYW1lPSd4Li4uKSwga3dhcmdzPXt9KV0mIzEwOyAgVXNlIC12IHRvIGdldCBtb3JlIGRpZmYiPmRlZiB0ZXN0X2J1ZygpOgogICAgICAgIG1hcmtlciA9IHB5dGVzdC5tYXJrLnhmYWlsCiAgICAgICAgQG1hcmtlcigiYSIpCiAgICAgICAgY2xhc3MgQToKICAgICAgICAgICAgcGFzcwogICAgICAgIEBtYXJrZXIoImIiKQogICAgICAgIGNsYXNzIEI6CiAgICAgICAgICAgIHBhc3MKICAgICAgICBAbWFya2VyKCJjIikKICAgICAgICBjbGFzcyBDKEEsIEIpOgogICAgICAgICAgICBwYXNzCiZndDsgICAgICAgYXNzZXJ0IGdldF91bnBhY2tlZF9tYXJrcyhDKSA9PSBbbWFya2VyKCJjIikubWFyaywgbWFya2VyKCJhIikubWFyaywgbWFya2VyKCJiIikubWFya10KRSAgICAgICBBc3NlcnRpb25FcnJvcjogYXNzZXJ0ICZsdDtnZW5lcmF0b3Igb2IuLi54N2NhYmEwMWFjMjQwJmd0OyA9PSBbTWFyayhuYW1lPSd4Li4uKSwga3dhcmdzPXt9KV0KRSAgICAgICAgIFVzZSAtdiB0byBnZXQgbW9yZSBkaWZmCgovYWNjZXB0YW5jZS90ZXN0X2J1Zy5weToxNTogQXNzZXJ0aW9uRXJyb3I8L2ZhaWx1cmU+PC90ZXN0Y2FzZT48L3Rlc3RzdWl0ZT48L3Rlc3RzdWl0ZXM+

@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-10-14T16:46:16.493543+08:00",
+  "schema_version": 11,
+  "plugin_version": "2.0.0",
+  "protocol_version": "2026-07-28",
+  "task_id": "a9cbeca8-e6e5-4977-9577-7a33ccb09c3e",
+  "employee_login": "employee-it",
+  "task_state": "succeeded",
+  "operation_id": "op_0e267a768050402dbc1ffa8996ae6208",
+  "receipt_count": 1,
+  "paid_model_calls": 0,
+  "legacy_anonymous_tickets_preserved": 1,
+  "ports": {
+    "api": 8000,
+    "mcp": 8001,
+    "repair_broker": 8002,
+    "postgres": 55432
+  },
+  "owner_unchanged": true,
+  "historical_rows_preserved_during_migration": true
+}

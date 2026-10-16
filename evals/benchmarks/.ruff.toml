@@ -1,0 +1,5 @@
+extend = "../../pyproject.toml"
+extend-exclude = ["research", "sourcearchives", "container/wheelhouse", "evidence", "licenses"]
+
+[lint.per-file-ignores]
+"acceptance/**" = ["I001"]

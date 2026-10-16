@@ -1,0 +1,350 @@
+{
+  "manifest_version": 1,
+  "captured_at_utc": "2026-10-16T10:09:11Z",
+  "purpose": "Pinned provenance for the EnterpriseOps-Gym primary benchmark and τ-Bench supplementary benchmark used by DecAgent.",
+  "distribution": {
+    "vendor_cache_directory": "evals/benchmarks/vendor_cache/",
+    "ignored_by_local_gitignore": true,
+    "original_benchmark_data_repackaged": false,
+    "raw_datasets_in_repository_changes": false,
+    "scoring_gate": [
+      "Require all recorded source revisions and SHA-256 values to match.",
+      "Require the benchmark domain and official split to be named in the report.",
+      "Pull and run the pinned MCP images by digest before recording an environment score.",
+      "Do not report a formal score if license or environment provenance cannot be verified."
+    ]
+  },
+  "enterpriseops_gym": {
+    "role": "primary",
+    "source_repository": {
+      "url": "https://github.com/ServiceNow/EnterpriseOps-Gym",
+      "commit": "271f2c357f763376997dfd16807fcde2474ae41b",
+      "license": "Apache-2.0",
+      "archive": {
+        "path": "evals/benchmarks/vendor_cache/enterpriseops-gym-271f2c357f763376997dfd16807fcde2474ae41b.tar.gz",
+        "bytes": 16527979,
+        "sha256": "cb9ae56afa76852edba9e0e5521096335dce49cf13221d26bb4478481348106f"
+      },
+      "license_file_path": "evals/benchmarks/vendor_cache/enterpriseops-gym/LICENSE",
+      "license_file_sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+    },
+    "task_dataset": {
+      "url": "https://huggingface.co/datasets/ServiceNow-AI/EnterpriseOps-Gym",
+      "revision": "c8e538eae8a6205294f0a86675fefdc1fac408f6",
+      "license": "Apache-2.0",
+      "license_source": "Hugging Face repository metadata and README at the pinned revision",
+      "license_file_path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/README.md",
+      "license_readme_sha256": "e74fe1c3128c1268e5019da5291d002feebd97c78d607919d8a6c876322b78cb",
+      "local_path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/",
+      "dataset_card_reported_rows_across_modes": 2560,
+      "modes": [
+        "oracle",
+        "plus_5_tools",
+        "plus_10_tools",
+        "plus_15_tools"
+      ],
+      "task_inventory_path": "evals/benchmarks/manifests/task_inventory.json",
+      "selected_evaluation": {
+        "mode": "oracle",
+        "domains": [
+          "csm",
+          "itsm"
+        ],
+        "rows": 206,
+        "rows_by_domain": {
+          "csm": 103,
+          "itsm": 103
+        },
+        "selection": "all task rows in the pinned oracle splits"
+      },
+      "parquet_sha256": [
+        {
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/oracle/csm-00000-of-00001.parquet",
+          "bytes": 141418,
+          "sha256": "1b5948db2db3cc0dc643f7fddcbb90c2ac09489615f369b4fe3abbdcd484d697"
+        },
+        {
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/oracle/itsm-00000-of-00001.parquet",
+          "bytes": 130664,
+          "sha256": "63240f60ee8810e50267034137b811f4c06c5f2cd84fcd8b1122448e871f9f4b"
+        },
+        {
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/plus_5_tools/csm-00000-of-00001.parquet",
+          "bytes": 137837,
+          "sha256": "162ce6b2181f1bdb7cd25e161983bb1763da68546409d5fa70ec8a3d18e71abf"
+        },
+        {
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/plus_5_tools/itsm-00000-of-00001.parquet",
+          "bytes": 131393,
+          "sha256": "b2428d1a7fd6a374d432d3d4a262ec82f3ffa4a2611c6a0c5027f460e3cd6e1a"
+        },
+        {
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/plus_10_tools/csm-00000-of-00001.parquet",
+          "bytes": 138528,
+          "sha256": "ad1ed9f8d859c8a9512ce3b13b6145188def2b124c37b61259da028790044194"
+        },
+        {
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/plus_10_tools/itsm-00000-of-00001.parquet",
+          "bytes": 129198,
+          "sha256": "235b1a5cf8fa0f17e01c07f0e8b2107d6d56bd0fecf1e46c4354beed10d3a1dc"
+        },
+        {
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/plus_15_tools/csm-00000-of-00001.parquet",
+          "bytes": 138892,
+          "sha256": "2d1d6a5f556fedc23ee30943b4a542c9f533db237ced0ef07572c4d9c3cee4dd"
+        },
+        {
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym-dataset/plus_15_tools/itsm-00000-of-00001.parquet",
+          "bytes": 132597,
+          "sha256": "34c521f338e1fb9957400eda58e0ef8be32c9b021190a4f2dbafd0f7cfbebbd5"
+        }
+      ]
+    },
+    "published_count_note": {
+      "github_readme_headline_tasks": 1150,
+      "hugging_face_card_total_task_claim": 1115,
+      "dataset_card_rows_across_modes": 2560,
+      "resolution": "The published headline counts use different scopes. DecAgent records the pinned Parquet row counts by mode and domain in task_inventory.json; use those exact rows for scoring."
+    },
+    "database_snapshots": {
+      "source_bundle": {
+        "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs.zip",
+        "bytes": 14527720,
+        "sha256": "d947543d4fba1aabc4aade73d3df955114187b7a94da7ac825c4c31169ddab47",
+        "license": "Apache-2.0"
+      },
+      "extracted_path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/",
+      "extracted_bytes": 76656289,
+      "referenced_snapshot_count": 27,
+      "referenced_snapshot_sha256": [
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1762232091750_3ev7dns6b.sql",
+          "bytes": 1243403,
+          "sha256": "d9b854e21f5fff2f585451053cd09ffd3ab0c9913e01a372a5044625629c925b"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1762254390925_u5icw4thh.sql",
+          "bytes": 1376655,
+          "sha256": "71c8e714b920a0f67abd16f06c29818284b741608e0fa3f1a28c1f331aa9e6dc"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1763385405604_2rzj4cvux.sql",
+          "bytes": 1378318,
+          "sha256": "bbd24eb660b2e9864858a5396dadedd7f0f0ad3a13021b6563dc70a33611769d"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1763385425683_sii21stih.sql",
+          "bytes": 1377950,
+          "sha256": "2a74d0cb2655e1ad76603507bcb2d36f5b225fed852fad182f8529713f7969d2"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1763577159980_0hdky2tqf.sql",
+          "bytes": 1376656,
+          "sha256": "e5f6302a7bd0f5f5b9348d1ba0ce8797d1c3476e2d12430e21b5f01253b398b7"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1763711145241_60gul3b8a.sql",
+          "bytes": 1377171,
+          "sha256": "d69f4702d8a0e26b33c6cfdc54d51e02b75650d747b805b37cdcc52567e00d64"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1764161541283_4okzzqdyk.sql",
+          "bytes": 1377702,
+          "sha256": "5dce4be45eea00a10ba52a4ca174166dc1d0276cad5518850ec8b4510271deb0"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1764362667869_fck9ydk1e.sql",
+          "bytes": 1377282,
+          "sha256": "fba4439b6f98c0b29f6e879a707e9ff15d0bb1dc723b4fd1b208c6753fb82c5f"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1764648396893_vwen24yhx.sql",
+          "bytes": 1377182,
+          "sha256": "45ed9b8aa2cfc1f1f3e99d804b9e9d032e3ebcf8aaaccae84f93929f8398c111"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1764743008903_m7bfvy7wb.sql",
+          "bytes": 1377185,
+          "sha256": "5023223f95462aff5d7547a621d23771575f416682f19dee37e20438ae7be0ce"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1764770976094_b37f1eqwl.sql",
+          "bytes": 1378428,
+          "sha256": "4ac2f9d824e72e5d272d8b8edd9a4f7306ed471577b319d779d05093bdcbc4e1"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1764836967885_2ke5eeevf.sql",
+          "bytes": 1377362,
+          "sha256": "7abb9d929ae8ab1facea97f309b69044d742679c338c00eb97c38dd3551fe18b"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1765127762806_vmzizk5bq.sql",
+          "bytes": 1377187,
+          "sha256": "a43074bc32a1f8971bd4d7ec90c9a5748abf1717a6e76b10f8f721e3e5a6c43d"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1765156282356_3owx49qgt.sql",
+          "bytes": 1377187,
+          "sha256": "8401dabc373e6c8e07a61cb7116d2300386071e79fac7feaf61f655834e0a218"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1765277945132_8mrmxiqbi.sql",
+          "bytes": 1377282,
+          "sha256": "2b7cef81ad096ee0f6f51620e2aa8d48de5cbaf932cf5be7a16c0721c0353ee5"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1767172421354_2hvw7ymsn.sql",
+          "bytes": 1377274,
+          "sha256": "8bf55b1fc6ab48da27ccf80b1fa5bd77184429fda0e35296d6768bc545cba15b"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1767372661119_sqfnogxfo.sql",
+          "bytes": 1377701,
+          "sha256": "b380dc7bdb41d1ba206b78184441f5dfeefaf753f1804ba6f89180aa1a4a0576"
+        },
+        {
+          "domain": "csm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/csm/dbs/db_1767690175611_j99oc69fi.sql",
+          "bytes": 1377884,
+          "sha256": "ceb3ece34ee528fe3cb30bdb09fb12922e0f55375e1800b7b9b99fb465144423"
+        },
+        {
+          "domain": "itsm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/itsm/dbs/db_1765301900121_3mwjj54xy.sql",
+          "bytes": 49313,
+          "sha256": "99f193904ef9c1f06c3ecff48000697653f178d6300c70e86d34d5a17081e3a4"
+        },
+        {
+          "domain": "itsm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/itsm/dbs/db_1765893060767_9rwtfbbp7.sql",
+          "bytes": 204410,
+          "sha256": "65e917166cba0d30d5c2fba2765f266361173af9ee51e31498a0f83dbdc14c2f"
+        },
+        {
+          "domain": "itsm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/itsm/dbs/db_1765949061488_6sskwu6en.sql",
+          "bytes": 204951,
+          "sha256": "f6c3309a5c3205db4182e43d731dd92a3649079d7179e5755ef8bed4dcc41649"
+        },
+        {
+          "domain": "itsm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/itsm/dbs/db_1765984530018_6f72jkf3p.sql",
+          "bytes": 49484,
+          "sha256": "aaca465e8ca9c74dd54279bd2842003c8d08950d643b65199575b4fc86198096"
+        },
+        {
+          "domain": "itsm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/itsm/dbs/db_1766063289316_o5f6sbf3g.sql",
+          "bytes": 204407,
+          "sha256": "a664e01bc3d07100ead36aae57cb0adb8705afbbd37590dda7cbee96ec30ca0a"
+        },
+        {
+          "domain": "itsm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/itsm/dbs/db_1766091624245_iotwhtzd5.sql",
+          "bytes": 204395,
+          "sha256": "f3614d8caedd067b563f10b9af68d6b7164c9ff25bbf7cf757b87e4f40e189a8"
+        },
+        {
+          "domain": "itsm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/itsm/dbs/db_1766289728874_6ecz8xaeu.sql",
+          "bytes": 204668,
+          "sha256": "a18be5cc0ab015a9a10accb1035a3425fd5680cf90cf4360bb2d772a35bc3c90"
+        },
+        {
+          "domain": "itsm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/itsm/dbs/db_1766420030407_0anxy19de.sql",
+          "bytes": 205103,
+          "sha256": "74ad6cb92e82591c7787f8edee66a789df3b7aa1bebf61388557f883a0bb697f"
+        },
+        {
+          "domain": "itsm",
+          "path": "evals/benchmarks/vendor_cache/enterpriseops-gym/gym_dbs-expanded/Domain Wise DBs and Task-DB Mappings/itsm/dbs/db_1768479715490_ex6u7viv2.sql",
+          "bytes": 204947,
+          "sha256": "080ac185baa99dab30f7770080f80e441e99ba1cd3a18b7ffc041577648fb1f4"
+        }
+      ]
+    },
+    "mcp_environment": {
+      "endpoint": "/mcp",
+      "reference_client": "benchmark/mcp_client.py",
+      "reference_wire_behavior": "JSON-RPC 2.0 over HTTP; Accept header includes application/json and text/event-stream",
+      "setup_api": "/api/seed-database",
+      "tool_schema_versioning": "Pinned by immutable image manifest digest; upstream README only publishes mutable latest tags.",
+      "images": [
+        {
+          "image": "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm",
+          "source_tag": "latest",
+          "manifest_digest": "sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189",
+          "platform": "linux/amd64",
+          "pulled_locally": false
+        },
+        {
+          "image": "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-itsm",
+          "source_tag": "latest",
+          "manifest_digest": "sha256:a234ae3fb7cee196ba25e6b9957969dea829919b6e8271dddae128f065aaf39f",
+          "platform": "linux/amd64",
+          "pulled_locally": false
+        }
+      ]
+    }
+  },
+  "tau2_bench": {
+    "role": "supplementary",
+    "source_repository": {
+      "url": "https://github.com/sierra-research/tau2-bench",
+      "ref": "main",
+      "commit": "96a3ef92329baf908ffe9dfe188cea34e8701d2a",
+      "package_version": "1.0.1",
+      "license": "MIT",
+      "python_requirement": ">=3.12,<3.14",
+      "archive": {
+        "path": "evals/benchmarks/vendor_cache/tau2-bench-96a3ef92329baf908ffe9dfe188cea34e8701d2a.tar.gz",
+        "bytes": 96389670,
+        "sha256": "569d189426709e74efdc9cd8117f264e217ad1ec234751c40131eb7b97dade8f"
+      },
+      "license_file_path": "evals/benchmarks/vendor_cache/tau2-bench-source/LICENSE",
+      "license_file_sha256": "e67c5aa0074dfcaefd3c3a1aedb94cb539234aecd15d5a972574e3200e6252fe",
+      "local_path": "evals/benchmarks/vendor_cache/tau2-bench-source/",
+      "evaluation_input_path": "data/tau2/domains/",
+      "selected_domains": [
+        "retail",
+        "telecom"
+      ],
+      "selected_official_split": "test",
+      "selected_task_count": 80,
+      "selected_rows_by_domain": {
+        "retail": 40,
+        "telecom": 40
+      },
+      "canonical_reference_split": "base",
+      "excluded_from_score_input": [
+        "data/tau2/results/"
+      ],
+      "platform_adaptation": "The website domain-data symlink is materialized as a Windows directory junction. The benchmark task/domain data remains at data/tau2/domains/."
+    }
+  },
+  "task_inventory": {
+    "path": "evals/benchmarks/manifests/task_inventory.json",
+    "sha256": "63d3dd8a9fcda47f77d5efb64102400ab35f0fe6dfb75a225e738d3ea18d4ffe",
+    "generator": "evals/benchmarks/build_task_inventory.py",
+    "optional_generator_requirement": "evals/benchmarks/requirements.txt",
+    "scope_note": "Contains complete task-ID and official split inventories; it omits prompts, verifiers, reference actions, tool results, and database content."
+  }
+}

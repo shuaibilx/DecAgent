@@ -1,0 +1,43 @@
+DecAgent upstream Python benchmark provenance
+
+Discovery: SWE-bench issue/PR identifiers and fixed base commit identifiers from
+https://huggingface.co/datasets/princeton-nlp/SWE-bench (test parquet SHA256 is in
+python-bugs.json). Full dataset issue prose is not included in the curated manifest.
+Locally authored summaries describe the upstream bug and retain the original link.
+SWE-bench harness source is not copied into DecAgent.
+
+Runtime code archives and adapted upstream regression tests retain their original
+repository licenses. Complete notices from each fixed base commit are in licenses/.
+
+- pallets/flask: BSD-3-Clause. Copyright Pallets and contributors.
+- psf/requests: Apache-2.0. Copyright Kenneth Reitz and contributors.
+- pytest-dev/pytest: MIT. Copyright pytest development team and contributors.
+
+Each task lists the HTTPS license URL tied to its actual base SHA. Code archives are
+downloaded directly from GitHub codeload at the fixed base and PR head commit SHA;
+each archive hash is in python-bugs.json. upstream-test.patch preserves the upstream
+regression source. test_bug.py is a reduced, external acceptance test adapted from
+that source. Acceptance SHA256 is frozen in the manifest.
+
+Requests #5087 uses a controlled exhausted response stream to reproduce repeated
+content access after a ProtocolError; this replaces the upstream local TCP server,
+preserves the real Response implementation, and performs no external networking.
+pytest tests use isolated pytester files. Nested skip behavior is asserted by an
+outer passing test and does not count an outer skip as a pass.
+
+Wheel distributions in container/wheelhouse preserve license metadata in their
+dist-info directories. They are pinned build inputs for the benchmark container.
+Container dependency additions: Jinja2 3.1.2, Werkzeug 2.3.8, itsdangerous 2.1.2,
+MarkupSafe 2.1.5, attrs 23.2.0, packaging 23.2, py 1.11.0, chardet 3.0.4,
+urllib3 1.26.20. The pluggy 1.0.0 wheel is a discovery artifact and is not installed;
+the verified image retains pluggy 1.6.0 from the project installation base image.
+
+Human decision proposal: 120 locally authored, explicitly unlabeled scenarios.
+No model-generated ground truth or empirical accuracy is claimed.
+Calibration fixture: explicitly artificial labels for algorithm tests only.
+
+research/ contains local discovery and dependency-reading caches, including full
+downloaded datasets and extracted upstream trees. It is excluded from delivery
+source lint and should not be copied into a release artifact. It was retained after
+automatic approval rejected cleanup. Only curated files outside research/ form the
+benchmark dataset.

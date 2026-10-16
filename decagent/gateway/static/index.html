@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DecAgent · 自主任务介入工作台</title>
+  <link rel="stylesheet" href="/assets/style.css"><script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <header><div><strong>DecAgent</strong><span>自主任务介入工作台</span></div>
+    <button id="logout" class="quiet" hidden>退出登录</button></header>
+  <main>
+    <div id="notice" role="status" aria-live="polite" hidden></div>
+    <section id="login-panel" class="card login">
+      <p class="eyebrow">OWNER ACCESS</p><h1>进入你的工作台</h1>
+      <p>使用初始化时保存的拥有者令牌。登录后可查看任务证据和处理审批。</p>
+      <form id="login-form"><label>拥有者令牌<input id="owner-token" type="password" required
+        autocomplete="off" spellcheck="false" minlength="32"></label>
+        <button type="submit">登录</button></form>
+      <p class="muted">令牌只用于本次登录，浏览器不保存令牌。远程访问需要 HTTPS。</p>
+    </section>
+    <div id="workbench" hidden>
+      <nav aria-label="工作台视图"><button data-view="tasks-view" class="selected">任务</button>
+        <button data-view="memory-view">项目记忆</button><button data-view="config-view">配置与诊断</button></nav>
+      <section id="tasks-view" class="view layout">
+        <aside>
+          <section class="card"><h2>项目</h2>
+            <label>当前项目<select id="project-select"></select></label>
+            <details><summary>登记仓库</summary><form id="project-form">
+              <label>GitHub 仓库<input id="repository" placeholder="owner/repository" required></label>
+              <label>默认分支<input id="base-branch" value="main" required></label>
+              <button type="submit">登记项目</button></form></details>
+          </section>
+          <section class="card"><h2>提交任务 · Python 修复</h2><form id="task-form">
+            <label>基准提交或分支<input id="base-ref" placeholder="40 位提交 SHA 或已配置的分支" required></label>
+            <label>问题与验收要求<textarea id="issue" rows="5" required
+              placeholder="描述问题、复现方式和预期行为"></textarea></label>
+            <div class="row"><label>最多调用<input id="max-calls" type="number" min="1" value="30" required></label>
+              <label>Token 上限<input id="max-tokens" type="number" min="1" value="100000" required></label></div>
+            <label>费用上限（美元，可留空）<input id="max-cost" inputmode="decimal" placeholder="例如 1.00"></label>
+            <label class="check"><input id="unknown-price" type="checkbox">允许价格未知时按调用和 Token 上限运行</label>
+            <label class="check"><input id="request-trust" type="checkbox">申请执行当前精确提交；执行前仍需认可代码</label>
+            <label class="check"><input id="publish-pr" type="checkbox">验证通过后允许创建草稿 PR</label>
+            <button type="submit">提交任务</button></form>
+          </section>
+          <section class="card"><div class="row spread"><h2>最近任务</h2><button id="refresh" class="quiet">刷新</button></div>
+            <div id="task-list" class="task-list"></div></section>
+        </aside>
+        <div class="task-detail">
+          <section class="card"><div class="row spread"><h1 id="task-title">选择一个任务</h1>
+            <span id="task-state" class="badge">—</span></div>
+            <p id="task-issue" class="muted"></p><p id="connection" class="muted">事件连接：未连接</p>
+            <div id="waiting" class="waiting" hidden></div>
+            <div class="row"><button id="cancel-task" class="danger" hidden>取消任务</button>
+              <button id="resume-task" hidden>重新校验并恢复</button></div>
+            <form id="budget-form" hidden><h3>调整预算后恢复</h3>
+              <div class="row"><label>最多调用<input id="resume-calls" type="number" min="1" required></label>
+                <label>Token 上限<input id="resume-tokens" type="number" min="1" required></label></div>
+              <label>费用上限（美元）<input id="resume-cost" inputmode="decimal"></label>
+              <button type="submit">保存预算并恢复</button></form>
+            <div id="delivery"></div>
+          </section>
+          <section class="card"><h2>需要你处理</h2><div id="approvals"></div></section>
+          <section class="card"><h2>进展与介入轨迹</h2>
+            <p class="muted">查看继续、策略调整与求助的依据，以及你的回答如何进入后续任务。</p>
+            <div id="interventions"></div></section>
+          <section class="card"><h2>差异</h2><pre id="diff">还没有差异记录。</pre></section>
+          <section class="card"><h2>验证与判断依据</h2><pre id="verification">尚未验证。</pre>
+            <details><summary>判断记录</summary><pre id="decisions"></pre></details></section>
+          <section class="card"><h2>持久化事件</h2><ol id="events"></ol></section>
+        </div>
+      </section>
+      <section id="memory-view" class="view card" hidden><h1>项目记忆</h1>
+        <p>审核来源、适用提交和冲突后再决定。未合并的代码知识不能通过审核直接激活。</p>
+        <button id="load-memories" class="quiet">刷新当前项目记忆</button><div id="memories"></div></section>
+      <section id="config-view" class="view card" hidden><h1>配置与连接诊断</h1>
+        <p>密钥通过环境变量或 Compose secrets 配置。更换密钥后重启控制服务；网页只显示是否已配置。</p>
+        <pre id="config"></pre><button id="local-diagnostic">运行本地诊断（无外部请求）</button>
+        <fieldset><legend>真实连接诊断</legend><p>会向选定服务发出外部请求；模型诊断可能产生费用。</p>
+          <label>服务<select id="live-target"><option value="main">主模型</option><option value="jev">Jev</option>
+            <option value="github">GitHub</option><option value="executor">执行器</option></select></label>
+          <label class="check"><input id="live-confirm" type="checkbox">我确认发起这一次受限真实诊断（模型单次预留不超过 $0.05）</label>
+          <button id="live-diagnostic">发起所选真实诊断</button></fieldset>
+        <pre id="diagnostic-result"></pre>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

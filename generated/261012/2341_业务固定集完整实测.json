@@ -1,0 +1,191 @@
+{
+  "schema": "business-complete-evidence-summary-1",
+  "created_at_beijing": "2026-10-12T23:41:04.995764+08:00",
+  "source": ".decagent/business-eval/holdout-v3.json",
+  "source_sha256": "2276f375a1e8b46bea7ffb71556e50cccae8beabd5eef67865e98541a5722c2c",
+  "scorer_version": "business-outcome-2",
+  "scorer_source_sha256": "095b83e0d48afe69bd18d63470be55e0027a20193e136702244497d58bea4dc1",
+  "runtime_scope": "before-completion-and-rejected-response-accounting-fixes; original trial states and usage preserved",
+  "services_source_sha256": "84dc3658d4ff6af05fc8c957ac8997a19a0ee5df095a7bda1d01aa0411e44102",
+  "planner_source_sha256": "0484041ea8453d58d14d6c3758eff752b1590027d81640166eba3be7bd0df9ae",
+  "primary_source_sha256": "27f2b5ce81e18373009ba4f2d312bcd11b837a404bba269ce83441ea83610789",
+  "model_calls_source_sha256": "43871a1db84f7a04ffc27d8dd1eeb19e46fe3e8c6b657e1e80652ff16338fabe",
+  "dataset_checksum": "6b21910ff04dc995d878e7c8e62f570ee0d484febc3f5ce718b15eb22cf5fa92",
+  "profile_sha256": "e109db82faf822a7d96d136974908bd1425a44705b05838b500aa235f3435063",
+  "evidence_mode": "live",
+  "requested_main_model": "qwen3.8-flash",
+  "actual_models": [
+    "qwen3.8-flash"
+  ],
+  "requested_jev_model": "~typesafe/jev-latest",
+  "enabled_jev_families": [],
+  "main_price": {
+    "version": "owner-confirmed-free-quota-20261011",
+    "input_per_million": "0",
+    "output_per_million": "0",
+    "source": "owner_confirmed_free_quota"
+  },
+  "planned_trials": 720,
+  "observed_trials": 720,
+  "missing_trials": 0,
+  "rounds": {
+    "1": 240,
+    "2": 240,
+    "3": 240
+  },
+  "strategies": {
+    "rule": {
+      "denominator": 240,
+      "correct": 120,
+      "accuracy": 0.5,
+      "attempted": 240,
+      "failed_or_incorrect": 120,
+      "states": {
+        "succeeded": 96,
+        "awaiting_input": 132,
+        "failed": 12
+      },
+      "confirmations": 24,
+      "clarifications": 132,
+      "fallbacks": 0,
+      "calls": 0,
+      "cli_calls": 1080,
+      "tokens": 0,
+      "known_cost_usd": "0",
+      "unknown_usage_trials": 0,
+      "forbidden_writes": 0,
+      "common_machine_p50_seconds": 7.501462749991333,
+      "total_machine_seconds": 1483.4015490998863,
+      "human_wait_seconds": 0.0
+    },
+    "main": {
+      "denominator": 240,
+      "correct": 149,
+      "accuracy": 0.6208333333333333,
+      "attempted": 240,
+      "failed_or_incorrect": 91,
+      "states": {
+        "succeeded": 113,
+        "failed": 84,
+        "awaiting_input": 43
+      },
+      "confirmations": 120,
+      "clarifications": 43,
+      "fallbacks": 0,
+      "calls": 685,
+      "cli_calls": 3342,
+      "tokens": 3449343,
+      "known_cost_usd": "0",
+      "unknown_usage_trials": 0,
+      "forbidden_writes": 0,
+      "common_machine_p50_seconds": 37.19044170000416,
+      "total_machine_seconds": 9179.994727200276,
+      "human_wait_seconds": 0.0
+    },
+    "hybrid": {
+      "denominator": 240,
+      "correct": 151,
+      "accuracy": 0.6291666666666667,
+      "attempted": 240,
+      "failed_or_incorrect": 89,
+      "states": {
+        "succeeded": 115,
+        "failed": 86,
+        "awaiting_input": 39
+      },
+      "confirmations": 120,
+      "clarifications": 39,
+      "fallbacks": 204,
+      "calls": 614,
+      "cli_calls": 3307,
+      "tokens": 3086387,
+      "known_cost_usd": "0",
+      "unknown_usage_trials": 7,
+      "forbidden_writes": 0,
+      "common_machine_p50_seconds": 36.70115900001838,
+      "total_machine_seconds": 8610.276225099951,
+      "human_wait_seconds": 0.0
+    }
+  },
+  "acceptance": {
+    "status": "not_passed",
+    "checks": {
+      "no_stop_reason": true,
+      "cumulative_jev_ledger_safe": true,
+      "live_evidence": true,
+      "complete": true,
+      "usage_known": false,
+      "accuracy_not_lower": true,
+      "forbidden_writes_zero": true,
+      "common_machine_p50_lower": true,
+      "mixed_total_machine_not_higher": true
+    }
+  },
+  "unknown_usage_trials": [
+    {
+      "id": "hol-complex-003/r1/hybrid",
+      "state": "failed",
+      "calls": 5,
+      "tokens": 22238,
+      "cost_usd": "0",
+      "usage_complete": false
+    },
+    {
+      "id": "hol-complex-016/r2/hybrid",
+      "state": "failed",
+      "calls": 5,
+      "tokens": 22478,
+      "cost_usd": "0",
+      "usage_complete": false
+    },
+    {
+      "id": "hol-edge-015/r2/hybrid",
+      "state": "awaiting_input",
+      "calls": 2,
+      "tokens": 4223,
+      "cost_usd": "0",
+      "usage_complete": false
+    },
+    {
+      "id": "hol-complex-003/r3/hybrid",
+      "state": "failed",
+      "calls": 5,
+      "tokens": 22301,
+      "cost_usd": "0",
+      "usage_complete": false
+    },
+    {
+      "id": "hol-edge-002/r3/hybrid",
+      "state": "awaiting_input",
+      "calls": 3,
+      "tokens": 9355,
+      "cost_usd": "0",
+      "usage_complete": false
+    },
+    {
+      "id": "hol-edge-006/r3/hybrid",
+      "state": "awaiting_input",
+      "calls": 3,
+      "tokens": 9163,
+      "cost_usd": "0",
+      "usage_complete": false
+    },
+    {
+      "id": "hol-common-002/r3/hybrid",
+      "state": "failed",
+      "calls": 6,
+      "tokens": 23995,
+      "cost_usd": "0",
+      "usage_complete": false
+    }
+  ],
+  "jev_ledger": {
+    "cap_usd": "1",
+    "spent_usd": "0.007450422",
+    "held_usd": "0",
+    "remaining_usd": "0.992549578",
+    "blocked_unknown_or_pending": false,
+    "within_cap": true
+  },
+  "scope": "Windows-local; synthetic-reference; scripted-human-actor; Linux-pending"
+}

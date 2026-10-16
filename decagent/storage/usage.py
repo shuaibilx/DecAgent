@@ -1,0 +1,445 @@
+"""Durable reservations, explicit attribution and versioned action guards."""
+
+import math
+import re
+from decimal import Decimal
+from uuid import uuid4
+
+from psycopg.types.json import Jsonb
+
+from decagent.storage.budget import BudgetExceeded
+
+MODEL_BUDGET_VERSION = "1"
+CONDITIONAL_MODEL_DEFAULTS = {
+    "model_budget_version": MODEL_BUDGET_VERSION,
+    "primary_target": 3,
+    "max_primary_calls": 6,
+    "max_jev_calls": 24,
+    "max_calls": 30,
+    "max_tokens": 100_000,
+    "max_active_seconds": 1800,
+    "max_actions": 128,
+}
+IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
+
+
+def _identifier(value, name):
+    if not isinstance(value, str) or not IDENTIFIER.fullmatch(value):
+        raise ValueError(f"Invalid {name}")
+    return value
+
+
+class UsageLedger:
+    def __init__(self, database, task_id):
+        self.database = database
+        self.task_id = task_id
+
+    def charge_active(self, seconds):
+        if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds < 0:
+            raise ValueError("Active duration must be nonnegative")
+        with self.database.connect() as conn:
+            row = conn.execute(
+                "UPDATE app.tasks SET active_seconds=active_seconds+%s WHERE id=%s "
+                "AND state IN ('running','recovering') RETURNING active_seconds",
+                (seconds, self.task_id),
+            ).fetchone()
+            return row["active_seconds"] if row else None
+
+    @staticmethod
+    def _held_usage(rows):
+        tokens = sum(
+            r["actual_tokens"]
+            if r["status"] == "settled"
+            else max(r["requested_tokens"], r["actual_tokens"] or 0)
+            for r in rows
+        )
+        cost = sum(
+            (
+                r["actual_cost"]
+                if r["status"] == "settled"
+                else max(r["reserved_cost"] or Decimal("0"), r["actual_cost"] or Decimal("0"))
+                for r in rows
+            ),
+            Decimal("0"),
+        )
+        return tokens, cost
+
+    def _task(self, conn):
+        task = conn.execute(
+            "SELECT *,lease_until>clock_timestamp() AS budget_lease_valid "
+            "FROM app.tasks WHERE id=%s FOR UPDATE",
+            (self.task_id,),
+        ).fetchone()
+        if not task:
+            raise KeyError("Task not found")
+        return task
+
+    def _rows(self, conn):
+        return conn.execute(
+            "SELECT * FROM app.usage_records WHERE task_id=%s", (self.task_id,)
+        ).fetchall()
+
+    @staticmethod
+    def _bounds(task):
+        if task["graph_version"] != "business-3":
+            return task["budget"]
+        bounds = {**CONDITIONAL_MODEL_DEFAULTS, **task["budget"]}
+        if bounds["model_budget_version"] != MODEL_BUDGET_VERSION:
+            raise ValueError("Unsupported conditional model budget version")
+        for name in ("primary_target", "max_primary_calls", "max_jev_calls"):
+            if type(bounds[name]) is not int or bounds[name] < 0:
+                raise ValueError(f"Invalid budget field: {name}")
+        for name in ("max_calls", "max_tokens", "max_active_seconds", "max_actions"):
+            if type(bounds[name]) is not int or bounds[name] <= 0:
+                raise ValueError(f"Invalid budget field: {name}")
+        if bounds["primary_target"] > bounds["max_primary_calls"]:
+            raise ValueError("Primary target exceeds its hard limit")
+        return bounds
+
+    @staticmethod
+    def _counted(rows):
+        return [row for row in rows if row.get("dispatch_state") != "not_sent"]
+
+    def _overall(self, task, rows, bounds, *, before_action=False):
+        if task["graph_version"] == "business-3":
+            if task["state"] not in {"running", "recovering"}:
+                raise BudgetExceeded("Task is not active", code="task_not_active")
+            if not task["budget_lease_valid"]:
+                raise BudgetExceeded("Task lease expired", code="task_lease_expired")
+            if any(
+                row["actual_cost"] is None
+                and (
+                    row["status"] == "unknown"
+                    or row.get("dispatch_state") in {"dispatching", "unknown"}
+                )
+                for row in rows
+            ):
+                raise BudgetExceeded("Model cost is unresolved", code="unknown_model_cost")
+        if task["active_seconds"] >= bounds.get("max_active_seconds", 1800):
+            raise BudgetExceeded("Active task time exhausted", code="active_time_budget_exhausted")
+        _, cost = self._held_usage(rows)
+        limit = bounds.get("max_cost")
+        if before_action and limit is not None and cost >= Decimal(str(limit)):
+            raise BudgetExceeded(
+                "Cost budget exhausted before action", code="cost_budget_exhausted"
+            )
+
+    def assert_action_available(self, *, connection=None, current_action=None):
+        """Check new actions, keeping the old call/token guard for legacy tasks.
+
+        Existing receipt-only verification retains its separate executor guard.
+        Lease ownership and employee binding remain enforced by that executor.
+        """
+        if connection is None:
+            with self.database.connect() as conn:
+                return self.assert_action_available(connection=conn, current_action=current_action)
+        task = self._task(connection)
+        rows = self._rows(connection)
+        bounds = self._bounds(task)
+        self._overall(task, rows, bounds, before_action=True)
+        if task["graph_version"] != "business-3":
+            tokens, _ = self._held_usage(rows)
+            if len(rows) >= bounds.get("max_calls", 30):
+                raise BudgetExceeded("Call budget exhausted before action")
+            if tokens >= bounds.get("max_tokens", 100_000):
+                raise BudgetExceeded("Token budget exhausted before action")
+        else:
+            attempts = connection.execute(
+                "SELECT count(*) AS n FROM app.action_attempts x "
+                "JOIN app.actions a ON a.id=x.action_id WHERE a.task_id=%s",
+                (self.task_id,),
+            ).fetchone()["n"]
+            in_progress = False
+            if current_action is not None:
+                current = connection.execute(
+                    "SELECT a.status,EXISTS(SELECT 1 FROM app.action_attempts x "
+                    "WHERE x.action_id=a.id AND x.generation=%s) AS owns_attempt "
+                    "FROM app.actions a WHERE a.id=%s AND a.task_id=%s",
+                    (task["lease_generation"], current_action, self.task_id),
+                ).fetchone()
+                if current is None or current["status"] not in {"running", "unknown"}:
+                    raise BudgetExceeded(
+                        "Current execution is not owned by this lease",
+                        code="execution_fence_changed",
+                    )
+                in_progress = current["status"] == "running" and current["owns_attempt"]
+            if attempts > bounds["max_actions"] or (
+                attempts == bounds["max_actions"] and not in_progress
+            ):
+                raise BudgetExceeded(
+                    "Execution budget exhausted", code="execution_budget_exhausted"
+                )
+
+    def assert_available(self, *, connection=None):
+        """Compatibility entry point selected by persisted graph version."""
+        return self.assert_action_available(connection=connection)
+
+    @staticmethod
+    def _attribution(
+        model_family, purpose, plan_revision, node_id, node_ids, question_count, exception_reason
+    ):
+        if model_family is not None and model_family not in {"primary", "jev"}:
+            raise ValueError("Invalid model family")
+        if purpose is not None:
+            _identifier(purpose, "model purpose")
+        if (model_family is None) != (purpose is None):
+            raise ValueError("Model family and purpose must be supplied together")
+        if plan_revision is not None and (
+            type(plan_revision) is not int or not 1 <= plan_revision <= 4
+        ):
+            raise ValueError("Invalid plan revision")
+        if node_id is not None:
+            _identifier(node_id, "node id")
+        if node_ids is None:
+            node_ids = [node_id] if node_id else None
+        else:
+            if (
+                not isinstance(node_ids, (list, tuple))
+                or not 1 <= len(node_ids) <= 32
+                or any(not isinstance(item, str) for item in node_ids)
+                or len(set(node_ids)) != len(node_ids)
+            ):
+                raise ValueError("Invalid model node ids")
+            node_ids = [_identifier(item, "node id") for item in node_ids]
+            if node_id is not None and node_id not in node_ids:
+                raise ValueError("Node id is not in request node ids")
+        if question_count is not None and (
+            type(question_count) is not int or not 1 <= question_count <= 8
+        ):
+            raise ValueError("Invalid question count")
+        if exception_reason is not None:
+            _identifier(exception_reason, "primary exception reason")
+        return {
+            "model_family": model_family,
+            "purpose": purpose,
+            "plan_revision": plan_revision,
+            "node_id": node_id,
+            "node_ids": node_ids,
+            "question_count": question_count,
+            "exception_reason": exception_reason,
+        }
+
+    def reserve(
+        self,
+        key,
+        attempt,
+        provider,
+        tokens,
+        cost,
+        allow_unknown_price=False,
+        *,
+        model_family=None,
+        purpose=None,
+        plan_revision=None,
+        node_id=None,
+        node_ids=None,
+        question_count=None,
+        exception_reason=None,
+    ):
+        if (
+            type(tokens) is not int
+            or tokens <= 0
+            or type(attempt) is not int
+            or attempt < 0
+            or (cost is not None and (not cost.is_finite() or cost < 0))
+        ):
+            raise ValueError("Invalid usage reservation")
+        attribution = self._attribution(
+            model_family,
+            purpose,
+            plan_revision,
+            node_id,
+            node_ids,
+            question_count,
+            exception_reason,
+        )
+        node_ids = attribution["node_ids"]
+        with self.database.connect() as conn:
+            task = self._task(conn)
+            prior = conn.execute(
+                "SELECT * FROM app.usage_records WHERE task_id=%s AND reservation_key=%s "
+                "AND attempt=%s",
+                (self.task_id, key, attempt),
+            ).fetchone()
+            if prior:
+                if (
+                    prior["requested_tokens"] != tokens
+                    or prior["reserved_cost"] != cost
+                    or prior["provider"] != provider
+                    or any(prior[name] != value for name, value in attribution.items())
+                ):
+                    raise ValueError("Reservation key reused for different request")
+                return prior["id"]
+            bounds = self._bounds(task)
+            conditional = task["graph_version"] == "business-3"
+            if conditional and model_family is None:
+                raise ValueError("Conditional requests require explicit model attribution")
+            if cost is None and (
+                conditional or not (allow_unknown_price and bounds.get("allow_unknown_price"))
+            ):
+                raise BudgetExceeded(
+                    "Unknown price requires a bounded fee reservation", code="unknown_model_price"
+                )
+            rows = self._rows(conn)
+            self._overall(task, rows, bounds)
+            counted = self._counted(rows) if conditional else rows
+            held_tokens, held_cost = self._held_usage(rows)
+            if len(counted) >= bounds.get("max_calls", 30):
+                raise BudgetExceeded(
+                    "Call budget exhausted before request", code="model_request_budget_exhausted"
+                )
+            if conditional:
+                if any(row["model_family"] is None for row in counted):
+                    raise BudgetExceeded(
+                        "Historical model classification is unresolved",
+                        code="unclassified_model_usage",
+                    )
+                family_count = sum(row["model_family"] == model_family for row in counted)
+                if family_count >= bounds[f"max_{model_family}_calls"]:
+                    raise BudgetExceeded(
+                        "Model family budget exhausted", code=f"{model_family}_budget_exhausted"
+                    )
+                if (
+                    model_family == "primary"
+                    and family_count >= bounds["primary_target"]
+                    and exception_reason is None
+                ):
+                    raise BudgetExceeded(
+                        "Primary request above target requires an exception reason",
+                        code="primary_exception_reason_required",
+                    )
+            if held_tokens + tokens > bounds.get("max_tokens", 100_000):
+                raise BudgetExceeded(
+                    "Token budget exhausted before request", code="model_token_budget_exhausted"
+                )
+            limit = bounds.get("max_cost")
+            if limit is not None and cost is not None and held_cost + cost > Decimal(str(limit)):
+                raise BudgetExceeded(
+                    "Cost budget exhausted before request", code="cost_budget_exhausted"
+                )
+            return conn.execute(
+                "INSERT INTO app.usage_records"
+                "(id,task_id,reservation_key,attempt,provider,requested_tokens,reserved_cost,"
+                "model_family,purpose,plan_revision,node_id,node_ids,question_count,exception_reason,"
+                "dispatch_state,model_budget_version) "
+                "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                (
+                    uuid4(),
+                    self.task_id,
+                    key,
+                    attempt,
+                    provider,
+                    tokens,
+                    cost,
+                    model_family,
+                    purpose,
+                    plan_revision,
+                    node_id,
+                    Jsonb(node_ids) if node_ids else None,
+                    question_count,
+                    exception_reason,
+                    "reserved" if model_family else None,
+                    MODEL_BUDGET_VERSION if conditional else None,
+                ),
+            ).fetchone()["id"]
+
+    def reserve_model(self, *args, **kwargs):
+        """Classified request protocol used by provider wrappers."""
+        return self.reserve(*args, **kwargs)
+
+    def mark_dispatched(self, receipt_id):
+        with self.database.connect() as conn:
+            task = self._task(conn)
+            if task["graph_version"] == "business-3":
+                bounds, rows = self._bounds(task), self._rows(conn)
+                self._overall(task, rows, bounds)
+                counted = self._counted(rows)
+                tokens, cost = self._held_usage(rows)
+                if len(counted) > bounds["max_calls"] or tokens > bounds["max_tokens"]:
+                    raise BudgetExceeded(
+                        "Reserved request exceeds current model budget",
+                        code="model_request_budget_exhausted",
+                    )
+                for family in ("primary", "jev"):
+                    if (
+                        sum(row["model_family"] == family for row in counted)
+                        > bounds[f"max_{family}_calls"]
+                    ):
+                        raise BudgetExceeded(
+                            "Reserved family exceeds current model budget",
+                            code=f"{family}_budget_exhausted",
+                        )
+                if bounds.get("max_cost") is not None and cost > Decimal(str(bounds["max_cost"])):
+                    raise BudgetExceeded(
+                        "Reserved cost exceeds current model budget", code="cost_budget_exhausted"
+                    )
+            row = conn.execute(
+                "UPDATE app.usage_records SET dispatch_state='dispatching' "
+                "WHERE id=%s AND task_id=%s AND status='reserved' "
+                "AND dispatch_state='reserved' RETURNING id",
+                (receipt_id, self.task_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Reservation cannot start another dispatch")
+
+    def mark_not_sent(self, receipt_id, *, reason, after_local_preflight=False):
+        """Release only when trusted local code proves no provider request was sent."""
+        _identifier(reason, "local dispatch reason")
+        if type(after_local_preflight) is not bool:
+            raise ValueError("Local preflight proof must be explicit")
+        with self.database.connect() as conn:
+            self._task(conn)
+            row = conn.execute(
+                "UPDATE app.usage_records SET dispatch_state='not_sent',status='settled',"
+                "actual_tokens=0,actual_cost=0,error_code=%s "
+                "WHERE id=%s AND task_id=%s AND status='reserved' "
+                "AND (dispatch_state='reserved' OR (%s AND dispatch_state='dispatching')) "
+                "RETURNING id",
+                (reason, receipt_id, self.task_id, after_local_preflight),
+            ).fetchone()
+            if not row:
+                raise ValueError("Unknown or completed dispatch cannot be released as not sent")
+
+    def settle_model(self, receipt_id, tokens, cost, *, response_state, error_code=None):
+        return self.settle(
+            receipt_id, tokens, cost, response_state=response_state, error_code=error_code
+        )
+
+    def settle(self, receipt_id, tokens, cost, *, response_state=None, error_code=None):
+        if tokens is not None and (type(tokens) is not int or tokens < 0):
+            raise ValueError("Usage cannot be negative or noninteger")
+        if cost is not None and (not cost.is_finite() or cost < 0):
+            raise ValueError("Cost must be nonnegative and finite")
+        if response_state is not None and response_state not in {"responded", "unknown"}:
+            raise ValueError("Invalid response state")
+        if error_code is not None:
+            _identifier(error_code, "model error code")
+        with self.database.connect() as conn:
+            self._task(conn)
+            row = conn.execute(
+                "SELECT * FROM app.usage_records WHERE id=%s AND task_id=%s FOR UPDATE",
+                (receipt_id, self.task_id),
+            ).fetchone()
+            if not row or row["status"] == "settled":
+                raise ValueError("Unknown reservation or already settled")
+            tokens = (
+                max(tokens, row["actual_tokens"] or 0)
+                if tokens is not None
+                else row["actual_tokens"]
+            )
+            cost = (
+                max(cost, row["actual_cost"] or Decimal("0"))
+                if cost is not None
+                else row["actual_cost"]
+            )
+            status = "settled" if tokens is not None and cost is not None else "unknown"
+            dispatch_state = None
+            if row["model_family"] is not None:
+                dispatch_state = response_state or (
+                    "responded" if status == "settled" else "unknown"
+                )
+            conn.execute(
+                "UPDATE app.usage_records SET actual_tokens=%s,actual_cost=%s,status=%s,"
+                "dispatch_state=%s,error_code=COALESCE(%s,error_code) WHERE id=%s",
+                (tokens, cost, status, dispatch_state, error_code, receipt_id),
+            )

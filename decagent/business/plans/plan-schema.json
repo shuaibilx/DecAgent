@@ -1,0 +1,1892 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decagent.local/schemas/business-plan/1",
+  "title": "DecAgent bounded business plan v1",
+  "description": "A flat, finite data plan interpreted by trusted static code. Compiler/runtime validate graph depth, registration, source provenance and authorization; no inline programs or permission overrides are admitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "plan_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "content_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$(?![\\s\\S])"
+    },
+    "registry_fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$(?![\\s\\S])"
+    },
+    "goal": {
+      "$ref": "#/$defs/goal"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      },
+      "minItems": 1,
+      "maxItems": 32
+    },
+    "entry": {
+      "$ref": "#/$defs/identifier"
+    }
+  },
+  "required": [
+    "schema_version",
+    "plan_id",
+    "revision",
+    "registry_fingerprint",
+    "goal",
+    "nodes",
+    "entry"
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$(?![\\s\\S])"
+    },
+    "jsonValue": {
+      "oneOf": [
+        {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        }
+      ]
+    },
+    "declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value_type": {
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "object",
+            "array",
+            "null"
+          ]
+        },
+        "nullable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "value_type",
+        "nullable"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/nullability"
+        }
+      ]
+    },
+    "fieldPath": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$(?![\\s\\S])"
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1023
+          }
+        ]
+      },
+      "minItems": 0,
+      "maxItems": 8
+    },
+    "literalBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "literal"
+        },
+        "value": {
+          "$ref": "#/$defs/jsonValue"
+        },
+        "value_type": {
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "object",
+            "array",
+            "null"
+          ]
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "provenance": {
+          "const": "plan_literal"
+        }
+      },
+      "required": [
+        "source",
+        "value",
+        "value_type",
+        "nullable",
+        "provenance"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "value_type": {
+                "const": "string"
+              }
+            }
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "nullable": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "value_type": {
+                "const": "integer"
+              }
+            }
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "nullable": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "value_type": {
+                "const": "number"
+              }
+            }
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "nullable": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "value_type": {
+                "const": "boolean"
+              }
+            }
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "nullable": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "value_type": {
+                "const": "object"
+              }
+            }
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "nullable": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "value_type": {
+                "const": "array"
+              }
+            }
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "nullable": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "value_type": {
+                "const": "null"
+              }
+            }
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "nullable": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/nullability"
+        }
+      ]
+    },
+    "taskInputBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "task_input"
+        },
+        "path": {
+          "$ref": "#/$defs/fieldPath"
+        },
+        "value_type": {
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "object",
+            "array",
+            "null"
+          ]
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "provenance": {
+          "const": "user_input"
+        }
+      },
+      "required": [
+        "source",
+        "path",
+        "value_type",
+        "nullable",
+        "provenance"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/nullability"
+        }
+      ]
+    },
+    "nodeOutputBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "node_output"
+        },
+        "node_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "path": {
+          "$ref": "#/$defs/fieldPath"
+        },
+        "value_type": {
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "object",
+            "array",
+            "null"
+          ]
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "provenance": {
+          "enum": [
+            "tool_result",
+            "transform_result",
+            "user_answer",
+            "write_receipt"
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "node_id",
+        "path",
+        "value_type",
+        "nullable",
+        "provenance"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/nullability"
+        }
+      ]
+    },
+    "acceptedDecisionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "accepted_decision"
+        },
+        "node_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "path": {
+          "$ref": "#/$defs/fieldPath"
+        },
+        "value_type": {
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "object",
+            "array",
+            "null"
+          ]
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "provenance": {
+          "const": "accepted_decision"
+        }
+      },
+      "required": [
+        "source",
+        "node_id",
+        "path",
+        "value_type",
+        "nullable",
+        "provenance"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/nullability"
+        }
+      ]
+    },
+    "verifiedMemoryBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "verified_memory"
+        },
+        "memory_kind": {
+          "enum": [
+            "confirmed_preference",
+            "verified_workflow_experience"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-z][a-z0-9:_-]{0,199}$(?![\\s\\S])"
+        },
+        "path": {
+          "$ref": "#/$defs/fieldPath"
+        },
+        "value_type": {
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "object",
+            "array",
+            "null"
+          ]
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "provenance": {
+          "const": "verified_memory"
+        }
+      },
+      "required": [
+        "source",
+        "memory_kind",
+        "subject",
+        "path",
+        "value_type",
+        "nullable",
+        "provenance"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/nullability"
+        }
+      ]
+    },
+    "binding": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/literalBinding"
+        },
+        {
+          "$ref": "#/$defs/taskInputBinding"
+        },
+        {
+          "$ref": "#/$defs/nodeOutputBinding"
+        },
+        {
+          "$ref": "#/$defs/acceptedDecisionBinding"
+        },
+        {
+          "$ref": "#/$defs/verifiedMemoryBinding"
+        }
+      ]
+    },
+    "referenceBinding": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/taskInputBinding"
+        },
+        {
+          "$ref": "#/$defs/nodeOutputBinding"
+        },
+        {
+          "$ref": "#/$defs/acceptedDecisionBinding"
+        },
+        {
+          "$ref": "#/$defs/verifiedMemoryBinding"
+        }
+      ]
+    },
+    "numericBinding": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/binding"
+        },
+        {
+          "properties": {
+            "value_type": {
+              "enum": [
+                "integer",
+                "number"
+              ]
+            },
+            "nullable": {
+              "const": false
+            }
+          }
+        }
+      ]
+    },
+    "arrayBinding": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/binding"
+        },
+        {
+          "properties": {
+            "value_type": {
+              "const": "array"
+            },
+            "nullable": {
+              "const": false
+            }
+          }
+        }
+      ]
+    },
+    "exit": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "node_id": {
+              "$ref": "#/$defs/identifier"
+            }
+          },
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "stop": {
+              "enum": [
+                "missing_input",
+                "no_match",
+                "error",
+                "needs_user",
+                "escalate"
+              ]
+            }
+          },
+          "required": [
+            "stop"
+          ]
+        }
+      ]
+    },
+    "successors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/identifier"
+      },
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true
+    },
+    "inputs": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": {
+        "allOf": [
+          {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$(?![\\s\\S])"
+          },
+          {
+            "not": {
+              "enum": [
+                "actor",
+                "actor_id",
+                "grants",
+                "auth",
+                "authorization",
+                "permissions"
+              ]
+            }
+          }
+        ]
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/binding"
+      }
+    },
+    "capabilityReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plugin_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "command": {
+          "$ref": "#/$defs/identifier"
+        }
+      },
+      "required": [
+        "plugin_id",
+        "command"
+      ]
+    },
+    "transformReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "transform_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[0-9]+(?:\\.[0-9]+){0,2}(?:[-+][A-Za-z0-9.-]+)?$(?![\\s\\S])"
+        }
+      },
+      "required": [
+        "transform_id",
+        "version"
+      ]
+    },
+    "questionReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "question_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[0-9]+(?:\\.[0-9]+){0,2}(?:[-+][A-Za-z0-9.-]+)?$(?![\\s\\S])"
+        },
+        "type": {
+          "enum": [
+            "choice",
+            "noul",
+            "score"
+          ]
+        }
+      },
+      "required": [
+        "question_id",
+        "version",
+        "type"
+      ]
+    },
+    "policyReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policy_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[0-9]+(?:\\.[0-9]+){0,2}(?:[-+][A-Za-z0-9.-]+)?$(?![\\s\\S])"
+        }
+      },
+      "required": [
+        "policy_id",
+        "version"
+      ]
+    },
+    "conditionDepth1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/equalityCondition"
+        },
+        {
+          "$ref": "#/$defs/membershipCondition"
+        },
+        {
+          "$ref": "#/$defs/existsCondition"
+        },
+        {
+          "$ref": "#/$defs/numericCondition"
+        }
+      ]
+    },
+    "conditionDepth2": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/equalityCondition"
+        },
+        {
+          "$ref": "#/$defs/membershipCondition"
+        },
+        {
+          "$ref": "#/$defs/existsCondition"
+        },
+        {
+          "$ref": "#/$defs/numericCondition"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "enum": [
+                "all",
+                "any"
+              ]
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/conditionDepth1"
+              },
+              "minItems": 1,
+              "maxItems": 16
+            }
+          },
+          "required": [
+            "op",
+            "conditions"
+          ]
+        }
+      ]
+    },
+    "conditionDepth3": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/equalityCondition"
+        },
+        {
+          "$ref": "#/$defs/membershipCondition"
+        },
+        {
+          "$ref": "#/$defs/existsCondition"
+        },
+        {
+          "$ref": "#/$defs/numericCondition"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "enum": [
+                "all",
+                "any"
+              ]
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/conditionDepth2"
+              },
+              "minItems": 1,
+              "maxItems": 16
+            }
+          },
+          "required": [
+            "op",
+            "conditions"
+          ]
+        }
+      ]
+    },
+    "conditionDepth4": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/equalityCondition"
+        },
+        {
+          "$ref": "#/$defs/membershipCondition"
+        },
+        {
+          "$ref": "#/$defs/existsCondition"
+        },
+        {
+          "$ref": "#/$defs/numericCondition"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "enum": [
+                "all",
+                "any"
+              ]
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/conditionDepth3"
+              },
+              "minItems": 1,
+              "maxItems": 16
+            }
+          },
+          "required": [
+            "op",
+            "conditions"
+          ]
+        }
+      ]
+    },
+    "condition": {
+      "$ref": "#/$defs/conditionDepth4"
+    },
+    "branchCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "condition": {
+          "$ref": "#/$defs/condition"
+        },
+        "next": {
+          "$ref": "#/$defs/successors"
+        }
+      },
+      "required": [
+        "condition",
+        "next"
+      ]
+    },
+    "goalEvidence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "kind": {
+              "const": "tool_result"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "pattern": "\\S"
+            },
+            "source": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/nodeOutputBinding"
+                },
+                {
+                  "properties": {
+                    "provenance": {
+                      "const": "tool_result"
+                    }
+                  }
+                }
+              ]
+            },
+            "condition": {
+              "$ref": "#/$defs/condition"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "description",
+            "source"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "kind": {
+              "const": "write_receipt"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "pattern": "\\S"
+            },
+            "source": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/nodeOutputBinding"
+                },
+                {
+                  "properties": {
+                    "provenance": {
+                      "const": "write_receipt"
+                    }
+                  }
+                }
+              ]
+            },
+            "condition": {
+              "$ref": "#/$defs/condition"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "description",
+            "source"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "kind": {
+              "const": "accepted_decision"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "pattern": "\\S"
+            },
+            "source": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/acceptedDecisionBinding"
+                },
+                {
+                  "properties": {
+                    "provenance": {
+                      "const": "accepted_decision"
+                    }
+                  }
+                }
+              ]
+            },
+            "condition": {
+              "$ref": "#/$defs/condition"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "description",
+            "source"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "kind": {
+              "const": "verified_memory"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "pattern": "\\S"
+            },
+            "source": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/verifiedMemoryBinding"
+                },
+                {
+                  "properties": {
+                    "provenance": {
+                      "const": "verified_memory"
+                    }
+                  }
+                }
+              ]
+            },
+            "condition": {
+              "$ref": "#/$defs/condition"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "description",
+            "source"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "kind": {
+              "const": "user_input"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "pattern": "\\S"
+            },
+            "source": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/taskInputBinding"
+                },
+                {
+                  "properties": {
+                    "provenance": {
+                      "const": "user_input"
+                    }
+                  }
+                }
+              ]
+            },
+            "condition": {
+              "$ref": "#/$defs/condition"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "description",
+            "source"
+          ]
+        }
+      ]
+    },
+    "goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "\\S"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/goalEvidence"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        }
+      },
+      "required": [
+        "description",
+        "evidence"
+      ]
+    },
+    "read_toolNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "on_missing": {
+          "$ref": "#/$defs/exit"
+        },
+        "on_error": {
+          "$ref": "#/$defs/exit"
+        },
+        "type": {
+          "const": "read_tool"
+        },
+        "tool": {
+          "$ref": "#/$defs/capabilityReference"
+        },
+        "inputs": {
+          "$ref": "#/$defs/inputs"
+        },
+        "next": {
+          "$ref": "#/$defs/successors"
+        }
+      },
+      "required": [
+        "id",
+        "depends_on",
+        "on_missing",
+        "on_error",
+        "type",
+        "tool",
+        "inputs",
+        "next"
+      ]
+    },
+    "transformNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "on_missing": {
+          "$ref": "#/$defs/exit"
+        },
+        "on_error": {
+          "$ref": "#/$defs/exit"
+        },
+        "type": {
+          "const": "transform"
+        },
+        "transform": {
+          "$ref": "#/$defs/transformReference"
+        },
+        "inputs": {
+          "$ref": "#/$defs/inputs"
+        },
+        "next": {
+          "$ref": "#/$defs/successors"
+        }
+      },
+      "required": [
+        "id",
+        "depends_on",
+        "on_missing",
+        "on_error",
+        "type",
+        "transform",
+        "inputs",
+        "next"
+      ]
+    },
+    "decideNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "on_missing": {
+          "$ref": "#/$defs/exit"
+        },
+        "on_error": {
+          "$ref": "#/$defs/exit"
+        },
+        "type": {
+          "const": "decide"
+        },
+        "question": {
+          "$ref": "#/$defs/questionReference"
+        },
+        "policy": {
+          "$ref": "#/$defs/policyReference"
+        },
+        "inputs": {
+          "$ref": "#/$defs/inputs"
+        },
+        "next": {
+          "$ref": "#/$defs/successors"
+        },
+        "on_no_match": {
+          "$ref": "#/$defs/exit"
+        }
+      },
+      "required": [
+        "id",
+        "depends_on",
+        "on_missing",
+        "on_error",
+        "type",
+        "question",
+        "policy",
+        "inputs",
+        "next",
+        "on_no_match"
+      ]
+    },
+    "branchNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "on_missing": {
+          "$ref": "#/$defs/exit"
+        },
+        "on_error": {
+          "$ref": "#/$defs/exit"
+        },
+        "type": {
+          "const": "branch"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/branchCase"
+          },
+          "minItems": 1,
+          "maxItems": 16
+        },
+        "on_no_match": {
+          "$ref": "#/$defs/exit"
+        }
+      },
+      "required": [
+        "id",
+        "depends_on",
+        "on_missing",
+        "on_error",
+        "type",
+        "cases",
+        "on_no_match"
+      ]
+    },
+    "joinNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "on_missing": {
+          "$ref": "#/$defs/exit"
+        },
+        "on_error": {
+          "$ref": "#/$defs/exit"
+        },
+        "type": {
+          "const": "join"
+        },
+        "mode": {
+          "const": "all_active"
+        },
+        "next": {
+          "$ref": "#/$defs/successors"
+        }
+      },
+      "required": [
+        "id",
+        "depends_on",
+        "on_missing",
+        "on_error",
+        "type",
+        "mode",
+        "next"
+      ]
+    },
+    "ask_userNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "on_missing": {
+          "$ref": "#/$defs/exit"
+        },
+        "on_error": {
+          "$ref": "#/$defs/exit"
+        },
+        "type": {
+          "const": "ask_user"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "\\S"
+        },
+        "answer": {
+          "$ref": "#/$defs/declaration"
+        },
+        "next": {
+          "$ref": "#/$defs/successors"
+        }
+      },
+      "required": [
+        "id",
+        "depends_on",
+        "on_missing",
+        "on_error",
+        "type",
+        "prompt",
+        "answer",
+        "next"
+      ]
+    },
+    "governed_writeNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "on_missing": {
+          "$ref": "#/$defs/exit"
+        },
+        "on_error": {
+          "$ref": "#/$defs/exit"
+        },
+        "type": {
+          "const": "governed_write"
+        },
+        "command": {
+          "$ref": "#/$defs/capabilityReference"
+        },
+        "inputs": {
+          "$ref": "#/$defs/inputs"
+        },
+        "next": {
+          "$ref": "#/$defs/successors"
+        }
+      },
+      "required": [
+        "id",
+        "depends_on",
+        "on_missing",
+        "on_error",
+        "type",
+        "command",
+        "inputs",
+        "next"
+      ]
+    },
+    "completeNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "on_missing": {
+          "$ref": "#/$defs/exit"
+        },
+        "on_error": {
+          "$ref": "#/$defs/exit"
+        },
+        "type": {
+          "const": "complete"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "depends_on",
+        "on_missing",
+        "on_error",
+        "type",
+        "evidence"
+      ]
+    },
+    "node": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/read_toolNode"
+        },
+        {
+          "$ref": "#/$defs/transformNode"
+        },
+        {
+          "$ref": "#/$defs/decideNode"
+        },
+        {
+          "$ref": "#/$defs/branchNode"
+        },
+        {
+          "$ref": "#/$defs/joinNode"
+        },
+        {
+          "$ref": "#/$defs/ask_userNode"
+        },
+        {
+          "$ref": "#/$defs/governed_writeNode"
+        },
+        {
+          "$ref": "#/$defs/completeNode"
+        }
+      ]
+    },
+    "nullability": {
+      "if": {
+        "properties": {
+          "value_type": {
+            "const": "null"
+          }
+        },
+        "required": [
+          "value_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "nullable": {
+            "const": true
+          }
+        }
+      }
+    },
+    "equalityCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "const": "eq"
+        },
+        "left": {
+          "$ref": "#/$defs/binding"
+        },
+        "right": {
+          "$ref": "#/$defs/binding"
+        }
+      },
+      "required": [
+        "op",
+        "left",
+        "right"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "left": {
+                "properties": {
+                  "value_type": {
+                    "const": "string"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "right": {
+                "properties": {
+                  "value_type": {
+                    "const": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "left": {
+                "properties": {
+                  "value_type": {
+                    "const": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "right": {
+                "properties": {
+                  "value_type": {
+                    "enum": [
+                      "integer",
+                      "number"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "left": {
+                "properties": {
+                  "value_type": {
+                    "const": "number"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "right": {
+                "properties": {
+                  "value_type": {
+                    "enum": [
+                      "integer",
+                      "number"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "left": {
+                "properties": {
+                  "value_type": {
+                    "const": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "right": {
+                "properties": {
+                  "value_type": {
+                    "const": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "left": {
+                "properties": {
+                  "value_type": {
+                    "const": "array"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "right": {
+                "properties": {
+                  "value_type": {
+                    "const": "array"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "left": {
+                "properties": {
+                  "value_type": {
+                    "const": "object"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "right": {
+                "properties": {
+                  "value_type": {
+                    "const": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "left": {
+                "properties": {
+                  "value_type": {
+                    "const": "null"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "right": {
+                "properties": {
+                  "value_type": {
+                    "const": "null"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "membershipCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "const": "in"
+        },
+        "value": {
+          "$ref": "#/$defs/binding"
+        },
+        "collection": {
+          "$ref": "#/$defs/arrayBinding"
+        }
+      },
+      "required": [
+        "op",
+        "value",
+        "collection"
+      ]
+    },
+    "existsCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "const": "exists"
+        },
+        "value": {
+          "$ref": "#/$defs/referenceBinding"
+        }
+      },
+      "required": [
+        "op",
+        "value"
+      ]
+    },
+    "numericCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "enum": [
+            "lt",
+            "lte",
+            "gt",
+            "gte"
+          ]
+        },
+        "left": {
+          "$ref": "#/$defs/numericBinding"
+        },
+        "right": {
+          "$ref": "#/$defs/numericBinding"
+        }
+      },
+      "required": [
+        "op",
+        "left",
+        "right"
+      ]
+    }
+  }
+}

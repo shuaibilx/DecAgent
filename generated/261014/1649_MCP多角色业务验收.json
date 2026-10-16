@@ -1,0 +1,285 @@
+{
+  "schema_version": "mcp-business-acceptance-report-1",
+  "suite_version": "mcp-multirole-fixed-v1",
+  "suite_sha256": "9018296e85ec87e8498c852b3200c684af276b09a5ae1fff1ce4c4367bc6186b",
+  "service_version": "2.0.0",
+  "protocol_version": "2026-07-28",
+  "client": "DecAgent MCPConnectionManager / Python MCP SDK 2.3.0",
+  "transport": "real loopback Streamable HTTP",
+  "identity_source": "synthetic employee MCP credentials",
+  "evidence_mode": "scripted_offline_no_model",
+  "model_calls": 0,
+  "jev_calls": 0,
+  "model_decision_accuracy": null,
+  "denominator": 11,
+  "attempted": 11,
+  "passed": 11,
+  "failed": 0,
+  "not_run": 0,
+  "forbidden_domain_side_effects": 0,
+  "machine_mcp_call_latency_seconds": {
+    "count": 27,
+    "p50": 0.482392499994603,
+    "p95": 1.2622397899933273,
+    "sum": 15.855501899961382,
+    "percentile_method": "linear interpolation at (n-1)*fraction"
+  },
+  "scripted_browser_decisions": 3,
+  "human_wait_seconds": 0.0,
+  "human_wait_note": "No human was present; scripted immediate replies are not user wait measurements",
+  "recovery_scope": "Loopback MCP service restart, durable operation query and receipt replay",
+  "scenarios": [
+    {
+      "id": "ambiguous_person",
+      "actor": "employee-it",
+      "actor_identity": {
+        "employee_id": "3666c411-97f5-4d6e-a160-3bcb12b99a8a",
+        "person_id": "b301a333-5ee9-5713-bf15-95d0b09bc51e",
+        "login": "employee-it",
+        "role": "employee",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "no_write",
+      "domain_delta": [
+        0,
+        0,
+        0
+      ],
+      "elapsed_seconds": 0.28656199999386445,
+      "evidence": {
+        "candidate_count": 2,
+        "action": "clarification_required"
+      }
+    },
+    {
+      "id": "employee_create",
+      "actor": "employee-it",
+      "actor_identity": {
+        "employee_id": "3666c411-97f5-4d6e-a160-3bcb12b99a8a",
+        "person_id": "b301a333-5ee9-5713-bf15-95d0b09bc51e",
+        "login": "employee-it",
+        "role": "employee",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "one_write",
+      "domain_delta": [
+        1,
+        1,
+        1
+      ],
+      "elapsed_seconds": 1.2420979000016814,
+      "evidence": {
+        "ticket_id": "2390f5f3-6ced-405f-bda4-aef93ecdbf4d",
+        "operation_id": "op_134f8f51417c42fda83608e06ee584a2"
+      }
+    },
+    {
+      "id": "unauthorized_assign",
+      "actor": "employee-it",
+      "actor_identity": {
+        "employee_id": "3666c411-97f5-4d6e-a160-3bcb12b99a8a",
+        "person_id": "b301a333-5ee9-5713-bf15-95d0b09bc51e",
+        "login": "employee-it",
+        "role": "employee",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "no_write",
+      "domain_delta": [
+        0,
+        0,
+        0
+      ],
+      "elapsed_seconds": 0.2019218999921577,
+      "evidence": {
+        "error_code": "forbidden"
+      }
+    },
+    {
+      "id": "inaccessible_resource",
+      "actor": "employee-facilities",
+      "actor_identity": {
+        "employee_id": "eed2a0f5-a785-44cf-807a-abd5989f0e82",
+        "person_id": "44839353-1a9b-5216-9cd5-0f530bd8ccf4",
+        "login": "employee-facilities",
+        "role": "employee",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "no_write",
+      "domain_delta": [
+        0,
+        0,
+        0
+      ],
+      "elapsed_seconds": 0.7426070000074105,
+      "evidence": {
+        "error_code": "not_found"
+      }
+    },
+    {
+      "id": "supervisor_assign",
+      "actor": "supervisor",
+      "actor_identity": {
+        "employee_id": "e8f93579-ca90-4036-b72e-02a78df8e5e3",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "login": "supervisor",
+        "role": "supervisor",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "one_write",
+      "domain_delta": [
+        0,
+        1,
+        1
+      ],
+      "elapsed_seconds": 1.4901697000022978,
+      "evidence": {
+        "operation_id": "op_20e3b4758b4a4ab2a7556a43b2dab6e2"
+      }
+    },
+    {
+      "id": "handler_start",
+      "actor": "handler-it",
+      "actor_identity": {
+        "employee_id": "bf55c74f-775b-4661-8c41-a8a3038d4de4",
+        "person_id": "9eb535c4-6fe8-5c45-9a85-63c51a5075d9",
+        "login": "handler-it",
+        "role": "handler",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "one_write",
+      "domain_delta": [
+        0,
+        1,
+        1
+      ],
+      "elapsed_seconds": 1.709477500000503,
+      "evidence": {
+        "operation_id": "op_ddd1679fecf04875b8a6d16797588e2e"
+      }
+    },
+    {
+      "id": "handler_resolve",
+      "actor": "handler-it",
+      "actor_identity": {
+        "employee_id": "bf55c74f-775b-4661-8c41-a8a3038d4de4",
+        "person_id": "9eb535c4-6fe8-5c45-9a85-63c51a5075d9",
+        "login": "handler-it",
+        "role": "handler",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "one_write",
+      "domain_delta": [
+        0,
+        1,
+        1
+      ],
+      "elapsed_seconds": 1.2705578000022797,
+      "evidence": {
+        "operation_id": "op_a052184f22f74b118063e44f4a7db88c"
+      }
+    },
+    {
+      "id": "rejected_close",
+      "actor": "employee-it",
+      "actor_identity": {
+        "employee_id": "3666c411-97f5-4d6e-a160-3bcb12b99a8a",
+        "person_id": "b301a333-5ee9-5713-bf15-95d0b09bc51e",
+        "login": "employee-it",
+        "role": "employee",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "no_write",
+      "domain_delta": [
+        0,
+        0,
+        0
+      ],
+      "elapsed_seconds": 1.2151997000037227,
+      "evidence": {
+        "operation_id": "op_76f03e07bd8144088d33677964329670",
+        "state": "rejected"
+      }
+    },
+    {
+      "id": "employee_close",
+      "actor": "employee-it",
+      "actor_identity": {
+        "employee_id": "3666c411-97f5-4d6e-a160-3bcb12b99a8a",
+        "person_id": "b301a333-5ee9-5713-bf15-95d0b09bc51e",
+        "login": "employee-it",
+        "role": "employee",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "one_write",
+      "domain_delta": [
+        0,
+        1,
+        1
+      ],
+      "elapsed_seconds": 1.3151479000080144,
+      "evidence": {
+        "ticket_id": "2390f5f3-6ced-405f-bda4-aef93ecdbf4d",
+        "history_count": 5
+      }
+    },
+    {
+      "id": "concurrent_commit",
+      "actor": "employee-it",
+      "actor_identity": {
+        "employee_id": "3666c411-97f5-4d6e-a160-3bcb12b99a8a",
+        "person_id": "b301a333-5ee9-5713-bf15-95d0b09bc51e",
+        "login": "employee-it",
+        "role": "employee",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "one_write",
+      "domain_delta": [
+        1,
+        1,
+        1
+      ],
+      "elapsed_seconds": 2.547927899999195,
+      "evidence": {
+        "operation_id": "op_cd611998977b42308fa3b0ddc1d7fbbb",
+        "identical_results": true
+      }
+    },
+    {
+      "id": "server_restart_recovery",
+      "actor": "employee-it",
+      "actor_identity": {
+        "employee_id": "3666c411-97f5-4d6e-a160-3bcb12b99a8a",
+        "person_id": "b301a333-5ee9-5713-bf15-95d0b09bc51e",
+        "login": "employee-it",
+        "role": "employee",
+        "source": "mcp_token"
+      },
+      "status": "passed",
+      "expected_effect": "one_write",
+      "domain_delta": [
+        1,
+        1,
+        1
+      ],
+      "elapsed_seconds": 4.2986110000056215,
+      "evidence": {
+        "operation_id": "op_4b30ce86f3c940539fceec86a5154292",
+        "recovered": true,
+        "response_loss": "simulated_after_completed_http_commit",
+        "server_restarted": true
+      }
+    }
+  ],
+  "disposable_database": "mcpbench_2968bea355e6426791d999ce1a145a3f",
+  "generated_at": "2026-10-14T16:50:00.186933+08:00"
+}

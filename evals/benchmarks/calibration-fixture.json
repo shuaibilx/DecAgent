@@ -1,0 +1,375 @@
+{
+  "status": "synthetic_fixture",
+  "dataset": {
+    "dataset_version": "synthetic-tooling-1",
+    "sources": [
+      {
+        "source_id": "synthetic",
+        "source_url": "https://github.com/SWE-bench/SWE-bench",
+        "license_id": "MIT",
+        "permission_note": "Artificial fixtures authored locally only test tooling; labels are not human ground truth."
+      }
+    ],
+    "samples": [
+      {
+        "sample_id": "action_risk-fixture-0",
+        "question_id": "action_risk",
+        "question_version": "1",
+        "input_hash": "ecae437b1d23230f4a755024c195445cff4b57868fe9697cba15eca1f8ff66c0",
+        "source_id": "synthetic",
+        "leakage_group": "action_risk-fixture-0",
+        "split": "calibration",
+        "human_label": "allow",
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "action_risk-fixture-1",
+        "question_id": "action_risk",
+        "question_version": "1",
+        "input_hash": "b2506622fc384c6911d6e61cf0caab4469ad787405bbf9fab1c80df74cf0aa29",
+        "source_id": "synthetic",
+        "leakage_group": "action_risk-fixture-1",
+        "split": "calibration",
+        "human_label": "allow",
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "action_risk-fixture-2",
+        "question_id": "action_risk",
+        "question_version": "1",
+        "input_hash": "2877b510ed2184bb1b38563babe3070b6adaaca7dc08695907ab9fea6a1af725",
+        "source_id": "synthetic",
+        "leakage_group": "action_risk-fixture-2",
+        "split": "holdout",
+        "human_label": "allow",
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "intervention-fixture-0",
+        "question_id": "intervention",
+        "question_version": "1",
+        "input_hash": "a2f575f55f53f5ec239ebe1c4bba99247b12626242e3f766e6641511cbbb570b",
+        "source_id": "synthetic",
+        "leakage_group": "intervention-fixture-0",
+        "split": "calibration",
+        "human_label": "continue",
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "intervention-fixture-1",
+        "question_id": "intervention",
+        "question_version": "1",
+        "input_hash": "df8108e6501b7f2139585258784488499521f660a05bcc587d8adbd032478caf",
+        "source_id": "synthetic",
+        "leakage_group": "intervention-fixture-1",
+        "split": "calibration",
+        "human_label": "continue",
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "intervention-fixture-2",
+        "question_id": "intervention",
+        "question_version": "1",
+        "input_hash": "86fbe2b2f88ec948a60a087bd53d62e19916900ee1d7a47372894b52c05fe2af",
+        "source_id": "synthetic",
+        "leakage_group": "intervention-fixture-2",
+        "split": "holdout",
+        "human_label": "continue",
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "memory_write-fixture-0",
+        "question_id": "memory_write",
+        "question_version": "1",
+        "input_hash": "dfb3a11ccfcab409c70c0c2284f2c570556e83db727d682586054dac8eb0d706",
+        "source_id": "synthetic",
+        "leakage_group": "memory_write-fixture-0",
+        "split": "calibration",
+        "human_label": "retain",
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "memory_write-fixture-1",
+        "question_id": "memory_write",
+        "question_version": "1",
+        "input_hash": "8879a45e5635aa60d89814fe3972259b7bae93087824d30bfbc353a7a7408c5a",
+        "source_id": "synthetic",
+        "leakage_group": "memory_write-fixture-1",
+        "split": "calibration",
+        "human_label": "retain",
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "memory_write-fixture-2",
+        "question_id": "memory_write",
+        "question_version": "1",
+        "input_hash": "fae173214153f0293b2b254378c212a779d85a318a714f20f8890d741aa3e9d8",
+        "source_id": "synthetic",
+        "leakage_group": "memory_write-fixture-2",
+        "split": "holdout",
+        "human_label": "retain",
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "memory_read_needed-fixture-0",
+        "question_id": "memory_read_needed",
+        "question_version": "1",
+        "input_hash": "953a7b9d123564d55d7d978a12d5d6d8fe3dcd649d4e460c56b67fd7823342c2",
+        "source_id": "synthetic",
+        "leakage_group": "memory_read_needed-fixture-0",
+        "split": "calibration",
+        "human_label": true,
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "memory_read_needed-fixture-1",
+        "question_id": "memory_read_needed",
+        "question_version": "1",
+        "input_hash": "8cf339cd26f5f96f17725b064de45c963d8447d6a874bfd14ab4a56e7214a7b3",
+        "source_id": "synthetic",
+        "leakage_group": "memory_read_needed-fixture-1",
+        "split": "calibration",
+        "human_label": true,
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "memory_read_needed-fixture-2",
+        "question_id": "memory_read_needed",
+        "question_version": "1",
+        "input_hash": "240cf205f14c96884484d03ff023f23e65ddd370e5e012b29ad03c103422a68e",
+        "source_id": "synthetic",
+        "leakage_group": "memory_read_needed-fixture-2",
+        "split": "holdout",
+        "human_label": true,
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "memory_relevant-fixture-0",
+        "question_id": "memory_relevant",
+        "question_version": "1",
+        "input_hash": "08f2176a9ec1f0d1163a34b8dad28905ccc132922291df41c41837b11fd92ccf",
+        "source_id": "synthetic",
+        "leakage_group": "memory_relevant-fixture-0",
+        "split": "calibration",
+        "human_label": true,
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "memory_relevant-fixture-1",
+        "question_id": "memory_relevant",
+        "question_version": "1",
+        "input_hash": "406e53e287e340139e643a3ed459bd888439a37bb1890d5a5dc66a264b7200da",
+        "source_id": "synthetic",
+        "leakage_group": "memory_relevant-fixture-1",
+        "split": "calibration",
+        "human_label": true,
+        "labeler": "synthetic-fixture-author"
+      },
+      {
+        "sample_id": "memory_relevant-fixture-2",
+        "question_id": "memory_relevant",
+        "question_version": "1",
+        "input_hash": "2ab8fecba0a1ed6965472ff262383122454875ab3ef55c60ac429365a0a1601b",
+        "source_id": "synthetic",
+        "leakage_group": "memory_relevant-fixture-2",
+        "split": "holdout",
+        "human_label": true,
+        "labeler": "synthetic-fixture-author"
+      }
+    ],
+    "format_version": "1"
+  },
+  "actual_model": "typesafe/jev-1.13-20260609",
+  "policy_version": "synthetic-policy-1",
+  "predictions": [
+    {
+      "sample_id": "action_risk-fixture-0",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "choice",
+        "choice": "allow",
+        "probabilities": {
+          "allow": 0.9,
+          "deny": 0.05,
+          "review": 0.05
+        },
+        "confidence": 0.8499999999999999
+      }
+    },
+    {
+      "sample_id": "action_risk-fixture-1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "choice",
+        "choice": "allow",
+        "probabilities": {
+          "allow": 0.9,
+          "deny": 0.05,
+          "review": 0.05
+        },
+        "confidence": 0.8499999999999999
+      }
+    },
+    {
+      "sample_id": "action_risk-fixture-2",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "choice",
+        "choice": "allow",
+        "probabilities": {
+          "allow": 0.9,
+          "deny": 0.05,
+          "review": 0.05
+        },
+        "confidence": 0.8499999999999999
+      }
+    },
+    {
+      "sample_id": "intervention-fixture-0",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "choice",
+        "choice": "continue",
+        "probabilities": {
+          "continue": 0.9,
+          "clarify": 0.05,
+          "review": 0.05
+        },
+        "confidence": 0.8499999999999999
+      }
+    },
+    {
+      "sample_id": "intervention-fixture-1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "choice",
+        "choice": "continue",
+        "probabilities": {
+          "continue": 0.9,
+          "clarify": 0.05,
+          "review": 0.05
+        },
+        "confidence": 0.8499999999999999
+      }
+    },
+    {
+      "sample_id": "intervention-fixture-2",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "choice",
+        "choice": "continue",
+        "probabilities": {
+          "continue": 0.9,
+          "clarify": 0.05,
+          "review": 0.05
+        },
+        "confidence": 0.8499999999999999
+      }
+    },
+    {
+      "sample_id": "memory_write-fixture-0",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "choice",
+        "choice": "retain",
+        "probabilities": {
+          "retain": 0.9,
+          "discard": 0.05,
+          "review": 0.05
+        },
+        "confidence": 0.8499999999999999
+      }
+    },
+    {
+      "sample_id": "memory_write-fixture-1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "choice",
+        "choice": "retain",
+        "probabilities": {
+          "retain": 0.9,
+          "discard": 0.05,
+          "review": 0.05
+        },
+        "confidence": 0.8499999999999999
+      }
+    },
+    {
+      "sample_id": "memory_write-fixture-2",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "choice",
+        "choice": "retain",
+        "probabilities": {
+          "retain": 0.9,
+          "discard": 0.05,
+          "review": 0.05
+        },
+        "confidence": 0.8499999999999999
+      }
+    },
+    {
+      "sample_id": "memory_read_needed-fixture-0",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "noul",
+        "noul": 0.9
+      }
+    },
+    {
+      "sample_id": "memory_read_needed-fixture-1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "noul",
+        "noul": 0.9
+      }
+    },
+    {
+      "sample_id": "memory_read_needed-fixture-2",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "noul",
+        "noul": 0.9
+      }
+    },
+    {
+      "sample_id": "memory_relevant-fixture-0",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "noul",
+        "noul": 0.9
+      }
+    },
+    {
+      "sample_id": "memory_relevant-fixture-1",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "noul",
+        "noul": 0.9
+      }
+    },
+    {
+      "sample_id": "memory_relevant-fixture-2",
+      "actual_model": "typesafe/jev-1.13-20260609",
+      "question_version": "1",
+      "answer": {
+        "type": "noul",
+        "noul": 0.9
+      }
+    }
+  ]
+}

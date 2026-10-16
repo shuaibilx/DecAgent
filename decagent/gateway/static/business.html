@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DecAgent · 员工业务工作台</title>
+  <link rel="stylesheet" href="/assets/style.css"><link rel="stylesheet" href="/assets/business.css">
+  <script src="/assets/business.js" defer></script>
+</head>
+<body>
+  <header><div><strong>DecAgent</strong><span>员工业务工作台 · 合成服务工单</span></div>
+    <div class="row"><span id="current-identity" class="identity" hidden></span><a href="/repair">仓库修复与运维</a><button id="logout" class="quiet" hidden>切换账号</button></div></header>
+  <main>
+    <div id="notice" role="status" aria-live="polite" hidden></div>
+    <section id="login-panel" class="card login">
+      <p class="eyebrow">EMPLOYEE WORKSPACE</p><h1>登录模拟员工账号</h1>
+      <p>用当前员工身份查看工单、操作待办和 Agent 任务。这里的数据只在本机合成业务中生效。</p>
+      <form id="login-form">
+        <label>员工账号<input id="employee-login" autocomplete="username" required></label>
+        <label>员工密码<input id="employee-password" type="password" autocomplete="current-password" required></label>
+        <button type="submit">登录</button>
+      </form>
+      <p class="muted">初始账号由本机管理命令创建。仓库修复与实例运维使用独立的 owner 身份。</p>
+    </section>
+    <div id="workbench" hidden>
+      <div class="intro"><p class="eyebrow">CONTRACT → DECISION → VERIFIED ACTION</p>
+        <h1>业务任务与操作待办</h1><p class="muted">Agent 和独立 MCP 客户端共用员工身份、具体确认与服务端回执。</p></div>
+      <div class="layout">
+        <aside>
+          <section class="card"><h2>发起 Agent 任务</h2><form id="business-form">
+            <label>业务能力<select id="plugin-select" required></select></label>
+            <p id="plugin-description" class="muted"></p>
+            <label>你的目标<textarea id="instruction" rows="4" required placeholder="例如：请创建 Network 工单，VPN 无法连接"></textarea></label>
+            <label>决策方式<select id="strategy"><option value="hybrid">规则 + Jev + 主模型</option><option value="main">主模型</option><option value="rule">规则</option></select></label>
+            <details><summary>任务预算</summary><div class="row">
+              <label>最多调用<input id="max-calls" type="number" min="1" max="100000" value="30" required></label>
+              <label>Token 上限<input id="max-tokens" type="number" min="1" value="100000" required></label></div>
+              <label>机器运行秒数<input id="max-active" type="number" min="1" value="1800" required></label>
+              <label>费用上限（美元，可留空）<input id="max-cost" inputmode="decimal"></label></details>
+            <button id="submit-task" type="submit">提交任务</button></form></section>
+          <section class="card"><div class="row spread"><h2>我的任务</h2><button id="refresh" class="quiet">刷新</button></div>
+            <div id="task-list" class="task-list"></div></section>
+          <section class="card"><div class="row spread"><h2>可访问工单</h2><button id="refresh-tickets" class="quiet">刷新</button></div>
+            <div id="ticket-list" class="task-list"></div><div id="ticket-detail" class="ticket-detail"></div></section>
+          <details class="card"><summary>已接入能力</summary><div id="capabilities"></div></details>
+          <details class="card"><summary>独立 MCP 凭据</summary>
+            <p class="muted">凭据只保存在本机受保护文件。网页不显示或复制明文 token。</p>
+            <button id="issue-credential" type="button">申请 1 小时凭据</button>
+            <div id="credential-info"></div><button id="revoke-credential" type="button" class="danger" hidden>撤销本次凭据</button>
+          </details>
+        </aside>
+        <div class="task-detail">
+          <section class="card"><div class="row spread"><h2>统一操作待办</h2><button id="refresh-operations" class="quiet">刷新</button></div>
+            <p class="muted">准备只保存不可变参数；状态为成功且有核实回执，才代表业务已提交。</p>
+            <div id="operation-list" class="operation-list"></div></section>
+          <section id="operation-detail" class="card" hidden><h2 id="operation-title">操作详情</h2>
+            <div id="operation-body"></div><div id="operation-actions"></div></section>
+          <section class="card"><div class="row spread"><h2 id="task-title">选择一个任务</h2><span id="task-state" class="badge">—</span></div>
+            <p id="task-instruction"></p><ol id="phases" class="phases" aria-label="业务任务执行阶段"></ol>
+            <p id="connection" class="muted">进度尚未连接</p><div id="waiting" class="waiting" hidden></div>
+            <div class="row"><button id="cancel-task" class="danger" hidden>取消任务</button><button id="resume-task" hidden>核实并恢复</button></div>
+            <form id="budget-form" hidden><h3>调整预算</h3><div class="row">
+              <label>最多调用<input id="resume-calls" type="number" min="1" required></label><label>Token 上限<input id="resume-tokens" type="number" min="1" required></label></div>
+              <label>机器运行秒数<input id="resume-active" type="number" min="1" required></label>
+              <label>费用上限（美元，可留空）<input id="resume-cost" inputmode="decimal"></label><button type="submit">保存并恢复</button></form>
+          </section>
+          <section class="card" id="workflow-trace"><div class="row spread"><h2>工作流计划与实际执行</h2><a id="trace-download" class="quiet-link" hidden>下载脱敏 trace</a></div>
+            <div id="plan-summary"><p class="muted">选择任务后显示服务端保存的计划、分支路径和参数来源。</p></div>
+            <div id="plan-nodes" class="plan-nodes"></div><div id="plan-policies"></div>
+            <h3>模型与工具用量</h3><div id="plan-usage"></div>
+            <h3>事件时间线</h3><ol id="trace-timeline" class="trace-timeline"></ol>
+          </section>
+          <section class="card"><h2>待本人处理</h2><div id="approvals"></div></section>
+          <section class="card" id="memory-panel"><div class="row spread"><h2>我的业务记忆</h2><button id="refresh-memories" class="quiet">刷新</button></div>
+            <p class="muted">记忆按当前员工和业务范围隔离。只有已验证、有效的记忆能填入已发布工作流声明的稳定槽；记忆本身不授予操作权限。</p>
+            <div id="memory-dependencies"></div><div id="memory-list"></div>
+          </section>
+          <section class="card"><h2>任务结果与回执</h2><div id="result"></div><div id="actions"></div></section>
+          <section class="card"><h2>判断与执行路线</h2><div id="decisions"></div></section>
+          <details class="card"><summary>已授权事件</summary><ol id="events"></ol></details>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

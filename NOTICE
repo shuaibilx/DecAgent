@@ -1,0 +1,9 @@
+DecAgent architecture builds on the readable module organization of Waku Agent.
+Waku Agent: https://github.com/ShenSeanChen/waku-agent
+Copyright (c) 2026 Sean Chen (ShenSeanChen), MIT. See LICENSE.
+
+pi-inspired principles: small tools, serial execution, observable sessions, context compaction.
+Reference: https://github.com/earendil-works/pi (MIT); no pi source or Node runtime copied.
+
+DecAgent implementation and operational data are independent of the original Waku directory.
+

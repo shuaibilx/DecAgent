@@ -1,0 +1,24 @@
+SOURCE_MODULE /repo/src/pytest/__init__.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________________ test_bug ___________________________________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x730726b94310>
+
+    def test_bug(caplog):
+        caplog.set_level(logging.INFO)
+        logging.info("before clear")
+        caplog.clear()
+>       assert caplog.get_records("call") == []
+E       assert [<LogRecord: ...efore clear">] == []
+E         Left contains one more item: <LogRecord: root, 20, /acceptance/test_bug.py, 5, "before clear">
+E         Use -v to get more diff
+
+/acceptance/test_bug.py:7: AssertionError
+------------------------------ Captured log call -------------------------------
+INFO     root:test_bug.py:5 before clear
+--------------------- generated xml file: /tmp/result.xml ----------------------
+=========================== short test summary info ============================
+FAILED ../acceptance/test_bug.py::test_bug - assert [<LogRecord: ...efore cle...
+1 failed in 0.26s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcz48dGVzdHN1aXRlIG5hbWU9InB5dGVzdCIgZXJyb3JzPSIwIiBmYWlsdXJlcz0iMSIgc2tpcHBlZD0iMCIgdGVzdHM9IjEiIHRpbWU9IjAuMjY4IiB0aW1lc3RhbXA9IjIwMjYtMTAtMTBUMDk6MTE6NTUuNjEwODYzIiBob3N0bmFtZT0iMjY2YzMwNmQ3YWZkIj48dGVzdGNhc2UgY2xhc3NuYW1lPSJ0ZXN0X2J1ZyIgbmFtZT0idGVzdF9idWciIHRpbWU9IjAuMDAxIj48ZmFpbHVyZSBtZXNzYWdlPSJhc3NlcnQgWyZsdDtMb2dSZWNvcmQ6IC4uLmVmb3JlIGNsZWFyJnF1b3Q7Jmd0O10gPT0gW10mIzEwOyAgTGVmdCBjb250YWlucyBvbmUgbW9yZSBpdGVtOiAmbHQ7TG9nUmVjb3JkOiByb290LCAyMCwgL2FjY2VwdGFuY2UvdGVzdF9idWcucHksIDUsICZxdW90O2JlZm9yZSBjbGVhciZxdW90OyZndDsmIzEwOyAgVXNlIC12IHRvIGdldCBtb3JlIGRpZmYiPmNhcGxvZyA9ICZsdDtfcHl0ZXN0LmxvZ2dpbmcuTG9nQ2FwdHVyZUZpeHR1cmUgb2JqZWN0IGF0IDB4NzMwNzI2Yjk0MzEwJmd0OwoKICAgIGRlZiB0ZXN0X2J1ZyhjYXBsb2cpOgogICAgICAgIGNhcGxvZy5zZXRfbGV2ZWwobG9nZ2luZy5JTkZPKQogICAgICAgIGxvZ2dpbmcuaW5mbygiYmVmb3JlIGNsZWFyIikKICAgICAgICBjYXBsb2cuY2xlYXIoKQomZ3Q7ICAgICAgIGFzc2VydCBjYXBsb2cuZ2V0X3JlY29yZHMoImNhbGwiKSA9PSBbXQpFICAgICAgIGFzc2VydCBbJmx0O0xvZ1JlY29yZDogLi4uZWZvcmUgY2xlYXIiJmd0O10gPT0gW10KRSAgICAgICAgIExlZnQgY29udGFpbnMgb25lIG1vcmUgaXRlbTogJmx0O0xvZ1JlY29yZDogcm9vdCwgMjAsIC9hY2NlcHRhbmNlL3Rlc3RfYnVnLnB5LCA1LCAiYmVmb3JlIGNsZWFyIiZndDsKRSAgICAgICAgIFVzZSAtdiB0byBnZXQgbW9yZSBkaWZmCgovYWNjZXB0YW5jZS90ZXN0X2J1Zy5weTo3OiBBc3NlcnRpb25FcnJvcjwvZmFpbHVyZT48L3Rlc3RjYXNlPjwvdGVzdHN1aXRlPjwvdGVzdHN1aXRlcz4=

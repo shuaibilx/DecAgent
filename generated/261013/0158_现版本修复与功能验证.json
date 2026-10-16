@@ -1,0 +1,339 @@
+{
+  "schema": "current-functional-verification-1",
+  "exported_at_utc": "2026-10-12T17:58:41+00:00",
+  "scope": "Post-fix independent local functional probes and regressions; not a new frozen performance acceptance",
+  "probe_metadata": {
+    "protocol": "post-completion-fix-live-probe-1",
+    "scope": "Independent synthetic functional probes; not frozen holdout, fitting or performance evidence",
+    "started_at_utc": "2026-10-12T17:48:53.801087+00:00",
+    "services_source_sha256": "9736b34f10c60c9a851b96b825f6ee3e67c717fbbf14fa5786883951ebc3ffce",
+    "planner_source_sha256": "b3004b76e2f848f23c814e570f75d9645740aa4c95f46a098aa3294b8c1b9275",
+    "primary_source_sha256": "838c147a549107f3c3eaf54831ae9831c992073045174fdc7d57b1e918aeda6f",
+    "model_calls_source_sha256": "040ee99ba25de934e3accfdb7088f490ee042ca20fd8c5c149eec21992283f93",
+    "database_name": "businessbench_aa836f084e304b5bb3d9fc0527a72e76",
+    "source_dataset_checksum": "6b21910ff04dc995d878e7c8e62f570ee0d484febc3f5ce718b15eb22cf5fa92",
+    "main_price_version": "owner-confirmed-free-quota-20261011",
+    "jev_families_enabled": [],
+    "planned_trials": 9,
+    "stop_reason": null
+  },
+  "probe_raw_sha256": "05ba2b4b21212518da3b6ade952ddfe38b146458fa97c8637ddc437159d08ebc",
+  "checks_record_sha256": "a7f04d099efc9a2da3b816c88e133b70b5e699f1bde35194e5b99b84b9ccefbb",
+  "checks": {
+    "source_sha256": {
+      "decagent/models/primary.py": "838c147a549107f3c3eaf54831ae9831c992073045174fdc7d57b1e918aeda6f",
+      "decagent/runtime/model_calls.py": "040ee99ba25de934e3accfdb7088f490ee042ca20fd8c5c149eec21992283f93",
+      "decagent/business/services.py": "9736b34f10c60c9a851b96b825f6ee3e67c717fbbf14fa5786883951ebc3ffce",
+      "decagent/business/planner.py": "b3004b76e2f848f23c814e570f75d9645740aa4c95f46a098aa3294b8c1b9275",
+      "decagent/runtime/services.py": "9fb53ddad1cc2edd14f6a495a38cb5c6637d13e753b1d9d438ae5163a2541ffc",
+      "decagent/runtime/model_diagnostics.py": "fd107367bf65c0720602fa150a581f29e10e9147ce2354c2e271080ed8e5ff54"
+    },
+    "windows": {
+      "passed": 852,
+      "skipped": 1,
+      "seconds": 55.18
+    },
+    "docker_python311": {
+      "passed": 835,
+      "seconds": 47.33,
+      "network": "none",
+      "excludes": [
+        "test_business_runner.py",
+        "test_business_package.py"
+      ]
+    },
+    "postgresql": {
+      "passed": 187,
+      "skipped": 22,
+      "seconds": 319.64
+    },
+    "ruff_files": 219,
+    "pip_check_windows": true,
+    "pip_check_docker": true,
+    "mermaid_diagrams": 10,
+    "historical_full_report_sha256": "2276f375a1e8b46bea7ffb71556e50cccae8beabd5eef67865e98541a5722c2c"
+  },
+  "jev_ledger": {
+    "spent_usd": "0.007450422",
+    "held_usd": "0",
+    "remaining_usd": "0.992549578",
+    "within_cap": true,
+    "blocked_unknown_or_pending": false
+  },
+  "strategies": {
+    "rule": {
+      "planned": 3,
+      "completed": 3,
+      "correct": 2,
+      "states": {
+        "succeeded": 2,
+        "awaiting_input": 1
+      },
+      "calls": 0,
+      "tokens": 0,
+      "known_cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0
+    },
+    "main": {
+      "planned": 3,
+      "completed": 3,
+      "correct": 3,
+      "states": {
+        "succeeded": 3
+      },
+      "calls": 8,
+      "tokens": 37441,
+      "known_cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0
+    },
+    "hybrid": {
+      "planned": 3,
+      "completed": 3,
+      "correct": 3,
+      "states": {
+        "succeeded": 3
+      },
+      "calls": 3,
+      "tokens": 14975,
+      "known_cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0
+    }
+  },
+  "records": [
+    {
+      "id": "probe-completion-create/r1/rule",
+      "case_id": "probe-completion-create",
+      "strategy": "rule",
+      "round": 1,
+      "state": "succeeded",
+      "correct": true,
+      "calls": 0,
+      "tokens": 0,
+      "cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0,
+      "actual_models": [],
+      "machine_seconds": 7.979441000003135,
+      "human_wait_seconds": 0.0,
+      "confirmations": 0,
+      "clarifications": 0,
+      "fairness_digest": "5f83cd35db94aa300f08d05611a3454ba18292f7dd308835c947db81eee1822c",
+      "task_id": "f4e04b33-8f63-4fb8-92cf-6192c3732fef",
+      "verified_commands": [
+        "create"
+      ],
+      "real_cli_calls": 7
+    },
+    {
+      "id": "probe-completion-create/r1/main",
+      "case_id": "probe-completion-create",
+      "strategy": "main",
+      "round": 1,
+      "state": "succeeded",
+      "correct": true,
+      "calls": 2,
+      "tokens": 8716,
+      "cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0,
+      "actual_models": [
+        "qwen3.8-flash"
+      ],
+      "machine_seconds": 17.080156200012425,
+      "human_wait_seconds": 0.0,
+      "confirmations": 0,
+      "clarifications": 0,
+      "fairness_digest": "5f83cd35db94aa300f08d05611a3454ba18292f7dd308835c947db81eee1822c",
+      "task_id": "0f15085c-3721-4fcb-881f-1d33d4cc16ee",
+      "verified_commands": [
+        "create"
+      ],
+      "real_cli_calls": 7
+    },
+    {
+      "id": "probe-completion-create/r1/hybrid",
+      "case_id": "probe-completion-create",
+      "strategy": "hybrid",
+      "round": 1,
+      "state": "succeeded",
+      "correct": true,
+      "calls": 0,
+      "tokens": 0,
+      "cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0,
+      "actual_models": [],
+      "machine_seconds": 7.985034000012092,
+      "human_wait_seconds": 0.0,
+      "confirmations": 0,
+      "clarifications": 0,
+      "fairness_digest": "5f83cd35db94aa300f08d05611a3454ba18292f7dd308835c947db81eee1822c",
+      "task_id": "e562a5b6-4dc1-4252-ace8-9d107288dda1",
+      "verified_commands": [
+        "create"
+      ],
+      "real_cli_calls": 7
+    },
+    {
+      "id": "probe-completion-read/r1/main",
+      "case_id": "probe-completion-read",
+      "strategy": "main",
+      "round": 1,
+      "state": "succeeded",
+      "correct": true,
+      "calls": 2,
+      "tokens": 7916,
+      "cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0,
+      "actual_models": [
+        "qwen3.8-flash"
+      ],
+      "machine_seconds": 17.00607519998448,
+      "human_wait_seconds": 0.0,
+      "confirmations": 0,
+      "clarifications": 0,
+      "fairness_digest": "5f83cd35db94aa300f08d05611a3454ba18292f7dd308835c947db81eee1822c",
+      "task_id": "19245630-19ef-49d5-9412-7f838ee963e6",
+      "verified_commands": [
+        "list"
+      ],
+      "real_cli_calls": 4
+    },
+    {
+      "id": "probe-completion-read/r1/hybrid",
+      "case_id": "probe-completion-read",
+      "strategy": "hybrid",
+      "round": 1,
+      "state": "succeeded",
+      "correct": true,
+      "calls": 0,
+      "tokens": 0,
+      "cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0,
+      "actual_models": [],
+      "machine_seconds": 6.384127299999818,
+      "human_wait_seconds": 0.0,
+      "confirmations": 0,
+      "clarifications": 0,
+      "fairness_digest": "5f83cd35db94aa300f08d05611a3454ba18292f7dd308835c947db81eee1822c",
+      "task_id": "b57090f2-ede1-4604-ae3e-f14415b67d17",
+      "verified_commands": [
+        "list"
+      ],
+      "real_cli_calls": 4
+    },
+    {
+      "id": "probe-completion-read/r1/rule",
+      "case_id": "probe-completion-read",
+      "strategy": "rule",
+      "round": 1,
+      "state": "succeeded",
+      "correct": true,
+      "calls": 0,
+      "tokens": 0,
+      "cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0,
+      "actual_models": [],
+      "machine_seconds": 6.377853199985111,
+      "human_wait_seconds": 0.0,
+      "confirmations": 0,
+      "clarifications": 0,
+      "fairness_digest": "5f83cd35db94aa300f08d05611a3454ba18292f7dd308835c947db81eee1822c",
+      "task_id": "60aa5841-75b8-4b61-8954-3a4a0cb2de45",
+      "verified_commands": [
+        "list"
+      ],
+      "real_cli_calls": 4
+    },
+    {
+      "id": "probe-completion-create-assign/r1/hybrid",
+      "case_id": "probe-completion-create-assign",
+      "strategy": "hybrid",
+      "round": 1,
+      "state": "succeeded",
+      "correct": true,
+      "calls": 3,
+      "tokens": 14975,
+      "cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0,
+      "actual_models": [
+        "qwen3.8-flash"
+      ],
+      "machine_seconds": 35.96754399998463,
+      "human_wait_seconds": 0.0,
+      "confirmations": 0,
+      "clarifications": 0,
+      "fairness_digest": "5f83cd35db94aa300f08d05611a3454ba18292f7dd308835c947db81eee1822c",
+      "task_id": "7781c341-b7e9-4c75-8057-069db8178db2",
+      "verified_commands": [
+        "create",
+        "assign"
+      ],
+      "real_cli_calls": 14
+    },
+    {
+      "id": "probe-completion-create-assign/r1/rule",
+      "case_id": "probe-completion-create-assign",
+      "strategy": "rule",
+      "round": 1,
+      "state": "awaiting_input",
+      "correct": false,
+      "calls": 0,
+      "tokens": 0,
+      "cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0,
+      "actual_models": [],
+      "machine_seconds": 2.2856821000168566,
+      "human_wait_seconds": 0.0,
+      "confirmations": 0,
+      "clarifications": 1,
+      "fairness_digest": "5f83cd35db94aa300f08d05611a3454ba18292f7dd308835c947db81eee1822c",
+      "task_id": "f2435c26-39b8-41bf-b9be-054938571541",
+      "verified_commands": [],
+      "real_cli_calls": 1
+    },
+    {
+      "id": "probe-completion-create-assign/r1/main",
+      "case_id": "probe-completion-create-assign",
+      "strategy": "main",
+      "round": 1,
+      "state": "succeeded",
+      "correct": true,
+      "calls": 4,
+      "tokens": 20809,
+      "cost_usd": "0",
+      "usage_complete": true,
+      "forbidden_writes": 0,
+      "actual_models": [
+        "qwen3.8-flash"
+      ],
+      "machine_seconds": 52.11987290001707,
+      "human_wait_seconds": 0.0,
+      "confirmations": 0,
+      "clarifications": 0,
+      "fairness_digest": "5f83cd35db94aa300f08d05611a3454ba18292f7dd308835c947db81eee1822c",
+      "task_id": "a4c730c4-5b4f-4e48-a717-2c0ce3e72d25",
+      "verified_commands": [
+        "directory",
+        "directory",
+        "create",
+        "assign"
+      ],
+      "real_cli_calls": 20
+    }
+  ],
+  "functional_result": "main_and_hybrid_3_of_3_rule_2_of_3",
+  "historical_performance_result": "not_passed_pre_fix_720_trials_7_incomplete_usage",
+  "remaining_acceptance": [
+    "independent_linux_business_adaptation_and_deployment",
+    "jev_valid_family_calibration_and_independent_performance_evaluation"
+  ]
+}

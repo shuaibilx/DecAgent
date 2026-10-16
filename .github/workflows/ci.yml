@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Python ${{ matrix.python-version }} checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.11", "3.13"]
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_DB: decagent_ci
+          POSTGRES_USER: decagent
+          POSTGRES_PASSWORD: decagent_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U decagent -d decagent_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DECAGENT_TEST_DATABASE_URL: postgresql://decagent:decagent_ci_only@127.0.0.1:5432/decagent_ci
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install locked project and development dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Check Python style
+        run: python -m ruff check decagent evals ops
+
+      - name: Run deterministic tests
+        run: python -m pytest evals/deterministic -q
+
+      - name: Run database integration tests
+        run: python -m pytest evals/integration -q
+
+  package-and-images:
+    name: Build package and container images
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_DB: decagent_ci
+          POSTGRES_USER: decagent
+          POSTGRES_PASSWORD: decagent_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U decagent -d decagent_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DECAGENT_TEST_DATABASE_URL: postgresql://decagent:decagent_ci_only@127.0.0.1:5432/decagent_ci
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install locked project and build tool
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install build==1.6.1
+
+      - name: Build source and wheel distributions
+        run: python -m build --sdist --wheel --outdir "${RUNNER_TEMP}/dist"
+
+      - name: Import the built wheel outside the source checkout
+        run: |
+          python -m pip install --no-deps --target "${RUNNER_TEMP}/wheel-site" "${RUNNER_TEMP}"/dist/*.whl
+          cd "${RUNNER_TEMP}"
+          PYTHONPATH="${RUNNER_TEMP}/wheel-site" python -c 'import os; from pathlib import Path; import decagent; site = Path(os.environ["PYTHONPATH"]).resolve(); package = Path(decagent.__file__).resolve(); assert package.is_relative_to(site), package; print(package)'
+          PYTHONPATH="${RUNNER_TEMP}/wheel-site" python -m decagent --help
+
+      - name: Exercise installed-wheel MCP protocol with a disposable database
+        run: python ops/mcp/verify_wheel.py --package-root "${RUNNER_TEMP}/wheel-site"
+
+      - name: Build isolated runner image for offline Compose smoke test
+        run: docker build -f ops/runner/Dockerfile -t decagent-executor-runner:supervised .
+
+      - name: Run isolated offline Compose startup smoke test
+        run: python ops/control/offline_smoke.py

@@ -1,0 +1,21 @@
+# Windows API and business worker run through python -m ops.local.start.
+# Use with compose.yaml; migrate keeps the same database and historical tasks.
+services:
+  postgres:
+    networks: [control, windows-control]
+    ports: ["127.0.0.1:${DECAGENT_LOCAL_POSTGRES_PORT:-55432}:5432"]
+  migrate:
+    volumes: ["${DECAGENT_LOCAL_DATA_DIR:-./.decagent/local-control}:/data"]
+  api:
+    profiles: [container-control]
+    volumes: ["${DECAGENT_LOCAL_DATA_DIR:-./.decagent/local-control}:/data"]
+  worker:
+    command: [worker, --kind, repository_repair]
+    volumes: ["${DECAGENT_LOCAL_DATA_DIR:-./.decagent/local-control}:/data"]
+  executor-broker:
+    networks: [control, windows-control]
+    ports: ["127.0.0.1:${DECAGENT_LOCAL_BROKER_PORT:-8002}:8081"]
+    environment:
+      DECAGENT_CONTROL_CONTAINERS: ${DECAGENT_INSTANCE_PREFIX:-decagent}-postgres,${DECAGENT_INSTANCE_PREFIX:-decagent}-worker,${DECAGENT_INSTANCE_PREFIX:-decagent}-executor-broker
+networks:
+  windows-control: {}

@@ -1,0 +1,47 @@
+SOURCE_MODULE /repo/src/pytest/__init__.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________________ test_bug ___________________________________
+
+pytester = <Pytester PosixPath('/tmp/pytest-of-nobody/pytest-0/test_bug0')>
+
+    def test_bug(pytester):
+        pytester.makepyfile(**{"tests/test_1.py": """import pytest
+    def test_pass(arg):
+        pass
+    @pytest.fixture
+    def arg():
+        pytest.skip("Fixture conditional skip")
+    """})
+        result = pytester.runpytest("-rs", "tests/test_1.py", "--rootdir=tests")
+>       result.stdout.fnmatch_lines(["SKIPPED [[]1[]] tests/test_1.py:2: Fixture conditional skip"])
+E       Failed: nomatch: 'SKIPPED [[]1[]] tests/test_1.py:2: Fixture conditional skip'
+E           and: '============================= test session starts =============================='
+E           and: 'platform linux -- Python 3.11.17, pytest-7.2.0, pluggy-1.6.0'
+E           and: 'rootdir: /tmp/pytest-of-nobody/pytest-0/test_bug0/tests'
+E           and: 'collected 1 item'
+E           and: ''
+E           and: 'tests/test_1.py s                                                        [100%]'
+E           and: ''
+E           and: '=========================== short test summary info ============================'
+E           and: 'SKIPPED [1] tests/test_1.py:6: Fixture conditional skip'
+E           and: '============================== 1 skipped in 0.00s =============================='
+E       remains unmatched: 'SKIPPED [[]1[]] tests/test_1.py:2: Fixture conditional skip'
+
+/acceptance/test_bug.py:12: Failed
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.11.17, pytest-7.2.0, pluggy-1.6.0
+rootdir: /tmp/pytest-of-nobody/pytest-0/test_bug0/tests
+collected 1 item
+
+tests/test_1.py s                                                        [100%]
+
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_1.py:6: Fixture conditional skip
+============================== 1 skipped in 0.00s ==============================
+--------------------- generated xml file: /tmp/result.xml ----------------------
+=========================== short test summary info ============================
+FAILED ../acceptance/test_bug.py::test_bug - Failed: nomatch: 'SKIPPED [[]1[]...
+1 failed in 0.31s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcz48dGVzdHN1aXRlIG5hbWU9InB5dGVzdCIgZXJyb3JzPSIwIiBmYWlsdXJlcz0iMSIgc2tpcHBlZD0iMCIgdGVzdHM9IjEiIHRpbWU9IjAuMzE2IiB0aW1lc3RhbXA9IjIwMjYtMTAtMTBUMDk6MTI6MDQuMDAzNzM4IiBob3N0bmFtZT0iYWY0Nzk5NDYzYTQ2Ij48dGVzdGNhc2UgY2xhc3NuYW1lPSJ0ZXN0X2J1ZyIgbmFtZT0idGVzdF9idWciIHRpbWU9IjAuMDMwIj48ZmFpbHVyZSBtZXNzYWdlPSJGYWlsZWQ6IG5vbWF0Y2g6ICdTS0lQUEVEIFtbXTFbXV0gdGVzdHMvdGVzdF8xLnB5OjI6IEZpeHR1cmUgY29uZGl0aW9uYWwgc2tpcCcmIzEwOyAgICBhbmQ6ICc9PT09PT09PT09PT09PT09PT09PT09PT09PT09PSB0ZXN0IHNlc3Npb24gc3RhcnRzID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PScmIzEwOyAgICBhbmQ6ICdwbGF0Zm9ybSBsaW51eCAtLSBQeXRob24gMy4xMS4xNywgcHl0ZXN0LTcuMi4wLCBwbHVnZ3ktMS42LjAnJiMxMDsgICAgYW5kOiAncm9vdGRpcjogL3RtcC9weXRlc3Qtb2Ytbm9ib2R5L3B5dGVzdC0wL3Rlc3RfYnVnMC90ZXN0cycmIzEwOyAgICBhbmQ6ICdjb2xsZWN0ZWQgMSBpdGVtJyYjMTA7ICAgIGFuZDogJycmIzEwOyAgICBhbmQ6ICd0ZXN0cy90ZXN0XzEucHkgcyAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgWzEwMCVdJyYjMTA7ICAgIGFuZDogJycmIzEwOyAgICBhbmQ6ICc9PT09PT09PT09PT09PT09PT09PT09PT09PT0gc2hvcnQgdGVzdCBzdW1tYXJ5IGluZm8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PScmIzEwOyAgICBhbmQ6ICdTS0lQUEVEIFsxXSB0ZXN0cy90ZXN0XzEucHk6NjogRml4dHVyZSBjb25kaXRpb25hbCBza2lwJyYjMTA7ICAgIGFuZDogJz09PT09PT09PT09PT09PT09PT09PT09PT09PT09PSAxIHNraXBwZWQgaW4gMC4wMHMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09JyYjMTA7cmVtYWlucyB1bm1hdGNoZWQ6ICdTS0lQUEVEIFtbXTFbXV0gdGVzdHMvdGVzdF8xLnB5OjI6IEZpeHR1cmUgY29uZGl0aW9uYWwgc2tpcCciPnB5dGVzdGVyID0gJmx0O1B5dGVzdGVyIFBvc2l4UGF0aCgnL3RtcC9weXRlc3Qtb2Ytbm9ib2R5L3B5dGVzdC0wL3Rlc3RfYnVnMCcpJmd0OwoKICAgIGRlZiB0ZXN0X2J1ZyhweXRlc3Rlcik6CiAgICAgICAgcHl0ZXN0ZXIubWFrZXB5ZmlsZSgqKnsidGVzdHMvdGVzdF8xLnB5IjogIiIiaW1wb3J0IHB5dGVzdAogICAgZGVmIHRlc3RfcGFzcyhhcmcpOgogICAgICAgIHBhc3MKICAgIEBweXRlc3QuZml4dHVyZQogICAgZGVmIGFyZygpOgogICAgICAgIHB5dGVzdC5za2lwKCJGaXh0dXJlIGNvbmRpdGlvbmFsIHNraXAiKQogICAgIiIifSkKICAgICAgICByZXN1bHQgPSBweXRlc3Rlci5ydW5weXRlc3QoIi1ycyIsICJ0ZXN0cy90ZXN0XzEucHkiLCAiLS1yb290ZGlyPXRlc3RzIikKJmd0OyAgICAgICByZXN1bHQuc3Rkb3V0LmZubWF0Y2hfbGluZXMoWyJTS0lQUEVEIFtbXTFbXV0gdGVzdHMvdGVzdF8xLnB5OjI6IEZpeHR1cmUgY29uZGl0aW9uYWwgc2tpcCJdKQpFICAgICAgIEZhaWxlZDogbm9tYXRjaDogJ1NLSVBQRUQgW1tdMVtdXSB0ZXN0cy90ZXN0XzEucHk6MjogRml4dHVyZSBjb25kaXRpb25hbCBza2lwJwpFICAgICAgICAgICBhbmQ6ICc9PT09PT09PT09PT09PT09PT09PT09PT09PT09PSB0ZXN0IHNlc3Npb24gc3RhcnRzID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PScKRSAgICAgICAgICAgYW5kOiAncGxhdGZvcm0gbGludXggLS0gUHl0aG9uIDMuMTEuMTcsIHB5dGVzdC03LjIuMCwgcGx1Z2d5LTEuNi4wJwpFICAgICAgICAgICBhbmQ6ICdyb290ZGlyOiAvdG1wL3B5dGVzdC1vZi1ub2JvZHkvcHl0ZXN0LTAvdGVzdF9idWcwL3Rlc3RzJwpFICAgICAgICAgICBhbmQ6ICdjb2xsZWN0ZWQgMSBpdGVtJwpFICAgICAgICAgICBhbmQ6ICcnCkUgICAgICAgICAgIGFuZDogJ3Rlc3RzL3Rlc3RfMS5weSBzICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBbMTAwJV0nCkUgICAgICAgICAgIGFuZDogJycKRSAgICAgICAgICAgYW5kOiAnPT09PT09PT09PT09PT09PT09PT09PT09PT09IHNob3J0IHRlc3Qgc3VtbWFyeSBpbmZvID09PT09PT09PT09PT09PT09PT09PT09PT09PT0nCkUgICAgICAgICAgIGFuZDogJ1NLSVBQRUQgWzFdIHRlc3RzL3Rlc3RfMS5weTo2OiBGaXh0dXJlIGNvbmRpdGlvbmFsIHNraXAnCkUgICAgICAgICAgIGFuZDogJz09PT09PT09PT09PT09PT09PT09PT09PT09PT09PSAxIHNraXBwZWQgaW4gMC4wMHMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09JwpFICAgICAgIHJlbWFpbnMgdW5tYXRjaGVkOiAnU0tJUFBFRCBbW10xW11dIHRlc3RzL3Rlc3RfMS5weToyOiBGaXh0dXJlIGNvbmRpdGlvbmFsIHNraXAnCgovYWNjZXB0YW5jZS90ZXN0X2J1Zy5weToxMjogRmFpbGVkPC9mYWlsdXJlPjwvdGVzdGNhc2U+PC90ZXN0c3VpdGU+PC90ZXN0c3VpdGVzPg==

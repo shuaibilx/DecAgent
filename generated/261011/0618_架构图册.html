@@ -1,0 +1,99 @@
+<!--
+---
+title: 历史仓库修复架构图册
+type: explanation
+audience: [A1, A4, A5]
+runs: no
+verified_on: 2026-10-11
+updated_on: 2026-10-12
+applicability: 早期 repository_repair 与 adaptive-intervention
+verification_scope: 保留历史图示；本轮只更新当前业务入口，不作为新业务或独立 Linux 验收
+sources: [decagent/runtime, decagent/tools/repair, decagent/memory]
+---
+-->
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DecAgent 历史仓库修复架构图册</title><style>
+:root{font-family:system-ui,"Microsoft YaHei",sans-serif;color:#182b38;background:#f3f6f7}*{box-sizing:border-box}body{margin:0}header{background:#17374a;color:white;padding:32px max(24px,calc((100vw - 1160px)/2))}h1{font-size:30px;margin:5px 0 12px}p{line-height:1.8}header p{color:#cee0e8;margin:0}.wrap{max-width:1200px;margin:24px auto;padding:0 20px}nav{display:flex;flex-wrap:wrap;gap:8px}button{border:1px solid #bccdd5;background:white;border-radius:8px;padding:10px 16px;font:inherit;cursor:pointer}button[aria-selected=true]{background:#176f76;color:white;border-color:#176f76}.card{background:white;border:1px solid #d9e2e7;border-radius:14px;margin:18px 0;padding:22px}.diagram{overflow:auto}.diagram svg{display:block;width:100%;min-width:850px;height:auto}h2{font-size:23px;margin:0 0 8px}.muted{color:#546a76}.legend{display:flex;flex-wrap:wrap;gap:18px;font-size:14px}.dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px}#detail{min-height:74px;background:#f0f6f6;padding:12px;border-radius:8px}svg g.node{cursor:pointer}svg g.node:hover rect{stroke-width:3}svg text{font-family:system-ui,"Microsoft YaHei",sans-serif}a{color:#176f76}.footer{font-size:14px;color:#526875}.hidden{display:none}@media print{nav,.export,#detail{display:none}.hidden{display:block}.card{break-after:page;border:0}.diagram svg{min-width:0}header{padding:15px;background:white;color:black}}
+</style></head><body><header><div>LANGGRAPH · TYPED JUDGMENTS · DURABLE EVIDENCE</div><h1>DecAgent 历史仓库修复架构图册</h1><p>点击节点查看职责，切换图表或导出 SVG。所有内容本地运行，无外部脚本与模型请求。</p></header>
+<main class="wrap"><section class="card" aria-label="历史资料说明"><h2>历史资料说明</h2><p>本页保留 2026-10-11 的仓库修复与 adaptive-intervention 图示；原通过状态只适用于对应历史验收。当前业务的契约、三类判断、工单事务、恢复及 Windows 原生部署见 <a href="../261012/0902_业务Agent架构图册.html">当前业务图册</a>、<a href="../261012/0852_业务Agent架构详解.md">当前架构</a>、<a href="../261012/0852_业务Agent使用指南.md">当前使用指南</a>与<a href="../261012/0900_本机业务验收记录.md">本机验收记录</a>。本页不证明 Jev 真实业务提效或独立 Linux 部署。</p></section><nav aria-label="图册视图" id="tabs"></nav><div class="card"><div class="legend"><span><i class="dot" style="background:#eadbc2"></i>拥有者</span><span><i class="dot" style="background:#c6e7e3"></i>控制与治理</span><span><i class="dot" style="background:#d5e4f7"></i>主模型</span><span><i class="dot" style="background:#e3d6f1"></i>Jev</span><span><i class="dot" style="background:#e2e7ea"></i>执行与证据</span></div></div><div id="figures"></div><div class="card" id="detail">选择图中的节点，查看实现职责和核实条件。</div><button class="export" id="export">导出当前图为 SVG</button><p class="footer">来源：runtime/graph.py、runtime/services.py、runtime/worker.py、decisions/durable.py、tools/repair/session.py、memory/manager.py、compose.yaml。<br>完整说明见 <a href="0616_智能体架构详解.md">架构详解</a>；操作见 <a href="0616_使用指南.md">使用指南</a>。历史本机验证范围见旧验收记录；当前业务、真实模型效果和独立 Linux 状态见顶部入口。</p></main>
+<script>
+'use strict';
+const colors={owner:'#eadbc2',control:'#c6e7e3',model:'#d5e4f7',jev:'#e3d6f1',evidence:'#e2e7ea'};
+const diagrams=[
+{title:'介入决策',note:'证据变化表示新观察。每轮最多两次调整提示；未校准 Jev 只记录建议。人工反馈不扩大权限，不重置总预算。',nodes:[
+['a','已确认工具结果',40,70,'evidence','progress.py：以动作与结果指纹去除执行ID、容器名和耗时噪声；最近20次观察。'],
+['b','重复 / 连续失败?',390,70,'control','progress_signals：重复动作与结果、失败序列；新的文件内容或不同失败不等于停滞。'],
+['c','正常继续',740,70,'model','新观察送入主模型；任务成功仍需独立验收。'],
+['d','独立介入判断',390,230,'jev','task_intervention Choice：continue/replan/clarify/escalate；使用有界尝试与进展信号。'],
+['e','校准 / 硬上限',390,390,'control','匹配实际模型和问题版本才使用建议；否则规则路由。未知回执先核实。'],
+['f','调整提示',40,390,'model','每轮最多两次，要求检查已有证据并提出不同假设；提示不证明策略已经改变。'],
+['g','问题 / 尝试证据',740,390,'owner','调整耗尽或需要信息时，具体请求定位线索、可复现输入或预期行为。'],
+['h','持久回复 / 新轮次',740,600,'control','同一thread_id恢复并核对代码、证据与授权；回答追加一次，旧动作权限仍独立治理。']],
+edges:[['a','b',''],['b','c','否'],['b','d','是'],['d','e','typed建议'],['e','f','可调整'],['f','a','新尝试'],['e','g','需人帮助'],['g','h','认证回复'],['h','c','恢复',[[940,635],[1080,635],[1080,105],[940,105]]]]},
+{title:'总体架构',note:'工具由统一治理控制。主模型和 Jev 在控制侧持有独立凭据，任务容器不持有这些凭据。',nodes:[
+['u','拥有者',40,70,'owner','提交问题、预算、代码信任和草稿授权；处理持久审批。'],
+['g','Gateway',280,70,'control','gateway/app.py：认证网页、API、CLI与持久SSE。'],
+['db','PostgreSQL',760,70,'evidence','app保存业务事件与凭据；checkpoint保存任务图状态。'],
+['w','Worker / LangGraph',280,220,'control','runtime/worker.py和graph.py：领取、心跳、代次保护、结果边界介入、有界调整与反馈恢复。'],
+['m','Qwen 主模型',40,380,'model','models/primary.py：生成修复方案和工具提议，记录实际usage。'],
+['j','Jev 判断器',280,380,'jev','decisions/：动作风险与任务介入独立；记忆写入及读取的typed judgment。'],
+['p','硬策略与审批',520,220,'control','policy/：规范化参数、授权、路径、信任和边界；执行前重新校验。'],
+['b','Executor broker',760,220,'control','executor/broker.py：唯一Docker socket持有者，核对当前租约与动作。'],
+['t','Docker 任务容器',760,380,'evidence','非root、资源限制、专属卷、受限出口；执行仓库代码。'],
+['gh','草稿 PR / 记忆',520,530,'evidence','integrations/delivery.py、runtime/memory.py：有效验收后交付，实际合并后才跨任务生效。']],
+edges:[['u','g','授权'],['g','db','持久化'],['g','w','提交'],['w','db','lease'],['w','m','上下文'],['w','j','窄问题'],['w','p','提议'],['p','b','批准的动作'],['b','t','执行'],['t','gh','验收证据']]},
+{title:'任务泳道',note:'不同泳道表示职责。任何模型建议都不能直接变成工具权限或修复成功。',lanes:['拥有者','控制服务','模型 / Jev','隔离执行器'],nodes:[
+['a','提交任务',30,90,'owner','拥有者给出问题、固定基准与明确预算。'],
+['b','认证 / 固定 SHA',290,90,'control','Gateway校验身份，解析固定仓库SHA。'],
+['c','准备 / 冻结基线',290,230,'control','控制器准备工具链并冻结相关失败与原始用例。'],
+['d','执行基线',810,230,'evidence','实际Docker执行区分相关缺陷与环境错误。'],
+['e','提出动作 / 判断',550,350,'jev','千问提出工具；Jev独立判断动作风险。处理完结果后才检查任务介入。'],
+['f','审批与checkpoint',290,350,'control','持久审批绑定当前材料；重启读取同一thread。'],
+['g','确认当前操作',30,350,'owner','核对规范化参数后批准、拒绝或编辑。'],
+['h','应用修改 / 独立验收',810,470,'evidence','冻结原始材料验证修复代码，随后完整回归。'],
+['i','草稿 PR',290,590,'control','有效验收与发布授权同时满足才创建草稿。'],
+['k','审阅与合并',30,590,'owner','拥有者独立审阅；项目不自动合并。']],
+edges:[['a','b',''],['b','c',''],['c','d',''],['d','e','观察'],['e','f',''],['f','g','等待'],['g','h','重查批准'],['h','i','证据'],['i','k','']]},
+{title:'调用时序',note:'先保存意图，再发出外部请求。网络响应丢失时按稳定ID核实，不能默认免费或未执行。',sequence:true,nodes:[
+['q','主模型',30,30,'model','产生带tool_call_id的规范化工具提议。'],
+['s','Graph / 治理',240,30,'control','硬策略先行；动作风险在执行前判断，任务介入在结果边界单独判断。'],
+['d','数据库',450,30,'evidence','记录意图、费用预留、审批、generation和回执。'],
+['j','Jev / 拥有者',660,30,'jev','Jev提供typed建议；拥有者通过认证API提供批准。'],
+['b','Broker',870,30,'evidence','当前租约与摘要有效时才执行，返回可核实回执。']],
+messages:[['q','s','工具提议',150],['s','d','保存判断意图 / 预算预留',205],['s','j','独立窄问题',260],['j','s','原分布 / 当前审批',315],['s','d','执行意图 / 稳定 execution_id',370],['s','b','执行前再校验',425],['b','s','真实回执，或 unknown',480],['s','d','保存证据与结果',535],['s','q','对应原 tool_call_id 的观察',590]]},
+{title:'恢复流程',note:'恢复载荷不是授权。原节点重入必须复用已确认结果，对未知操作保留核实状态。',nodes:[
+['a','稳定任务 thread_id',70,60,'control','thread_id是任务UUID，与进程和worker重启无关。'],
+['b','读取 checkpoint',70,210,'evidence','PostgresSaver读取同一状态，版本不兼容明确阻塞。'],
+['c','已确认回执',350,360,'control','复用动作结果、模型turn、判断答案和审计事件。'],
+['d','审批中断',70,360,'owner','从数据库读取可信回复；摘要变化会重新治理。'],
+['e','未知外部结果',650,360,'evidence','保存execution_id、预期写入哈希或固定PR分支。'],
+['f','只读核实',650,510,'control','查真实执行回执、工作区内容或GitHub PR。'],
+['g','继续 / 保持等待',350,660,'control','结果真实匹配且当前授权有效才继续；否则保留unknown。']],
+edges:[['a','b',''],['b','c','有回执'],['b','d','需批准'],['b','e','结果丢失'],['e','f',''],['f','g','核实'],['c','g',''],['d','g','重查']]},
+{title:'项目记忆',note:'Jev retain 是候选建议。实际证据、合并内容、冲突与版本适用性共同决定激活。',nodes:[
+['a','来源与验证证据',50,70,'evidence','真实路径、blob、用例和验证ID；设计决策还需明确用户确认。'],
+['b','候选去重',330,70,'control','指纹、项目、版本、敏感性和冲突检查。'],
+['c','Jev 写入判断',610,70,'jev','retain/discard/review；未校准或故障停在审核。'],
+['d','task_local / pending',330,230,'owner','当前任务可追溯；未合并知识不跨任务复用。'],
+['e','真实合并核实',330,390,'evidence','读取GitHub实际SHA与源blob，包含squash核实。'],
+['f','active / 版本过滤',50,550,'control','到期、撤销、项目和适用版本先过滤。'],
+['g','Jev 读取 / 相关性',610,550,'jev','Noul门控，再判断有界候选相关性。'],
+['h','预算内上下文',330,700,'model','保留授权、独立证据和工具调用配对，注明记忆来源。']],
+edges:[['a','b',''],['b','c',''],['c','d','审核'],['d','e','合并后'],['e','f','内容匹配'],['f','g','候选'],['g','h','选择']]},
+{title:'独立验收',note:'成功基于固定材料与当前代码哈希。改写测试、打印伪造marker或零用例不能产生有效通过。',nodes:[
+['a','固定基准 SHA',60,80,'evidence','下载并安全解包固定版本。'],
+['b','相关基线失败',340,80,'evidence','排除环境错误，核对失败与拥有者需求的关系。'],
+['c','冻结 reproduction bundle',620,80,'control','冻结原始测试、用例、命令、依赖、runner与checker哈希。'],
+['d','修复源码',620,260,'model','主模型提出修改；所有写入经过同一治理边界。'],
+['e','原材料独立通过',340,440,'evidence','在修复代码上执行原始材料，仓库配置不能替代固定验收。'],
+['f','非零回归通过',60,440,'evidence','完整检查范围，skip/xfail/削弱测试差异保留。'],
+['g','当前 tree 一致',340,620,'control','发布前再次确认当前工作区仍是已验收内容。'],
+['h','授权草稿 PR',620,620,'owner','任务固定分支与标记；由拥有者审阅合并。']],
+edges:[['a','b',''],['b','c',''],['c','d',''],['d','e',''],['e','f',''],['f','g',''],['g','h','一致且授权']]}
+];
+const NS='http://www.w3.org/2000/svg';function element(tag,attrs={},value){const n=document.createElementNS(NS,tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,String(v)));if(value!==undefined)n.textContent=value;return n;}
+function line(svg,x1,y1,x2,y2,label='',points=[]){const path=points.length?points:[[x1,y1],[x2,y2]];const mid=points.length?[1080,370]:[(x1+x2)/2,(y1+y2)/2];svg.append(element('path',{d:path.map((p,i)=>(i?'L':'M')+p[0]+','+p[1]).join(' '),stroke:'#637e8c','stroke-width':2,fill:'none','marker-end':'url(#'+svg.id+'-arrow)'}));if(label)svg.append(element('text',{x:mid[0],y:mid[1]-(Math.abs(y1-y2)<1?45:9),'text-anchor':'middle',fill:'#344c5a','font-size':13},label));}
+let selected=0;diagrams.forEach((d,index)=>{const tab=document.createElement('button');tab.textContent=d.title;tab.setAttribute('role','tab');tab.onclick=()=>activate(index);document.querySelector('#tabs').append(tab);const section=document.createElement('section');section.className='card';section.id='figure-'+index;const title=document.createElement('h2');title.textContent=d.title;section.append(title);const p=document.createElement('p');p.className='muted';p.textContent=d.note;section.append(p);const holder=document.createElement('div');holder.className='diagram';const height=Math.max(650,...d.nodes.map(n=>n[3]+100));const svg=element('svg',{viewBox:`0 0 1100 ${height}`,xmlns:NS,id:'diagram-'+index,role:'img','aria-label':d.title});svg.append(element('rect',{width:1100,height,fill:'#ffffff'}));const defs=element('defs');const marker=element('marker',{id:svg.id+'-arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'});marker.append(element('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#637e8c'}));defs.append(marker);svg.append(defs);if(d.lanes)d.lanes.forEach((name,i)=>{svg.append(element('rect',{x:i*260+10,y:10,width:245,height:height-20,fill:i%2?'#f1f6f7':'#f8f9fa',rx:10}));svg.append(element('text',{x:i*260+130,y:40,'text-anchor':'middle','font-size':18,fill:'#486370'},name));});const positions=new Map(d.nodes.map(n=>[n[0],n]));if(d.edges)d.edges.forEach(([a,b,label,points])=>{const na=positions.get(a),nb=positions.get(b);const dx=nb[2]-na[2],dy=nb[3]-na[3],factor=1/Math.max(Math.abs(dx)/100,Math.abs(dy)/35);line(svg,na[2]+100+dx*factor,na[3]+35+dy*factor,nb[2]+100-dx*factor,nb[3]+35-dy*factor,label,points);});if(d.sequence){d.nodes.forEach(n=>svg.append(element('line',{x1:n[2]+90,y1:100,x2:n[2]+90,y2:height-20,stroke:'#becbd2','stroke-dasharray':'6 5'})));d.messages.forEach(([a,b,label,y])=>line(svg,positions.get(a)[2]+90,y,positions.get(b)[2]+90,y,label));}d.nodes.forEach(([id,label,x,y,kind,detail])=>{const g=element('g',{class:'node',tabindex:0,role:'button','aria-label':label});g.append(element('rect',{x,y,width:d.sequence?180:200,height:70,rx:10,fill:colors[kind],stroke:'#708795','stroke-width':1.3}));let rows=label.includes(' / ')?label.split(' / '):[label];rows.forEach((text,i)=>g.append(element('text',{x:x+(d.sequence?90:100),y:y+30+(i-(rows.length-1)/2)*20,'text-anchor':'middle','font-size':16,fill:'#203947'},text)));const show=()=>{const box=document.querySelector('#detail');box.textContent=label+'：'+detail;};g.addEventListener('click',show);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();show();}});svg.append(g);});holder.append(svg);section.append(holder);document.querySelector('#figures').append(section);});
+function activate(i){selected=i;document.querySelectorAll('#tabs button').forEach((b,j)=>b.setAttribute('aria-selected',String(i===j)));document.querySelectorAll('#figures section').forEach((s,j)=>s.classList.toggle('hidden',i!==j));document.querySelector('#detail').textContent='选择图中的节点，查看实现职责和核实条件。';}activate(0);document.querySelector('#export').onclick=()=>{const svg=document.querySelector('#figure-'+selected+' svg').cloneNode(true);const data=new XMLSerializer().serializeToString(svg);const url=URL.createObjectURL(new Blob([data],{type:'image/svg+xml;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='DecAgent_'+diagrams[selected].title+'.svg';link.click();setTimeout(()=>URL.revokeObjectURL(url),5000);};
+</script></body></html>

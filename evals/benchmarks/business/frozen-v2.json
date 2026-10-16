@@ -1,0 +1,4477 @@
+{
+  "schema_version": "business-evaluation-dataset-1",
+  "version": "business-synthetic-reference-v2",
+  "label_source": "synthetic-reference",
+  "directory": {
+    "people": [
+      {
+        "id": "9eb535c4-6fe8-5c45-9a85-63c51a5075d9",
+        "name": "Zhang Wei",
+        "team": "IT Support",
+        "active": true
+      },
+      {
+        "id": "c79b75df-ceb0-5427-a7b9-7d65372d30c6",
+        "name": "Zhang Wei",
+        "team": "Facilities",
+        "active": true
+      },
+      {
+        "id": "b301a333-5ee9-5713-bf15-95d0b09bc51e",
+        "name": "张伟",
+        "team": "IT Support",
+        "active": true
+      },
+      {
+        "id": "44839353-1a9b-5216-9cd5-0f530bd8ccf4",
+        "name": "张伟",
+        "team": "Facilities",
+        "active": true
+      },
+      {
+        "id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "name": "Chen Li",
+        "team": "Network",
+        "active": true
+      },
+      {
+        "id": "fe90302c-ec2f-5be4-9a5e-881a6db0fbcf",
+        "name": "王芳",
+        "team": "Access Management",
+        "active": true
+      }
+    ],
+    "categories": [
+      {
+        "id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "name": "IT Access"
+      },
+      {
+        "id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "name": "Network"
+      },
+      {
+        "id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "name": "Facilities"
+      },
+      {
+        "id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "name": "Hardware"
+      },
+      {
+        "id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "name": "Software"
+      }
+    ]
+  },
+  "frozen_before_live": true,
+  "cases": [
+    {
+      "id": "dev-common-001",
+      "split": "development",
+      "kind": "common",
+      "scenario": "directory",
+      "instruction": "查看目录",
+      "setup": {
+        "status": "none",
+        "title": "Existing dev-common-001",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "directory",
+            "params": {}
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "directory",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-002",
+      "split": "development",
+      "kind": "common",
+      "scenario": "directory",
+      "instruction": "查看目录",
+      "setup": {
+        "status": "none",
+        "title": "Existing dev-common-002",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "directory",
+            "params": {}
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "directory",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-003",
+      "split": "development",
+      "kind": "common",
+      "scenario": "directory",
+      "instruction": "查看目录",
+      "setup": {
+        "status": "none",
+        "title": "Existing dev-common-003",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "directory",
+            "params": {}
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "directory",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-004",
+      "split": "development",
+      "kind": "common",
+      "scenario": "directory",
+      "instruction": "查看目录",
+      "setup": {
+        "status": "none",
+        "title": "Existing dev-common-004",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "directory",
+            "params": {}
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "directory",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-005",
+      "split": "development",
+      "kind": "common",
+      "scenario": "create_normal",
+      "instruction": "创建 IT Access 工单，工作不受影响。问题编号 dev-common-005",
+      "setup": {
+        "status": "none",
+        "title": "Existing dev-common-005",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+              "priority": "normal"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "normal",
+          "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+      }
+    },
+    {
+      "id": "dev-common-006",
+      "split": "development",
+      "kind": "common",
+      "scenario": "create_normal",
+      "instruction": "创建 Network 工单，工作不受影响。问题编号 dev-common-006",
+      "setup": {
+        "status": "none",
+        "title": "Existing dev-common-006",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+              "priority": "normal"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "normal",
+          "category_id": "9b46428f-6309-527b-800e-c8896eeb4689"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "9b46428f-6309-527b-800e-c8896eeb4689"
+      }
+    },
+    {
+      "id": "dev-common-007",
+      "split": "development",
+      "kind": "common",
+      "scenario": "create_normal",
+      "instruction": "创建 Facilities 工单，工作不受影响。问题编号 dev-common-007",
+      "setup": {
+        "status": "none",
+        "title": "Existing dev-common-007",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+              "priority": "normal"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "normal",
+          "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a"
+      }
+    },
+    {
+      "id": "dev-common-008",
+      "split": "development",
+      "kind": "common",
+      "scenario": "create_normal",
+      "instruction": "创建 Hardware 工单，工作不受影响。问题编号 dev-common-008",
+      "setup": {
+        "status": "none",
+        "title": "Existing dev-common-008",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+              "priority": "normal"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "normal",
+          "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "fd326dc0-9379-56e3-a638-fa59322cbb55"
+      }
+    },
+    {
+      "id": "dev-common-009",
+      "split": "development",
+      "kind": "common",
+      "scenario": "assign",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li，工作不受影响。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-common-009",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "assign",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-010",
+      "split": "development",
+      "kind": "common",
+      "scenario": "assign",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li，工作不受影响。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-common-010",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "assign",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-011",
+      "split": "development",
+      "kind": "common",
+      "scenario": "assign",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li，工作不受影响。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-common-011",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "assign",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-012",
+      "split": "development",
+      "kind": "common",
+      "scenario": "assign",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li，工作不受影响。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-common-012",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "assign",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-013",
+      "split": "development",
+      "kind": "common",
+      "scenario": "get",
+      "instruction": "查看详情，工单 {ticket_id}。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-common-013",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "get",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "get",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-014",
+      "split": "development",
+      "kind": "common",
+      "scenario": "get",
+      "instruction": "查看详情，工单 {ticket_id}。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-common-014",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "get",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "get",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-015",
+      "split": "development",
+      "kind": "common",
+      "scenario": "get",
+      "instruction": "查看详情，工单 {ticket_id}。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-common-015",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "get",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "get",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-common-016",
+      "split": "development",
+      "kind": "common",
+      "scenario": "get",
+      "instruction": "查看详情，工单 {ticket_id}。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-common-016",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "get",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "get",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-complex-001",
+      "split": "development",
+      "kind": "complex",
+      "scenario": "assign_start",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li；然后开始处理该工单。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-complex-001",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          },
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-complex-002",
+      "split": "development",
+      "kind": "complex",
+      "scenario": "assign_start",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li；然后开始处理该工单。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-complex-002",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          },
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-complex-003",
+      "split": "development",
+      "kind": "complex",
+      "scenario": "assign_start",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li；然后开始处理该工单。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-complex-003",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          },
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-complex-004",
+      "split": "development",
+      "kind": "complex",
+      "scenario": "assign_start",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li；然后开始处理该工单。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-complex-004",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          },
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-complex-005",
+      "split": "development",
+      "kind": "complex",
+      "scenario": "assign_start",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li；然后开始处理该工单。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-complex-005",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          },
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-complex-006",
+      "split": "development",
+      "kind": "complex",
+      "scenario": "assign_start",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li；然后开始处理该工单。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-complex-006",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          },
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-complex-007",
+      "split": "development",
+      "kind": "complex",
+      "scenario": "assign_start",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li；然后开始处理该工单。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-complex-007",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          },
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-complex-008",
+      "split": "development",
+      "kind": "complex",
+      "scenario": "assign_start",
+      "instruction": "分配工单 {ticket_id} 给 Chen Li；然后开始处理该工单。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-complex-008",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "assign",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          },
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-001",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-001",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-002",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-002",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-003",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-003",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-004",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-004",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-005",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-005",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-006",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-006",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-007",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-007",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-008",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-008",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-009",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-009",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-010",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-010",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-011",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-011",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-012",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-012",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-013",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-013",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-014",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-014",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-015",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-015",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "dev-edge-016",
+      "split": "development",
+      "kind": "edge",
+      "scenario": "ambiguous_person",
+      "instruction": "分配工单 {ticket_id} 给 Zhang Wei。",
+      "setup": {
+        "status": "open",
+        "title": "Existing dev-edge-016",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-001",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_high",
+      "instruction": "创建 IT Access 工单，有临时办法绕过，工作可以继续。问题编号 hol-common-001",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-001",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "high",
+          "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 1,
+        "person": "no_match",
+        "category": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+      }
+    },
+    {
+      "id": "hol-common-002",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_high",
+      "instruction": "创建 Network 工单，有临时办法绕过，工作可以继续。问题编号 hol-common-002",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-002",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "high",
+          "category_id": "9b46428f-6309-527b-800e-c8896eeb4689"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 1,
+        "person": "no_match",
+        "category": "9b46428f-6309-527b-800e-c8896eeb4689"
+      }
+    },
+    {
+      "id": "hol-common-003",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_high",
+      "instruction": "创建 Facilities 工单，有临时办法绕过，工作可以继续。问题编号 hol-common-003",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-003",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "high",
+          "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 1,
+        "person": "no_match",
+        "category": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a"
+      }
+    },
+    {
+      "id": "hol-common-004",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_high",
+      "instruction": "创建 Hardware 工单，有临时办法绕过，工作可以继续。问题编号 hol-common-004",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-004",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "high",
+          "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 1,
+        "person": "no_match",
+        "category": "fd326dc0-9379-56e3-a638-fa59322cbb55"
+      }
+    },
+    {
+      "id": "hol-common-005",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_high",
+      "instruction": "创建 Software 工单，有临时办法绕过，工作可以继续。问题编号 hol-common-005",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-005",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "high",
+          "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 1,
+        "person": "no_match",
+        "category": "72167c95-267f-5c1d-b27e-21f4c31beb2a"
+      }
+    },
+    {
+      "id": "hol-common-006",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_high",
+      "instruction": "创建 IT Access 工单，有临时办法绕过，工作可以继续。问题编号 hol-common-006",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-006",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "high",
+          "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 1,
+        "person": "no_match",
+        "category": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+      }
+    },
+    {
+      "id": "hol-common-007",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_urgent",
+      "instruction": "创建 IT Access 工单，工作被阻断，不能工作。问题编号 hol-common-007",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-007",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "urgent",
+          "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 2,
+        "person": "no_match",
+        "category": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+      }
+    },
+    {
+      "id": "hol-common-008",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_urgent",
+      "instruction": "创建 Network 工单，工作被阻断，不能工作。问题编号 hol-common-008",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-008",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "urgent",
+          "category_id": "9b46428f-6309-527b-800e-c8896eeb4689"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 2,
+        "person": "no_match",
+        "category": "9b46428f-6309-527b-800e-c8896eeb4689"
+      }
+    },
+    {
+      "id": "hol-common-009",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_urgent",
+      "instruction": "创建 Facilities 工单，工作被阻断，不能工作。问题编号 hol-common-009",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-009",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "urgent",
+          "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 2,
+        "person": "no_match",
+        "category": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a"
+      }
+    },
+    {
+      "id": "hol-common-010",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_urgent",
+      "instruction": "创建 Hardware 工单，工作被阻断，不能工作。问题编号 hol-common-010",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-010",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "urgent",
+          "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 2,
+        "person": "no_match",
+        "category": "fd326dc0-9379-56e3-a638-fa59322cbb55"
+      }
+    },
+    {
+      "id": "hol-common-011",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_urgent",
+      "instruction": "创建 Software 工单，工作被阻断，不能工作。问题编号 hol-common-011",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-011",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "urgent",
+          "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 2,
+        "person": "no_match",
+        "category": "72167c95-267f-5c1d-b27e-21f4c31beb2a"
+      }
+    },
+    {
+      "id": "hol-common-012",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "create_urgent",
+      "instruction": "创建 IT Access 工单，工作被阻断，不能工作。问题编号 hol-common-012",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-common-012",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open",
+          "priority": "urgent",
+          "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "create",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 2,
+        "person": "no_match",
+        "category": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+      }
+    },
+    {
+      "id": "hol-common-013",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "start",
+      "instruction": "开始处理工单 {ticket_id}，工作不受影响。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-common-013",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "start",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-014",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "start",
+      "instruction": "开始处理工单 {ticket_id}，工作不受影响。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-common-014",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "start",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-015",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "start",
+      "instruction": "开始处理工单 {ticket_id}，工作不受影响。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-common-015",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "start",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-016",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "start",
+      "instruction": "开始处理工单 {ticket_id}，工作不受影响。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-common-016",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "start",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-017",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "start",
+      "instruction": "开始处理工单 {ticket_id}，工作不受影响。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-common-017",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "start",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-018",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "start",
+      "instruction": "开始处理工单 {ticket_id}，工作不受影响。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-common-018",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "start",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "in_progress"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "start",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-019",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "resolve",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-common-019",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-common-019",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-common-019"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "resolved"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-020",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "resolve",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-common-020",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-common-020",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-common-020"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "resolved"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-021",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "resolve",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-common-021",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-common-021",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-common-021"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "resolved"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-022",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "resolve",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-common-022",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-common-022",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-common-022"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "resolved"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-023",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "resolve",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-common-023",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-common-023",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-common-023"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "resolved"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-024",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "resolve",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-common-024",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-common-024",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-common-024"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "resolved"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-025",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "close",
+      "instruction": "关闭工单 {ticket_id}，用户确认已解决。",
+      "setup": {
+        "status": "resolved",
+        "title": "Existing hol-common-025",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "close",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-026",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "close",
+      "instruction": "关闭工单 {ticket_id}，用户确认已解决。",
+      "setup": {
+        "status": "resolved",
+        "title": "Existing hol-common-026",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "close",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-027",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "close",
+      "instruction": "关闭工单 {ticket_id}，用户确认已解决。",
+      "setup": {
+        "status": "resolved",
+        "title": "Existing hol-common-027",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "close",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-028",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "close",
+      "instruction": "关闭工单 {ticket_id}，用户确认已解决。",
+      "setup": {
+        "status": "resolved",
+        "title": "Existing hol-common-028",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "close",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-029",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "close",
+      "instruction": "关闭工单 {ticket_id}，用户确认已解决。",
+      "setup": {
+        "status": "resolved",
+        "title": "Existing hol-common-029",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "close",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-030",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "close",
+      "instruction": "关闭工单 {ticket_id}，用户确认已解决。",
+      "setup": {
+        "status": "resolved",
+        "title": "Existing hol-common-030",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "close",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-031",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "reopen",
+      "instruction": "重开工单 {ticket_id}，问题再次发生。",
+      "setup": {
+        "status": "closed",
+        "title": "Existing hol-common-031",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "reopen",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "reopen",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-032",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "reopen",
+      "instruction": "重开工单 {ticket_id}，问题再次发生。",
+      "setup": {
+        "status": "closed",
+        "title": "Existing hol-common-032",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "reopen",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "reopen",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-033",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "reopen",
+      "instruction": "重开工单 {ticket_id}，问题再次发生。",
+      "setup": {
+        "status": "closed",
+        "title": "Existing hol-common-033",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "reopen",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "reopen",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-034",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "reopen",
+      "instruction": "重开工单 {ticket_id}，问题再次发生。",
+      "setup": {
+        "status": "closed",
+        "title": "Existing hol-common-034",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "reopen",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "reopen",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-035",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "reopen",
+      "instruction": "重开工单 {ticket_id}，问题再次发生。",
+      "setup": {
+        "status": "closed",
+        "title": "Existing hol-common-035",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "reopen",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "reopen",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-036",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "reopen",
+      "instruction": "重开工单 {ticket_id}，问题再次发生。",
+      "setup": {
+        "status": "closed",
+        "title": "Existing hol-common-036",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "reopen",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "open"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "reopen",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-037",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "comment",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-common-037",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-037",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-common-037"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "comment",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-038",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "comment",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-common-038",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-038",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-common-038"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "comment",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-039",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "comment",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-common-039",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-039",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-common-039"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "comment",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-040",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "comment",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-common-040",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-040",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-common-040"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "comment",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-041",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "comment",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-common-041",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-041",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-common-041"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "comment",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-042",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "comment",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-common-042",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-042",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-common-042"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "comment",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-043",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "priority",
+      "instruction": "修改优先级，工单 {ticket_id} 改为 urgent。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-043",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "set_priority",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-044",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "priority",
+      "instruction": "修改优先级，工单 {ticket_id} 改为 urgent。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-044",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "set_priority",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-045",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "priority",
+      "instruction": "修改优先级，工单 {ticket_id} 改为 urgent。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-045",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "set_priority",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-046",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "priority",
+      "instruction": "修改优先级，工单 {ticket_id} 改为 urgent。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-046",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "set_priority",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-047",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "priority",
+      "instruction": "修改优先级，工单 {ticket_id} 改为 urgent。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-047",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "set_priority",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-common-048",
+      "split": "holdout",
+      "kind": "common",
+      "scenario": "priority",
+      "instruction": "修改优先级，工单 {ticket_id} 改为 urgent。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-common-048",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "urgent"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "set_priority",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-001",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "create_assign",
+      "instruction": "创建 IT Access 工单，标题为 Synthetic incident hol-complex-001，工作不受影响；并分配给 Chen Li。",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-complex-001",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "title": "Synthetic incident hol-complex-001",
+              "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+            }
+          },
+          {
+            "command": "assign",
+            "params": {
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+      }
+    },
+    {
+      "id": "hol-complex-002",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "create_assign",
+      "instruction": "创建 Network 工单，标题为 Synthetic incident hol-complex-002，工作不受影响；并分配给 Chen Li。",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-complex-002",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "title": "Synthetic incident hol-complex-002",
+              "category_id": "9b46428f-6309-527b-800e-c8896eeb4689"
+            }
+          },
+          {
+            "command": "assign",
+            "params": {
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "9b46428f-6309-527b-800e-c8896eeb4689"
+      }
+    },
+    {
+      "id": "hol-complex-003",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "create_assign",
+      "instruction": "创建 Facilities 工单，标题为 Synthetic incident hol-complex-003，工作不受影响；并分配给 Chen Li。",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-complex-003",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "title": "Synthetic incident hol-complex-003",
+              "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a"
+            }
+          },
+          {
+            "command": "assign",
+            "params": {
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a"
+      }
+    },
+    {
+      "id": "hol-complex-004",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "create_assign",
+      "instruction": "创建 Hardware 工单，标题为 Synthetic incident hol-complex-004，工作不受影响；并分配给 Chen Li。",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-complex-004",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "title": "Synthetic incident hol-complex-004",
+              "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55"
+            }
+          },
+          {
+            "command": "assign",
+            "params": {
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "fd326dc0-9379-56e3-a638-fa59322cbb55"
+      }
+    },
+    {
+      "id": "hol-complex-005",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "create_assign",
+      "instruction": "创建 Software 工单，标题为 Synthetic incident hol-complex-005，工作不受影响；并分配给 Chen Li。",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-complex-005",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "title": "Synthetic incident hol-complex-005",
+              "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a"
+            }
+          },
+          {
+            "command": "assign",
+            "params": {
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "72167c95-267f-5c1d-b27e-21f4c31beb2a"
+      }
+    },
+    {
+      "id": "hol-complex-006",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "create_assign",
+      "instruction": "创建 IT Access 工单，标题为 Synthetic incident hol-complex-006，工作不受影响；并分配给 Chen Li。",
+      "setup": {
+        "status": "none",
+        "title": "Existing hol-complex-006",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "create",
+            "params": {
+              "title": "Synthetic incident hol-complex-006",
+              "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+            }
+          },
+          {
+            "command": "assign",
+            "params": {
+              "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "assigned",
+          "assignee_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": true,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "2cef9de8-04dd-5dff-9b50-633bdef81a5d",
+        "category": "18b46d3c-474b-5ced-a4f4-b7e12728f087"
+      }
+    },
+    {
+      "id": "hol-complex-007",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "comment_priority",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-complex-007；然后修改优先级为 high。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-complex-007",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-complex-007"
+            }
+          },
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-008",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "comment_priority",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-complex-008；然后修改优先级为 high。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-complex-008",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-complex-008"
+            }
+          },
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-009",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "comment_priority",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-complex-009；然后修改优先级为 high。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-complex-009",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-complex-009"
+            }
+          },
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-010",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "comment_priority",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-complex-010；然后修改优先级为 high。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-complex-010",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-complex-010"
+            }
+          },
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-011",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "comment_priority",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-complex-011；然后修改优先级为 high。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-complex-011",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-complex-011"
+            }
+          },
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-012",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "comment_priority",
+      "instruction": "添加评论到工单 {ticket_id}，评论内容：已记录现场情况 hol-complex-012；然后修改优先级为 high。",
+      "setup": {
+        "status": "assigned",
+        "title": "Existing hol-complex-012",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "comment",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "body": "已记录现场情况 hol-complex-012"
+            }
+          },
+          {
+            "command": "set_priority",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "priority": "high"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-013",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "resolve_close",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-complex-013；然后关闭该工单。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-complex-013",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-complex-013"
+            }
+          },
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-014",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "resolve_close",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-complex-014；然后关闭该工单。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-complex-014",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-complex-014"
+            }
+          },
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-015",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "resolve_close",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-complex-015；然后关闭该工单。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-complex-015",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-complex-015"
+            }
+          },
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-016",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "resolve_close",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-complex-016；然后关闭该工单。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-complex-016",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-complex-016"
+            }
+          },
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-017",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "resolve_close",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-complex-017；然后关闭该工单。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-complex-017",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-complex-017"
+            }
+          },
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-complex-018",
+      "split": "holdout",
+      "kind": "complex",
+      "scenario": "resolve_close",
+      "instruction": "解决工单 {ticket_id}，解决记录：用户已验证 VPN 配置恢复，记录 hol-complex-018；然后关闭该工单。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-complex-018",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "resolve",
+            "params": {
+              "ticket_id": "{ticket_id}",
+              "resolution": "用户已验证 VPN 配置恢复，记录 hol-complex-018"
+            }
+          },
+          {
+            "command": "close",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {
+          "status": "closed"
+        },
+        "forbidden_commands": []
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-001",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "illegal_close",
+      "instruction": "关闭工单 {ticket_id}。不要添加解决记录。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-edge-001",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-002",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "illegal_close",
+      "instruction": "关闭工单 {ticket_id}。不要添加解决记录。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-edge-002",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-003",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "illegal_close",
+      "instruction": "关闭工单 {ticket_id}。不要添加解决记录。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-edge-003",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-004",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "illegal_close",
+      "instruction": "关闭工单 {ticket_id}。不要添加解决记录。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-edge-004",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-005",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "illegal_close",
+      "instruction": "关闭工单 {ticket_id}。不要添加解决记录。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-edge-005",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "no_match",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-006",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "missing_resolution",
+      "instruction": "解决工单 {ticket_id}。我尚未提供解决记录。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-edge-006",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-007",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "missing_resolution",
+      "instruction": "解决工单 {ticket_id}。我尚未提供解决记录。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-edge-007",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-008",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "missing_resolution",
+      "instruction": "解决工单 {ticket_id}。我尚未提供解决记录。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-edge-008",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-009",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "missing_resolution",
+      "instruction": "解决工单 {ticket_id}。我尚未提供解决记录。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-edge-009",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-010",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "missing_resolution",
+      "instruction": "解决工单 {ticket_id}。我尚未提供解决记录。",
+      "setup": {
+        "status": "in_progress",
+        "title": "Existing hol-edge-010",
+        "category_id": "72167c95-267f-5c1d-b27e-21f4c31beb2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "clarification",
+        "actions": [],
+        "ticket": {},
+        "forbidden_commands": [
+          "assign",
+          "close",
+          "resolve"
+        ]
+      },
+      "decision_labels": {
+        "operation": "resolve",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-011",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "negated_write",
+      "instruction": "不要关闭工单 {ticket_id}；请查看详情。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-edge-011",
+        "category_id": "18b46d3c-474b-5ced-a4f4-b7e12728f087",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "get",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": [
+          "close"
+        ]
+      },
+      "decision_labels": {
+        "operation": "get",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-012",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "negated_write",
+      "instruction": "不要关闭工单 {ticket_id}；请查看详情。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-edge-012",
+        "category_id": "9b46428f-6309-527b-800e-c8896eeb4689",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "get",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": [
+          "close"
+        ]
+      },
+      "decision_labels": {
+        "operation": "get",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-013",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "negated_write",
+      "instruction": "不要关闭工单 {ticket_id}；请查看详情。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-edge-013",
+        "category_id": "558c80f8-b6c6-5c14-8f2c-5ab085977c2a",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "get",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": [
+          "close"
+        ]
+      },
+      "decision_labels": {
+        "operation": "get",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    },
+    {
+      "id": "hol-edge-014",
+      "split": "holdout",
+      "kind": "edge",
+      "scenario": "negated_write",
+      "instruction": "不要关闭工单 {ticket_id}；请查看详情。",
+      "setup": {
+        "status": "open",
+        "title": "Existing hol-edge-014",
+        "category_id": "fd326dc0-9379-56e3-a638-fa59322cbb55",
+        "person_id": "2cef9de8-04dd-5dff-9b50-633bdef81a5d"
+      },
+      "reference": {
+        "terminal": "succeeded",
+        "actions": [
+          {
+            "command": "get",
+            "params": {
+              "ticket_id": "{ticket_id}"
+            }
+          }
+        ],
+        "ticket": {},
+        "forbidden_commands": [
+          "close"
+        ]
+      },
+      "decision_labels": {
+        "operation": "get",
+        "explicit_assignee": false,
+        "multi_person": false,
+        "work_blockage": 0,
+        "person": "no_match",
+        "category": "no_match"
+      }
+    }
+  ],
+  "checksum": "974c7425830481e3bbc0a3719b0abd70e60b7a2d2539ef46877988fa80fc1aba"
+}

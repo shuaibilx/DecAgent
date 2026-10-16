@@ -1,0 +1,15 @@
+SOURCE_MODULE /repo/requests/__init__.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________________ test_bug ___________________________________
+
+    def test_bug():
+        request = PreparedRequest()
+>       with pytest.raises(InvalidURL):
+E       Failed: DID NOT RAISE InvalidURL
+
+/acceptance/test_bug.py:7: Failed
+=========================== short test summary info ============================
+FAILED ../acceptance/test_bug.py::test_bug - Failed: DID NOT RAISE InvalidURL
+1 failed in 0.07s
+__DECAGENT_JUNIT__PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48dGVzdHN1aXRlcyBuYW1lPSJweXRlc3QgdGVzdHMiPjx0ZXN0c3VpdGUgbmFtZT0icHl0ZXN0IiBlcnJvcnM9IjAiIGZhaWx1cmVzPSIxIiBza2lwcGVkPSIwIiB0ZXN0cz0iMSIgdGltZT0iMC4wNzAiIHRpbWVzdGFtcD0iMjAyNi0xMC0xMFQwOToxMTo1MC4zODM5ODYrMDA6MDAiIGhvc3RuYW1lPSI0ZjczMWFiODJkZWQiPjx0ZXN0Y2FzZSBjbGFzc25hbWU9InRlc3RfYnVnIiBuYW1lPSJ0ZXN0X2J1ZyIgdGltZT0iMC4wMDAiPjxmYWlsdXJlIG1lc3NhZ2U9IkZhaWxlZDogRElEIE5PVCBSQUlTRSBJbnZhbGlkVVJMIj5kZWYgdGVzdF9idWcoKToKICAgICAgICByZXF1ZXN0ID0gUHJlcGFyZWRSZXF1ZXN0KCkKJmd0OyAgICAgICB3aXRoIHB5dGVzdC5yYWlzZXMoSW52YWxpZFVSTCk6CkUgICAgICAgRmFpbGVkOiBESUQgTk9UIFJBSVNFIEludmFsaWRVUkwKCi9hY2NlcHRhbmNlL3Rlc3RfYnVnLnB5Ojc6IEZhaWxlZDwvZmFpbHVyZT48L3Rlc3RjYXNlPjwvdGVzdHN1aXRlPjwvdGVzdHN1aXRlcz4=
