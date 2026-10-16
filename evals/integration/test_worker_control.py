@@ -43,6 +43,7 @@ def test_compose_control_services_have_no_socket_and_models_stay_in_control_serv
     envfile.write_text("", encoding="utf-8")
     env = {
         **os.environ,
+        "COMPOSE_PROFILES": "setup",
         "DECAGENT_RUNNER_IMAGE": "sha256:" + "a" * 64,
         "DECAGENT_SECRETS_DIR": str(tmp_path),
     }
@@ -67,8 +68,13 @@ def test_compose_control_services_have_no_socket_and_models_stay_in_control_serv
     services = json.loads(result.stdout)["services"]
     for role in ("api", "worker", "migrate"):
         assert services[role]["read_only"] is True
+        assert services[role]["cap_drop"] == ["ALL"]
+        assert services[role]["cap_add"] == ["DAC_READ_SEARCH"]
         assert all("docker.sock" not in volume["source"] for volume in services[role]["volumes"])
         assert not any(name.endswith("API_KEY") for name in services[role]["environment"])
+    for role in ("owner-init", "executor-broker"):
+        assert services[role]["cap_drop"] == ["ALL"]
+        assert services[role]["cap_add"] == ["DAC_READ_SEARCH"]
     assert {secret["source"] for secret in services["api"]["secrets"]} == {
         "postgres_password",
         "broker_token",

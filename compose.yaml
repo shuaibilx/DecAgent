@@ -4,6 +4,7 @@ x-control: &control
   build: {context: ., dockerfile: ops/control/Dockerfile}
   read_only: true
   cap_drop: [ALL]
+  cap_add: [DAC_READ_SEARCH]
   security_opt: [no-new-privileges:true]
   pids_limit: 256
   mem_limit: 1g
@@ -116,6 +117,7 @@ services:
     networks: [control]
     read_only: true
     cap_drop: [ALL]
+    cap_add: [DAC_READ_SEARCH]
     security_opt: [no-new-privileges:true]
     tmpfs: ["/tmp:size=64m,nosuid,nodev"]
     depends_on:
