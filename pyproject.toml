@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10", "ruff>=0.14,<1", "pytest-asyncio>=1,<2"]
+dev = ["hatchling>=1.27,<2", "pytest>=8,<10", "ruff>=0.14,<1", "pytest-asyncio>=1,<2"]
 
 [project.scripts]
 decagent = "decagent.cli:main"
