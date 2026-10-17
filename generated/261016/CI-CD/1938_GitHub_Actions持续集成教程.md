@@ -57,17 +57,19 @@ GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用�
 .\.venv\Scripts\python.exe -m pytest evals/integration -n 2 --dist=worksteal -q -rs --durations=25
 ```
 
-本机运行了 Ruff、Compose 安全配置回归和离线 Docker smoke，均通过。完整数据库集成套件由 GitHub Actions 的一次性 PostgreSQL 服务运行并通过；本机没有对当前业务数据库运行整套集成测试。
+在 Windows 的中文路径中，pytest-xdist 的 worker 可能遇到路径编码错误；可从 ASCII 驱动器映射运行，或本地省略 `-n 2 --dist=worksteal`。GitHub Ubuntu runner 的工作区路径没有这个限制。
+
+本机运行了 Ruff、Compose 安全配置回归和离线 Docker smoke，均通过。完整集成测试使用独立的一次性 PostgreSQL 容器，不连接 DecAgent 当前业务数据库。
 
 main CI 运行 [38998096425](https://github.com/shuaibilx/DecAgent/actions/runs/38998096425) 在 commit `089cd02` 上通过 Python 3.11/3.13、数据库集成测试、安装包验证和隔离 Compose smoke。Release 运行 [39001018038](https://github.com/shuaibilx/DecAgent/actions/runs/39001018038) 再次通过完整 CI 与离线 Compose smoke，短期 `GITHUB_TOKEN` 登录 GHCR 成功并发布 control、executor、runner 三类不可变镜像。本机 Windows Runner 备份数据库、完成迁移并升级服务；API/Worker 现能从完整固定镜像引用提取 runner digest，三个应用镜像均按 digest 运行，API `/health` 返回 `ok`。Release 部署 job 全部成功。独立 Linux 新实例和完整网页闭环仍待验收。
 
 ## 测试分层与覆盖边界
 
-在 commit `cf91c47` 的 [CI 运行 39004408738](https://github.com/shuaibilx/DecAgent/actions/runs/39004408738) 中，pytest 收集了 1,396 个确定性测试和 615 个数据库集成测试。Python 3.11 分别为 1,394 通过/2 跳过（1分55秒）和 591 通过/24 跳过（25分50秒）；Python 3.13 的数据库集成测试为 591 通过/24 跳过，用时 40分08秒。两个 Python 版本的 job 并行启动，但每个 job 内的检查、确定性测试和集成测试按步骤串行。pip 缓存已命中，依赖安装约十几秒，因此集成测试本身是主要耗时来源。
+在基线 [CI 运行 39004408738](https://github.com/shuaibilx/DecAgent/actions/runs/39004408738) 中，pytest 收集 1,396 个确定性测试和 615 个数据库集成测试。Python 3.11 集成测试用时 25分50秒；Python 3.13 用时 40分08秒。新方案在 [CI 运行 39015142876](https://github.com/shuaibilx/DecAgent/actions/runs/39015142876) 全绿：3.11 集成测试 592 通过/24 跳过，用时 18分50秒；3.13 为 592 通过/24 跳过，用时 20分03秒。两个 Python job 中的集成测试各使用 2 个 `pytest-xdist` worker；确定性测试分别用时 2分53秒和 3分08秒，wheel/MCP/Compose job 与它们并行，在 2分22秒完成。完整 CI 从 46分20秒降到 23分55秒，减少 22分25秒（约 48%）。
 
 当前确定性测试覆盖规则、策略边界、参数验证、拒绝路径和失败处理；数据库集成测试覆盖存储、worker、MCP、审批、恢复和若干完整组件交互。wheel 验证会从源码目录外运行已安装包，经本地 MCP 客户端和服务端完成一次操作提交、查询并检查数据库回执；Compose 烟测验证新实例启动、owner 初始化、CLI 与容器安全设置。这些是有效的包/服务边界验收，但项目目前没有单独的 `evals/e2e` 测试层，也没有从员工自然语言请求开始，贯穿规划、Jev、动态分支、多步 MCP、人工中断/恢复到最终业务回执的完整端到端场景。
 
-CI 默认排除 `live` 标记测试，不调用真实 Qwen、OpenRouter/Jev 或 GitHub 服务；真实 Docker 执行器、基准镜像和本机 ACL 验收由显式环境条件控制，未启用时会跳过。当前 pytest-cov 尚未安装，CI 没有行覆盖率或分支覆盖率报告，因此测试数量不能替代覆盖数据，也不能据此宣称覆盖充分。数据库测试使用 fixture 克隆独立库并在结束后删除；最慢用例会在 CI 报告中列出。Windows Python 3.13 的本地完整集使用 2 个 worker 完成 594 通过、22 跳过，用时 20分22秒；这只是本机测量，不代表 GitHub Ubuntu 的 CI 耗时，真实 CI 计时待本次改动运行完成后核对。下一步应补齐一条隔离、无付费调用的端到端业务链测试，并测量代码覆盖率基线；暂不设置覆盖率硬门槛，避免用任意阈值制造安全感。
+CI 默认排除 `live` 标记测试，不调用真实 Qwen、OpenRouter/Jev 或 GitHub 服务；真实 Docker 执行器、基准镜像和本机 ACL 验收由显式环境条件控制，未启用时会跳过。当前 pytest-cov 尚未安装，CI 没有行覆盖率或分支覆盖率报告，因此测试数量不能替代覆盖数据，也不能据此宣称覆盖充分。数据库测试使用 fixture 克隆独立库并在结束后删除；最慢用例会在 CI 报告中列出。Windows Python 3.13 的本地完整集使用 2 个 worker 完成 594 通过、22 跳过，用时 20分22秒，与 GitHub Linux 的两个版本都在 20 分钟左右相符。测试面包含近 1,400 个确定性用例和 616 个集成用例（其中 24 个依赖环境而跳过），但没有单独的 `evals/e2e` 层，也没有从员工自然语言请求贯穿规划、Jev、动态分支、多步 MCP、人工中断/恢复到最终业务回执的完整端到端场景。下一步应补齐一条隔离、无付费调用的核心业务 E2E，并测量行/分支覆盖率基线；暂不设置覆盖率硬门槛，避免用任意阈值制造安全感。
 
 安装 wheel 时，本机 pip 仍提示配置的 `pypi.ngc.nvidia.com` 索引发生 SSL EOF；命令跳过该索引并成功完成安装。这个警告来自当前本机 pip 索引配置，工作流没有设置该索引，不能据此预判 GitHub Runner 的网络结果。
 
@@ -77,7 +79,7 @@ CI 默认排除 `live` 标记测试，不调用真实 Qwen、OpenRouter/Jev 或 
 
 打开 [DecAgent Actions](https://github.com/shuaibilx/DecAgent/actions)，选择 `CI` 并查看对应 commit 或 Pull Request。绿色勾表示该次工作流全部成功；红色叉表示某个 job 或步骤失败。点开失败步骤，查看首个异常并回到本地复现。
 
-公开仓库 `shuaibilx/DecAgent` 当前 main CI 为 [运行 38998096425](https://github.com/shuaibilx/DecAgent/actions/runs/38998096425)，所有 job 通过。配置文件本身不代表后续每次提交都通过；每次变更仍需查看对应运行记录。
+公开仓库 `shuaibilx/DecAgent` 当前 main CI 为 [运行 39015142876](https://github.com/shuaibilx/DecAgent/actions/runs/39015142876)，所有 job 通过。配置文件本身不代表后续每次提交都通过；每次变更仍需查看对应运行记录。
 
 ## 版本发布与 GHCR
 
