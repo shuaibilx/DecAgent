@@ -14,6 +14,7 @@ from decagent.business.access import AccessError
 from decagent.business.registry import PluginRegistry
 from decagent.gateway.auth import OwnerIdentity
 from evals.integration.business_support import FixtureTickets
+from evals.integration.database_support import temporary_database
 
 pytestmark = pytest.mark.integration
 
@@ -478,16 +479,19 @@ def test_own_history_listing_is_employee_filtered_and_bounded(database, sample):
         sample["store"].list_own(sample["backend"].browser, limit=True)
 
 
-def test_schema_15_upgrade_preserves_business_operations_and_is_repeatable(database, monkeypatch):
-    from psycopg import sql
+@pytest.fixture
+def schema_15_database(database):
+    with temporary_database(database.url, prefix="case_memory15_") as older:
+        yield older
 
+
+def test_schema_15_upgrade_preserves_business_operations_and_is_repeatable(
+    schema_15_database, monkeypatch
+):
     from decagent.storage import database as module
     from evals.integration.conditional_support import create_mixed_business_tasks
 
-    name = "case_memory15_" + uuid4().hex
-    with database.connect(autocommit=True) as conn:
-        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
-    older = module.Database(database.url.rsplit("/", 1)[0] + "/" + name)
+    older = schema_15_database
     with monkeypatch.context() as original:
         original.setattr(module, "MIGRATIONS", module.MIGRATIONS[:15])
         original.setattr(module, "SCHEMA_VERSION", 15)

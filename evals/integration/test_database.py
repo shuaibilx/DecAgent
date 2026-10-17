@@ -3,27 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from evals.integration.database_support import temporary_database
+
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def database():
-    from uuid import uuid4
-
-    from psycopg import sql
-
-    from decagent.storage.database import Database
-
-    url = os.getenv("DECAGENT_TEST_DATABASE_URL")
-    if not url:
-        pytest.skip("Set DECAGENT_TEST_DATABASE_URL to a disposable dedicated database")
-    administrator = Database(url)
-    name = "case_" + uuid4().hex
-    with administrator.connect(autocommit=True) as conn:
-        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
-    db = Database(url.rsplit("/", 1)[0] + "/" + name)
-    db.migrate()
-    return db
 
 
 def test_migrations_are_repeatable_and_preserve_data(database):
@@ -87,13 +69,9 @@ def test_events_are_monotonic_and_approval_is_once_only(database):
 
 
 def test_backup_restores_checkpoint_approvals_and_evidence(database, tmp_path):
-    from uuid import uuid4
-
     from langgraph.checkpoint.base import empty_checkpoint
-    from psycopg import sql
 
     from decagent.storage.backup import export_backup, restore_backup
-    from decagent.storage.database import Database
     from decagent.storage.evidence import EvidenceStore
 
     store = EvidenceStore(tmp_path / "evidence")
@@ -106,28 +84,23 @@ def test_backup_restores_checkpoint_approvals_and_evidence(database, tmp_path):
     with database.checkpointer() as saver:
         config = {"configurable": {"thread_id": str(task["id"]), "checkpoint_ns": ""}}
         saved = saver.put(config, empty_checkpoint(), {"source": "input", "step": 0}, {})
-    # New disposable database in this test-owned PostgreSQL container; no DROP or reset.
-    database_name = "restore_" + uuid4().hex
-    with database.connect(autocommit=True) as conn:
-        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
-    url = database.url.rsplit("/", 1)[0] + "/" + database_name
-    restored = Database(url)
     backup = tmp_path / "backup"
     export_backup(database, store, backup)
-    restore_backup(restored, backup, tmp_path / "restored-evidence")
-    assert restored.get_task(task["id"])["authorization_snapshot"] == {"issue": "bug"}
-    with restored.connect() as conn:
-        assert (
-            conn.execute(
-                "SELECT digest FROM app.approvals WHERE id=%s", (approval["id"],)
-            ).fetchone()["digest"]
-            == "backup-digest"
-        )
-    with restored.checkpointer() as saver:
-        assert saver.get_tuple(saved).checkpoint["id"]
-    assert EvidenceStore(tmp_path / "restored-evidence").read(ref) == "diagnostic [REDACTED]"
-    with pytest.raises(ValueError, match="new"):
+    with temporary_database(database.url, prefix="restore_") as restored:
         restore_backup(restored, backup, tmp_path / "restored-evidence")
+        assert restored.get_task(task["id"])["authorization_snapshot"] == {"issue": "bug"}
+        with restored.connect() as conn:
+            assert (
+                conn.execute(
+                    "SELECT digest FROM app.approvals WHERE id=%s", (approval["id"],)
+                ).fetchone()["digest"]
+                == "backup-digest"
+            )
+        with restored.checkpointer() as saver:
+            assert saver.get_tuple(saved).checkpoint["id"]
+        assert EvidenceStore(tmp_path / "restored-evidence").read(ref) == "diagnostic [REDACTED]"
+        with pytest.raises(ValueError, match="new"):
+            restore_backup(restored, backup, tmp_path / "restored-evidence")
 
 
 def test_usage_survives_restart_and_retries_are_separate(database):
@@ -183,9 +156,6 @@ def test_time_waits_and_unknown_price_are_not_silently_free(database):
 def test_documented_backup_cli_in_new_instance(database, tmp_path):
     import subprocess
     import sys
-    from uuid import uuid4
-
-    from psycopg import sql
 
     from decagent.storage.evidence import EvidenceStore
 
@@ -204,17 +174,15 @@ def test_documented_backup_cli_in_new_instance(database, tmp_path):
         check=True,
         capture_output=True,
     )
-    new_name = "cli_restore_" + uuid4().hex
-    with database.connect(autocommit=True) as conn:
-        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(new_name)))
-    environment["DECAGENT_DATABASE_URL"] = database.url.rsplit("/", 1)[0] + "/" + new_name
-    environment["DECAGENT_DATA_DIR"] = str(tmp_path / "target-data")
-    subprocess.run(
-        [sys.executable, "-m", "decagent", "restore", str(backup_path)],
-        env=environment,
-        check=True,
-        capture_output=True,
-    )
+    with temporary_database(database.url, prefix="cli_restore_") as restored:
+        environment["DECAGENT_DATABASE_URL"] = restored.url
+        environment["DECAGENT_DATA_DIR"] = str(tmp_path / "target-data")
+        subprocess.run(
+            [sys.executable, "-m", "decagent", "restore", str(backup_path)],
+            env=environment,
+            check=True,
+            capture_output=True,
+        )
     assert EvidenceStore(tmp_path / "target-data" / "evidence").read(ref)
 
 

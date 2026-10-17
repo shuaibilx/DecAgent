@@ -3,6 +3,7 @@
 import pytest
 
 from evals.integration.conditional_support import mixed_business_tasks as mixed_business_tasks
+from evals.integration.database_support import temporary_database
 
 pytestmark = pytest.mark.integration
 
@@ -41,18 +42,19 @@ def test_plan_tables_exist_and_migration_preserves_existing_evidence(
         }
 
 
-def test_existing_schema_11_tasks_really_upgrade_without_changed_ids(database, monkeypatch):
-    from uuid import uuid4
+@pytest.fixture
+def schema_11_database(database):
+    with temporary_database(database.url, prefix="case_v11_") as legacy:
+        yield legacy
 
-    from psycopg import sql
 
+def test_existing_schema_11_tasks_really_upgrade_without_changed_ids(
+    schema_11_database, monkeypatch
+):
     from decagent.storage import database as module
     from evals.integration.conditional_support import create_mixed_business_tasks
 
-    name = "case_v11_" + uuid4().hex
-    with database.connect(autocommit=True) as conn:
-        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
-    legacy = module.Database(database.url.rsplit("/", 1)[0] + "/" + name)
+    legacy = schema_11_database
     with monkeypatch.context() as old:
         old.setattr(module, "MIGRATIONS", module.MIGRATIONS[:11])
         old.setattr(module, "SCHEMA_VERSION", 11)

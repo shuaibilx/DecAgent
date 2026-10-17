@@ -1,13 +1,11 @@
 """Real PostgreSQL lifecycle; observer records are fixtures, not a live GitHub claim."""
 
-import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from decagent.decisions import (
@@ -42,25 +40,10 @@ from decagent.policy import (
 )
 from decagent.policy.approvals import confirmation_digest
 from decagent.storage.approval_service import DurableApprovals
-from decagent.storage.database import Database
 from decagent.storage.evidence import EvidenceStore
 from decagent.storage.usage import UsageLedger
 
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def database():
-    url = os.getenv("DECAGENT_TEST_DATABASE_URL")
-    if not url:
-        pytest.skip("Set DECAGENT_TEST_DATABASE_URL to a test-owned PostgreSQL instance")
-    admin = Database(url)
-    name = "memory_" + uuid4().hex
-    with admin.connect(autocommit=True) as conn:
-        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
-    db = Database(url.rsplit("/", 1)[0] + "/" + name)
-    db.migrate()
-    return db
 
 
 class ScriptedStrategy:

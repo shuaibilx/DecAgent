@@ -11,6 +11,7 @@ from psycopg.types.json import Jsonb
 from decagent.business.contracts import canonical
 from decagent.business.tickets.store import TicketStore, _json
 from decagent.storage import database as storage
+from evals.integration.database_support import temporary_database
 
 pytestmark = pytest.mark.integration
 
@@ -44,18 +45,23 @@ def _legacy_create(database, title, category, operation_id):
     return result["ticket"]["id"]
 
 
-def test_identity_upgrade_preserves_legacy_ticket_receipt_history_and_task(monkeypatch):
+@pytest.fixture
+def legacy_v6_database(monkeypatch):
     url = os.getenv("DECAGENT_TEST_DATABASE_URL")
     if not url:
         pytest.skip("Set DECAGENT_TEST_DATABASE_URL to a disposable dedicated database")
-    name = "case_mcp_" + uuid4().hex
-    with storage.Database(url).connect(autocommit=True) as connection:
-        connection.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
-    db = storage.Database(url.rsplit("/", 1)[0] + "/" + name)
-    with monkeypatch.context() as patch:
-        patch.setattr(storage, "MIGRATIONS", storage.MIGRATIONS[:6])
-        patch.setattr(storage, "SCHEMA_VERSION", 6)
-        db.migrate()
+    with temporary_database(url, prefix="case_mcp_") as database:
+        with monkeypatch.context() as patch:
+            patch.setattr(storage, "MIGRATIONS", storage.MIGRATIONS[:6])
+            patch.setattr(storage, "SCHEMA_VERSION", 6)
+            database.migrate()
+        yield database
+
+
+def test_identity_upgrade_preserves_legacy_ticket_receipt_history_and_task(
+    legacy_v6_database,
+):
+    db = legacy_v6_database
 
     tickets = TicketStore(db.url)
     assert tickets.execute("seed", {}, "seed-legacy")["ok"]

@@ -56,14 +56,13 @@ jobs:
         run: python -m ruff check decagent evals ops
 
       - name: Run deterministic tests
-        run: python -m pytest evals/deterministic -q
+        run: python -m pytest evals/deterministic -q -rs
 
       - name: Run database integration tests
-        run: python -m pytest evals/integration -q
+        run: python -m pytest evals/integration -q -rs --durations=25
 
   package-and-images:
     name: Build package and container images
-    needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:

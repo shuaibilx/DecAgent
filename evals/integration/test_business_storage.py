@@ -4,14 +4,13 @@ from uuid import uuid4
 
 import psycopg
 import pytest
-from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from decagent.config import Settings
 from decagent.runtime.worker import Worker
 from decagent.storage.backup import export_backup, restore_backup
-from decagent.storage.database import Database
 from decagent.storage.evidence import EvidenceStore
+from evals.integration.database_support import temporary_database
 
 pytestmark = pytest.mark.integration
 
@@ -95,10 +94,7 @@ def test_backup_restores_business_scopes_tasks_and_events(database, tmp_path):
     )
     database.event(task["id"], "business.created", {})
     export_backup(database, EvidenceStore(tmp_path / "source-evidence"), tmp_path / "backup")
-    name = "business_restore_" + uuid4().hex
-    with database.connect(autocommit=True) as conn:
-        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
-    restored = Database(database.url.rsplit("/", 1)[0] + "/" + name)
-    restore_backup(restored, tmp_path / "backup", tmp_path / "restored-evidence")
-    assert restored.get_task(task["id"])["business_scope_id"] == registered["id"]
-    assert restored.events(task["id"])[0]["kind"] == "business.created"
+    with temporary_database(database.url, prefix="business_restore_") as restored:
+        restore_backup(restored, tmp_path / "backup", tmp_path / "restored-evidence")
+        assert restored.get_task(task["id"])["business_scope_id"] == registered["id"]
+        assert restored.events(task["id"])[0]["kind"] == "business.created"
