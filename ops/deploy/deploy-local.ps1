@@ -177,9 +177,9 @@ try {
     $temporaryDatabaseBackup = '/tmp/decagent-predeploy-' + [guid]::NewGuid().ToString('N') + '.dump'
 
     Invoke-Compose -Arguments @(
-        'exec', '-T', 'postgres', 'sh', '-ec',
-        'export PGPASSWORD="$(cat /run/secrets/postgres_password)"; pg_dump -h 127.0.0.1 -U decagent -d decagent -Fc -f "$1"',
-        'sh', $temporaryDatabaseBackup
+        'exec', '-T', 'postgres',
+        'pg_dump', '-h', '/var/run/postgresql', '-U', 'decagent', '-d', 'decagent',
+        '-Fc', '-f', $temporaryDatabaseBackup
     )
     Invoke-Compose -Arguments @('cp', "postgres:$temporaryDatabaseBackup", $databaseBackup)
     $backupInfo = Get-Item -LiteralPath $databaseBackup
