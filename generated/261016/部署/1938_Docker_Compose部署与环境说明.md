@@ -113,11 +113,11 @@ Runner 默认安装在 `%USERPROFILE%\DecAgentRunner\actions-runner`，由当前
 
 三个 package 页面：[control](https://github.com/users/shuaibilx/packages/container/package/decagent-control)、[executor](https://github.com/users/shuaibilx/packages/container/package/decagent-executor)、[runner](https://github.com/users/shuaibilx/packages/container/package/decagent-runner)。
 
-首次 `v0.1.0` 已发布；运行配置修复的下一次验证计划使用 `v0.1.4` 标签：
+首次 `v0.1.0` 已发布，`v0.1.4` 已完成标准自动部署闭环。下列 `v0.1.5` 命令仅作为下一次 patch 发布示例；使用前先确认标签尚未存在且对应 main CI 全绿：
 
 ```powershell
-git tag v0.1.4
-git push origin v0.1.4
+git tag -a v0.1.5 -m "DecAgent v0.1.5"
+git push origin v0.1.5
 ```
 
 部署脚本 `ops/deploy/deploy-local.ps1` 会先检查当前 API、PostgreSQL、Compose 项目名、密钥文件和配置，再将数据库备份写入 `.decagent/backups/predeploy-<版本>-<UTC时间>.dump`；然后按 digest 拉取三类镜像、执行 Compose 迁移与更新，并等待 `/health` 返回 `ok`。脚本使用 `compose.yaml` 和 `compose.windows.yaml`，不运行 owner 初始化，不重写 `.env`，也不删除 Compose 卷。备份文件在 `.decagent/` 下，已被 Git 忽略。
@@ -130,10 +130,14 @@ git push origin v0.1.4
 
 ## 部署状态
 
-### v0.1.3 当前状态
+### v0.1.4 当前状态
 
-Release run [38995053020](https://github.com/shuaibilx/DecAgent/actions/runs/38995053020) 的完整 CI、离线 smoke、GHCR 登录和三类镜像发布均通过。真实预部署备份 `.decagent/backups/predeploy-v0.1.3-20261017T025707Z.dump` 为 116,335 字节，SHA-256 为 `E241FBF44731D41D4C8EA6D69A9E27D0224ECEAEDA6A366F6747F37A8A50DAA6`；`pg_restore --list` 成功列出 202 个 TOC 项，数据库迁移也已完成。随后 API/Worker 因完整 runner 镜像引用未被提取为裸 digest而未通过健康检查。没有回滚数据库或删除卷；仅临时用裸 digest 环境重建 API/Worker 后，API `/health` 恢复 `ok`。PostgreSQL、broker 和三个核心数据卷保持不变。代码已修复镜像引用解析并通过回归测试；`v0.1.4` 仍需完成标准自动部署验收。独立 Linux 主机和新实例网页闭环仍未完成。
+Release run [39001018038](https://github.com/shuaibilx/DecAgent/actions/runs/39001018038) 的 CI、Python 3.11/3.13 数据库集成测试、安装包/MCP 检查、离线 Compose smoke、GHCR 登录与三类镜像发布全部成功；本机 Runner 的部署 job 也成功。实际预部署备份 `.decagent/backups/predeploy-v0.1.4-20261017T044821Z.dump` 大小 201,433 字节，SHA-256 为 `A0F82B6365ACA38D445CDDE75A33B51E8F0682C827560036989C7629CE8D3772`，Docker 中的 PostgreSQL 工具 `pg_restore --list` 读取 336 个 TOC 项。数据库迁移容器正常退出，API 与 Worker 健康，API `/health` 返回 `ok`。control 使用 `ghcr.io/shuaibilx/decagent-control@sha256:877c83c5eac8124de1083c6e5745617621a42a565de7b10a98d7e20ef93f6a20`；executor 使用 `ghcr.io/shuaibilx/decagent-executor@sha256:a7246b4e5b1d4340c8416a5d26ccd35f9a60757a978b934bab952d174ca5c2e6`；runner 使用 `ghcr.io/shuaibilx/decagent-runner@sha256:26b4732e5dbe1639c9520378275fe8bfbb3d4c425b4707c9eeca1b04ce89e970`。PostgreSQL 与 `decagent_postgres_data`、`decagent_control_data`、`decagent_broker_receipts` 三个持久卷均保留原有名称。Actions 日志最终状态为 `deployed`。独立 Linux 主机部署和新实例网页闭环仍待办。
+
+### v0.1.3 历史记录
+
+Release run [38995053020](https://github.com/shuaibilx/DecAgent/actions/runs/38995053020) 的完整 CI、离线 smoke、GHCR 登录和三类镜像发布均通过。真实预部署备份 `.decagent/backups/predeploy-v0.1.3-20261017T025707Z.dump` 为 116,335 字节，SHA-256 为 `E241FBF44731D41D4C8EA6D69A9E27D0224ECEAEDA6A366F6747F37A8A50DAA6`；`pg_restore --list` 成功列出 202 个 TOC 项，数据库迁移也已完成。随后 API/Worker 因完整 runner 镜像引用未被提取为裸 digest而未通过健康检查。没有回滚数据库或删除卷；当时仅用裸 digest 环境重建 API/Worker 后，API `/health` 恢复 `ok`。PostgreSQL、broker 和三个核心数据卷保持不变。其后的 v0.1.4 修复与标准部署验收结果见上方当前状态。独立 Linux 主机和新实例网页闭环仍未完成。
 
 ### v0.1.2 历史记录
 
-本机 Windows Docker Desktop 的现有 Compose 服务健康，本机 Runner 在线。`v0.1.2` release run [38991318147](https://github.com/shuaibilx/DecAgent/actions/runs/38991318147) 的完整 CI、镜像构建、离线 smoke、GHCR 登录和三类镜像发布均通过；本机部署在数据库备份前因 Windows PowerShell 5.1 转发 `sh -ec` 参数失败而退出，未创建备份、未运行迁移、未更新 Compose。失败后 API 仍返回 `ok`，核心数据卷保持原名和原状，备份目录为空。已将脚本改为直接调用 `pg_dump` 的 Unix socket 模式；本机 Windows PowerShell 5.1 `-ValidateOnly` 通过，临时只读备份测试生成 116,335 字节有效 dump 并清理了临时文件。`v0.1.3` 仍须完成真实预部署备份、digest 部署和健康检查；新实例完整网页闭环与独立 Linux 主机验收仍未完成。
+本机 Windows Docker Desktop 的现有 Compose 服务健康，本机 Runner 在线。`v0.1.2` release run [38991318147](https://github.com/shuaibilx/DecAgent/actions/runs/38991318147) 的完整 CI、镜像构建、离线 smoke、GHCR 登录和三类镜像发布均通过；本机部署在数据库备份前因 Windows PowerShell 5.1 转发 `sh -ec` 参数失败而退出，未创建备份、未运行迁移、未更新 Compose。失败后 API 仍返回 `ok`，核心数据卷保持原名和原状，备份目录为空。已将脚本改为直接调用 `pg_dump` 的 Unix socket 模式；本机 Windows PowerShell 5.1 `-ValidateOnly` 通过，临时只读备份测试生成 116,335 字节有效 dump 并清理了临时文件。`v0.1.3` 与 `v0.1.4` 的后续结果分别见对应历史和当前状态；Linux 新实例与独立主机验收仍未完成。

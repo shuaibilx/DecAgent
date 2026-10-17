@@ -58,7 +58,7 @@ GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用�
 
 本机运行了 Ruff、Compose 安全配置回归和离线 Docker smoke，均通过。完整数据库集成套件由 GitHub Actions 的一次性 PostgreSQL 服务运行并通过；本机没有对当前业务数据库运行整套集成测试。
 
-main CI 运行 [38924980607](https://github.com/shuaibilx/DecAgent/actions/runs/38924980607) 在 commit `5d3c23b` 上通过 Python 3.11/3.13、数据库集成测试、安装包验证和隔离 Compose smoke。Release 运行 [38995053020](https://github.com/shuaibilx/DecAgent/actions/runs/38995053020) 的 Python 3.11/3.13 数据库集成测试、wheel/MCP 验证和离线 Compose smoke 全部通过，短期 `GITHUB_TOKEN` 登录 GHCR 成功并发布了三类镜像。本机部署创建并验证了 PostgreSQL 备份，也完成数据库迁移；API/Worker 随后因运行配置只接受裸 digest、而 Compose 传入完整不可变镜像引用而启动失败。备份经 `pg_restore --list` 检查通过。现代码已解析固定引用中的 digest 并通过回归测试；本机通过临时裸 digest 配置恢复 API。标准自动 CD 待 `v0.1.4` 再验，Linux 新实例验收仍待办。
+main CI 运行 [38998096425](https://github.com/shuaibilx/DecAgent/actions/runs/38998096425) 在 commit `089cd02` 上通过 Python 3.11/3.13、数据库集成测试、安装包验证和隔离 Compose smoke。Release 运行 [39001018038](https://github.com/shuaibilx/DecAgent/actions/runs/39001018038) 再次通过完整 CI 与离线 Compose smoke，短期 `GITHUB_TOKEN` 登录 GHCR 成功并发布 control、executor、runner 三类不可变镜像。本机 Windows Runner 备份数据库、完成迁移并升级服务；API/Worker 现能从完整固定镜像引用提取 runner digest，三个应用镜像均按 digest 运行，API `/health` 返回 `ok`。Release 部署 job 全部成功。独立 Linux 新实例和完整网页闭环仍待验收。
 
 安装 wheel 时，本机 pip 仍提示配置的 `pypi.ngc.nvidia.com` 索引发生 SSL EOF；命令跳过该索引并成功完成安装。这个警告来自当前本机 pip 索引配置，工作流没有设置该索引，不能据此预判 GitHub Runner 的网络结果。
 
@@ -68,17 +68,17 @@ main CI 运行 [38924980607](https://github.com/shuaibilx/DecAgent/actions/runs/
 
 打开 [DecAgent Actions](https://github.com/shuaibilx/DecAgent/actions)，选择 `CI` 并查看对应 commit 或 Pull Request。绿色勾表示该次工作流全部成功；红色叉表示某个 job 或步骤失败。点开失败步骤，查看首个异常并回到本地复现。
 
-公开仓库 `shuaibilx/DecAgent` 的最新 main CI 为 [运行 38924980607](https://github.com/shuaibilx/DecAgent/actions/runs/38924980607)，全部 job 通过。配置文件本身不代表后续每次提交都通过；每次变更仍需查看对应运行记录。
+公开仓库 `shuaibilx/DecAgent` 当前 main CI 为 [运行 38998096425](https://github.com/shuaibilx/DecAgent/actions/runs/38998096425)，所有 job 通过。配置文件本身不代表后续每次提交都通过；每次变更仍需查看对应运行记录。
 
 ## 版本发布与 GHCR
 
 下方的旧发布记录是 `v0.1.2` 部署失败时的历史状态；最新部署进度见本节末尾。
 
-首次发布 `v0.1.0` 已完成。后续发布前先确认 `main` 对应的 CI 全绿，再在项目根目录推送新的语义版本标签；当前配置解析修复计划通过 `v0.1.4` 完成标准自动部署闭环：
+首次发布 `v0.1.0` 已完成；`v0.1.4` 已通过完整 release gate、发布 GHCR 镜像并完成本机自动部署。后续发布前先确认 `main` 对应的 CI 全绿，再选择一个尚未使用的语义版本标签。以下 `v0.1.5` 仅作下一次 patch 发布示例：
 
 ```powershell
-git tag v0.1.4
-git push origin v0.1.4
+git tag -a v0.1.5 -m "DecAgent v0.1.5"
+git push origin v0.1.5
 ```
 
 `release.yml` 会再次执行完整 CI，因此 PR 代码不会直接进入发布。标签必须严格符合 `vMAJOR.MINOR.PATCH`，并指向 `main` 历史中的提交。发布 job 使用 GitHub 托管 runner 和只具备 `packages: write` 的短期 `GITHUB_TOKEN`；部署 job 仅获 `packages: read`。镜像 package 首次创建默认保持私有，源代码仓库仍公开；工作流通过短期令牌拉取镜像，不把模型或 GitHub 凭据保存为 Actions secret。
@@ -87,9 +87,13 @@ git push origin v0.1.4
 
 Package 设置入口：[control](https://github.com/users/shuaibilx/packages/container/package/decagent-control)、[executor](https://github.com/users/shuaibilx/packages/container/package/decagent-executor)、[runner](https://github.com/users/shuaibilx/packages/container/package/decagent-runner)。当前授权已达到 Admin；不需要重复添加。若以后再遇到认证问题，先检查 GHCR 登录步骤的 token 来源、job 的 `packages: read` 权限、Action access 列表和 runner 的原始登录日志，再决定是否调整 package 设置。
 
-### v0.1.3 部署状态
+### v0.1.4 部署状态
 
-Release 运行 [38995053020](https://github.com/shuaibilx/DecAgent/actions/runs/38995053020) 已完成全套 CI、离线 smoke 与三类 GHCR 镜像发布。部署备份 `predeploy-v0.1.3-20261017T025707Z.dump` 为 116,335 字节，SHA-256 为 `E241FBF44731D41D4C8EA6D69A9E27D0224ECEAEDA6A366F6747F37A8A50DAA6`，`pg_restore --list` 列出 202 项；数据库迁移完成。API/Worker 因完整 runner image ref 未解析为裸 digest 而未通过健康检查。当前仅重建 API/Worker 并临时传入裸 digest 后，API `/health` 已恢复 `ok`；PostgreSQL、broker 和三个核心数据卷未更换。修复代码现已加入严格 digest 提取与回归测试，标准自动部署闭环待 `v0.1.4` 验收。
+Release 运行 [39001018038](https://github.com/shuaibilx/DecAgent/actions/runs/39001018038) 的完整 CI、离线 Compose smoke、GHCR 登录及三类镜像发布均成功；本机 Windows 自托管 Runner 的部署 job 也成功。部署生成 `predeploy-v0.1.4-20261017T044821Z.dump`，文件大小 201,433 字节，SHA-256 为 `A0F82B6365ACA38D445CDDE75A33B51E8F0682C827560036989C7629CE8D3772`；本机 `pg_restore --list` 成功读取 336 个 TOC 项。数据库迁移完成，Compose 输出 `status=deployed`、`api=healthy`；随后从本机请求 `/health` 得到 `{"status":"ok"}`。API、Worker、executor 与 egress proxy 使用 v0.1.4 固定 digest，PostgreSQL 与三个核心数据卷保持不变。三个私有 GHCR package 的 Manage Actions access 均含仓库 `shuaibilx/DecAgent` 且角色为 Admin，本次 Actions `packages: read` 登录和拉取成功；无需再次更改权限。独立 Linux 部署与新实例完整网页闭环仍待验收。
+
+### v0.1.3 历史记录
+
+Release 运行 [38995053020](https://github.com/shuaibilx/DecAgent/actions/runs/38995053020) 已完成全套 CI、离线 smoke 与三类 GHCR 镜像发布。部署备份 `predeploy-v0.1.3-20261017T025707Z.dump` 为 116,335 字节，SHA-256 为 `E241FBF44731D41D4C8EA6D69A9E27D0224ECEAEDA6A366F6747F37A8A50DAA6`，`pg_restore --list` 列出 202 项；数据库迁移完成。API/Worker 因完整 runner image ref 未解析为裸 digest 而未通过健康检查。当时仅重建 API/Worker 并临时传入裸 digest 后，API `/health` 恢复 `ok`；PostgreSQL、broker 和三个核心数据卷未更换。其后的 v0.1.4 修复与标准部署结果见上方当前状态。
 
 ## 产物与边界
 
