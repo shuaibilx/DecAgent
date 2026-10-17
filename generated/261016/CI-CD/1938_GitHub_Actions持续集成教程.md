@@ -27,10 +27,10 @@ flowchart TD
     A --> C[Python 3.13 检查]
     B --> B1[Ruff]
     B1 --> B2[确定性测试]
-    B2 --> B3[PostgreSQL 集成测试]
+    B2 --> B3[PostgreSQL 集成测试：2 workers / worksteal]
     C --> C1[Ruff]
     C1 --> C2[确定性测试]
-    C2 --> C3[PostgreSQL 集成测试]
+    C2 --> C3[PostgreSQL 集成测试：2 workers / worksteal]
     A --> D[构建 wheel 与 sdist、容器烟测]
     D --> E[独立安装 wheel 并运行 CLI]
     E --> F[测试已安装 wheel 的 MCP 调用]
@@ -42,7 +42,7 @@ flowchart TD
     L --> M[备份数据库、迁移、健康检查]
 ```
 
-GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用测试专用数据库名和密码。每个集成测试结束后会删除它创建的数据库。依赖通过 `requirements.lock` 安装，并以该文件作为 pip 缓存键；PostgreSQL 镜像使用固定 digest。Python 3.11/3.13 检查与包构建、容器烟测并行运行；发布仍等待完整 CI 通过。
+GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用测试专用数据库名和密码。每个 Python job 用迁移后的模板数据库为每个测试创建独立克隆，并在测试结束后删除克隆库；模板库只在每个 pytest worker 内迁移一次。集成测试固定使用 2 个 `pytest-xdist` worker 和 `worksteal` 分发，以免在 PostgreSQL 上同时启动过多测试。依赖通过 `requirements.lock` 安装，并以该文件作为 pip 缓存键；PostgreSQL 镜像使用固定 digest。Python 3.11/3.13 检查与包构建、容器烟测并行运行；发布仍等待完整 CI 通过。
 
 打包阶段会把 wheel 安装到临时目录并从源码目录之外导入，避免误把当前工作区当作安装包；然后运行已安装 wheel 的 CLI 和 MCP 协议验证。最后构建 runner、control 和 executor 镜像，并调用 `ops/control/offline_smoke.py` 验证新建的隔离 Compose 项目能启动。离线烟测使用空模型凭据，不发送模型请求。发布工作流只在完整 CI 通过后把这三类镜像分别推送到 `ghcr.io/shuaibilx/decagent-control`、`decagent-executor` 和 `decagent-runner`；每个镜像带 `vX.Y.Z`、完整 commit SHA 标签，并把 Registry digest 传给部署 job。
 
@@ -53,6 +53,8 @@ GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用�
 ```powershell
 .\.venv\Scripts\python.exe -m ruff check decagent evals ops
 .\.venv\Scripts\python.exe -m pytest evals/deterministic -q
+# DECAGENT_TEST_DATABASE_URL 必须指向专用、可丢弃的 PostgreSQL 实例
+.\.venv\Scripts\python.exe -m pytest evals/integration -n 2 --dist=worksteal -q -rs --durations=25
 ```
 
 本机运行了 Ruff、Compose 安全配置回归和离线 Docker smoke，均通过。完整数据库集成套件由 GitHub Actions 的一次性 PostgreSQL 服务运行并通过；本机没有对当前业务数据库运行整套集成测试。
@@ -61,11 +63,11 @@ main CI 运行 [38998096425](https://github.com/shuaibilx/DecAgent/actions/runs/
 
 ## 测试分层与覆盖边界
 
-在 commit `cf91c47` 的 [CI 运行 39004408738](https://github.com/shuaibilx/DecAgent/actions/runs/39004408738) 中，pytest 收集了 1,396 个确定性测试和 615 个数据库集成测试。Python 3.11 分别为 1,394 通过/2 跳过（1分55秒）和 591 通过/24 跳过（25分50秒）；Python 3.13 的数据库集成测试为 591 通过/24 跳过，用时 40分08秒。两个 Python 版本的 job 并行启动，但每个 job 内的检查、确定性测试和集成测试按步骤串行。pip 缓存已命中，依赖安装约十几秒，因此集成测试的数据库准备与执行是主要耗时来源。
+在 commit `cf91c47` 的 [CI 运行 39004408738](https://github.com/shuaibilx/DecAgent/actions/runs/39004408738) 中，pytest 收集了 1,396 个确定性测试和 615 个数据库集成测试。Python 3.11 分别为 1,394 通过/2 跳过（1分55秒）和 591 通过/24 跳过（25分50秒）；Python 3.13 的数据库集成测试为 591 通过/24 跳过，用时 40分08秒。两个 Python 版本的 job 并行启动，但每个 job 内的检查、确定性测试和集成测试按步骤串行。pip 缓存已命中，依赖安装约十几秒，因此集成测试本身是主要耗时来源。
 
 当前确定性测试覆盖规则、策略边界、参数验证、拒绝路径和失败处理；数据库集成测试覆盖存储、worker、MCP、审批、恢复和若干完整组件交互。wheel 验证会从源码目录外运行已安装包，经本地 MCP 客户端和服务端完成一次操作提交、查询并检查数据库回执；Compose 烟测验证新实例启动、owner 初始化、CLI 与容器安全设置。这些是有效的包/服务边界验收，但项目目前没有单独的 `evals/e2e` 测试层，也没有从员工自然语言请求开始，贯穿规划、Jev、动态分支、多步 MCP、人工中断/恢复到最终业务回执的完整端到端场景。
 
-CI 默认排除 `live` 标记测试，不调用真实 Qwen、OpenRouter/Jev 或 GitHub 服务；真实 Docker 执行器验收也由显式环境变量控制，未启用时会跳过。pytest-cov 尚未安装，CI 没有行覆盖率或分支覆盖率报告，所以测试数量不能替代覆盖数据，也不能据此宣称覆盖充分。本轮将每个测试创建的数据库改为 fixture 管理并在结束后删除，也清理了迁移/备份用的辅助数据库；CI 现在打印跳过原因和最慢 25 个集成用例。下一步应基于新的耗时结果决定是否并行化，再补齐一条隔离、无付费调用的完整业务工作流 E2E，并测量覆盖率基线。暂不设置覆盖率硬门槛，避免先定一个缺乏依据的数字。
+CI 默认排除 `live` 标记测试，不调用真实 Qwen、OpenRouter/Jev 或 GitHub 服务；真实 Docker 执行器、基准镜像和本机 ACL 验收由显式环境条件控制，未启用时会跳过。当前 pytest-cov 尚未安装，CI 没有行覆盖率或分支覆盖率报告，因此测试数量不能替代覆盖数据，也不能据此宣称覆盖充分。数据库测试使用 fixture 克隆独立库并在结束后删除；最慢用例会在 CI 报告中列出。Windows Python 3.13 的本地完整集使用 2 个 worker 完成 594 通过、22 跳过，用时 20分22秒；这只是本机测量，不代表 GitHub Ubuntu 的 CI 耗时，真实 CI 计时待本次改动运行完成后核对。下一步应补齐一条隔离、无付费调用的端到端业务链测试，并测量代码覆盖率基线；暂不设置覆盖率硬门槛，避免用任意阈值制造安全感。
 
 安装 wheel 时，本机 pip 仍提示配置的 `pypi.ngc.nvidia.com` 索引发生 SSL EOF；命令跳过该索引并成功完成安装。这个警告来自当前本机 pip 索引配置，工作流没有设置该索引，不能据此预判 GitHub Runner 的网络结果。
 
@@ -106,7 +108,7 @@ Release 运行 [38995053020](https://github.com/shuaibilx/DecAgent/actions/runs/
 
 普通 CI 会构建 Python wheel、source distribution 和容器镜像，并在 GitHub Runner 临时磁盘上验证；只有推送版本标签才会发布 GHCR 镜像并触发本机自动部署。CI 全绿说明代码通过设定检查；CD 结果还要看发布 workflow 的镜像发布和本机健康检查，且不代表独立 Linux 部署已验收。
 
-pip 下载缓存按 `requirements.lock` 复用。GHCR 发布镜像使用独立 Buildx layer cache；普通 CI 的 runner 镜像构建耗时约 10 秒，Compose 离线烟测约 90 秒，因此当前优先修复 PostgreSQL 集成测试累积未清理数据库的问题，并输出最慢 25 个集成用例的耗时用于持续评估。
+pip 下载缓存按 `requirements.lock` 复用。GHCR 发布镜像使用独立 Buildx layer cache；普通 CI 的 runner 镜像构建耗时约 10 秒，Compose 离线烟测约 90 秒。完整 CI 运行显示业务集成用例才是主要耗时点：当前使用每 worker 迁移模板库、每测试克隆数据库、2-worker `worksteal` 调度，并输出最慢 25 个用例，以便继续依据实测优化。
 
 触发 GitHub Actions 可能消耗 GitHub Actions 的账户额度。普通测试不需要配置 Qwen、OpenRouter 或 GitHub API 密钥；不要把它们添加为 CI secrets，除非未来某个经批准的测试确实需要真实外部服务。
 

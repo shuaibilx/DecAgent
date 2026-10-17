@@ -14,6 +14,7 @@ from decagent.decisions.contracts import digest
 from decagent.gateway.auth import OwnerIdentity
 from evals.deterministic.test_business_policy_reports import report
 from evals.integration.business_support import FixtureTickets
+from evals.integration.database_support import database_name
 from evals.integration.test_business_semantic_gateway import client_for
 
 pytestmark = pytest.mark.integration
@@ -81,7 +82,7 @@ def resolve(sample, **kwargs):
 
 
 def test_empty_store_is_explicit_manual_without_primary_fallback(database, sample):
-    assert "/case_" in database.url
+    assert database_name(database).startswith("case_")
     result = resolve(sample)
     assert result.policy is None
     assert result.reason == "policy_unavailable"

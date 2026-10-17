@@ -59,7 +59,7 @@ jobs:
         run: python -m pytest evals/deterministic -q -rs
 
       - name: Run database integration tests
-        run: python -m pytest evals/integration -q -rs --durations=25
+        run: python -m pytest evals/integration -n 2 --dist=worksteal -q -rs --durations=25
 
   package-and-images:
     name: Build package and container images

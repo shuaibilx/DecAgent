@@ -3,6 +3,7 @@
 import pytest
 
 from evals.integration.conditional_support import mixed_business_tasks as mixed_business_tasks
+from evals.integration.database_support import database_name
 
 pytestmark = pytest.mark.integration
 
@@ -11,7 +12,7 @@ def test_mixed_fixture_preserves_versions_and_unknown_operation(database, mixed_
     sample = mixed_business_tasks
     before = {version: task["id"] for version, task in sample["tasks"].items()}
     assert set(before) == {"business-2", "business-3"}
-    assert "/case_" in database.url
+    assert database_name(database).startswith("case_")
     database.migrate()
     for version, task_id in before.items():
         saved = database.get_task(task_id)
