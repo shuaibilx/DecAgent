@@ -109,7 +109,7 @@ Runner 默认安装在 `%USERPROFILE%\DecAgentRunner\actions-runner`，由当前
 
 仓库环境 `local-deploy` 限制为 `v*` 标签。GHCR package 默认私有，发布工作流只使用短期 `GITHUB_TOKEN`：发布 job 仅有 `packages: write`，本机部署 job 仅有 `packages: read`。没有把 Qwen、Jev 或 GitHub 业务凭据上传到 Actions secrets；部署时仍从本机项目目录读取 `.env` 和 `.decagent/secrets/`。
 
-私有 GHCR 镜像必须允许 `DecAgent` 工作流读取。当前三个 package 的 **Package settings → Manage Actions access** 均已确认包含仓库 `shuaibilx/DecAgent`，角色为 **Admin**，高于读取镜像所需的权限；部署 job 声明 `packages: read`。但 `v0.1.0` 部署和失败 job 重跑的登录步骤仍收到 GHCR `denied`，因此不能再把原因归结为缺少 package Actions access。部署 workflow 已改为使用发布 job 验证过的 `docker/login-action`，并把 `DOCKER_CONFIG` 移到 job 级环境，使登录、拉取、登出和配置目录清理使用同一路径；还需通过新的补丁版本验证。
+私有 GHCR 镜像必须允许 `DecAgent` 工作流读取。当前三个 package 的 **Package settings → Manage Actions access** 均已确认包含仓库 `shuaibilx/DecAgent`，角色为 **Admin**，高于读取镜像所需的权限；部署 job 声明 `packages: read`。但 `v0.1.0` 部署和失败 job 重跑的登录步骤仍收到 GHCR `denied`，因此不能再把原因归结为缺少 package Actions access。部署 workflow 已改为使用发布 job 验证过的 `docker/login-action`，并在登录、拉取、登出和配置目录清理步骤中使用相同的 runner 临时 `DOCKER_CONFIG` 路径；还需通过新的补丁版本验证。
 
 三个 package 页面：[control](https://github.com/users/shuaibilx/packages/container/package/decagent-control)、[executor](https://github.com/users/shuaibilx/packages/container/package/decagent-executor)、[runner](https://github.com/users/shuaibilx/packages/container/package/decagent-runner)。
 

@@ -81,7 +81,7 @@ git push origin v0.1.0
 
 `release.yml` 会再次执行完整 CI，因此 PR 代码不会直接进入发布。标签必须严格符合 `vMAJOR.MINOR.PATCH`，并指向 `main` 历史中的提交。发布 job 使用 GitHub 托管 runner 和只具备 `packages: write` 的短期 `GITHUB_TOKEN`；部署 job 仅获 `packages: read`。镜像 package 首次创建默认保持私有，源代码仓库仍公开；工作流通过短期令牌拉取镜像，不把模型或 GitHub 凭据保存为 Actions secret。
 
-`v0.1.0` 指向 `main` 提交 `5d3c23b`，完整 release gate 和 control、executor、runner 三个镜像的 GHCR 发布均已通过。三个私有 package 的 **Package settings → Manage Actions access** 已确认列出 `DecAgent`，角色为 **Admin**；部署 job 日志也确认短期 `GITHUB_TOKEN` 声明 `packages: read`。尽管如此，Docker 登录仍返回 `denied`，因此现有证据不支持“缺少 package Actions access”这一诊断。部署 workflow 正改用同一发布 job 已成功使用的 `docker/login-action`，并让 `DOCKER_CONFIG` 在登录、部署和清理步骤中保持一致；该修正需由新的补丁版本实际验证。
+`v0.1.0` 指向 `main` 提交 `5d3c23b`，完整 release gate 和 control、executor、runner 三个镜像的 GHCR 发布均已通过。三个私有 package 的 **Package settings → Manage Actions access** 已确认列出 `DecAgent`，角色为 **Admin**；部署 job 日志也确认短期 `GITHUB_TOKEN` 声明 `packages: read`。尽管如此，Docker 登录仍返回 `denied`，因此现有证据不支持“缺少 package Actions access”这一诊断。部署 workflow 正改用同一发布 job 已成功使用的 `docker/login-action`，并让登录、部署和清理步骤使用相同的 runner 临时 `DOCKER_CONFIG` 路径；该修正需由新的补丁版本实际验证。
 
 Package 设置入口：[control](https://github.com/users/shuaibilx/packages/container/package/decagent-control)、[executor](https://github.com/users/shuaibilx/packages/container/package/decagent-executor)、[runner](https://github.com/users/shuaibilx/packages/container/package/decagent-runner)。当前授权已达到 Admin；不需要重复添加。若以后再遇到认证问题，先检查 GHCR 登录步骤的 token 来源、job 的 `packages: read` 权限、Action access 列表和 runner 的原始登录日志，再决定是否调整 package 设置。
 

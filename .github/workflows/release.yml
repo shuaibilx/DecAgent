@@ -121,8 +121,6 @@ jobs:
     needs: publish
     runs-on: [self-hosted, windows, x64, decagent-deploy]
     timeout-minutes: 30
-    env:
-      DOCKER_CONFIG: ${{ runner.temp }}\decagent-docker-config
     environment:
       name: local-deploy
     permissions:
@@ -141,6 +139,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           logout: false
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}\decagent-docker-config
 
       - name: Back up and update the existing local Compose stack
         shell: powershell
@@ -158,6 +158,8 @@ jobs:
       - name: Log out from GHCR
         if: always()
         shell: powershell
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}\decagent-docker-config
         run: |
           if (-not [string]::IsNullOrWhiteSpace($env:DOCKER_CONFIG)) {
             docker logout ghcr.io | Out-Null
