@@ -70,13 +70,18 @@ class RuntimeConfig:
         unknown = os.getenv("DECAGENT_MAIN_UNKNOWN_RESERVATION", "")
         calibration = os.getenv("DECAGENT_CALIBRATION_FILE", "")
         conditional = os.getenv("DECAGENT_CONDITIONAL_WORKFLOWS_ENABLED", "false").strip().lower()
+        runner_reference = os.getenv("DECAGENT_RUNNER_IMAGE", "")
+        runner_digest = runner_reference
+        runner_match = re.fullmatch(r"[^@\s]+@(sha256:[a-f0-9]{64})", runner_reference)
+        if runner_match:
+            runner_digest = runner_match.group(1)
         if conditional not in {"true", "false"}:
             raise ValueError("DECAGENT_CONDITIONAL_WORKFLOWS_ENABLED must be true or false")
         return cls(
             broker_url=os.getenv("DECAGENT_BROKER_URL", "http://127.0.0.1:8002"),
             tickets_mcp_url=os.getenv("DECAGENT_TICKETS_MCP_URL", "http://127.0.0.1:8001/mcp"),
             broker_token=os.getenv("DECAGENT_BROKER_TOKEN", ""),
-            runner_digest=os.getenv("DECAGENT_RUNNER_IMAGE", ""),
+            runner_digest=runner_digest,
             author_name=os.getenv("DECAGENT_GIT_AUTHOR_NAME", "DecAgent"),
             author_email=os.getenv("DECAGENT_GIT_AUTHOR_EMAIL", ""),
             strategy=os.getenv("DECAGENT_DECISION_STRATEGY", "jev"),

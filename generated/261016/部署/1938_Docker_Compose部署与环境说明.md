@@ -109,15 +109,15 @@ Runner 默认安装在 `%USERPROFILE%\DecAgentRunner\actions-runner`，由当前
 
 仓库环境 `local-deploy` 限制为 `v*` 标签。GHCR package 默认私有，发布工作流只使用短期 `GITHUB_TOKEN`：发布 job 仅有 `packages: write`，本机部署 job 仅有 `packages: read`。没有把 Qwen、Jev 或 GitHub 业务凭据上传到 Actions secrets；部署时仍从本机项目目录读取 `.env` 和 `.decagent/secrets/`。
 
-私有 GHCR 镜像必须允许 `DecAgent` 工作流读取。三个 package 的 **Package settings → Manage Actions access** 均已确认包含仓库 `shuaibilx/DecAgent`，角色为 **Admin**，高于读取镜像所需的权限；部署 job 声明 `packages: read`。截图与配置一致，**无需再次添加仓库或调整角色**。`v0.1.1` 与 `v0.1.2` release 均证明短期 `GITHUB_TOKEN` 可以成功登录和发布镜像。`v0.1.2` 随后的部署在数据库备份命令处因 PowerShell 5.1 参数转发破坏嵌套 `sh -ec` 脚本而失败，未创建备份或启动迁移。部署脚本已改为在 PostgreSQL 容器中直接运行 `pg_dump`，使用 Unix socket；本机 Windows PowerShell 5.1 预检和临时只读备份测试通过。真实备份和服务升级待 `v0.1.3` 验收。
+私有 GHCR 镜像必须允许 `DecAgent` 工作流读取。三个 package 的 **Package settings → Manage Actions access** 均已确认包含仓库 `shuaibilx/DecAgent`，角色为 **Admin**，高于读取镜像所需的权限；部署 job 声明 `packages: read`。截图与配置一致，**无需再次添加仓库或调整角色**。`v0.1.1` 与 `v0.1.2` release 均证明短期 `GITHUB_TOKEN` 可以成功登录和发布镜像。`v0.1.2` 随后的部署在数据库备份命令处因 PowerShell 5.1 参数转发破坏嵌套 `sh -ec` 脚本而失败，未创建备份或启动迁移。部署脚本已改为在 PostgreSQL 容器中直接运行 `pg_dump`，使用 Unix socket；本机 Windows PowerShell 5.1 预检和临时只读备份测试通过。此处的部署失败记录仅对应 `v0.1.2`；真实备份、迁移和后续服务状态见下方版本记录。
 
 三个 package 页面：[control](https://github.com/users/shuaibilx/packages/container/package/decagent-control)、[executor](https://github.com/users/shuaibilx/packages/container/package/decagent-executor)、[runner](https://github.com/users/shuaibilx/packages/container/package/decagent-runner)。
 
-首次 `v0.1.0` 已发布；部署修复的下一次验证计划使用 `v0.1.3` 标签：
+首次 `v0.1.0` 已发布；运行配置修复的下一次验证计划使用 `v0.1.4` 标签：
 
 ```powershell
-git tag v0.1.3
-git push origin v0.1.3
+git tag v0.1.4
+git push origin v0.1.4
 ```
 
 部署脚本 `ops/deploy/deploy-local.ps1` 会先检查当前 API、PostgreSQL、Compose 项目名、密钥文件和配置，再将数据库备份写入 `.decagent/backups/predeploy-<版本>-<UTC时间>.dump`；然后按 digest 拉取三类镜像、执行 Compose 迁移与更新，并等待 `/health` 返回 `ok`。脚本使用 `compose.yaml` 和 `compose.windows.yaml`，不运行 owner 初始化，不重写 `.env`，也不删除 Compose 卷。备份文件在 `.decagent/` 下，已被 Git 忽略。
@@ -129,5 +129,11 @@ git push origin v0.1.3
 当前 Windows 模拟环境使用 `compose.windows.yaml`，将 PostgreSQL 暴露到本机 `127.0.0.1:55432`，broker 暴露到本机 `127.0.0.1:8002`；MCP、业务 API 和 Worker 由 `python -m ops.local.start` 在宿主机运行。2026-10-16 验证时，Docker Compose 服务处于运行状态，API `/health` 返回 `ok`。隔离离线 smoke 通过；它使用临时项目，不重置当前用户数据。历史[本机使用指南](../../261014/1646_MCP业务Agent使用指南.md)按 schema 11 编写，而当前源码 README 是 schema 17，使用前需先按当前迁移与数据状态核对；不要对已有业务数据库盲目重建或重置。
 
 ## 部署状态
+
+### v0.1.3 当前状态
+
+Release run [38995053020](https://github.com/shuaibilx/DecAgent/actions/runs/38995053020) 的完整 CI、离线 smoke、GHCR 登录和三类镜像发布均通过。真实预部署备份 `.decagent/backups/predeploy-v0.1.3-20261017T025707Z.dump` 为 116,335 字节，SHA-256 为 `E241FBF44731D41D4C8EA6D69A9E27D0224ECEAEDA6A366F6747F37A8A50DAA6`；`pg_restore --list` 成功列出 202 个 TOC 项，数据库迁移也已完成。随后 API/Worker 因完整 runner 镜像引用未被提取为裸 digest而未通过健康检查。没有回滚数据库或删除卷；仅临时用裸 digest 环境重建 API/Worker 后，API `/health` 恢复 `ok`。PostgreSQL、broker 和三个核心数据卷保持不变。代码已修复镜像引用解析并通过回归测试；`v0.1.4` 仍需完成标准自动部署验收。独立 Linux 主机和新实例网页闭环仍未完成。
+
+### v0.1.2 历史记录
 
 本机 Windows Docker Desktop 的现有 Compose 服务健康，本机 Runner 在线。`v0.1.2` release run [38991318147](https://github.com/shuaibilx/DecAgent/actions/runs/38991318147) 的完整 CI、镜像构建、离线 smoke、GHCR 登录和三类镜像发布均通过；本机部署在数据库备份前因 Windows PowerShell 5.1 转发 `sh -ec` 参数失败而退出，未创建备份、未运行迁移、未更新 Compose。失败后 API 仍返回 `ok`，核心数据卷保持原名和原状，备份目录为空。已将脚本改为直接调用 `pg_dump` 的 Unix socket 模式；本机 Windows PowerShell 5.1 `-ValidateOnly` 通过，临时只读备份测试生成 116,335 字节有效 dump 并清理了临时文件。`v0.1.3` 仍须完成真实预部署备份、digest 部署和健康检查；新实例完整网页闭环与独立 Linux 主机验收仍未完成。
