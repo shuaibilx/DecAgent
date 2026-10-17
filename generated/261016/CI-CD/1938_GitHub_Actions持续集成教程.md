@@ -58,7 +58,7 @@ GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用�
 
 本机运行了 Ruff、Compose 安全配置回归和离线 Docker smoke，均通过。完整数据库集成套件由 GitHub Actions 的一次性 PostgreSQL 服务运行并通过；本机没有对当前业务数据库运行整套集成测试。
 
-main CI 运行 [38924980607](https://github.com/shuaibilx/DecAgent/actions/runs/38924980607) 在 commit `5d3c23b` 上通过 Python 3.11/3.13、数据库集成测试、安装包验证和隔离 Compose smoke。版本发布运行 [38931396165](https://github.com/shuaibilx/DecAgent/actions/runs/38931396165) 也通过完整 release gate，并成功发布三个 GHCR 镜像；首次部署及失败 job 重跑均在本机 Runner 的 GHCR 登录步骤收到 `denied`，备份与 Compose 更新未运行。用户已确认三个 package 均授予 `DecAgent` Admin Actions access，job 日志也显示 `packages: read`。本机 CD 尚未验收；登录流程修正后需用新补丁版本重新验证。GitHub Runner 的容器通过不替代目标 Linux 主机验收。
+main CI 运行 [38924980607](https://github.com/shuaibilx/DecAgent/actions/runs/38924980607) 在 commit `5d3c23b` 上通过 Python 3.11/3.13、数据库集成测试、安装包验证和隔离 Compose smoke。较新的 release 运行 [38988637726](https://github.com/shuaibilx/DecAgent/actions/runs/38988637726) 通过完整 release gate、wheel/MCP 检查和离线 Compose smoke，使用 `GITHUB_TOKEN` 登录 GHCR 成功，并发布了三个镜像。部署脚本随后在 PostgreSQL 标签检查处遇到 Windows PowerShell 5.1 的 Docker 模板引号解析错误，发生在备份和迁移之前。修复后的 `deploy-local.ps1 -ValidateOnly` 已在 Windows PowerShell 5.1 本机通过；完整 CD 仍要由下一个补丁版本验证，Linux 新实例验收也仍待办。
 
 安装 wheel 时，本机 pip 仍提示配置的 `pypi.ngc.nvidia.com` 索引发生 SSL EOF；命令跳过该索引并成功完成安装。这个警告来自当前本机 pip 索引配置，工作流没有设置该索引，不能据此预判 GitHub Runner 的网络结果。
 
@@ -72,16 +72,16 @@ main CI 运行 [38924980607](https://github.com/shuaibilx/DecAgent/actions/runs/
 
 ## 版本发布与 GHCR
 
-发布前先确认 `main` 对应的 CI 全绿，再在项目根目录推送语义版本标签；首次发布使用 `v0.1.0`：
+首次发布 `v0.1.0` 已完成。后续发布前先确认 `main` 对应的 CI 全绿，再在项目根目录推送新的语义版本标签；当前部署脚本修复计划通过 `v0.1.2` 完成真实部署闭环：
 
 ```powershell
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 `release.yml` 会再次执行完整 CI，因此 PR 代码不会直接进入发布。标签必须严格符合 `vMAJOR.MINOR.PATCH`，并指向 `main` 历史中的提交。发布 job 使用 GitHub 托管 runner 和只具备 `packages: write` 的短期 `GITHUB_TOKEN`；部署 job 仅获 `packages: read`。镜像 package 首次创建默认保持私有，源代码仓库仍公开；工作流通过短期令牌拉取镜像，不把模型或 GitHub 凭据保存为 Actions secret。
 
-`v0.1.0` 指向 `main` 提交 `5d3c23b`，完整 release gate 和 control、executor、runner 三个镜像的 GHCR 发布均已通过。三个私有 package 的 **Package settings → Manage Actions access** 已确认列出 `DecAgent`，角色为 **Admin**；部署 job 日志也确认短期 `GITHUB_TOKEN` 声明 `packages: read`。尽管如此，Docker 登录仍返回 `denied`，因此现有证据不支持“缺少 package Actions access”这一诊断。部署 workflow 正改用同一发布 job 已成功使用的 `docker/login-action`，并让登录、部署和清理步骤使用相同的 runner 临时 `DOCKER_CONFIG` 路径；该修正需由新的补丁版本实际验证。
+`v0.1.0` 的发布 gate 和三个 GHCR 镜像发布成功，但当次部署 GHCR 登录失败。三个私有 package 的 **Package settings → Manage Actions access** 均已确认列出 `DecAgent`，角色为 **Admin**，高于读取所需权限。修正后的 `v0.1.1` release run [38988637726](https://github.com/shuaibilx/DecAgent/actions/runs/38988637726) 已证明 `docker/login-action` 使用短期 `GITHUB_TOKEN` 可以登录并发布 control、executor、runner 镜像；部署 job 的登录步骤也成功。随后部署脚本在 `docker inspect` 的 Go 模板解析处失败（`function "com" not defined`），备份、迁移及 Compose 更新都没有运行。根因是 Windows PowerShell 5.1 处理带引号的点分隔标签键时改变了传给 Docker 的参数；脚本现改为输出 JSON 标签并解析，`-ValidateOnly` 已通过，等待新补丁版本完成实际部署验收。
 
 Package 设置入口：[control](https://github.com/users/shuaibilx/packages/container/package/decagent-control)、[executor](https://github.com/users/shuaibilx/packages/container/package/decagent-executor)、[runner](https://github.com/users/shuaibilx/packages/container/package/decagent-runner)。当前授权已达到 Admin；不需要重复添加。若以后再遇到认证问题，先检查 GHCR 登录步骤的 token 来源、job 的 `packages: read` 权限、Action access 列表和 runner 的原始登录日志，再决定是否调整 package 设置。
 

@@ -137,12 +137,16 @@ try {
     if ([string]::IsNullOrWhiteSpace($databaseId)) {
         throw 'The existing PostgreSQL service is not running; refusing to create a new instance.'
     }
-    $databaseState = (& docker inspect --format '{{.State.Health.Status}}|{{index .Config.Labels "com.docker.compose.project"}}' $databaseId).Trim()
-    if ($LASTEXITCODE -ne 0) {
+    $databaseInspection = & docker inspect --format '{{.State.Health.Status}}|{{json .Config.Labels}}' $databaseId
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($databaseInspection)) {
         throw 'Could not inspect the existing PostgreSQL container.'
     }
-    $databaseStateParts = $databaseState -split '\|', 2
-    if ($databaseStateParts.Count -ne 2 -or $databaseStateParts[0] -ne 'healthy' -or $databaseStateParts[1] -ne $composeConfig.name) {
+    $databaseStateParts = $databaseInspection.Trim() -split '\|', 2
+    if ($databaseStateParts.Count -ne 2) {
+        throw 'Docker returned incomplete PostgreSQL container state.'
+    }
+    $databaseLabels = $databaseStateParts[1] | ConvertFrom-Json
+    if ($databaseStateParts[0] -ne 'healthy' -or $databaseLabels.'com.docker.compose.project' -ne $composeConfig.name) {
         throw 'The existing PostgreSQL container is unhealthy or belongs to a different Compose project.'
     }
 
