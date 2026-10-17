@@ -121,6 +121,8 @@ jobs:
     needs: publish
     runs-on: [self-hosted, windows, x64, decagent-deploy]
     timeout-minutes: 30
+    env:
+      DOCKER_CONFIG: ${{ runner.temp }}\decagent-docker-config
     environment:
       name: local-deploy
     permissions:
@@ -133,14 +135,12 @@ jobs:
           persist-credentials: false
 
       - name: Log in to GHCR for image pulls
-        id: ghcr-login
-        shell: powershell
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCKER_CONFIG: ${{ runner.temp }}\decagent-docker-config
-        run: |
-          $env:GHCR_TOKEN | docker login ghcr.io --username $env:GITHUB_ACTOR --password-stdin
-          if ($LASTEXITCODE -ne 0) { throw 'GHCR login failed.' }
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
 
       - name: Back up and update the existing local Compose stack
         shell: powershell
@@ -159,5 +159,9 @@ jobs:
         if: always()
         shell: powershell
         run: |
-          docker logout ghcr.io | Out-Null
-          Remove-Item -LiteralPath $env:DOCKER_CONFIG -Recurse -Force -ErrorAction SilentlyContinue
+          if (-not [string]::IsNullOrWhiteSpace($env:DOCKER_CONFIG)) {
+            docker logout ghcr.io | Out-Null
+            if (Test-Path -LiteralPath $env:DOCKER_CONFIG) {
+              Remove-Item -LiteralPath $env:DOCKER_CONFIG -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }

@@ -118,14 +118,14 @@
 - [x] 12.6 汇总发布说明、已验证模型/平台、限制和规格来源，并导出 release report；核查所有任务的测试/文档证据及真实服务结果，缺少任一首发必需能力不宣称产品完成。
 - [x] 12.7 增加版本标签 release workflow，复用完整 CI，通过后发布 control/executor/runner 三个 GHCR 镜像及不可变 digest；验证非 semver 标签或非 main 祖先提交不能发布。验收：`v0.1.0` 在 `main` 上通过完整 CI 并成功发布三类镜像；隔离 Git 仓库验证 semver 格式与 main 祖先检查均接受合法输入并拒绝非法版本/非祖先提交。
 - [x] 12.8 配置 Windows Docker Desktop 的仓库级自托管 Runner，只允许本地受信任 release 部署工作流使用；验证 PR 与普通 CI 永不匹配该 Runner，登录后自动启动并等待 Docker engine。验收：仓库 Runner `decagent-local-deploy` 已注册并显示 online；`ci.yml` 的 PR/普通 CI jobs 均为 `ubuntu-latest`，仅 `release.yml` 的受保护部署 job 使用该 Runner；当前用户登录触发器已启用，启动日志确认 Docker Desktop Linux engine 就绪。
-- [ ] 12.9 编写本机 Compose 部署脚本：保留现有配置、Compose project 与数据卷，升级前备份 PostgreSQL，按 digest 拉取镜像，完成迁移并验证 API 健康；在当前服务上执行一次版本发布闭环并保留备份证据。进度：预检通过，但 release run `38931396165` 在 GHCR 登录处被拒；备份和 Compose 更新步骤未运行。三个私有 package 需要为 `shuaibilx/DecAgent` 开启 Actions Read access 后重试。
+- [ ] 12.9 编写本机 Compose 部署脚本：保留现有配置、Compose project 与数据卷，升级前备份 PostgreSQL，按 digest 拉取镜像，完成迁移并验证 API 健康；在当前服务上执行一次版本发布闭环并保留备份证据。进度：预检通过；首次部署与失败 job 重跑均在 GHCR 登录处被拒，备份和 Compose 更新步骤未运行。用户已确认三个私有 package 的 Manage Actions access 均包含 `DecAgent`，角色为 Admin；job 日志显示 token 有 `packages: read`。部署认证已切换为 `docker/login-action` 并修正 `DOCKER_CONFIG` 清理路径，等待新补丁版本实测。
 - [ ] 12.10 更新 CI/CD、部署、索引和 README 指南，说明 GHCR 包权限、Runner 安全边界、启动条件、失败排查、备份位置及 Linux 待办；检查所有文档链接和命令。
 
 ## Workflow follow-up
 
 - 用户已授权继续实施 `build-decagent-workbench`，并选择将版本化镜像发布到 GHCR、由本机 Windows Docker Desktop 自动部署。发布只接受经过完整 CI 且指向 `main` 祖先的版本标签；PR 与普通 CI 不使用本机 Runner。
 - 本机仓库级 Runner `decagent-local-deploy` 已安装、登录触发器已配置并于 2026-10-17 重新上线；任务启动日志记录 Docker Desktop Linux engine 已就绪。`local-deploy` environment 配置了版本标签部署策略。
-- 首次标签 `v0.1.0` 已指向 main 当前提交 `5d3c23b` 并推送。发布运行 [38931396165](https://github.com/shuaibilx/DecAgent/actions/runs/38931396165) 的 Python 3.11、Python 3.13、包/镜像构建和 GHCR 发布全部成功；本机部署 job 在 GHCR 登录时收到 `denied`，数据库备份与 Compose 更新均未执行。需给三个私有 GHCR package 添加仓库 `shuaibilx/DecAgent` 的 Actions Read access 后重试。
+- 首次标签 `v0.1.0` 已指向 main 提交 `5d3c23b` 并推送。发布运行 [38931396165](https://github.com/shuaibilx/DecAgent/actions/runs/38931396165) 的 Python 3.11、Python 3.13、包/镜像构建和 GHCR 发布全部成功；本机部署首次运行和重跑均在 GHCR 登录时收到 `denied`，数据库备份与 Compose 更新均未执行。用户确认三个私有 GHCR package 的 Manage Actions access 已包含 `shuaibilx/DecAgent`，角色为 Admin；job 日志显示 `GITHUB_TOKEN` 有 `packages: read`。已把部署登录改为与成功发布 job 相同的 `docker/login-action`，并将 `DOCKER_CONFIG` 提升到 job 级，待新补丁版本验证。
 - DecAgent 已推送到公开仓库 `https://github.com/shuaibilx/DecAgent`；main CI 运行 [38924980607](https://github.com/shuaibilx/DecAgent/actions/runs/38924980607) 全部通过。没有推送 Waku 源码。
 - Linux 主机新实例安装及部署验收仍是未完成任务；本机 Windows 现有服务健康和一次 GHCR 更新不能代替新实例网页闭环或 Linux 验收。
 - 功能、真实接入与发布验收完成后，再执行 OpenSpec 归档并检查主规格同步结果；归档不属于本实施清单的完成标记。
