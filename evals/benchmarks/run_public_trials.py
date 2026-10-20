@@ -83,6 +83,7 @@ def _execute_live_first_wave(args, command):
         command.error("live first-wave execution requires a new --report under benchmark evidence")
 
     from evals.benchmarks.live_public_runner import (
+        _json_ready,
         execute_live_first_wave,
         require_verified_candidate,
         validate_live_report_target,
@@ -136,7 +137,15 @@ def _execute_live_first_wave(args, command):
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False))
+    print(
+        json.dumps(
+            _json_ready(report),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+    )
     print(f"Live first-wave report: {report_path}", file=sys.stderr)
     return 0
 

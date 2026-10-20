@@ -1,10 +1,20 @@
 # Proposal
 
-## 当前执行快照（2026-10-20）
+## 历史执行快照（2026-10-20，首波 live 执行前）
 
 当前主 change 有 78 项任务，已完成 66 项，剩余 12 项：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E。`guest-sop-local-trial` 为 0/28。公开基准仍是 0/286；固定首波 4 个任务、8 个路线槽位已有受门禁保护的 live CLI，但本次没有派发 live 模型请求或 ledger-backed live route。另有 4 条 EnterpriseOps 脚本路线用于工程验收，均只执行一次只读查询并取得 0.0 官方任务分数；它们不是首波真实模型试次。当前代码工作树有未提交修改，精确候选 SHA 门禁因此阻止执行。9.6.B 的 EnterpriseOps 原始 verifier 工程验收与 9.6.C 的 τ bridge 工程 smoke 均已完成；这些结果都不代表 Agent 正确完成公开任务或首波真实模型验收。下方更早的状态作为历史证据保留。
 
 首波已有规范账本、模型/工具账本适配器、manifest 身份绑定、单路线入口、受控 provider callbacks、四任务环境预检和 first-wave phase scheduler。τ bridge 现拒绝不接受 `timeout_seconds` 的同步模型 callback，防止无界 callback 进入派发路径；用户模拟器/裁判时限现为请求级 cap，不再修改共享 channel 默认值。但无法强杀自行忽略 timeout 的任意 Python 同步函数。CLI 要求同一干净 HEAD 存在成功 GitHub CI，校验模型配置与 readiness、本地摘要固定的 EnterpriseOps 镜像、τ Python 3.12 runtime 和新报告路径，然后才可进入 supervisor 与规范账本。远端候选 `2b65a2a1afc21074385caa3874c139833e363bfb` 已修复离线测试依赖后，候选 `60ea6f6dce5855cb078c4796abeaa3708d988247` 的 CI 又发现 3 个平台/配置边界测试问题（2 个 τ 清单原始换行校验、1 个 dry-run 读取 live `.env`）。三处修复现位于本地未提交工作树，完整回归和远端复验待完成。本轮尚未进行模型 API 调用。四域真实受控响应闭环、强制取消、评分/清理故障注入和完整首波尚未验收，不能称为真实评测闭环。最新完整确定性回归为 `1906 passed, 18 skipped`（包含第三轮 CI 修复后的本机结果），这不改变 66/78 与 0/286 状态。
+
+## 最新真实评测状态（2026-10-20，首波 live 执行后）
+
+固定四域首波已在候选 `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 上实际派发，精确候选 CI run `39442012550` 全部通过。4 个任务共执行 ReAct/Plan 8 条路线；结果为 4 unknown、4 failed、0 completed，8/8 cleanup verified，8/8 官方评分未启动。首波工程闭环因此未通过，公开基准仍没有任何已评分任务；历史状态中的“尚未派发”只代表执行前快照。
+
+账本记载 4 次 Qwen 请求：1 次有 6,952 tokens 的已知用量，3 次 usage unknown；账单均不完整，代金券不能把未知费用折算成 `$0`。Jev 与 judge 请求数为 0。unknown 工具 attempt `find_user` 的 effect 被目录标成 `write`，结果未知；不能声称没有业务副作用。所有路线均不重放，首波剩余 smoke 也停止派发。机器报告和可读摘要分别见 `evals/benchmarks/evidence/public-first-wave-live-20261020.json` 与 `public-first-wave-live-summary-20261020.md`。
+
+本次执行也发现 CLI 在报告写盘成功后，会因将内存中的 Decimal 直接传给 `json.dumps` 而以退出码 1 结束。已通过 Decimal 回归测试修复 stdout 序列化，没有覆盖或重写已落盘的 live 报告，也没有再次派发模型/工具请求。现有账本只保留粗粒度失败类别，没有足够诊断信息离线识别派发失败阶段；下一次独立批次之前需要先做离线问题定位并补充不包含请求正文或密钥的诊断证据。
+
+9.6.F/G、10.3/10.4、10.10.D/E 继续保持未完成；当前 OpenSpec 勾选数仍为 `66/78`。本次真实试次没有证明任务质量、路线间性能、Jev 收益或成本优势。
 
 ### 2026-10-20 EnterpriseOps 原始 verifier 工程验收
 

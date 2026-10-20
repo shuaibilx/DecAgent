@@ -618,3 +618,15 @@ GitHub CI run `39435322121`（候选 `2b65a2a1afc21074385caa3874c139833e363bfb`�
 候选 `60ea6f6dce5855cb078c4796abeaa3708d988247` 的 GitHub CI run `39438714094` 中，Python 3.11 deterministic `3 failed, 1901 passed, 17 skipped`；Python 3.13 因 matrix `fail-fast` 被取消。失败由 dry-run 默认读取 live `.env`（1 项）和 `tau_process.PinnedTauRuntime` 对 frozen inventory 使用原始字节 SHA（2 项）引起。dry-run 现不加载 live runtime 或外部下载资产；live `--execute` 仍显式启用 runtime、source、image、readiness 门禁。τ process 与 `verify_tau_runtime.py` 改为共享 `task_inventory_sha256()`，保留冻结清单摘要并接受 GitHub Linux LF checkout。新增回归先失败后修复；受影响套件 `91 passed, 13 skipped`，tau-only verifier CLI 的独立解释器回归 `1 passed`，全量 deterministic `1906 passed, 18 skipped (224.22s)`，Ruff 与 OpenSpec strict 均通过。pinned τ 解释器另完成 `verify_tau_runtime.py` 80/80 初始化核验；全程 0 模型请求。没有公开路线、benchmark MCP 工具或正式评分派发。
 
 部署边界只读核验：GitHub API 当前返回该仓库 self-hosted runners 数量为 0；本机未发现 Actions Runner 服务或进程；默认分支 release workflow 仅依赖 `ubuntu-latest` 发布 GHCR，不存在 public workflow 调度本机 Runner 的 job。现有 `decagent-api`、worker、broker、proxy、Postgres 容器保持运行。故不需要注销/停用任何 Runner，也没有为满足计划而停服务；私有 Runner/CD 迁移仍属后续部署工作。
+
+### 2026-10-20 固定首波 live 派发与未闭环结果
+
+候选 `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 GitHub CI run `39442012550` 全部 job 成功后，`run_public_trials.py --mode smoke --phase first-wave --execute` 通过实时 readiness、环境和工具门禁，在规范 v7 ledger 中按冻结顺序调度 4 个案例 × ReAct/Plan。所有 8 个路线槽现为终态，phase 调度器没有重放其中任何 unknown/failure route。只读检查证据见 `evals/benchmarks/evidence/public-first-wave-live-20261020.json` 及其 summary。
+
+结果：CSM ReAct unknown (`tool_dispatch_error`)，CSM Plan failed (`agent_failure`)，ITSM ReAct unknown (`model_dispatch_error`)，ITSM Plan failed (`agent_failure`)，τ retail ReAct/Plan 均 unknown (`model_dispatch_error`)，τ telecom ReAct/Plan 均 failed (`environment_failure`)。8/8 session cleanup verified；所有路线均未调用官方 scorer，故没有 task score/result digest。批次保留的 40 个其余 smoke route 仍 pending，运行到此按计划停止。
+
+计量账本有 4 条 Qwen attempt：CSM ReAct primary settled 6,821 input + 131 output tokens，另 3 条用量 unknown；primary/τ simulator 各登记 2 条。唯一 settled attempt 的 API cost unknown，且没有任何 bill/voucher/cash record。Token 预留不能作为实际用量；优惠券也不等于 `$0` 供应商费用。没有 Jev 或 judge attempt。CSM ReAct 的一个工具 call `find_user` 在工具调用账本中为 unknown，effect=`write`；未记录工具结果，不能推断是否有业务副作用。cleanup verified 不等价于 effect absence verified。
+
+当前错误账本只保存粗粒度 `error_category`，没有 exception type、dispatch substage 或 sanitized transport classification。因此 `model_dispatch_error` 等不能说明请求是否到达上游，也不能据现有事实判断是网络、配置还是适配器失败。后续实验开始前应在离线切片中补足最小安全诊断字段与故障注入测试；保留旧 attempt unknown/预算预留，禁止同账本重试。
+
+该次执行已证明 candidate gate、supervisor/ledger route admission、真实 callback/provider 进入尝试后的 usage handling、unknown/failure 终止和 session cleanup 至少有实际路径被调用；它未验证 official scoring、任务完成、成功率、成本或 Jev 优势。运行结束时 stdout 报告序列化因 `Decimal` 抛出 `TypeError`，但 JSON 证据在异常前已成功写入。现已加 Decimal regression 并让 CLI 复用报告序列化器；没有重跑试次。9.6.F/G、10.3/10.4、10.10.D/E 均保持待办。

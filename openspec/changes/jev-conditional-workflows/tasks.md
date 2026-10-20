@@ -4,11 +4,19 @@
 
 默认执行顺序：1 → 2 → 3 → 4 → 5 → 6/7 → 8 → 10 → 11。第 9 组的数据冻结与工具实现可在第 2 组完成后并行开展，第 10 组依赖 5–9。每个编号均包含完成证据；性能任务只在条件满足时勾选。
 
-## 当前执行快照（2026-10-20）
+## 历史执行快照（2026-10-20，首波 live 执行前）
 
 任务总数 78，已完成 66，剩余 12：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E。固定首波为 4 个任务、8 个 ReAct/Plan 路线槽位；离线清单、画像、readiness 与本地镜像预检通过。受门禁保护的 first-wave CLI 和四任务环境预检现已接通，但当前代码工作树不干净，精确候选 SHA 门禁阻止 live dispatch；本轮未创建 live ledger 或派发模型/MCP 请求。新增 4 条 EnterpriseOps 脚本路线到达原始评分与清理，四条均为脚本只读查询后的 0.0 `task_failure`，不计真实首波或公开 benchmark；τ Plan retail/telecom 使用各自真实只读工具，经原始评分与清理的锁定 worker smoke 为 2 passed，τ ReAct simulator/original-scorer smoke 为 2 passed。τ bridge 现拒绝不接受 `timeout_seconds` 的同步模型 callback，用户模拟器/裁判上限通过请求级 timeout cap 生效，但不能强制中止忽略 timeout 的任意 Python callback。公开 benchmark 仍为 0/286；`guest-sop-local-trial` 的 28 项任务尚未开始。9.6.B 已完成 CSM/ITSM 原始 verifier 工程验收，9.6.C 已完成 τ 固定 train smoke；这些工程闭环均不代表 Agent 成功执行或质量结果。最新全量确定性套件为 `1899 passed, 17 skipped (259.61s)`；7 个核心 PostgreSQL/MCP/预算/路由集成文件 `80 passed, 0 skipped`；Python 3.11/3.13 关键文件各 37 passed。证据分别见 `postgres-core-integration-20261020.json` 与 `python-matrix-smoke-20261020.json`。Ruff、OpenSpec strict、wheel/sdist build 和 CLI 入口通过。全量集成与核心浏览器 E2E 未验收；跳过项不算通过，也不等同远端 CI。下方更早进度为历史记录，以本快照及其后更新为准。
 
 本轮新增 τ callback deadline 契约回归：旧实现下不带 `timeout_seconds` 的同步 callback 会被调用（新测试先复现）；现于 callback 执行前拒绝并关闭 worker。用户模拟器和裁判改为传递 90/120 秒单请求 timeout cap，与 route/batch deadline 取最小值，避免竞争请求继承临时改写的共享 channel timeout。六个相关 τ/公开执行/账本/模型派发/live-runner 文件共 `127 passed, 14 skipped`；全量确定性套件 `1899 passed, 17 skipped (259.61s)`。该修正不完成通用同步函数取消，不改变任何任务勾选，也没有模型、业务工具或评分器请求。
+
+## 当前执行状态（2026-10-20，首波 live 执行后）
+
+OpenSpec 勾选数仍是 `66/78`；本次真实试次没有满足成功闭环验收，因此没有勾选 9.6.F/G、10.3、10.4、10.10.D/E。候选 SHA `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 GitHub CI run `39442012550` 全部通过，固定四域首波已实际进入规范账本，共派发 8 条 ReAct/Plan 路线。机器结果见 `evals/benchmarks/evidence/public-first-wave-live-20261020.json`，人类可读总结见 `evals/benchmarks/evidence/public-first-wave-live-summary-20261020.md`。
+
+8 条路线状态为 4 unknown、4 failed、0 completed；8 条清理均 verified，8 条官方评分均为 `not_attempted`。CSM 的 `find_user` 工具调用为 unknown，工具目录 effect 标记为 `write`；不得据 cleanup verified 推断无业务副作用。Qwen 共登记 4 次请求，1 次用量可核实为 6,952 tokens，另外 3 次 usage unknown；没有供应商账单数据，任何一次都不能把费用记作 `$0`。Jev 与 judge 调用均为 0。unknown 路线不重试，另外 40 条 pending smoke 路线也不在本批次继续派发。
+
+当前错误日志只保留 `model_dispatch_error`、`tool_dispatch_error`、`agent_failure`、`environment_failure` 这类分类，没有可判定异常阶段的诊断字段；不能离线归因网络、配置或供应商问题。后续真实批次须先完成离线根因定位与不含 prompt、响应正文或密钥的安全诊断增强，再重新冻结试次身份和额度。旧快照中的“live 尚未派发/仍为 0 route attempts”仅描述首波执行前状态，不代表当前状态。
 
 ## 1. 基线留存与兼容准备
 

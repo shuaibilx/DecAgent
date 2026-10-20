@@ -1,5 +1,6 @@
 import json
 import os
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -230,7 +231,11 @@ def test_live_cli_requires_images_readiness_runtime_and_credentials_before_dispa
 
     def execute(plan, **kwargs):
         calls.append(("execute", kwargs))
-        return SimpleNamespace(), {"dry_run": False, "phase": "first-wave"}
+        return SimpleNamespace(), {
+            "dry_run": False,
+            "phase": "first-wave",
+            "actual_cost_usd": Decimal("0.00001"),
+        }
 
     monkeypatch.setattr(run_public_trials, "load_public_run_plan", load_plan)
     monkeypatch.setattr(live_public_runner, "execute_live_first_wave", execute)
@@ -250,7 +255,9 @@ def test_live_cli_requires_images_readiness_runtime_and_credentials_before_dispa
     assert calls[1][0] == "execute"
     assert calls[1][1]["candidate_sha"] == "a" * 40
     assert json.loads((tmp_path / report).read_text(encoding="utf-8"))["dry_run"] is False
-    assert "first-wave.json" in capsys.readouterr().err
+    output = capsys.readouterr()
+    assert json.loads(output.out)["actual_cost_usd"] == "0.00001"
+    assert "first-wave.json" in output.err
 
 
 def test_live_runner_preflights_all_four_environments_before_opening_ledger(monkeypatch):
