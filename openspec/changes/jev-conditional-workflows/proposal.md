@@ -1,7 +1,7 @@
 # Proposal
 ## 当前实施状态（2026-10-21）
 
-主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。候选隔离 ledger 已提交并推送为 `8ac43b80d3cf29f5ccbfd4f8104c6e82bebd225d`；其精确 SHA CI 尚待触发。前一候选 `b621d49ed1100c1fc6e765bd58113b608a9f9d88` 的 CI run `39493187866` 中，构建/Compose 与 Workbench job 已通过，Python 3.11/3.13 集成阶段仍运行。当前候选本机全量 deterministic `1931 passed, 18 skipped`，Ruff、OpenSpec strict 与 diff check 通过。历史首波的 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。完整 route worker、通用同步工具强制取消、新 cohort 与四域 live 评分闭环尚未完成；本轮没有新增 provider、Jev、业务工具或官方评分请求。
+主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。候选隔离 ledger 已提交并推送，历史 unknown 的有效 ledger 复读测试也已加入。候选 `fd74d6ae0c95d57db82fa975cd5e6dad1123c24a` 的 CI run `39495920749` 在 Ruff 阶段因该新增断言超出 100 列失败，Python 3.13 同样在 Ruff 失败后被取消；deterministic 和 integration 尚未开始，build/Compose 与 Workbench 通过。本地多行断言修复已完成，后续精确 SHA 的重跑尚待提交。全量 deterministic `1931 passed, 18 skipped`，OpenSpec strict 通过；全仓 Ruff 需在修复后复验。历史首波 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。完整 route worker、通用同步工具强制取消、新 cohort 与四域 live 评分闭环尚未完成；本轮没有新增 provider、Jev、业务工具或官方评分请求。
 
 ## 历史执行快照（2026-10-20，首波 live 执行前）
 

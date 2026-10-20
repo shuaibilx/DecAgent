@@ -372,7 +372,10 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
     preserved_legacy = PublicTrialLedger.resume(
         legacy_path, plan_root, global_jev_ledger=legacy_global_jev
     )
-    assert preserved_legacy.route_status(historical_trial["trial_id"], historical_route) == "unknown"
+    assert (
+        preserved_legacy.route_status(historical_trial["trial_id"], historical_route)
+        == "unknown"
+    )
     assert preserved_legacy.tool_attempt_status(historical_attempt) == "unknown"
     preserved_legacy.close()
 
