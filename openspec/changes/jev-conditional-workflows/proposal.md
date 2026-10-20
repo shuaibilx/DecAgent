@@ -1,7 +1,7 @@
 # Proposal
 ## 当前实施状态（2026-10-21）
 
-主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。最新已推送候选为 `b621d49ed1100c1fc6e765bd58113b608a9f9d88`，CI run `39493187866` 的构建/Compose 与 Workbench job 已通过，Python 3.11/3.13 job 尚在执行。当前本地另有候选隔离账本路径切片，尚未提交；全量 deterministic `1931 passed, 18 skipped`，Ruff、OpenSpec strict 与 diff check 通过。该切片后续需以新提交 SHA 重新通过 GitHub CI。历史首波的 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。完整 route worker、通用同步工具强制取消、新 cohort 与四域 live 评分闭环尚未完成；本轮没有新增 provider、Jev、业务工具或官方评分请求。
+主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。候选隔离 ledger 已提交并推送为 `8ac43b80d3cf29f5ccbfd4f8104c6e82bebd225d`；其精确 SHA CI 尚待触发。前一候选 `b621d49ed1100c1fc6e765bd58113b608a9f9d88` 的 CI run `39493187866` 中，构建/Compose 与 Workbench job 已通过，Python 3.11/3.13 集成阶段仍运行。当前候选本机全量 deterministic `1931 passed, 18 skipped`，Ruff、OpenSpec strict 与 diff check 通过。历史首波的 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。完整 route worker、通用同步工具强制取消、新 cohort 与四域 live 评分闭环尚未完成；本轮没有新增 provider、Jev、业务工具或官方评分请求。
 
 ## 历史执行快照（2026-10-20，首波 live 执行前）
 

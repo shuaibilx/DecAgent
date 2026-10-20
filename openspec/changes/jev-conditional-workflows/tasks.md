@@ -11,7 +11,7 @@
 本轮新增 τ callback deadline 契约回归：旧实现下不带 `timeout_seconds` 的同步 callback 会被调用（新测试先复现）；现于 callback 执行前拒绝并关闭 worker。用户模拟器和裁判改为传递 90/120 秒单请求 timeout cap，与 route/batch deadline 取最小值，避免竞争请求继承临时改写的共享 channel timeout。六个相关 τ/公开执行/账本/模型派发/live-runner 文件共 `127 passed, 14 skipped`；全量确定性套件 `1899 passed, 17 skipped (259.61s)`。该修正不完成通用同步函数取消，不改变任何任务勾选，也没有模型、业务工具或评分器请求。
 
 ## 当前执行状态（2026-10-21，CI 迁移夹具复核后）
-最新已推送候选 `b621d49ed1100c1fc6e765bd58113b608a9f9d88` 的 CI run `39493187866` 仍在执行：构建/Compose 与 Workbench job 已成功，Python 3.11/3.13 数据库集成阶段尚未返回终态。当前本地候选隔离 ledger 切片未提交，需在提交后对精确 SHA 重新跑 CI。该切片全量 deterministic `1931 passed, 18 skipped`，Ruff、OpenSpec strict 通过。真实评测保持关闭。
+当前代码候选 `8ac43b80d3cf29f5ccbfd4f8104c6e82bebd225d` 已推送，精确 SHA CI 尚待触发；其全量本机 deterministic `1931 passed, 18 skipped`，Ruff、OpenSpec strict 通过。前一候选 `b621d49ed1100c1fc6e765bd58113b608a9f9d88` 的 CI run `39493187866` 构建/Compose 与 Workbench job 已通过，Python 3.11/3.13 数据库集成仍在执行。新候选只增加 cohort/candidate 隔离 ledger 路径，不创建或派发评测试次；真实评测保持关闭。
 
 OpenSpec 任务为 **66/79 已完成，13 项未完成**：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E，以及复核后重新打开的 11.1。固定首波的 4 个任务、8 条 ReAct/Plan 路线已进入正式账本，候选 SHA `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 GitHub CI `39442012550` 通过；但 8 条路线终态为 4 unknown、4 failed、0 completed，8 条清理 verified、官方评分均未运行。CSM 一条 `find_user` 工具调用为 unknown，目录 effect 标注为 write，副作用未知，不能将清理完成解释为业务无副作用。Qwen 4 次请求中，1 次用量可知为 6,952 tokens 且费用 unknown，另 3 次用量/费用 unknown。Jev 和裁判请求为 0。首波路线不重放，公开 benchmark 仍为 0/286。
 
