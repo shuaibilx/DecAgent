@@ -1,0 +1,38 @@
+{
+  "schema_version": "public-evaluation-engineering-evidence-v1",
+  "evidence_id": "jev-unknown-cross-route-ledger-20261020",
+  "created_at_local": "2026-10-20",
+  "scope": "deterministic ledger regression only",
+  "status": "passed",
+  "candidate_commit_sha": null,
+  "candidate_sha_frozen": false,
+  "assertions": {
+    "unknown_jev_attempt_retains_global_reservation": true,
+    "second_route_jev_reservation_rejected_before_dispatch": true,
+    "second_route_local_jev_attempt_created": false,
+    "second_global_jev_attempt_created": false,
+    "unrelated_pending_route_remains_running": true
+  },
+  "validation": {
+    "command": "uv run --extra dev pytest evals/deterministic/test_business_public_trials.py evals/deterministic/test_public_model_dispatch.py evals/deterministic/test_business_public_execution.py -q",
+    "passed": 81,
+    "failed": 0,
+    "skipped": 0,
+    "external_model_requests": 0,
+    "benchmark_route_attempts": 0,
+    "mcp_calls": 0
+  },
+  "additional_checks": {
+    "ruff": "passed",
+    "openspec_validate_changes_strict": {
+      "passed": 6,
+      "failed": 0
+    },
+    "git_diff_check": "passed_with_windows_line_ending_warnings"
+  },
+  "limitations": [
+    "Does not exercise a real Jev provider request or live runner callback factory.",
+    "Does not count as a benchmark score or Jev performance result.",
+    "Does not prove four-domain official scoring or cleanup closure."
+  ]
+}

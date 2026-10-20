@@ -1,0 +1,35 @@
+{
+  "by_benchmark": {
+    "enterpriseops-gym": 20,
+    "tau-bench": 4
+  },
+  "dry_run": true,
+  "jev_semantic_status": "not_applicable_until_reviewed_natural_cases",
+  "ledger_created": false,
+  "live_model_calls": 0,
+  "manifest_digest": "01bc777f8fee588a7a2264568449cc0bbe9d1e7659d7eba1437af03e3dad0f41",
+  "mcp_calls": 0,
+  "mode": "smoke",
+  "model_profiles_digest": "4089967c5b91bef87dc8e63053a90f5722c87f49240f93198a60e121e8b9d7a2",
+  "resource_limits": {
+    "agent_machine_seconds": 1800,
+    "agent_model_requests": 200,
+    "agent_tokens": 1000000,
+    "judge_requests": 200,
+    "judge_tokens": 1000000,
+    "tau_steps": 200,
+    "tool_calls": 200,
+    "user_simulator_requests": 200,
+    "user_simulator_tokens": 1000000
+  },
+  "route_attempt_slots": 48,
+  "route_pair": [
+    "react_skill_mcp",
+    "plan_mcp"
+  ],
+  "schema_version": "public-evaluation-dry-run-v1",
+  "source_manifest_digest": "cd4712df4304708a6d7f95c3a0c9ec19efa524d84a563c6c0a54ef4d26c973a7",
+  "status": "preflight_passed_no_execution",
+  "task_denominator": 24,
+  "task_inventory_digest": "ca3075e0e1a2557e0948abbb4ce12594bbc058a7f0e94f4e902d73fee429c769"
+}

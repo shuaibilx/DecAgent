@@ -1,0 +1,149 @@
+{
+  "schema_version": "isolated-catalog-implementation-verification-1",
+  "created_at": "2026-10-18T10:58:59Z",
+  "status": "partial_implementation",
+  "source_is_uncommitted_working_tree": true,
+  "user_decision": "isolated_evaluation_catalog_reuses_production_plan_runtime",
+  "production_plugin_registry_unchanged": true,
+  "public_task_execution": {
+    "planned": 286,
+    "attempted": 0,
+    "success_rate": null
+  },
+  "suites": [
+    {
+      "name": "full_deterministic_before_final_evaluation_only_fixes",
+      "passed": 1493,
+      "skipped": 4,
+      "seconds": 180.39
+    },
+    {
+      "name": "full_postgresql_integration",
+      "passed": 596,
+      "skipped": 24,
+      "seconds": 1382.94,
+      "postgres_image": "postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+      "workers": 2
+    },
+    {
+      "name": "final_targeted_after_all_code_fixes",
+      "passed": 124,
+      "skipped": 1,
+      "seconds": 43.65,
+      "skip_reason": "optional pinned tau2 runtime is not installed"
+    },
+    {
+      "name": "postgres_authenticated_mcp_routes_after_timing_fix",
+      "passed": 2,
+      "skipped": 0,
+      "seconds": 21.78
+    },
+    {
+      "name": "enterpriseops_pinned_environment_readiness",
+      "passed": 2,
+      "skipped": 0,
+      "seconds": 13.39,
+      "evidence_scope": "infrastructure_only_not_task_score"
+    }
+  ],
+  "suites_overlap_do_not_sum": true,
+  "local_parallelism": {
+    "windows_unicode_path_failure": "execnet_bootstrap_unicode_encoding",
+    "resolved_using": "verified_existing_ascii_drive_alias",
+    "interrupted_serial_run": "not_counted_no_complete_result"
+  },
+  "checks": {
+    "ruff": "passed",
+    "openspec_strict": "passed",
+    "uv_lock_check": "passed",
+    "workbench_javascript_scripts": "3_passed",
+    "diff_check": "passed_with_cr_at_eol",
+    "temporary_postgresql_cleanup": "verified"
+  },
+  "builds": [
+    {
+      "name": "decagent-0.1.0-py3-none-any.whl",
+      "bytes": 551551,
+      "sha256": "efa0ed515c56b16d0e4f79eb802cd1dcdb01945279f5e005c7ee05786880c38f"
+    },
+    {
+      "name": "decagent-0.1.0.tar.gz",
+      "bytes": 45348830,
+      "sha256": "92d90cb8e9c760f528271523019242a8538c8a34a9a452ab9c8e3acc1cefb153"
+    }
+  ],
+  "timing_contract": {
+    "agent_machine": "agent_interval_minus_observed_human_and_simulator_wait",
+    "excluded_from_agent_latency": [
+      "environment_setup",
+      "private_scoring",
+      "cleanup"
+    ],
+    "total_wall_retained": true,
+    "failed_initialization_marked_not_started": true
+  },
+  "tool_outcomes": {
+    "known_mcp_error": "durable_raw_observation_react_recovery_or_plan_on_error",
+    "transport_uncertain_write": "durable_unknown_stop_no_replay"
+  },
+  "state_fingerprint": {
+    "enterpriseops_basis": "verified_snapshot_digest_and_restored_context",
+    "independent_live_database_fingerprint": "not_implemented"
+  },
+  "primary_readiness": {
+    "status": "failed_from_prior_single_authorized_retest",
+    "error_type": "OpenAITimeoutError",
+    "further_requests_this_increment": 0,
+    "further_retest_authorized": false
+  },
+  "jev_budget": {
+    "requests_this_increment": 0,
+    "remaining_authorized_usd": "0.992531602"
+  },
+  "openspec": {
+    "completed": 52,
+    "total": 60,
+    "remaining": [
+      "9.6",
+      "10.1",
+      "10.2",
+      "10.3",
+      "10.4",
+      "10.5",
+      "10.6",
+      "11.3"
+    ]
+  },
+  "pending": [
+    "frozen_business_2_historical_service_adapter",
+    "independent_restored_state_verification",
+    "reviewed_public_semantic_templates",
+    "live_model_callbacks_and_paired_ablations",
+    "user_simulator_cost_evidence",
+    "human_exploratory_workbench_sessions",
+    "full_public_benchmark_evaluation"
+  ],
+  "headline_performance_claim": "not_proven",
+  "independent_linux_acceptance": "not_run",
+  "report": "generated/261018/评测/1858_隔离评测工具注册与验证.md",
+  "source_base_commit": "7d68e780125642ba479015080c5ce9a664102ab1",
+  "source_sha256": {
+    "decagent/business/plans/evaluation_catalog.py": "59d7f2374b07aa976238ec7041d19402905ff488cce803943263f383fc840a63",
+    "decagent/business/plans/compiler.py": "b0f7122dbdb0e1c0f2be5fd4db028c7a123a59f0eb94cf315c408a90118a0851",
+    "decagent/business/plans/bindings.py": "4ffb82701d2f99931e008f7b4ce3bf97eb392c523ff25c203e16a726a827d70e",
+    "decagent/business/plans/schema_tools.py": "adf80f6f980adabf2c6dec289ce7c3d144abfe0b03da0ae16bce97d42642bc18",
+    "decagent/business/plans/runtime.py": "0cc16486c6b346838fd2d005a0e84dc015f3d1971c84e7d18d0eb4954d5b6414",
+    "decagent/evaluation/business/routes.py": "656516c98197ace3d418fe68db1cf4b30f3880e510fc5e832797fbf1dcd72dd3",
+    "decagent/evaluation/business/journal.py": "d54d785713b6598f5e1c5a8ab6ec617d8b7c0f0e5a12fff76b70a53cd61af5a4",
+    "decagent/evaluation/business/public_session.py": "d1918186caae02ccc4c801403560d1308a57b0e02b4e48f2e6f34c58f7fc8a00",
+    "decagent/evaluation/business/tau_tools.py": "f779a61a6a05c9c3325676497a0a55d556dd565972d4fd63e15560c5d38e60e1",
+    "evals/deterministic/test_business_evaluation_catalog.py": "197b7ce5c3769aeab53b8926fb0569b8e277e8f15239abf6fc1a8828c746cc59",
+    "evals/deterministic/test_business_evaluation_journal.py": "f794bc184add177227c264cff4568e05f939dd787979517073dd7296b0e75a73",
+    "evals/deterministic/test_business_public_evaluation_session.py": "31ac7bbf51f993f67da384afc975e2252caaf61f3e14b8d943f98fa51c95aa92",
+    "evals/deterministic/test_business_tau_tools.py": "e563b9e72e86af2101e1a0945ecbdfd19eb27706cfb9d53652e9f7effa2c49f3",
+    "evals/deterministic/test_business_route_execution.py": "628e56ec17f8a30aeda6ba6f8e33c56f2ce44e8d6ae8896cb04b1b78b2447c6c",
+    "openspec/changes/jev-conditional-workflows/design.md": "404f3bbfbc75cba25e386d316b4d7e5e1d93a9b339186b60b42cb4cdf747b212",
+    "openspec/changes/jev-conditional-workflows/specs/selective-business-evaluation/spec.md": "e2e922b66e7f373de66286e33344bc1933196e312cc9ebeb1839034a58dc2085",
+    "openspec/changes/jev-conditional-workflows/tasks.md": "546b3abfca3532f0497065e4c5c0cbfead8ab5a3ce77458cd8c03bb6a5ea4a8d"
+  }
+}

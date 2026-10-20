@@ -1,0 +1,624 @@
+{
+  "schema_version": "tau2-offline-runtime-readiness-1",
+  "created_at": "2026-10-20T02:26:38.480901+00:00",
+  "status": "not_ready",
+  "source_commit": "96a3ef92329baf908ffe9dfe188cea34e8701d2a",
+  "source_archive_sha256": "569d189426709e74efdc9cd8117f264e217ad1ec234751c40131eb7b97dade8f",
+  "verified_source_and_domain_files": 279,
+  "upstream_lock_sha256": "6404e490ae418d1d62afda97641605dab1684c2b830b6b3de34e7685ef2153c7",
+  "python": "3.12.7",
+  "package_version": "1.0.1",
+  "runtime_additions": {
+    "websockets": "15.0.1"
+  },
+  "initialized_cases": 80,
+  "ready_cases": 40,
+  "failed_cases": 40,
+  "network_attempts_blocked": 0,
+  "model_requests": 0,
+  "formal_task_attempts": 0,
+  "task_success_rate": null,
+  "scope": "Official test task loading, initialization and fresh-state equality only",
+  "cases": [
+    {
+      "domain": "retail",
+      "case_id": "100",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "101",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "102",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "108",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "111",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "12",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "17",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "18",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "26",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "27",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "32",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "33",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "36",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "38",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "39",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "40",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "42",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "45",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "49",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "5",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "51",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "53",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "55",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "56",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "60",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "61",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "62",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "64",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "65",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "68",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "70",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "71",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "74",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "77",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "79",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "86",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "9",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "90",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "94",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "97",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_sms_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_on[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_storage_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_on[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|break_app_both_permissions|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_on[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|break_app_storage_permission|data_mode_off|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_wifi_calling|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_wifi_calling|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|break_app_both_permissions[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|break_app_both_permissions|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_network_preference|bad_wifi_calling|break_app_sms_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_network_preference|break_app_both_permissions[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_network_preference|break_app_sms_permission|user_abroad_roaming_disabled_on[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_network_preference|data_mode_off|user_abroad_roaming_disabled_on[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]break_apn_mms_setting|user_abroad_roaming_enabled_off[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]break_app_sms_permission|data_mode_off[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]airplane_mode_on|bad_network_preference|bad_vpn|data_mode_off|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]airplane_mode_on|bad_network_preference|data_mode_off|data_saver_mode_on[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]airplane_mode_on|data_mode_off|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_enabled_off[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]airplane_mode_on|data_saver_mode_on|user_abroad_roaming_disabled_on[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]bad_network_preference|bad_vpn|data_mode_off|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]bad_network_preference|bad_vpn|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]bad_network_preference|bad_vpn|user_abroad_roaming_disabled_off[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]bad_vpn|data_mode_off|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]data_saver_mode_on|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|contract_end_suspension|lock_sim_card_pin[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|contract_end_suspension|lock_sim_card_pin|unseat_sim_card[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|lock_sim_card_pin|overdue_bill_suspension[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|lock_sim_card_pin|unseat_sim_card[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|overdue_bill_suspension[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|contract_end_suspension|lock_sim_card_pin|unseat_sim_card[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|lock_sim_card_pin[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|lock_sim_card_pin|overdue_bill_suspension[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|overdue_bill_suspension[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]break_apn_settings|contract_end_suspension|lock_sim_card_pin[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]break_apn_settings|contract_end_suspension|lock_sim_card_pin|unseat_sim_card[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]break_apn_settings|lock_sim_card_pin[PERSONA:None]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]break_apn_settings|lock_sim_card_pin|overdue_bill_suspension[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]contract_end_suspension|unseat_sim_card[PERSONA:Hard]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]overdue_bill_suspension|unseat_sim_card[PERSONA:Easy]",
+      "status": "failed",
+      "error_type": "UnicodeDecodeError"
+    }
+  ]
+}

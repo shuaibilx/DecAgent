@@ -1,0 +1,131 @@
+{
+  "checks": [
+    {
+      "failed": 0,
+      "name": "full deterministic suite",
+      "passed": 1667,
+      "seconds": 228.73,
+      "skip_reasons": {
+        "optional_tau_in_application_not_installed": 1,
+        "tau_runtime_not_selected": 9,
+        "windows_symlink_unavailable": 3
+      },
+      "skipped": 13
+    },
+    {
+      "name": "targeted final response/scoring/route/journal/provenance",
+      "passed": 139,
+      "skipped": 0
+    },
+    {
+      "name": "actual pinned Enterprise verifier on synthetic configs + MockTransport",
+      "passed": 4,
+      "seconds": 0.78,
+      "skipped": 0
+    },
+    {
+      "name": "actual Enterprise CSM/ITSM Docker restore + synthetic original scorer checks",
+      "passed": 2,
+      "seconds": 16.39,
+      "skipped": 0
+    },
+    {
+      "name": "PostgreSQL and authenticated loopback MCP route integration",
+      "passed": 2,
+      "seconds": 21.15,
+      "skipped": 0
+    },
+    {
+      "covers_separately": 9,
+      "name": "full tau process suite with explicitly selected original runtime",
+      "passed": 24,
+      "seconds": 74.05,
+      "skipped": 0
+    },
+    {
+      "name": "full Ruff",
+      "status": "passed"
+    },
+    {
+      "failed": 0,
+      "name": "strict OpenSpec changes",
+      "passed": 6
+    },
+    {
+      "name": "benchmark source and local immutable image gate",
+      "status": "passed"
+    },
+    {
+      "name": "wheel build and outside-source no-dependency installation imports/CLI",
+      "status": "passed"
+    },
+    {
+      "name": "disposable PostgreSQL test/template cleanup",
+      "remaining": 0
+    }
+  ],
+  "comparison_manifest": {
+    "digest": "5581d678e7daae3d0e7b0b46c1957b057f7763af9cdf141980daaefc82bd3a3f",
+    "full_cases": 286,
+    "id": "decagent-public-workflow-comparison-v2",
+    "response_policy_digest": "e071486e245f950c9a7b1b9f5a24668689e001c1f0cb5f6bf3a11b51830e1412",
+    "smoke_trials": 24,
+    "status": "pre_registered_not_run"
+  },
+  "created_at_utc": "2026-10-19T06:42:38.167725+00:00",
+  "formal_benchmark": {
+    "cases_attempted": 0,
+    "cases_planned": 286,
+    "trials_attempted": 0
+  },
+  "git_head": "7d68e780125642ba479015080c5ce9a664102ab1",
+  "historical_unknown_model_requests": "preserved; neither retried nor charged as zero",
+  "limitations": [
+    "No original official business task + real main model + full original verifier trial was executed.",
+    "All model callbacks in tests are synthetic and their nominal token/cost values are not real billing evidence.",
+    "Summary callback injection does not implement or bypass the caller provider/readiness/budget authorization.",
+    "Observed source ID/format validation does not prove semantic factual correctness.",
+    "Intermediate forbidden side effects are not_measured/null, never inferred as zero from final task scores.",
+    "Old in-application tau import and three Windows symlink tests remain skipped; independent Linux acceptance is pending.",
+    "No complete PostgreSQL suite, browser E2E, remote CI/CD run or production deployment was performed in this increment."
+  ],
+  "new_live_model_requests": {
+    "jev": 0,
+    "official_judge": 0,
+    "primary": 0,
+    "user_simulator": 0
+  },
+  "openspec": {
+    "guest_sop_local_trial": {
+      "complete": 0,
+      "total": 28
+    },
+    "jev_conditional_workflows": {
+      "complete": 57,
+      "task_9_6": "partial",
+      "task_9_8": "offline implementation complete",
+      "total": 62
+    }
+  },
+  "python_version": "3.13.13",
+  "review": {
+    "enterprise_scoring": "spec/code quality reviewed; sys.path defect fixed and re-reviewed",
+    "final_response": "spec/code quality reviewed; unknown-stop and shared UTF-8 limits fixed and re-reviewed"
+  },
+  "schema_version": "enterprise-scoring-final-response-implementation-1",
+  "scope": "offline implementation and infrastructure verification; not a formal public score",
+  "source_sha256": {
+    "decagent/evaluation/business/comparison.py": "68134966e01d7fc2977100820267053858d64eb9ae49431331629d99c4d60ad7",
+    "decagent/evaluation/business/enterprise_scoring.py": "60bea613c85dc8abad9c4895a3ead2899f80e2aab969cef15333c269a60bbf41",
+    "decagent/evaluation/business/final_response.py": "ebbebab0de4fe8965b3a3bb48524a2e1852c04467e4e51ca300220e7ccabb022",
+    "decagent/evaluation/business/journal.py": "11eb19ee40ea462c0f80918f6c247908e11ae4dc6ecce4c354b9f583ea407cc5",
+    "decagent/evaluation/business/public_session.py": "be5876ee4c47e83caf81b2dd80c3915c08eea8fa85b66d08be5b2c7c9cf7947f",
+    "decagent/evaluation/business/routes.py": "632396b15e2f9a978276b14c9e4ee8e11f9f7bef6e2215184a63321235512a0a",
+    "evals/benchmarks/build_trial_manifest.py": "d79b747ee8326a1b1b07f1278336659d1a938254202c237bd0b6218d282a5f77",
+    "evals/deterministic/test_business_enterprise_scoring.py": "4a1d7228607c9cc0ddfe130cffb92f77b3bfe3a118aef02fb21bdcb5a75eed88",
+    "evals/deterministic/test_business_final_response.py": "e70bd7f14abfa20ace372f9294ff785badbdcafc75b671b01b49452ac1724f22",
+    "evals/integration/test_business_enterprise_environment.py": "932c5d9c10d57f26e1493fbe84fb50866532ca4e3a8c196e60d4350bbfa8c103",
+    "evals/integration/test_business_enterprise_scoring_offline.py": "b13d0d4eb7e2fb86806ef54e63c04950af393d3e950f0470d18c14e8f584a075"
+  },
+  "uncommitted_changes": true
+}

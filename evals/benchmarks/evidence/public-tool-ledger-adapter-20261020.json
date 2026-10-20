@@ -1,0 +1,47 @@
+{
+  "source_sha256": {
+    "decagent/evaluation/business/public_resources.py": "fce3172b7f60d8560964d00d19c827637d4e0fa2f4b0341666f8bd82490c46cb",
+    "decagent/evaluation/business/routes.py": "c917fb8162d618ff4c09d0d2dc8eba91a5b2d2cb0ee69a187b07176c506fcd61",
+    "evals/deterministic/test_business_public_trials.py": "563b8956e1de528e0738c1f00c853231b4a2cab51d46af1f69b2e20167937698",
+    "evals/deterministic/test_business_route_execution.py": "8b2c039c997e752964d7ff860d723044b55c9f75445e733c8888183699643f4b",
+    "openspec/changes/jev-conditional-workflows/tasks.md": "b177e73426e72bd1ad5e479f293589bd5196ec1d9cf693584a7a2e324eb93e81",
+    "openspec/changes/jev-conditional-workflows/design.md": "4cfb7b327dc251733965582908b239c68a93c035db41d57d5261c5749b478e69"
+  },
+  "limitations": [
+    "No live provider callback or real public benchmark trial was executed.",
+    "Model-attempt ledger adapters, cancellable route deadline, official scoring lifecycle, cleanup, and route scheduler stop policies remain pending.",
+    "The public evaluation CLI still rejects --execute."
+  ],
+  "schema_version": "public-tool-ledger-adapter-verification-1",
+  "scope": "Offline ledger adapter and controlled PlanRuntime integration; not a public benchmark run",
+  "status": "engineering_verification_only",
+  "checks": {
+    "deterministic_tests": {
+      "failed": 0,
+      "skipped": 0,
+      "elapsed_seconds": 40.34,
+      "passed": 81,
+      "command": ".venv\\Scripts\\python.exe -m pytest evals/deterministic/test_business_public_trials.py evals/deterministic/test_business_route_execution.py -q"
+    },
+    "openspec_strict": {
+      "failed": 0,
+      "passed": 6,
+      "command": "openspec validate --changes --strict"
+    },
+    "ruff": "passed"
+  },
+  "external_activity": {
+    "jev_requests": 0,
+    "provider_cost_usd": "no provider requests made",
+    "public_benchmark_trials": 0,
+    "qwen_requests": 0
+  },
+  "created_at": "2026-10-19T17:11:14Z",
+  "implementation": {
+    "post_dispatch_error": "unknown; route cannot be replayed",
+    "adapter": "LedgeredToolGateway",
+    "tool_data_persistence": "command plus argument/result SHA-256 digests and elapsed time",
+    "pre_dispatch_rejection": "verified not_sent",
+    "route_hook": "ControlledRoutes.gateway_factory"
+  }
+}

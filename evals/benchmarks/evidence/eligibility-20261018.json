@@ -1,0 +1,135 @@
+{
+  "schema_version": "business-evaluation-eligibility-1",
+  "evidence_mode": "offline_cardinality_only",
+  "headline_benchmarks": [
+    "enterpriseops_gym",
+    "tau2_bench"
+  ],
+  "datasets": [
+    {
+      "version": "business-synthetic-reference-v2",
+      "checksum": "974c7425830481e3bbc0a3719b0abd70e60b7a2d2539ef46877988fa80fc1aba",
+      "split": "development",
+      "case_count": 40,
+      "label_source": "synthetic-reference",
+      "use": "auxiliary_regression_only",
+      "policy_eligible": false,
+      "reasons": [
+        "auxiliary_regression_only",
+        "no_reviewed_validation_cohort"
+      ]
+    },
+    {
+      "version": "business-memory-reference-v1",
+      "checksum": "820a732a3036aa1fa1d3bf354aedd5ab8b716ca4f33ea7867c228accea0b5989",
+      "split": "development",
+      "case_count": 40,
+      "label_source": "synthetic-reference",
+      "use": "auxiliary_regression_only",
+      "policy_eligible": false,
+      "reasons": [
+        "auxiliary_regression_only",
+        "no_reviewed_validation_cohort"
+      ]
+    }
+  ],
+  "families": [
+    {
+      "dataset_version": "business-synthetic-reference-v2",
+      "family": "category",
+      "maximum_automatic_samples": 40,
+      "minimum_automatic_samples": 100,
+      "sample_gate_possible": false,
+      "measured_accuracy": null,
+      "selected_threshold": null,
+      "status": "insufficient_samples"
+    },
+    {
+      "dataset_version": "business-synthetic-reference-v2",
+      "family": "explicit_assignee",
+      "maximum_automatic_samples": 40,
+      "minimum_automatic_samples": 100,
+      "sample_gate_possible": false,
+      "measured_accuracy": null,
+      "selected_threshold": null,
+      "status": "insufficient_samples"
+    },
+    {
+      "dataset_version": "business-synthetic-reference-v2",
+      "family": "multi_person",
+      "maximum_automatic_samples": 40,
+      "minimum_automatic_samples": 100,
+      "sample_gate_possible": false,
+      "measured_accuracy": null,
+      "selected_threshold": null,
+      "status": "insufficient_samples"
+    },
+    {
+      "dataset_version": "business-synthetic-reference-v2",
+      "family": "operation",
+      "maximum_automatic_samples": 40,
+      "minimum_automatic_samples": 100,
+      "sample_gate_possible": false,
+      "measured_accuracy": null,
+      "selected_threshold": null,
+      "status": "insufficient_samples"
+    },
+    {
+      "dataset_version": "business-synthetic-reference-v2",
+      "family": "person",
+      "maximum_automatic_samples": 40,
+      "minimum_automatic_samples": 100,
+      "sample_gate_possible": false,
+      "measured_accuracy": null,
+      "selected_threshold": null,
+      "status": "insufficient_samples"
+    },
+    {
+      "dataset_version": "business-synthetic-reference-v2",
+      "family": "work_blockage",
+      "maximum_automatic_samples": 40,
+      "minimum_automatic_samples": 100,
+      "sample_gate_possible": false,
+      "measured_accuracy": null,
+      "selected_threshold": null,
+      "status": "insufficient_samples"
+    },
+    {
+      "dataset_version": "business-memory-reference-v1",
+      "family": "memory_read_needed",
+      "maximum_automatic_samples": 10,
+      "minimum_automatic_samples": 100,
+      "sample_gate_possible": false,
+      "measured_accuracy": null,
+      "selected_threshold": null,
+      "status": "insufficient_samples"
+    },
+    {
+      "dataset_version": "business-memory-reference-v1",
+      "family": "memory_relevant",
+      "maximum_automatic_samples": 10,
+      "minimum_automatic_samples": 100,
+      "sample_gate_possible": false,
+      "measured_accuracy": null,
+      "selected_threshold": null,
+      "status": "insufficient_samples"
+    },
+    {
+      "dataset_version": "business-memory-reference-v1",
+      "family": "memory_write",
+      "maximum_automatic_samples": 20,
+      "minimum_automatic_samples": 100,
+      "sample_gate_possible": false,
+      "measured_accuracy": null,
+      "selected_threshold": null,
+      "status": "insufficient_samples"
+    }
+  ],
+  "target_accuracy": 0.95,
+  "minimum_automatic_samples": 100,
+  "qualified_policy": null,
+  "holdout_used_for_tuning": false,
+  "live_calls": 0,
+  "threshold_scan_status": "not_run_no_matching_prediction_cache",
+  "status": "not_eligible"
+}

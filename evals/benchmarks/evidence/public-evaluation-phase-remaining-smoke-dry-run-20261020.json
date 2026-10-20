@@ -1,0 +1,108 @@
+{
+  "batch_limits": {
+    "agent_qwen_requests": 300,
+    "agent_qwen_tokens": 3000000,
+    "judge_qwen_requests": 40,
+    "judge_qwen_tokens": 400000,
+    "qwen_requests": 500,
+    "qwen_tokens": 5000000,
+    "tool_calls": 1600,
+    "user_simulator_qwen_requests": 160,
+    "user_simulator_qwen_tokens": 1600000,
+    "wall_seconds": 14400
+  },
+  "by_benchmark": {
+    "enterpriseops-gym": 18,
+    "tau-bench": 2
+  },
+  "dry_run": true,
+  "initial_smoke_wave": [
+    {
+      "benchmark": "enterpriseops-gym",
+      "case_id": "task_20260106_161859_265_00364ece_0e836ce8",
+      "domain": "csm",
+      "split": "oracle",
+      "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+    },
+    {
+      "benchmark": "enterpriseops-gym",
+      "case_id": "task_20260115_201951_323_391f1eff_659b9dae",
+      "domain": "itsm",
+      "split": "oracle",
+      "trial_id": "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78"
+    },
+    {
+      "benchmark": "tau-bench",
+      "case_id": "0",
+      "domain": "retail",
+      "split": "train",
+      "trial_id": "41bf7b951bd408fa6da7184af2b12d959db1c87b1ed5806e2ae74530ce9bb1d0"
+    },
+    {
+      "benchmark": "tau-bench",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Hard]",
+      "domain": "telecom",
+      "split": "train",
+      "trial_id": "77b783f49a0b5492cdb2002fc13ef5d0eb34c2324679d1430cb85b92b25bd50b"
+    }
+  ],
+  "initial_wave_route_attempt_slots": 8,
+  "initial_wave_task_count": 4,
+  "jev_semantic_status": "not_applicable_until_reviewed_natural_cases",
+  "ledger_created": false,
+  "live_model_calls": 0,
+  "manifest_digest": "82ba20b73f4a05aec40a73bad88a0677214ec985687fd8414fff13fda320a21e",
+  "mcp_calls": 0,
+  "mode": "smoke",
+  "model_profiles_digest": "4d05cc0a47477ccf55acde9541691e934904177be26e0d9d99a5ef06bb73612d",
+  "phase": "remaining-smoke",
+  "resource_limits": {
+    "agent_machine_seconds": 1800,
+    "agent_model_requests": 200,
+    "agent_tokens": 1000000,
+    "judge_requests": 200,
+    "judge_tokens": 1000000,
+    "tau_steps": 200,
+    "tool_calls": 200,
+    "user_simulator_requests": 200,
+    "user_simulator_tokens": 1000000
+  },
+  "route_attempt_slots": 48,
+  "route_pair": [
+    "react_skill_mcp",
+    "plan_mcp"
+  ],
+  "schema_version": "public-evaluation-dry-run-v1",
+  "selected_by_benchmark": {
+    "enterpriseops-gym": 18,
+    "tau-bench": 2
+  },
+  "selected_route_attempt_slots": 40,
+  "selected_task_count": 20,
+  "selected_trial_ids": [
+    "f9ca5565fdb3d47f35480da094503a455ee589d08492ba9a4a87569d1a908f2b",
+    "a8c9dd4e78e85392d3af574456d042f00f4264310f3e33e8a4e63820e59862c7",
+    "8c0954b05c4edf936d636b15eab283ab90084adec312658599706376cb473357",
+    "97be25c573d95101783a87a0c510bb97999807e3f163b49727ea7c1952643ad3",
+    "7aeb31387201fc7e80dbda5b438d680d5523969d1f5a91f0366b6d88b698a319",
+    "7326b9b64c0740b2e88402c3d64c1d6801e0594d9923380f7424ceed49b6a894",
+    "8523bd90863f36d4d026f8647d0154c4342113aa80e292f560cd0f8c061679f3",
+    "c13c371b7b22a3af7f90ea95a125bfed089512fce4c6eda165b05251c843c060",
+    "6c50d98e0639782f0162bbf912747406600bfc16ca4fc8be03a78f1e6b3d543f",
+    "bc8b846bcdbfe4c6a36c402e61933d879209327932c7fc7eeaa86a3d7bbce648",
+    "994442f3422c44d1fcdd34b87bce311c2e2f50658bc14210a583d2feae860996",
+    "b951a0d751223449a632bdaa77ef03c52196e315b1d2e8af49dbdebb16620776",
+    "8204efb9cfdd0adf00a656a3c7f0f22d7ccdc26131d96e2697804288609275b8",
+    "0d5fa2513795ac16f6ebaab4e6b4254136d9480d1a58057974e26fa1896a2f87",
+    "8b6e932162b2659d6a55b76d6ff6b1c04359b79420dd2572c144ca2e2a94a47c",
+    "ab02d9e42ab42068eeca5b7ed6688af2dd46c09f76959abd39c7ec1f6317fc6d",
+    "4cde5eb22bc9b8525b597d717684858bb21df090acbc6575b6ec16c28a2a0789",
+    "e2e8e855cc45e3e8a499c043ea791cb16bd9d7f7db69d152680851d5ef5c5fe5",
+    "0984bd2e81dc0037730c4158168e66c696f9abe8c49bebfbe7c7a03471394fe1",
+    "44d281e0ea9717ef610e95c82568e35dc0b4d713b875ba2b6de850b3e243a0fe"
+  ],
+  "source_manifest_digest": "cd4712df4304708a6d7f95c3a0c9ec19efa524d84a563c6c0a54ef4d26c973a7",
+  "status": "preflight_passed_no_execution",
+  "task_denominator": 24,
+  "task_inventory_digest": "ca3075e0e1a2557e0948abbb4ce12594bbc058a7f0e94f4e902d73fee429c769"
+}

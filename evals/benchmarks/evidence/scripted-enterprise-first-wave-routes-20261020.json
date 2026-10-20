@@ -1,0 +1,81 @@
+{
+  "business_writes": 0,
+  "limitations": [
+    "Only the two fixed EnterpriseOps first-wave cases were exercised here.",
+    "Model outputs were deterministic scripted fixtures; no Qwen, Jev or other provider was called.",
+    "Both routes intentionally made one read-only tool call and were expected to fail the task verifiers; no task-success claim is made.",
+    "This is not a public benchmark score and does not complete the eight-route first wave."
+  ],
+  "manifest_digest": "82ba20b73f4a05aec40a73bad88a0677214ec985687fd8414fff13fda320a21e",
+  "model_profiles_digest": "4d05cc0a47477ccf55acde9541691e934904177be26e0d9d99a5ef06bb73612d",
+  "observed_at_utc": "2026-10-20T12:00:26+00:00",
+  "provider_requests": 0,
+  "routes": [
+    {
+      "case_id": "task_20260106_161859_265_00364ece_0e836ce8",
+      "cleanup": {
+        "environment_closed": true,
+        "session_closed": true,
+        "verified": true
+      },
+      "domain": "csm",
+      "evidence_limit": "scripted route/official scoring engineering evidence only; not public model-quality or performance data",
+      "execution_status": "complete",
+      "failure_kind": "task_failure",
+      "official_score": {
+        "forbidden_side_effects": null,
+        "judge_requests": 0,
+        "source": "enterpriseops-gym-original-verifier",
+        "status": "scored",
+        "success": false,
+        "value": 0.0
+      },
+      "provider_requests": 0,
+      "route": "react_skill_mcp",
+      "scripted_model_requests": 2,
+      "scripted_model_tokens": 16,
+      "tool_calls": [
+        {
+          "name": "find_product",
+          "status": "ok"
+        }
+      ],
+      "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+    },
+    {
+      "case_id": "task_20260115_201951_323_391f1eff_659b9dae",
+      "cleanup": {
+        "environment_closed": true,
+        "session_closed": true,
+        "verified": true
+      },
+      "domain": "itsm",
+      "evidence_limit": "scripted route/official scoring engineering evidence only; not public model-quality or performance data",
+      "execution_status": "complete",
+      "failure_kind": "task_failure",
+      "official_score": {
+        "forbidden_side_effects": null,
+        "judge_requests": 0,
+        "source": "enterpriseops-gym-original-verifier",
+        "status": "scored",
+        "success": false,
+        "value": 0.0
+      },
+      "provider_requests": 0,
+      "route": "react_skill_mcp",
+      "scripted_model_requests": 2,
+      "scripted_model_tokens": 16,
+      "tool_calls": [
+        {
+          "name": "list_users",
+          "status": "ok"
+        }
+      ],
+      "trial_id": "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78"
+    }
+  ],
+  "schema_version": "scripted-enterprise-first-wave-routes-v1",
+  "source_manifest_digest": "cd4712df4304708a6d7f95c3a0c9ec19efa524d84a563c6c0a54ef4d26c973a7",
+  "status": "scripted_engineering_route_closure",
+  "task_inventory_digest": "ca3075e0e1a2557e0948abbb4ce12594bbc058a7f0e94f4e902d73fee429c769"
+}

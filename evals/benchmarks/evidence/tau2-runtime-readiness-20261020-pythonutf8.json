@@ -1,0 +1,744 @@
+{
+  "schema_version": "tau2-offline-runtime-readiness-1",
+  "created_at": "2026-10-20T02:28:12.366529+00:00",
+  "status": "ready",
+  "source_commit": "96a3ef92329baf908ffe9dfe188cea34e8701d2a",
+  "source_archive_sha256": "569d189426709e74efdc9cd8117f264e217ad1ec234751c40131eb7b97dade8f",
+  "verified_source_and_domain_files": 279,
+  "upstream_lock_sha256": "6404e490ae418d1d62afda97641605dab1684c2b830b6b3de34e7685ef2153c7",
+  "python": "3.12.7",
+  "package_version": "1.0.1",
+  "runtime_additions": {
+    "websockets": "15.0.1"
+  },
+  "initialized_cases": 80,
+  "ready_cases": 80,
+  "failed_cases": 0,
+  "network_attempts_blocked": 0,
+  "model_requests": 0,
+  "formal_task_attempts": 0,
+  "task_success_rate": null,
+  "scope": "Official test task loading, initialization and fresh-state equality only",
+  "cases": [
+    {
+      "domain": "retail",
+      "case_id": "100",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "101",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "102",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "108",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "111",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "12",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "17",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "18",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "26",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "27",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "32",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "33",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "36",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "38",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "39",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "40",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "42",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "45",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "49",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "5",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "51",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "53",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "55",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "56",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "60",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "61",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "62",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "64",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "65",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "68",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "70",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "71",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "74",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "77",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "79",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "86",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "9",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "90",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "94",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "retail",
+      "case_id": "97",
+      "status": "ready",
+      "initial_state_digest": "c5fd30f40874ecd55c32cd7ec8353a2a71233f343b1b569186f23ad1f1ada716",
+      "tool_catalog_digest": "eaf16ffafcc143f9e618efd9c7e1a0bfea819ccc2b2cb12251915522d1b4ce2a",
+      "tool_count": 16,
+      "mutating_tool_count": 7
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "99165dee97551e60f3afc8cd82ed91ada8ecc5f57a357fc5df8729a5f683071d",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_sms_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_on[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "d90720f42487eca37de26d53db65c6c70f9a5462871af0871b23de8977556e06",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_storage_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_on[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "2a4cad720de5bc925a314f8bd5bb1533744667a89f66fe0925694e2b573972c1",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|break_app_both_permissions|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_on[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "8f54fc3ff8fc65e5b677e1010416c311711b6e2a42a3bab275b591cecb7d5629",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|break_app_storage_permission|data_mode_off|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "1d901889e484aaa5b2b6b5954e11c2bd3db4248f73b1cfc71f109887aa8a57be",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_wifi_calling|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "c53fe28d3f7633b5bbedff0cc29fa9821efe236dc2c4017392a1e0c79163e543",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_wifi_calling|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "45dcb32982f0418228b00bdb61d4933f734fff36bc8271fafc3956599f7a0aa8",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|break_app_both_permissions[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "7798ffc91ee8072c4cbe6e532f9218c8056264ff2a876ad114de7db87be5a63f",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|break_app_both_permissions|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "075d470503ebed6cfd9d55629fdf69f02e8b487734dada1e0b1d037d6497fc89",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_network_preference|bad_wifi_calling|break_app_sms_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "8ccc26939c77e7e00335e0d07b5719e0a402654acf2b92c62a6b656fcd2d6433",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_network_preference|break_app_both_permissions[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "d9da828d3ab363e067048b72b9196028ba830a29118d5b7998dea82bd8e99885",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_network_preference|break_app_sms_permission|user_abroad_roaming_disabled_on[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "6fd644c8183233e5096a982d0925701a46d61ef22aeb1990d0b2b629186bcc29",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_network_preference|data_mode_off|user_abroad_roaming_disabled_on[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "c3b0498bb0022dc129381bd533f43cf056ea25f6fd3fd42db15e19247618b6b8",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "d77398dc8ad3da23878729d5ab851e66ef58d039f9582a51d44e91816c639576",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]break_apn_mms_setting|user_abroad_roaming_enabled_off[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "5b5efe1ed35e4a1c012c586f00b7cd94d37ed9322e55ab7f6132fbce874652a0",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]break_app_sms_permission|data_mode_off[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "1b91e19b7729f80c12f1ef6b9320950871ee8c6e4ebc907de6a7a29ab24544ed",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]airplane_mode_on|bad_network_preference|bad_vpn|data_mode_off|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "bc5d482fbfec42fa79cae2442a7ca69349ef43e20bfff3992ee25ef9457c8e44",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]airplane_mode_on|bad_network_preference|data_mode_off|data_saver_mode_on[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "ff8817e4f1ed7517ad366ff3c5234dec6cbd222a82379b434be47d30877d0590",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]airplane_mode_on|data_mode_off|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_enabled_off[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "17219920fb9b580d3c65db34a1516cf480057f264034ab1f5a0dface476be949",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]airplane_mode_on|data_saver_mode_on|user_abroad_roaming_disabled_on[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "b33a3304f18441174123deb7a1f7b69f8476231b1e312be09feeea596a6b401f",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]bad_network_preference|bad_vpn|data_mode_off|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "2b5f9164bdbabfd530e72e5d372be44432cff3c3879ab488e93bdc87949f964e",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]bad_network_preference|bad_vpn|data_saver_mode_on|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "cbdfd5c72b9c32b7cd921b0b7f3bbd97373b0e5fc788878481fcabbb2e981669",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]bad_network_preference|bad_vpn|user_abroad_roaming_disabled_off[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "1940fc6ea468916e60d7be7d24f9f76e0946ad7870be395790f08ae03a32d19e",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]bad_vpn|data_mode_off|data_usage_exceeded|user_abroad_roaming_disabled_off[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "325c2c88a4ee739d29dfea794401a07419ae77a53dcd3d0d88fd217415c7b9d8",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mobile_data_issue]data_saver_mode_on|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "217e1080f043b542501035af2a7091063470e052686326241ba6e73339985588",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|contract_end_suspension|lock_sim_card_pin[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "840eb8cb028e627333158f5f49fc955d89c28ade29b19d5dfe3f672ab09403eb",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|contract_end_suspension|lock_sim_card_pin|unseat_sim_card[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "3f9c44d77ed766b283cf5b207cdfe227faa3de19978a91e86f7cd2d2b54c7431",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|lock_sim_card_pin|overdue_bill_suspension[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "b5be2b54648e84021d9c12c0227e22e9e95b3c82d9a511ba4d19d30b9f2859c5",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|lock_sim_card_pin|unseat_sim_card[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "3095f9f58d5e7bdf431dd5b4c717c064f6e8257a28a39b1e440ca6b0a6773ec9",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|break_apn_settings|overdue_bill_suspension[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "f1edaec947149976070853cb916a696b967a36b1adc3bbd959a56f68fefae79d",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|contract_end_suspension|lock_sim_card_pin|unseat_sim_card[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "c580be29b124cff8ed526bd42cbccb60f6951190c91fadb28d59dc1df0664aaf",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|lock_sim_card_pin[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "476d9d830be3d1fada87aed3fc30b193cf921e1ed447745880adc93d05bb0c89",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|lock_sim_card_pin|overdue_bill_suspension[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "e8763379ac94cb6fbac6883eab9e577a45dfd029042d49fac9d1200c4c57a1de",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]airplane_mode_on|overdue_bill_suspension[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "629e21037b85ac25f05ce32544b7979a380713c068c9a0220adca22f70fe5ed5",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]break_apn_settings|contract_end_suspension|lock_sim_card_pin[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "d471e0b2802ca2b3aaf5aff9055a1ef34d4e2f93f9c55e80458b4754240da7e3",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]break_apn_settings|contract_end_suspension|lock_sim_card_pin|unseat_sim_card[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "2c688da17fcbbe353467cbae4ad0694c12479f7ded9643baa998d156728ef9eb",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]break_apn_settings|lock_sim_card_pin[PERSONA:None]",
+      "status": "ready",
+      "initial_state_digest": "3dfeccffd3e92fccf2a8881fe5277978b1296afd99d06c315bc8dfceefca8fae",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]break_apn_settings|lock_sim_card_pin|overdue_bill_suspension[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "75d83bb36a202f42b012ebb41503bf0aeeaaeb71978f474ae54c9eb7ec00128a",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]contract_end_suspension|unseat_sim_card[PERSONA:Hard]",
+      "status": "ready",
+      "initial_state_digest": "e7a1f561dd9276f5a109de5edcacabdc11275324bf9b173a4ea28fef075737be",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[service_issue]overdue_bill_suspension|unseat_sim_card[PERSONA:Easy]",
+      "status": "ready",
+      "initial_state_digest": "d40cb9b88e32d365e45cffa92958aa2c7cb69e4332838193794212ec8d55762a",
+      "tool_catalog_digest": "66b1aa33c7b193fedd548535867cef95cd7612fd5758f992c79e2feb2877a165",
+      "tool_count": 13,
+      "mutating_tool_count": 6
+    }
+  ]
+}

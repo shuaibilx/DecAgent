@@ -1,0 +1,85 @@
+{
+  "schema_version": "jev-semantic-template-audit-v1",
+  "observed_at_utc": "2026-10-20T10:03:03+00:00",
+  "audit_type": "isolated_tool_schema_review",
+  "task_id": "task_20260106_161859_265_00364ece_0e836ce8",
+  "benchmark": "enterpriseops-gym",
+  "domain": "csm",
+  "pinned_task_repository_commit": "271f2c357f763376997dfd16807fcde2474ae41b",
+  "source_manifest_sha256": "cd4712df4304708a6d7f95c3a0c9ec19efa524d84a563c6c0a54ef4d26c973a7",
+  "task_dataset_sha256": "1b5948db2db3cc0dc643f7fddcbb90c2ac09489615f369b4fe3abbdcd484d697",
+  "pinned_mcp_image": "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm@sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189",
+  "tool_schema_sha256": "d236b82b0c33ee64b091556673f8db54152739b241d68726082207ba4e01cfa6",
+  "tool_contract": {
+    "tool_name": "retrieve_knowledge",
+    "input_properties": [
+      "created_after",
+      "created_before",
+      "kb_number",
+      "knowledge_id",
+      "limit",
+      "owner_id",
+      "product_id",
+      "search_text",
+      "state",
+      "title",
+      "visibility"
+    ],
+    "state_enum": [
+      "draft",
+      "published",
+      "retired"
+    ],
+    "visibility_enum": [
+      "internal",
+      "external"
+    ],
+    "limit_is_optional": true,
+    "output_array_item_fields": [
+      "body",
+      "kb_number",
+      "knowledge_id",
+      "owner_id",
+      "product_id",
+      "score",
+      "state",
+      "sys_created_on",
+      "title",
+      "visibility"
+    ],
+    "completeness_metadata_fields": []
+  },
+  "reviewed_template": {
+    "template_id": "csm_knowledge_article",
+    "version": "enterpriseops-csm-knowledge-1",
+    "primitive": "choice",
+    "candidate_source": "exact returned array from one retrieve_knowledge call; only published records are eligible",
+    "no_match_option": "no_match",
+    "explicit_write_authorization": false,
+    "local_candidate_truncation": false,
+    "ineligible_when": "explicit retrieval limit, no published candidates, more than 24 candidates, or serialized state over 16000 characters",
+    "execution_integration": "not_connected_to_evaluation_PlanRuntime_question_registry"
+  },
+  "review_decision": {
+    "natural_semantic_node": "select the relevant published knowledge article for a user-described product issue",
+    "structured_conditions": "user-count comparison and explicit assignment values stay in deterministic code",
+    "route_eligibility": "template frozen for future paired evaluation; live route requires exact same sanitized state and candidates for Jev and Qwen",
+    "model_pairing": "not_run",
+    "public_trial_created": false,
+    "official_score": "not_run",
+    "limitations": [
+      "The tool schema returns an array and exposes no total-count or truncation marker. The template compares only the exact returned set and makes no claim about unseen records.",
+      "No article retrieval action or model request was dispatched during this schema review.",
+      "This evidence is not a benchmark task result and cannot establish Jev quality or performance."
+    ],
+    "template_frozen_for_future_pairing": true,
+    "paired_callback_ready": false
+  },
+  "verification": {
+    "model_requests": 0,
+    "business_tool_calls": 0,
+    "environment_cleanup_verified": true,
+    "template_unit_tests": "6 passed",
+    "template_unit_test_command": "uv run --extra dev pytest evals/deterministic/test_business_semantic_templates.py -q"
+  }
+}

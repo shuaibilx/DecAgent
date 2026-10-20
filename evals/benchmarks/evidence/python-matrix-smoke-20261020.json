@@ -1,0 +1,35 @@
+{
+  "schema_version": "python-version-matrix-smoke-1",
+  "created_at_utc": "2026-10-20T12:39:50Z",
+  "status": "targeted_smoke_passed",
+  "test_files": [
+    "evals/deterministic/test_business_evaluation_catalog.py",
+    "evals/deterministic/test_business_public_execution.py",
+    "evals/deterministic/test_live_public_runner.py"
+  ],
+  "results": {
+    "python_3_11_15": {
+      "result": "37 passed",
+      "elapsed_seconds": 16.40,
+      "install_mode": "built wheel installed non-editably in an ASCII-path temporary environment",
+      "test_command": "<temporary Python 3.11> -m pytest evals/deterministic/test_business_evaluation_catalog.py evals/deterministic/test_business_public_execution.py evals/deterministic/test_live_public_runner.py -q"
+    },
+    "python_3_13_0": {
+      "result": "37 passed",
+      "elapsed_seconds": 8.57,
+      "install_mode": "uv-managed editable project environment under the repository path",
+      "test_command": "uv run --python 3.13 --extra dev pytest evals/deterministic/test_business_evaluation_catalog.py evals/deterministic/test_business_public_execution.py evals/deterministic/test_live_public_runner.py -q"
+    }
+  },
+  "diagnostic": {
+    "python_3_11_editable_install_under_chinese_path": "failed before pytest collection",
+    "cause": "Python 3.11 site.addpackage reads the UTF-8 editable .pth using the Windows CP936 locale; the project path contains Chinese characters and decoding fails.",
+    "evidence": "The pth file decodes as UTF-8 in PowerShell; Python 3.11 locale.getencoding() reports cp936; Python 3.11 site.py uses encoding=locale while Python 3.13 site.py decodes .pth as utf-8-sig first.",
+    "workaround": "For Python 3.11, install the built wheel non-editably from an ASCII-path temporary environment. The project .venv was restored to Python 3.13 and uv editable execution passed. No source workaround was added."
+  },
+  "limitations": [
+    "These are focused compatibility smoke tests, not the full Python 3.11/3.13 CI matrix.",
+    "No remote GitHub Actions run is established by this local evidence.",
+    "The two temporary Python matrix environments were retained because the shell safety policy rejected recursive removal; paths are C:\\Users\\706\\AppData\\Local\\Temp\\decagent-py311-matrix-20261020 and C:\\Users\\706\\AppData\\Local\\Temp\\decagent-py313-matrix-20261020."
+  ]
+}

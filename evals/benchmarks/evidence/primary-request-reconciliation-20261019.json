@@ -1,0 +1,58 @@
+{
+  "schema_version": "primary-call-reconciliation-v1",
+  "created_at_utc": "2026-10-19T01:14:21.5589553Z",
+  "related_evidence": "live-primary-retest-20261018T054122Z-d2bfd4d7.json",
+  "request": {
+    "model": "qwen3.8-flash",
+    "local_created_at_utc": "2026-10-18T05:41:24.091036Z",
+    "dispatch_state": "unknown",
+    "reserved_token_limit": 58241,
+    "actual_cost": null,
+    "purpose": "plan",
+    "local_task_id": "3b57d2c5-a3c5-4647-bb3a-adb70390f076",
+    "provider": "primary",
+    "actual_tokens": null,
+    "error_code": "transport_error",
+    "local_created_at_beijing": "2026-10-18T13:41:24.091036+08:00",
+    "provider_request_id": null,
+    "local_attempt_id": "3265734d-33eb-4d41-afc6-43395865dce0",
+    "status": "unknown"
+  },
+  "provider_console_check": {
+    "provider_request_id": null,
+    "actual_tokens": null,
+    "actual_cost": null,
+    "source": "user-confirmed DashScope console",
+    "result": "no matching record",
+    "checked_window_beijing": "2026-10-18 13:41:24 around",
+    "same_account_confirmation": "User confirmed maas.qianwenaiapi.com forwards to the same DashScope account checked."
+  },
+  "endpoint_reconciliation": {
+    "actual_endpoint_at_attempt": "unknown; request-time process configuration was not captured",
+    "current_process_environment": {
+      "DECAGENT_MAIN_BASE_URL": "unset",
+      "DECAGENT_MAIN_MODEL": "unset"
+    },
+    "dotenv_snapshot_observed_2026-10-19": {
+      "file": ".env",
+      "last_modified_beijing": "2026-10-11T06:15:31.3509639+08:00",
+      "DECAGENT_MAIN_BASE_URL": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+      "DECAGENT_MAIN_MODEL": "qwen3.8-flash"
+    },
+    "adjacent_prior_evidence": "live-primary-smoke-20261016T111004Z-0b72ef0a.json recorded the same model and maas.qianwenaiapi.com endpoint; this supports configuration continuity but does not prove the 2026-10-18 process route.",
+    "current_client_policy": {
+      "source": "PrimaryModel.from_settings in decagent/models/primary.py",
+      "timeout_seconds": 60,
+      "max_retries": 0
+    },
+    "reservation_note": "requested_tokens=58241 is the local requested/reserved amount, not provider-reported actual usage or an exact serialized request-size measurement.",
+    "interpretation": "The user confirmed the configured maas.qianwenaiapi.com service forwards to the same DashScope account whose console was checked, and the console has no matching record. The exact request-time endpoint remains unproven because process environment was not captured, and no provider request ID or actual usage was persisted. Same-account console absence is useful reconciliation evidence but does not prove the request was never delivered or that its cost was zero."
+  },
+  "service_log_check": {
+    "request_id_mentions": 0,
+    "window_utc": "2026-10-18T05:40:00Z/2026-10-18T05:43:00Z",
+    "container": "decagent-api",
+    "matching_log_lines": 0
+  },
+  "conclusion": "Keep local usage and dispatch status unknown. The user confirmed the configured endpoint forwards to the same DashScope account and found no matching console record. No provider request ID, actual token count, or actual cost is available; console absence does not prove the request was never delivered or free. No retry is authorized."
+}

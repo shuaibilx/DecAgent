@@ -1,0 +1,104 @@
+{
+  "schema_version": "business-implementation-verification-1",
+  "created_at": "2026-10-18T06:09:12.128379+00:00",
+  "status": "partial_implementation",
+  "source_base_commit": "7d68e780125642ba479015080c5ce9a664102ab1",
+  "source_is_uncommitted_working_tree": true,
+  "source_sha256": {
+    "decagent/evaluation/business/calibration.py": "5d9063ab8fe4814859290016f59966beb09218ad947d69ad40ccc0483e481cc2",
+    "decagent/evaluation/business/comparison.py": "0a57377278c9b8fad4a178eaeab95f16975f0d25af1cbbe46bf04f5ca1f61e4d",
+    "decagent/evaluation/business/dataset.py": "8e590e3a13ba2b5ba05801521dfd4bfb9e61394e4d87138c97803fcd6026a16f",
+    "decagent/evaluation/business/eligibility.py": "926dbe884523141b5eae4420603e73e05410b04f9b5cf58cf7442ebed11b78a1",
+    "decagent/evaluation/business/enterprise_environment.py": "5149c7d14d7e601440a099ab05d4842233f7f1d6d8452354422d0d7a084ab590",
+    "decagent/evaluation/business/harness.py": "4e04bfa6b28eddd2d6dbf05b23a492485af4cd29e8c7b1d6fd942cd7a1a04e88",
+    "decagent/evaluation/business/ledger.py": "6416fb9ac28d427be8025eb94028489fe4f17e8a32709e58f9e19aebf5821dac",
+    "decagent/evaluation/business/mcp_acceptance.py": "123f903da64babeec6155fd174f03cff220f8450eb17a2eefaf96f1c597e5d30",
+    "decagent/evaluation/business/memory_dataset.py": "f299ddf361bb74a431c3d034e4f8ce52537b630d42b22b28425f7f78c2b9772c",
+    "decagent/evaluation/business/metrics.py": "b290b40576e318b3ac9abf6841f90248f2465f17d010ac14763db5537659bee3",
+    "decagent/evaluation/business/routes.py": "8adbb9f3cc02e1f1914646488a4f5ef7d6ea941373032cd8cf9cc340ab8ab8a1",
+    "decagent/evaluation/business/schedule.py": "c11c2366eb9ecb02100f01c1df19fbe35a79310e3e00f0af3a1c0888622b0f33",
+    "decagent/evaluation/business/tau_tools.py": "e08df1e5b0441d5272e3f80c85ef452efd4c99648932dae9862d8117797f187a",
+    "decagent/evaluation/business/thresholds.py": "05f9d84a9fb032eba119caef05d9c054af648180918905662b38d3074cd7dde5",
+    "decagent/evaluation/business/__init__.py": "7415c8310fa52e09d6f0a9e91a6e19ad0825d4dba67015efc9675d69ed72e7d4",
+    "decagent/evaluation/business/__main__.py": "d8af69577be940cb5bbfe6748cba6441ed84374aa22b20e5799ac24d490d863d",
+    "decagent/business/plans/planner.py": "7b0b591c20bd55fb5a522f3556f975ad20aa1266c2cb16c0f95b2ede7fe454b6",
+    "pyproject.toml": "67c15b3feaff9612a455a469015ba939b80479c9480d94c2f63bd554609c9a34",
+    ".dockerignore": "8751477e2e82d7b9bbf839cd538f468bbbbbb5daafa2780e7f42f221e23f4d6a"
+  },
+  "suites": [
+    {
+      "suite": "deterministic-final",
+      "passed": 1475,
+      "skipped": 4,
+      "duration": "210.13s (0:03:30)",
+      "log_sha256": "e7fd312cf655c0d900ff10c8f52b416f88a4281f7ae5f4a2566ce458637475bb"
+    },
+    {
+      "suite": "targeted-final",
+      "passed": 90,
+      "skipped": 1,
+      "duration": "41.03s",
+      "log_sha256": "d4acfb975432522fca43aae521da966f480e1fba7e6373480cd71f6822d17837"
+    },
+    {
+      "suite": "integration",
+      "passed": 28,
+      "skipped": 0,
+      "duration": "191.48s (0:03:11)",
+      "log_sha256": "cfa1b73819da647b31f23ac1caac379a105bd7dbaa9f8ee7788032ba62918b7d"
+    },
+    {
+      "suite": "integration-final",
+      "passed": 4,
+      "skipped": 0,
+      "duration": "35.80s",
+      "log_sha256": "df64fda15797de93e4caae9562825dae4df60a9207fe79101e024c5af5214c1e"
+    }
+  ],
+  "suites_overlap_do_not_sum": true,
+  "ruff": "passed",
+  "openspec_strict": "passed",
+  "openspec_progress": {
+    "completed": 52,
+    "total": 60
+  },
+  "wheel_wire": {
+    "status": "passed",
+    "mcp_sdk": "2.3.0",
+    "protocol": "2026-07-28",
+    "schema_version": 17,
+    "wire_tools": 14,
+    "committed_receipts": 1,
+    "model_calls": 0
+  },
+  "compose_smoke": {
+    "instance": "decagent-offline-818d00b163d2",
+    "api": "healthy",
+    "worker": "running",
+    "owner_init": "verified",
+    "authenticated_cli": "verified",
+    "docker_socket_in_api_or_worker": false,
+    "paid_requests": 0
+  },
+  "source_distribution": {
+    "bytes": 45321147,
+    "sha256": "a5fded6660356c05fa0863b27105bd0b2b9c04231e7eb36a25dd8e3ba31e047d",
+    "members": 735,
+    "cached_upstream_data_included": false
+  },
+  "public_tasks": {
+    "planned": 286,
+    "attempted": 0,
+    "task_success_rate": null
+  },
+  "primary_readiness": {
+    "status": "failed",
+    "actual_requests": 1,
+    "error_type": "OpenAITimeoutError",
+    "actual_usage": "unknown",
+    "further_retest_authorized": false
+  },
+  "headline_performance_claim": "not_proven",
+  "pending_design_decision": "public_catalog_registration_vs_separate_benchmark_executor",
+  "independent_linux_acceptance": "not_run"
+}

@@ -1,0 +1,95 @@
+{
+  "schema_version": "business-implementation-verification-2",
+  "source_is_uncommitted_working_tree": true,
+  "openspec": {
+    "change": "jev-conditional-workflows",
+    "completed_tasks": 53,
+    "total_tasks": 60,
+    "remaining_tasks": [
+      "9.6",
+      "10.1",
+      "10.2",
+      "10.3",
+      "10.4",
+      "10.5",
+      "10.6"
+    ],
+    "strict_changes_validation": {
+      "passed": 5,
+      "failed": 0
+    }
+  },
+  "formal_public_trials": {
+    "planned": 286,
+    "attempted": 0,
+    "success_rate": null,
+    "manifest_status": "pre_registered_not_run",
+    "manifest_digest": "d5cf1594f4233edeaa62a56339e0c5f07b847853c91975ad57c6612e33e0c78a"
+  },
+  "model_usage_this_turn": {
+    "qwen_requests": 0,
+    "jev_requests": 0,
+    "new_jev_cost_usd": "0",
+    "primary_readiness": "previous_timeout_usage_unknown_no_retry"
+  },
+  "latest_verification": [
+    {
+      "check": "ruff decagent evals",
+      "status": "passed"
+    },
+    {
+      "check": "deterministic",
+      "status": "passed",
+      "passed": 1528,
+      "skipped": 13,
+      "duration_seconds": 208.49
+    },
+    {
+      "check": "controlled route execution and failure classification",
+      "status": "passed",
+      "passed": 51,
+      "duration_seconds": 27.71,
+      "scripted_callbacks": true,
+      "model_calls": 0
+    },
+    {
+      "check": "business graph version dispatch PostgreSQL integration",
+      "status": "passed",
+      "passed": 6,
+      "duration_seconds": 11.42,
+      "disposable_database_removed": true
+    },
+    {
+      "check": "EnterpriseOps Docker environment readiness",
+      "status": "passed",
+      "passed": 2,
+      "duration_seconds": 14.12,
+      "task_score": false
+    },
+    {
+      "check": "tau retail ReAct and Plan clarification protocol smoke",
+      "status": "passed",
+      "passed": 2,
+      "duration_seconds": 25.32,
+      "scripted_callbacks": true,
+      "model_performance_evidence": false
+    },
+    {
+      "check": "comparison manifest reproducibility",
+      "status": "passed",
+      "full_trials": 286,
+      "smoke_trials": 24
+    },
+    {
+      "check": "full PostgreSQL integration rerun",
+      "status": "interrupted",
+      "approximate_progress_percent": 23,
+      "aggregate_result": null,
+      "disposable_database_removed": true
+    }
+  ],
+  "performance_claim": "not_proven",
+  "independent_linux_acceptance": "not_run",
+  "created_at_utc": "2026-10-18T14:52:22Z",
+  "created_at_local": "2026-10-18T22:52:22+08:00"
+}

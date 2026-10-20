@@ -1,0 +1,55 @@
+{
+  "schema_version": "business2-static-compatibility-v1",
+  "created_at_utc": "2026-10-19T02:01:20.938959+00:00",
+  "source_archive": "generated/261015/0747_business2\u57fa\u7ebf/business-2-source.zip",
+  "source_archive_sha256": "be2694b2b5a867daa7b0536fb12ce733a589ee74a1738aca2908608fa1d0745e",
+  "historical_schema_version": 11,
+  "current_schema_version": 17,
+  "common_migration_count": 11,
+  "common_migrations_byte_identical": true,
+  "common_migration_sha256": {
+    "schema.sql": "1b333dd8e600ad10f1c1bd256aaa079cbc39dfd36712e0d9d024af39ef6730b2",
+    "002_memory_scope.sql": "d8b581aa0172bfe35d11981602a534d1eff775159ee356d41cd0aeec6091a516",
+    "003_delivery_intents.sql": "f8c055cb2439ab058fe1fb4c5ca50c0a88625af7a39c1c9e0d5d245fe666c233",
+    "004_model_diagnostics.sql": "ed0416b20b091f756912432bd673ac0e3dcc0a533c7ae1ce8ff70d35f97a90bb",
+    "005_business_tasks.sql": "67820d1d191f25f2971630606006e701413da7a9ddf59eed1ec8e438210c567e",
+    "006_service_tickets.sql": "638e0c21f66c8da098e33b627a32aaf63f4454f58737e8638f95de6ff3b0d81c",
+    "007_business_employee_identity.sql": "2cf58b3dbf1defda65d200b69f18698aa14639e9685579abbb63ba6bcade33cb",
+    "008_business_operations.sql": "6416c8709d444554f320fe5131f0f8d7906a1cc71e8af838b69d383dd13316ab",
+    "009_business_grant_confirmation.sql": "b2d90ae19e98c179c8772962e693632a1b65259e6f2b972919ff2f08758e2b4a",
+    "010_business_scope_revision.sql": "8862de909b73782cfa39d70794202bc740c05d97f9b4682c5d060fcfae52a353",
+    "011_business_mcp_tasks.sql": "ed6e0beb126c6585f2b91db4d0eb71480385907b16ef94ef2dcc8bf49baa2841"
+  },
+  "historical_seed_counts": {
+    "people": 0,
+    "categories": 0
+  },
+  "current_seed_counts": {
+    "people": 0,
+    "categories": 0
+  },
+  "seed_semantics_identical": true,
+  "seed_semantic_digest": "485979e85417e188ce15b85153e56e9f948617cbad24dd76debdd082c8ca076b",
+  "plugin_id_equal": true,
+  "plugin_manifest_digest_equal": true,
+  "plugin_manifest_digest": "71eafaa55d288c399857f2ccf067a997124a999a152c042af91028e756ecc30c",
+  "commands": [
+    "assign",
+    "close",
+    "comment",
+    "create",
+    "directory",
+    "get",
+    "list",
+    "receipt",
+    "reopen",
+    "resolve",
+    "set_priority",
+    "start"
+  ],
+  "paired_execution_performed": false,
+  "normalized_state_identity_permission_governance_digests_verified": false,
+  "limitations": [
+    "Static contract and schema checks are preparation evidence only. This is not a paired run and does not complete OpenSpec 9.6A."
+  ]
+}

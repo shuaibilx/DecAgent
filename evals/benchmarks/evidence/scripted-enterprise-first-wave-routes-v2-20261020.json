@@ -1,0 +1,165 @@
+{
+  "business_writes": 0,
+  "limitations": [
+    "Only the two fixed EnterpriseOps first-wave cases were exercised across ReAct/Plan routes.",
+    "Model outputs were deterministic scripted fixtures; no Qwen, Jev or other provider was called.",
+    "All four route attempts made one read-only call; official task verifiers scored each as task failure (0.0).",
+    "This is engineering evidence, not public benchmark model-quality or performance data, and does not complete the eight-route first wave."
+  ],
+  "manifest_digest": "82ba20b73f4a05aec40a73bad88a0677214ec985687fd8414fff13fda320a21e",
+  "model_profiles_digest": "4d05cc0a47477ccf55acde9541691e934904177be26e0d9d99a5ef06bb73612d",
+  "observed_at_utc": "2026-10-20T12:02:34+00:00",
+  "provider_requests": 0,
+  "read_only_tool_audits": [
+    {
+      "cleanup_verified": true,
+      "domain": "csm",
+      "image": "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm@sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189",
+      "state_after_digest": "5330d7ea383e92b446a4432016ed473a5797700ebeb05cfc503b56e1219d200c",
+      "state_before_digest": "5330d7ea383e92b446a4432016ed473a5797700ebeb05cfc503b56e1219d200c",
+      "state_unchanged": true,
+      "tool": "find_product",
+      "tool_schema_digest": "fcef63ecbf449b3a7507fb660d6b548b207774b06c9e65e6d52b6d584f189a4f"
+    },
+    {
+      "cleanup_verified": true,
+      "domain": "itsm",
+      "image": "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-itsm@sha256:a234ae3fb7cee196ba25e6b9957969dea829919b6e8271dddae128f065aaf39f",
+      "state_after_digest": "f9e0c0b8573619e7005290281d3b639ccb3f129cbe7e9f6b7e6f742d9afc4cd7",
+      "state_before_digest": "f9e0c0b8573619e7005290281d3b639ccb3f129cbe7e9f6b7e6f742d9afc4cd7",
+      "state_unchanged": true,
+      "tool": "list_users",
+      "tool_schema_digest": "af0f958626854fbcf94636b7a41ee809b901f90de7a5beed2ffeaee35d9e5be7"
+    }
+  ],
+  "routes": [
+    {
+      "case_id": "task_20260106_161859_265_00364ece_0e836ce8",
+      "cleanup": {
+        "environment_closed": true,
+        "session_closed": true,
+        "verified": true
+      },
+      "domain": "csm",
+      "evidence_limit": "scripted route/official scoring engineering evidence only; not public model-quality or performance data",
+      "execution_status": "complete",
+      "failure_kind": "task_failure",
+      "official_score": {
+        "forbidden_side_effects": null,
+        "judge_requests": 0,
+        "source": "enterpriseops-gym-original-verifier",
+        "status": "scored",
+        "success": false,
+        "value": 0.0
+      },
+      "provider_requests": 0,
+      "route": "react_skill_mcp",
+      "scripted_model_requests": 2,
+      "scripted_model_tokens": 16,
+      "tool_calls": [
+        {
+          "name": "find_product",
+          "status": "ok"
+        }
+      ],
+      "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+    },
+    {
+      "case_id": "task_20260106_161859_265_00364ece_0e836ce8",
+      "cleanup": {
+        "environment_closed": true,
+        "session_closed": true,
+        "verified": true
+      },
+      "domain": "csm",
+      "evidence_limit": "scripted route/official scoring engineering evidence only; not public model-quality or performance data",
+      "execution_status": "complete",
+      "failure_kind": "task_failure",
+      "official_score": {
+        "forbidden_side_effects": null,
+        "judge_requests": 0,
+        "source": "enterpriseops-gym-original-verifier",
+        "status": "scored",
+        "success": false,
+        "value": 0.0
+      },
+      "provider_requests": 0,
+      "route": "plan_mcp",
+      "scripted_model_requests": 1,
+      "scripted_model_tokens": 8,
+      "tool_calls": [
+        {
+          "name": "find_product",
+          "status": "ok"
+        }
+      ],
+      "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+    },
+    {
+      "case_id": "task_20260115_201951_323_391f1eff_659b9dae",
+      "cleanup": {
+        "environment_closed": true,
+        "session_closed": true,
+        "verified": true
+      },
+      "domain": "itsm",
+      "evidence_limit": "scripted route/official scoring engineering evidence only; not public model-quality or performance data",
+      "execution_status": "complete",
+      "failure_kind": "task_failure",
+      "official_score": {
+        "forbidden_side_effects": null,
+        "judge_requests": 0,
+        "source": "enterpriseops-gym-original-verifier",
+        "status": "scored",
+        "success": false,
+        "value": 0.0
+      },
+      "provider_requests": 0,
+      "route": "react_skill_mcp",
+      "scripted_model_requests": 2,
+      "scripted_model_tokens": 16,
+      "tool_calls": [
+        {
+          "name": "list_users",
+          "status": "ok"
+        }
+      ],
+      "trial_id": "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78"
+    },
+    {
+      "case_id": "task_20260115_201951_323_391f1eff_659b9dae",
+      "cleanup": {
+        "environment_closed": true,
+        "session_closed": true,
+        "verified": true
+      },
+      "domain": "itsm",
+      "evidence_limit": "scripted route/official scoring engineering evidence only; not public model-quality or performance data",
+      "execution_status": "complete",
+      "failure_kind": "task_failure",
+      "official_score": {
+        "forbidden_side_effects": null,
+        "judge_requests": 0,
+        "source": "enterpriseops-gym-original-verifier",
+        "status": "scored",
+        "success": false,
+        "value": 0.0
+      },
+      "provider_requests": 0,
+      "route": "plan_mcp",
+      "scripted_model_requests": 1,
+      "scripted_model_tokens": 8,
+      "tool_calls": [
+        {
+          "name": "list_users",
+          "status": "ok"
+        }
+      ],
+      "trial_id": "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78"
+    }
+  ],
+  "schema_version": "scripted-enterprise-first-wave-routes-v2",
+  "source_manifest_digest": "cd4712df4304708a6d7f95c3a0c9ec19efa524d84a563c6c0a54ef4d26c973a7",
+  "status": "scripted_engineering_route_closure",
+  "task_inventory_digest": "ca3075e0e1a2557e0948abbb4ce12594bbc058a7f0e94f4e902d73fee429c769"
+}

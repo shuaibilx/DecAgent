@@ -1,0 +1,54 @@
+{
+  "schema_version": "tau-plan-cross-domain-engineering-smoke-1",
+  "created_at_utc": "2026-10-20T12:18:01Z",
+  "status": "scripted_engineering_route_closure",
+  "benchmark": "tau-bench",
+  "source_commit": "96a3ef92329baf908ffe9dfe188cea34e8701d2a",
+  "split": "train",
+  "runtime": "pinned tau2-bench source in isolated Python 3.12 worker",
+  "test_command": "$env:DECAGENT_TEST_TAU_PYTHON='.decagent/evaluation-runtimes/tau2-96a3ef9-py312/Scripts/python.exe'; uv run --extra dev pytest evals/deterministic/test_business_tau_process.py::test_real_pinned_tau_plan_route_uses_simulator_for_clarification -q -rs",
+  "test_result": {
+    "passed": 2,
+    "failed": 0,
+    "elapsed_seconds": 30.85,
+    "provider_requests": 0,
+    "model_callbacks": "scripted offline fixtures",
+    "public_trial_ledger": false
+  },
+  "routes": [
+    {
+      "domain": "retail",
+      "case_id": "0",
+      "route": "plan_mcp",
+      "status": "complete",
+      "actual_mcp_tool": "get_order_details",
+      "tool_error": null,
+      "user_simulator_turns": 3,
+      "tau_steps": 7,
+      "official_scorer": "tau2-bench original evaluate_simulation",
+      "score_recorded": true,
+      "cleanup_verified": true,
+      "persisted_transcript_matches_scorer_input": true
+    },
+    {
+      "domain": "telecom",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Hard]",
+      "route": "plan_mcp",
+      "status": "complete",
+      "actual_mcp_tool": "get_customer_by_phone",
+      "tool_error": null,
+      "user_simulator_turns": 3,
+      "tau_steps": 7,
+      "official_scorer": "tau2-bench original evaluate_simulation",
+      "score_recorded": true,
+      "cleanup_verified": true,
+      "persisted_transcript_matches_scorer_input": true
+    }
+  ],
+  "limitations": [
+    "This records fixed train engineering smoke only; it is not an official test split score or public first-wave trial.",
+    "No Qwen, DeepSeek, Jev, or other provider request was made.",
+    "The numeric score was not included in the test assertion and is intentionally not reported here.",
+    "A scripted user reply supplies a synthetic lookup value to exercise the read-tool route; this is not a correctness or task-success claim."
+  ]
+}

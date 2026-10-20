@@ -1,0 +1,64 @@
+{
+  "schema_version": "qwen-readiness-evidence-v1",
+  "authorization_id": "qwen-readiness-20261019-plan-execution-v1",
+  "status": "stopped",
+  "business_tool_calls": 0,
+  "raw_response_persisted": false,
+  "historical_evidence": [
+    "evals/benchmarks/evidence/qwen-primary-readiness-20261019.json",
+    "evals/benchmarks/evidence/qwen-plan-readiness-20261019.json",
+    "evals/benchmarks/evidence/qwen-plan-format-repair-20261019.json",
+    "evals/benchmarks/evidence/primary-request-reconciliation-20261019.json"
+  ],
+  "historical_unknown_replayed_or_reset": false,
+  "limits": {
+    "max_calls": 3,
+    "max_format_repairs": 1,
+    "max_request_input_tokens": 65536,
+    "max_output_tokens": 8192,
+    "max_total_tokens": 100000,
+    "total_tokens_include_input_and_output": true
+  },
+  "error_code": "readiness_failed",
+  "plan_node_types": [],
+  "plan_commands": [],
+  "format_repair_used": false,
+  "compiled_plan": null,
+  "plan_read_only": false,
+  "ledger": {
+    "schema_version": "qwen-readiness-ledger-v1",
+    "authorization_id": "qwen-readiness-20261019-plan-execution-v1",
+    "model": "qwen3.8-flash",
+    "endpoint_host": "maas.qianwenaiapi.com",
+    "diagnostic_fingerprint": "843a5f493255ce522409dfceb84035c40c56b9a8d7b6e8f9b2989920a1f43646",
+    "max_calls": 3,
+    "max_format_repairs": 1,
+    "max_request_input_tokens": 65536,
+    "max_total_tokens": 100000,
+    "max_output_tokens": 8192,
+    "total_tokens_include_input_and_output": true,
+    "price_version": "owner-confirmed-free-quota-20261011",
+    "attempts": [
+      {
+        "receipt": "0dda3128a01941439f2bd50c8baadac2",
+        "request_digest": "5a67849e7699ef5fc464bf9fc645dfaaf8bf87cd14af0e44d7ef4e3983d08453",
+        "purpose": "plan",
+        "requested_tokens": 58310,
+        "status": "unknown",
+        "dispatch_state": "unknown",
+        "actual_tokens": null,
+        "error_code": "transport_error",
+        "validation_issues": [],
+        "created_at_utc": "2026-10-19T03:09:40.084114+00:00",
+        "reservation_exceeded": false,
+        "actual_cost_usd": null,
+        "reserved_cost_usd": "0"
+      }
+    ],
+    "blocked": true,
+    "actual_tokens": null,
+    "known_actual_tokens": 0,
+    "actual_tokens_complete": false,
+    "remaining_calls": 2
+  }
+}

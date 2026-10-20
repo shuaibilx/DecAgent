@@ -1,0 +1,49 @@
+{
+  "schema_version": "routed-model-readiness-evidence-v1",
+  "authorization_id": "primary-readiness-routed-v1",
+  "diagnostic_fingerprint": "2cb9be1c8ebcae8cfbd451dc0539ca1f2e532f54e436651d03c159e69a113ce5",
+  "model_profile_digest": "647428fc0c2ea330873dd2f1efc48be9bd6e3075f249b5ce8a2810e7a45d66e7",
+  "pricing_source": "https://openrouter.ai/api/v1/models",
+  "status": "failed",
+  "passed_criteria": [],
+  "stop_reason": {
+    "phase": "connection",
+    "error_type": "budget_stopped",
+    "error_code": "budget_exceeded"
+  },
+  "ledger": {
+    "schema_version": "routed-model-readiness-ledger-v1",
+    "authorization_id": "primary-readiness-routed-v1",
+    "diagnostic_fingerprint": "2cb9be1c8ebcae8cfbd451dc0539ca1f2e532f54e436651d03c159e69a113ce5",
+    "primary_model": "qwen3.8-flash",
+    "primary_provider": "qwen",
+    "primary_endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+    "fallback_model": "deepseek/deepseek-v4.1-flash",
+    "fallback_provider": "openrouter",
+    "fallback_endpoint": "https://openrouter.ai/api/v1",
+    "primary_price_digest": "e631dcc9970d1c965922ea5d7a78ce71e3c0aeac56334f353546eb16f10ae271",
+    "fallback_price_digest": "48f194490262ee265d09e54b63995fb343b66fac7f3b74b2eb6167049f0fd351",
+    "max_calls": 8,
+    "max_total_tokens": 300000,
+    "max_request_input_tokens": 65536,
+    "max_output_tokens": 8192,
+    "max_deepseek_cost_usd": "1",
+    "used_calls": 0,
+    "held_or_actual_tokens": 0,
+    "deepseek_spend_usd": "0",
+    "remaining_calls": 8,
+    "blocked": false,
+    "attempts": [],
+    "phases": [
+      {
+        "phase": "connection",
+        "status": "failed",
+        "report": {
+          "error_code": "budget_exceeded",
+          "error_type": "budget_stopped"
+        }
+      }
+    ]
+  },
+  "raw_prompts_responses_credentials_saved": false
+}

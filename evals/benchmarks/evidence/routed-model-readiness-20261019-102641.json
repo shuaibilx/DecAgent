@@ -1,0 +1,227 @@
+{
+  "schema_version": "routed-model-readiness-evidence-v1",
+  "authorization_id": "primary-readiness-routed-v1",
+  "diagnostic_fingerprint": "a024ae67862e2236e6f7ca3acc3b4fa573fe3b983b2af97dfb571ab4635a17ec",
+  "model_profile_digest": "1b669fbed0b05a6245005f808a2010a8125e9cf7072cf99aa4accc0ce68ae424",
+  "pricing_source": "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints",
+  "status": "passed",
+  "passed_criteria": [
+    "complete response and usage",
+    "tool contract",
+    "read-only production plan compiler"
+  ],
+  "stop_reason": null,
+  "ledger": {
+    "schema_version": "routed-model-readiness-ledger-v1",
+    "authorization_id": "primary-readiness-routed-v1",
+    "diagnostic_fingerprint": "a024ae67862e2236e6f7ca3acc3b4fa573fe3b983b2af97dfb571ab4635a17ec",
+    "primary_model": "qwen3.8-flash",
+    "primary_provider": "qwen",
+    "primary_endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+    "fallback_model": "deepseek/deepseek-v4.1-flash",
+    "fallback_provider": "openrouter",
+    "fallback_endpoint": "https://openrouter.ai/api/v1",
+    "primary_price_digest": "e631dcc9970d1c965922ea5d7a78ce71e3c0aeac56334f353546eb16f10ae271",
+    "fallback_price_digest": "df1ac3e61907ab5d37b1623aceddc7609a88254964f81276e65bb43395b43997",
+    "max_calls": 8,
+    "max_total_tokens": 300000,
+    "max_request_input_tokens": 65536,
+    "max_output_tokens": 8192,
+    "max_deepseek_cost_usd": "1",
+    "used_calls": 5,
+    "held_or_actual_tokens": 29858,
+    "deepseek_spend_usd": "0",
+    "remaining_calls": 3,
+    "blocked": false,
+    "attempts": [
+      {
+        "receipt": "68cbb14853724cfc8f3c381767efcee9",
+        "request_digest": "e5335ca3f971fef73c35d009cc441214e5cf8c7f61ab9de0ed57defaa3189551",
+        "attempt": 1,
+        "provider": "qwen",
+        "requested_model": "qwen3.8-flash",
+        "resolved_model": "qwen3.8-flash",
+        "endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+        "request_role": "connection",
+        "purpose": "connection",
+        "requested_tokens": 16765,
+        "requested_output_tokens": 256,
+        "actual_tokens": 1297,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 1516,
+        "server_request_id": "chatcmpl-38b6ccb8-4062-932f-9e17-01704c2b6543",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-19T10:26:41.913573+00:00",
+        "reserved_cost_usd": "0",
+        "actual_cost_usd": "0"
+      },
+      {
+        "receipt": "fc01843749854162804f452db640c611",
+        "request_digest": "46d10272dfddff13eb482f28b7b8b8b4c6a911596a45227c9a1d0d4296f101a8",
+        "attempt": 1,
+        "provider": "qwen",
+        "requested_model": "qwen3.8-flash",
+        "resolved_model": "qwen3.8-flash",
+        "endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+        "request_role": "tool_contract",
+        "purpose": "tool_contract",
+        "requested_tokens": 17035,
+        "requested_output_tokens": 512,
+        "actual_tokens": 465,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 2366,
+        "server_request_id": "chatcmpl-219ed289-f714-9e1a-8fcb-3588b4212cdf",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-19T10:26:43.457390+00:00",
+        "reserved_cost_usd": "0",
+        "actual_cost_usd": "0"
+      },
+      {
+        "receipt": "090e45963ca94dd28d274df5fd77e4e9",
+        "request_digest": "c97bf67179991e8d756e95465b3f656e4bcd1b38e0db86b29a9bc45b535ff4a7",
+        "attempt": 1,
+        "provider": "qwen",
+        "requested_model": "qwen3.8-flash",
+        "resolved_model": "qwen3.8-flash",
+        "endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+        "request_role": "planning",
+        "purpose": "plan",
+        "requested_tokens": 58374,
+        "requested_output_tokens": 8192,
+        "actual_tokens": 12829,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": "tool_schema",
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 15967,
+        "server_request_id": "chatcmpl-1dffadc7-bc8e-9fd4-baec-f52b74164b41",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-19T10:26:46.141020+00:00",
+        "reserved_cost_usd": "0",
+        "actual_cost_usd": "0"
+      },
+      {
+        "receipt": "e820a83c0f0e44ed86e107ddaf8e7f07",
+        "request_digest": "b77f9c4f075ad2b490d025951540c5078033b25e12a32c7fe7d465e707e4c01b",
+        "attempt": 1,
+        "provider": "qwen",
+        "requested_model": "qwen3.8-flash",
+        "resolved_model": "qwen3.8-flash",
+        "endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+        "request_role": "planning",
+        "purpose": "format_repair",
+        "requested_tokens": 58810,
+        "requested_output_tokens": 8192,
+        "actual_tokens": 13928,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 28485,
+        "server_request_id": "chatcmpl-58e7a630-160f-957c-ba2e-8c9fc6fd82dc",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-19T10:27:02.188100+00:00",
+        "reserved_cost_usd": "0",
+        "actual_cost_usd": "0"
+      },
+      {
+        "receipt": "269e19b61b144153b7952d48bd4a9132",
+        "request_digest": "a33e0c91627ed4f800022c612e5ea0e8f1b90f0c967c0f56ff8dadfc1d50df6b",
+        "attempt": 1,
+        "provider": "qwen",
+        "requested_model": "qwen3.8-flash",
+        "resolved_model": "qwen3.8-flash",
+        "endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+        "request_role": "stream",
+        "purpose": "stream",
+        "requested_tokens": 16755,
+        "requested_output_tokens": 256,
+        "actual_tokens": 1339,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 2481,
+        "server_request_id": null,
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-19T10:27:30.731419+00:00",
+        "reserved_cost_usd": "0",
+        "actual_cost_usd": "0"
+      }
+    ],
+    "phases": [
+      {
+        "phase": "connection",
+        "status": "passed",
+        "report": {
+          "resolved_models": [
+            "qwen3.8-flash"
+          ],
+          "response_complete": true,
+          "usage_complete": true
+        }
+      },
+      {
+        "phase": "tool_contract",
+        "status": "passed",
+        "report": {
+          "parameter_contract_valid": true,
+          "resolved_models": [
+            "qwen3.8-flash"
+          ],
+          "tool_executed": false,
+          "tool_name": "decagent_readiness_ping"
+        }
+      },
+      {
+        "phase": "plan",
+        "status": "passed",
+        "report": {
+          "format_repair_used": true,
+          "node_count": 2,
+          "plan_compiled": true,
+          "plan_digest": "bc3705ac3dd99c6a819350607377ffb1cc1418207ba7a08b450c98899a65f999",
+          "read_only": true,
+          "resolved_models": [
+            "qwen3.8-flash"
+          ]
+        }
+      },
+      {
+        "phase": "stream",
+        "status": "passed",
+        "report": {
+          "resolved_models": [
+            "qwen3.8-flash"
+          ],
+          "response_complete": true,
+          "usage_complete": true
+        }
+      }
+    ],
+    "preflight_revisions": [
+      {
+        "prior_status": "failed",
+        "prior_fingerprint": "2cb9be1c8ebcae8cfbd451dc0539ca1f2e532f54e436651d03c159e69a113ce5",
+        "attempt_count": 0
+      }
+    ]
+  },
+  "raw_prompts_responses_credentials_saved": false
+}

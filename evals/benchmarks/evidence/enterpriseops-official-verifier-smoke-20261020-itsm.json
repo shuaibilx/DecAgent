@@ -1,0 +1,62 @@
+{
+  "schema_version": "enterpriseops-private-verifier-smoke-v2",
+  "observed_at_utc": "2026-10-20T09:48:46+00:00",
+  "evidence_type": "local_environment_readiness_and_official_task_verifier",
+  "command": "DECAGENT_ENTERPRISEOPS_DOCKER_SMOKE=1 uv run --extra dev pytest evals/integration/test_business_enterprise_environment.py -q",
+  "domain": "itsm",
+  "task_id": "task_20260115_201951_323_391f1eff_659b9dae",
+  "image_digest": "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-itsm@sha256:a234ae3fb7cee196ba25e6b9957969dea829919b6e8271dddae128f065aaf39f",
+  "result": {
+    "passed": 1,
+    "fresh_resets": 2
+  },
+  "verifier_runs": [
+    {
+      "reset_index": 1,
+      "database_fingerprint": {
+        "digest": "f9e0c0b8573619e7005290281d3b639ccb3f129cbe7e9f6b7e6f742d9afc4cd7",
+        "table_count": 24,
+        "row_count": 241
+      },
+      "official_verifier": {
+        "source": "pinned-original-enterpriseops-verifier",
+        "status": "scored",
+        "verifier_count": 2,
+        "passed_count": 0,
+        "result_digest": "d6cbeb8fa2e47a576e5c5e715936889e57b703f92031502347b92a90bf42440b",
+        "task_success": false,
+        "failure_kind": "task_failure",
+        "forbidden_side_effects": "not_measured",
+        "judge_requests": 0
+      },
+      "cleanup_verified": true
+    },
+    {
+      "reset_index": 2,
+      "database_fingerprint": {
+        "digest": "f9e0c0b8573619e7005290281d3b639ccb3f129cbe7e9f6b7e6f742d9afc4cd7",
+        "table_count": 24,
+        "row_count": 241
+      },
+      "official_verifier": {
+        "source": "pinned-original-enterpriseops-verifier",
+        "status": "scored",
+        "verifier_count": 2,
+        "passed_count": 0,
+        "result_digest": "d6cbeb8fa2e47a576e5c5e715936889e57b703f92031502347b92a90bf42440b",
+        "task_success": false,
+        "failure_kind": "task_failure",
+        "forbidden_side_effects": "not_measured",
+        "judge_requests": 0
+      },
+      "cleanup_verified": true
+    }
+  ],
+  "model_requests": 0,
+  "business_writes": 0,
+  "limitations": [
+    "The frozen official task verifier was run against an unchanged fresh snapshot, so the expected result is task_failure.",
+    "This does not demonstrate successful task completion or any Agent/model quality.",
+    "Intermediate forbidden side effects were not measured and remain not_measured."
+  ]
+}

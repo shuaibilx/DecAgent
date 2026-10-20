@@ -1,0 +1,36 @@
+{
+  "schema_version": "enterpriseops-docker-readiness-v1",
+  "observed_at_utc": "2026-10-20T02:24:46Z",
+  "evidence_type": "local_environment_readiness_only",
+  "command": "DECAGENT_ENTERPRISEOPS_DOCKER_SMOKE=1 uv run --extra dev pytest evals/integration/test_business_enterprise_environment.py -q",
+  "result": {
+    "passed": 2,
+    "failed": 0,
+    "domains": {
+      "csm": {
+        "fresh_environment_resets": 2,
+        "new_database_and_container_each_reset": true,
+        "initial_state_fingerprint_repeatable": true,
+        "mcp_read_tool": "retrieve_knowledge",
+        "original_verifier_sql_readiness": true
+      },
+      "itsm": {
+        "fresh_environment_resets": 2,
+        "new_database_and_container_each_reset": true,
+        "initial_state_fingerprint_repeatable": true,
+        "mcp_read_tool": "list_users",
+        "original_verifier_sql_readiness": true
+      }
+    }
+  },
+  "runtime": {
+    "docker_desktop_server_version": "29.8.2",
+    "model_requests": 0,
+    "public_tasks_scored": 0
+  },
+  "limitations": [
+    "The test used a synthetic SELECT 1 readiness verifier through the pinned upstream verifier engine.",
+    "The benchmark tasks' hidden target verifiers were not run and no task score is claimed.",
+    "This does not complete the four-domain ReAct/Plan route evaluation or official τ-Bench evaluation."
+  ]
+}

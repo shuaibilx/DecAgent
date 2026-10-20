@@ -1,0 +1,141 @@
+{
+  "schema_version": "tau-step-accounting-verification-1",
+  "created_at_utc": "2026-10-20T09:18:18Z",
+  "base_head_sha": "ee1a795c8744f5b8b2f22829770aa11a20632be2",
+  "candidate_sha": null,
+  "branch": "feat/conditional-evaluation",
+  "working_tree_dirty": true,
+  "status": "engineering_verification_only",
+  "scope": "Durable, separate τ-Bench role-handoff step accounting and route limit; no public benchmark trial",
+  "source_contract": {
+    "benchmark": "tau-bench",
+    "source_commit": "96a3ef9",
+    "source_file": "evals/benchmarks/vendor_cache/tau2-bench-source/src/tau2/orchestrator/orchestrator.py",
+    "step_definition": "Half-duplex Orchestrator.step increments once for each Agent/User/Environment role handoff",
+    "multi_tool_batch": "One tool-call batch handled by Environment is one step regardless of the number of tools in that batch"
+  },
+  "implementation": {
+    "persistent_table": "tau_step_attempts",
+    "counter": "tau_steps",
+    "route_limit": 200,
+    "accounting": [
+      "ReAct Agent action and Plan external action, including a semantic decide node, each consume one Agent step",
+      "Each user simulator reply consumes one User step",
+      "Each environment tool-call batch consumes one Environment step; MCP tool calls remain counted individually",
+      "Step reservation is persisted before the related simulator callback or business-tool side effect",
+      "Route resume preserves recorded step attempts; unknown routes are not replayed and receipts retain the ledger count",
+      "Model requests, MCP tool calls, Plan control steps, and τ steps remain separate counters"
+    ],
+    "cap_behavior": "At the route limit, the next simulated Agent/User/Environment action is stopped before its callback or business tool dispatch; official judge work is governed by its separate role budget",
+    "case_id_limit": {
+      "benchmark_and_version_max_chars": 160,
+      "case_id_max_chars": 256,
+      "frozen_tau_telecom_max_observed_chars": 213
+    }
+  },
+  "checks": {
+    "deterministic_tests": {
+      "passed": 1861,
+      "failed": 0,
+      "skipped": 14,
+      "elapsed_seconds": 289.55,
+      "command": "uv run --extra dev pytest evals/deterministic -q"
+    },
+    "ruff": {
+      "status": "passed",
+      "command": "uv run --extra dev ruff check decagent evals"
+    },
+    "openspec_strict": {
+      "passed": 6,
+      "failed": 0,
+      "command": "openspec validate --changes --strict",
+      "run_after_docs_and_spec_update": true
+    },
+    "git_diff_check": "passed (CRLF conversion warnings only)",
+    "tau_pinned_runtime_integration": {
+      "status": "passed",
+      "command": "uv run --extra dev pytest evals/deterministic/test_business_evaluation_catalog.py::test_evaluation_scope_accepts_long_frozen_benchmark_case_ids_with_a_bounded_limit evals/deterministic/test_business_tau_process.py::test_real_pinned_tau_route_runs_user_turn_clarification_and_original_evaluator evals/deterministic/test_business_tau_process.py::test_real_pinned_tau_plan_route_uses_simulator_for_clarification -q",
+      "route_tests_passed": 3,
+      "total_tests_passed": 4,
+      "elapsed_seconds": 41.42,
+      "runtime": "Pinned tau2-bench 96a3ef9 in isolated Python 3.12 worker",
+      "routes": {
+        "react_retail": {
+          "tau_steps": 5,
+          "user_simulator_turns": 3,
+          "official_scorer": "tau2-bench-original-evaluate-simulation",
+          "cleanup_verified": true
+        },
+        "react_telecom": {
+          "tau_steps": 5,
+          "user_simulator_turns": 3,
+          "official_scorer": "tau2-bench-original-evaluate-simulation",
+          "cleanup_verified": true
+        },
+        "plan_retail": null
+      },
+      "model_callbacks": "scripted",
+      "public_trial_ledger": false,
+      "split": "train engineering smoke; not official test split",
+      "case_id_bound_regression": {
+        "accepted_chars": 213,
+        "rejected_chars": 257,
+        "max_chars": 256
+      }
+    },
+    "tau_bridge_and_catalog_suite": {
+      "status": "passed",
+      "command": "$env:DECAGENT_TEST_TAU_PYTHON=.<pinned-tau-python-3.12>; uv run --extra dev pytest evals/deterministic/test_business_evaluation_catalog.py evals/deterministic/test_business_tau_process.py -q",
+      "passed": 45,
+      "skipped": 0,
+      "elapsed_seconds": 100.52,
+      "external_provider_requests": 0
+    }
+  },
+  "key_regressions": [
+    "200-step route bound is enforced and persists across ledger close/reopen",
+    "step-limit exhaustion prevents the next tool dispatch",
+    "user multi-tool batch records one Environment step and one subsequent User step per simulator reply",
+    "Plan semantic decide node records an Agent step",
+    "unknown route receipt reports the durable τ step count"
+  ],
+  "external_activity": {
+    "qwen_requests": 0,
+    "deepseek_requests": 0,
+    "jev_requests": 0,
+    "public_benchmark_routes": 0,
+    "official_benchmark_scores": 0,
+    "provider_cost_usd": "no provider requests made",
+    "tau_retail_train_route_smokes": 2,
+    "actual_provider_requests": 0,
+    "tau_telecom_train_route_smokes": 1,
+    "tau_pinned_plan_train_route_smokes": 1
+  },
+  "limitations": [
+    "No real provider request or public four-domain first-wave route was performed. Three fixed τ train engineering routes (retail ReAct/Plan and telecom ReAct) used scripted model callbacks, original scoring, and verified cleanup; they are not public test-split scores.",
+    "The full live public runner and universal cancellation of arbitrary synchronous callbacks remain pending; run_public_trials.py --execute remains fail closed.",
+    "The 14 deterministic skips are not counted as PostgreSQL integration or benchmark validation.",
+    "OpenSpec task 9.6.C τ bridge engineering acceptance is complete for the scripted fixed train smoke only. Tasks 9.6.F/G and 10.10.D/E, formal public scores, and independent Linux acceptance remain incomplete; overall main change status is 65/78."
+  ],
+  "source_sha256": {
+    "decagent/evaluation/business/comparison.py": "3c9b98da8746d399f5ab46a84b65629a319e09b76a65d0789413e82ba55b2162",
+    "decagent/evaluation/business/public_session.py": "c9a5cf17b536db8adf718a132ab14b0d554e2ecb1c49a84091f10e110abca7d4",
+    "decagent/evaluation/business/routes.py": "8c9e7948ea390b22707151bbc2db3009da1d477bb9a2866deafac119d70bee4b",
+    "decagent/evaluation/business/public_execution.py": "1f5d61d65fe7304d9b55bfcd3ee21c98f3c01f03e4a3cfa5150d724ce54a85f0",
+    "decagent/evaluation/business/public_trials.py": "a94186866a539034cce0aea83fb0b35b65c6631f51d3e670ba07568801c33ba9",
+    "evals/deterministic/test_business_public_trials.py": "29035188372ee5d86d665156fbd665e6648d8038954030774278649bf398d7e4",
+    "evals/deterministic/test_business_public_execution.py": "5ac1cb794d90346bfdeb10aa138b511583865ec801aac678a8337b12f04da0f0",
+    "evals/deterministic/test_business_route_execution.py": "a95fa93e43a109d4d0139f19e05ebc1dbfac8a8977d7aa78f4b94ddd98bf34d8",
+    "evals/deterministic/test_business_public_evaluation_session.py": "421b4816fe6f214dedfbf800c2366da7a822658bfb64f1a831662a7c98396248",
+    "openspec/changes/jev-conditional-workflows/proposal.md": "68c8947bad7345ccf96f4d62e69f3cc5bafc143b4514a54a5b2739e1ab1e80a4",
+    "openspec/changes/jev-conditional-workflows/design.md": "91a978188aa6ac32b66d617827684f926c0b77b2fd2ff84cdc3aaffee5727c47",
+    "openspec/changes/jev-conditional-workflows/specs/selective-business-evaluation/spec.md": "38186360a8f8b01417cca175b9bae9d8fb9c3683a3db63a8f41f6b49833d0196",
+    "openspec/changes/jev-conditional-workflows/tasks.md": "d77b43aa367104f2f9b9b14a2d4605d78b6f3583f29ad3c171ad879fbbd53bfd",
+    "evals/deterministic/test_business_tau_process.py": "96dd19223b13c369c013a2ec218eb70b4c13f2bf382cb7a5ba61da26b7dc9251",
+    "decagent/business/plans/evaluation_catalog.py": "f7891c0b0509b6649487d33217bdeb966c0b0e654d3e8acc356d859799f01fc7",
+    "evals/deterministic/test_business_evaluation_catalog.py": "1830aa1bc5d3c172adfd63ab3d4ce51db4b195916c0b762f15334e7c0db52e6d",
+    "generated/261020/计划/0007_后续实施规划索引.md": "f77687a05732943811ea53d76780be6c2fc86b8e2959ba7f47ab39b1ef7de562",
+    "README.md": "588ef16cdab154452fb43b0fde3bfe61f902e8713639ec1db96c2dc1c073c8dc"
+  },
+  "updated_at_utc": "2026-10-20T09:40:00Z"
+}

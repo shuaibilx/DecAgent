@@ -1,0 +1,118 @@
+{
+  "schema_version": "tau2-locked-process-bridge-verification-1",
+  "created_at": "2026-10-18T11:31:00Z",
+  "status": "engineering_verification_only",
+  "source_is_uncommitted_working_tree": true,
+  "user_decision": "retain_separate_locks_use_dedicated_process_bridge",
+  "upstream": {
+    "commit": "96a3ef92329baf908ffe9dfe188cea34e8701d2a",
+    "package_version": "1.0.1",
+    "python": "3.12.7",
+    "core_lock_unchanged": true,
+    "optional_locked_addition": {
+      "websockets": "15.0.1"
+    },
+    "pip_check": {
+      "packages": 78,
+      "status": "passed"
+    }
+  },
+  "application_mcp_version": "2.3.0",
+  "original_task_initialization": {
+    "artifact": "evals/benchmarks/evidence/tau2-runtime-readiness-20261018T110840Z.json",
+    "sha256": "60713358110a82c14421f886c51122d1a5b6e49695f32d9021b7f7d571501dda",
+    "ready": 80,
+    "total": 80,
+    "verified_source_and_domain_files": 279,
+    "evidence_scope": "runtime_readiness_only"
+  },
+  "targeted_regression": {
+    "passed": 142,
+    "skipped": 1,
+    "failed": 0,
+    "seconds": 77.65,
+    "skip_reason": "legacy optional direct tau2 import in application environment; actual isolated process checks enabled and passed",
+    "suites_overlap_do_not_sum_with_historical_suites": true
+  },
+  "checks": {
+    "ruff": "passed",
+    "openspec_strict": "passed",
+    "application_uv_lock": "passed",
+    "upstream_pip_check": "passed",
+    "pinned_source_gate_for_scoring": "passed",
+    "diff_check": "passed",
+    "owned_tau_worker_processes_after_tests": 0
+  },
+  "protocol": {
+    "maximum_frame_bytes": 4194304,
+    "initialization_timeout_seconds": 60,
+    "request_timeout_seconds": 15,
+    "automatic_retries": 0,
+    "network_audit": "verified_blocked",
+    "credential_inheritance": "explicit_allowlist_no_provider_keys",
+    "windows_owned_process_tree_cleanup": "passed",
+    "posix_process_group_cleanup": "implemented_not_independently_linux_verified"
+  },
+  "wheel": {
+    "sha256": "4784377911fbc5ef9b062271ee36a86a1151893eec10f4b54d2dc78796c6dd4a",
+    "bridge_modules_present": 3
+  },
+  "new_model_requests": 0,
+  "new_model_cost_usd": "0",
+  "remaining_jev_authorized_budget_usd": "0.992531602",
+  "formal_public_task_execution": {
+    "planned_cases": 286,
+    "attempted": 0,
+    "task_success_rate": null
+  },
+  "synthetic_protocol_regression": {
+    "original_tools": [
+      "find_user_id_by_email",
+      "get_user_details"
+    ],
+    "parameter_binding": "first_real_response_to_second_call",
+    "official_scorer_invoked": false,
+    "business_goal_verified": false,
+    "evidence_scope": "protocol_regression_only"
+  },
+  "openspec_progress": {
+    "complete": 52,
+    "total": 60,
+    "remaining": [
+      "9.6",
+      "10.1",
+      "10.2",
+      "10.3",
+      "10.4",
+      "10.5",
+      "10.6",
+      "11.3"
+    ]
+  },
+  "unchanged_live_constraint": "qwen3.8-flash single authorized correction retest timed out with unknown usage; no further calls or model replacement",
+  "limitations": [
+    "no full public task score",
+    "no Jev performance advantage established",
+    "official simulator and verifier integration pending",
+    "historical business-2 service baseline pending",
+    "Enterprise independent restored-state verification pending",
+    "reviewed semantic templates and real paired ablations pending",
+    "no qualified production threshold; 95%/100 requirements retained",
+    "human exploratory cases and employee study pending",
+    "no remote CI run or deployment this increment",
+    "independent Linux acceptance pending"
+  ],
+  "report": "generated/261018/评测/1928_τBench独立运行时桥与验证.md",
+  "source_sha256": {
+    "decagent/evaluation/business/tau_process.py": "4a531d09b9bb2a7d08b60a1ecd946be1f03f3181b15c37050accb6d308a91bf7",
+    "decagent/evaluation/business/tau_worker.py": "fc177635d8a2704288dd35de97f432811c2707a4ad8869138b62c1671f591aab",
+    "decagent/evaluation/business/tau_tools.py": "3cc2e3a4bad0426fa9f20593b08205b46ba8700e6c2483f2baa3d7aff1e941fc",
+    "evals/benchmarks/verify_tau_runtime.py": "096b6d9042f36de9cd4a48ec6091168cee2e512d825dd5377732e5302cf57d78",
+    "evals/deterministic/test_business_tau_process.py": "53e65f7ca9aed428f57d01de39cfd809c52a16f313f651d8ba00b5d72e9123cc",
+    "evals/deterministic/test_business_tau_tools.py": "3ebe716c239702a5929b949252da01dd54e70d6cda76be7d5335b036dc97792d",
+    "evals/deterministic/test_business_public_evaluation_session.py": "8dc854ef605cec523203edb41919fc2a5ad6c80af2887ccd4d4f8da687a4bc1c",
+    "openspec/changes/jev-conditional-workflows/design.md": "e2acde670142aa1258c370e57de49233dec9203c3bb44b1d49e2dc5ef5ae5d9a",
+    "openspec/changes/jev-conditional-workflows/tasks.md": "a2c381fcaf62cf899dc390147d98358fee232d2ab3ffafc428b2ea7a3e16ef19",
+    "openspec/changes/jev-conditional-workflows/specs/selective-business-evaluation/spec.md": "cc4af07511860ac441bc8c413f52d67ae90f9a120eb4d0d51ef704e0886e0f47"
+  }
+}
