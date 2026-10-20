@@ -15,6 +15,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  workbench-ui:
+    name: Workbench browser logic checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check workbench JavaScript syntax
+        run: |
+          node --version
+          node --check decagent/gateway/static/business.js
+          node --check evals/deterministic/business_selection.cjs
+          node --check evals/deterministic/business_trace_rendering.cjs
+          node --check evals/deterministic/business_semantic_workbench.cjs
+
+      - name: Run workbench UI behavior regressions
+        run: |
+          node evals/deterministic/business_selection.cjs
+          node evals/deterministic/business_trace_rendering.cjs
+          node evals/deterministic/business_semantic_workbench.cjs
+
   checks:
     name: Python ${{ matrix.python-version }} checks
     runs-on: ubuntu-latest

@@ -1,4 +1,4 @@
-name: Release and local deployment
+name: Release image publishing (GHCR only)
 
 on:
   push:

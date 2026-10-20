@@ -13,4 +13,5 @@ openspec
 generated
 *.egg-info
 evals/benchmarks/cache
+evals/benchmarks/vendor_cache
 evals/benchmarks/research
