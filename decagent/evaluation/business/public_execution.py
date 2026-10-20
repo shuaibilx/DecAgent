@@ -150,6 +150,28 @@ def _route_diagnostic_snapshot(ledger, trial_id, route):
     return lifecycle.get("failure_stage"), lifecycle.get("exception_type")
 
 
+def _unknown_route_score_status(ledger, trial_id, route):
+    """Distinguish an unknown judge attempt from scoring never being started."""
+    snapshot = getattr(ledger, "model_attempts_snapshot", None)
+    if not callable(snapshot):
+        return "not_attempted"
+    try:
+        attempts = snapshot(trial_id, route)
+    except Exception:
+        return "unknown"
+    if type(attempts) not in {list, tuple}:
+        return "unknown"
+    for attempt in attempts:
+        if type(attempt) is not dict:
+            return "unknown"
+        if attempt.get("role") == "judge" and attempt.get("status") not in {
+            "not_sent",
+            "reserved",
+        }:
+            return "unknown"
+    return "not_attempted"
+
+
 def _failure_diagnostics(result, failure):
     stages = {
         "environment_failure": "environment_setup",
@@ -369,19 +391,20 @@ def execute_public_route(
             failure_stage, exception_type = _route_diagnostic_snapshot(
                 ledger, trial_id, route_name
             )
+            score_status = _unknown_route_score_status(ledger, trial_id, route_name)
             ledger.finish_route(
                 trial_id,
                 route_name,
                 status="unknown",
                 result_digest=None,
                 cleanup_verified=False,
-                score_status="not_attempted",
+                score_status=score_status,
             )
         return PublicRouteReceipt(
             trial_id,
             route_name,
             status,
-            "not_attempted",
+            score_status if status == "unknown" else "not_attempted",
             False,
             result_hash,
             None,
@@ -413,19 +436,20 @@ def execute_public_route(
         overrun = within_limit is False
         current = ledger.route_status(trial_id, route_name)
         if current == "unknown":
+            score_status = _unknown_route_score_status(ledger, trial_id, route_name)
             ledger.finish_route(
                 trial_id,
                 route_name,
                 status="unknown",
                 result_digest=None,
                 cleanup_verified=False,
-                score_status="not_attempted",
+                score_status=score_status,
             )
             failure_stage, exception_type = _route_diagnostic_snapshot(
                 ledger, trial_id, route_name
             )
             return PublicRouteReceipt(
-                trial_id, route_name, "unknown", "not_attempted", False,
+                trial_id, route_name, "unknown", score_status, False,
             None, None, machine_seconds, None,
             _route_tau_steps(ledger, trial_id, route_name),
             failure_stage,
@@ -456,6 +480,7 @@ def execute_public_route(
 
     current = ledger.route_status(trial_id, route_name)
     if current == "unknown":
+        score_status = _unknown_route_score_status(ledger, trial_id, route_name)
         ledger.finish_route(
             trial_id,
             route_name,
@@ -463,13 +488,13 @@ def execute_public_route(
             result_digest=None,
             cleanup_verified=cleanup_verified,
             cleanup_evidence_digest=cleanup_digest,
-            score_status="not_attempted",
+            score_status=score_status,
         )
         failure_stage, exception_type = _route_diagnostic_snapshot(
             ledger, trial_id, route_name
         )
         return PublicRouteReceipt(
-            trial_id, route_name, "unknown", "not_attempted", cleanup_verified,
+            trial_id, route_name, "unknown", score_status, cleanup_verified,
             None, None, machine_seconds, None,
             _route_tau_steps(ledger, trial_id, route_name),
             failure_stage,

@@ -89,6 +89,10 @@ class FakeLedger:
             mode="smoke", root=Path(root), resource_limits={"tau_steps": 200}
         )
         self.tau_step_counts = {}
+        self.model_attempts = {}
+
+    def model_attempts_snapshot(self, trial_id, route):
+        return list(self.model_attempts.get((trial_id, route), []))
 
     def route_status(self, _trial_id, _route):
         return self.statuses.get((_trial_id, _route), "pending")
@@ -398,6 +402,35 @@ def test_unknown_route_is_not_rewritten_and_only_cleanup_is_recorded(tmp_path):
     assert terminal["score_status"] == "not_attempted"
     assert terminal["cleanup_verified"] is True
     assert terminal["cleanup_evidence_digest"]
+
+
+def test_unknown_official_judge_is_retained_as_unknown_score(tmp_path):
+    ledger = FakeLedger(tmp_path)
+    route = "react_skill_mcp"
+    ledger.model_attempts[(TRIAL_ID, route)] = [
+        {"role": "judge", "status": "unknown"}
+    ]
+    controlled = FakeControlledRoutes(
+        execution_result(score=True, cleanup=True), ledger
+    )
+
+    receipt = run_public_route(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        trial_id=TRIAL_ID,
+        route=route,
+        trial=bound_trial(TRIAL_ID),
+        max_machine_seconds=1_800,
+        route_kwargs=route_kwargs_for(ledger, TRIAL_ID, route),
+    )
+
+    terminal = ledger.events[-1][3]
+    assert receipt.status == "unknown"
+    assert receipt.score_status == "unknown"
+    assert terminal["status"] == "unknown"
+    assert terminal["score_status"] == "unknown"
+    assert terminal["cleanup_verified"] is True
 
 
 def test_route_runner_rejects_caller_supplied_agent_start_hook_before_claim(tmp_path):

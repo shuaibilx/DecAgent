@@ -204,11 +204,6 @@ def _enterprise_task(root, record, source, inventory):
     row = rows[0]
     row["domain"] = record["domain"]
     spec = spec_from_pinned_row(root, row, source)
-    if any(
-        type(verifier) is dict and verifier.get("verifier_type") == "response_check"
-        for verifier in spec.verifiers
-    ):
-        raise ValueError("This first-wave runner has no ledgered EnterpriseOps judge adapter")
     return spec, parquet["sha256"]
 
 

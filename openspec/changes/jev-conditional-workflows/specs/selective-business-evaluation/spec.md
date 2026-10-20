@@ -420,6 +420,14 @@ callback、官方 scorer、清理逻辑和资源门禁接通前 MUST 被拒绝�
 - **WHEN** `ControlledRoutes` 为某条公开路线创建 planner、ReAct、semantic 或 τ callback
 - **THEN** callback 必须绑定 manifest trial ID、对应冻结角色 profile 和当前 route ledger；每次实际模型请求只由该 callback 执行一次派发并记录 attempt
 
+#### Scenario: Enterprise response-check uses the ledgered official judge
+- **WHEN** pinned EnterpriseOps 原始 verifier 执行 `response_check`
+- **THEN** evaluator 必须使用当前 route 的冻结 `judge` profile 和 ledgered callback；官方裁判请求、Token、费用来源与耗时按独立角色结算，费用 unknown 保持 null，usage unknown 使评分失败且不得重放；verifier 的隐藏配置与输出解释不得进入 Agent 输入或公开报告
+
+#### Scenario: Preconfigured Enterprise judge cannot bypass route accounting
+- **WHEN** Enterprise scorer 已预先注入裁判客户端，但当前受控路线没有将它绑定到该路线的账本 callback
+- **THEN** 路线仍必须要求当前 route 的 ledgered callback，并在拒绝非 ledgered 客户端后停止评分；不得把预注入客户端视为已满足派发、预算和身份审计要求
+
 #### Scenario: Model usage becomes unknown after dispatch
 - **WHEN** 已 dispatch 请求以异常、无效响应或缺少完整 token usage 结束
 - **THEN** attempt 和 route 保留为 unknown，不重放、不调用后续工具或官方评分；账本保留原预留

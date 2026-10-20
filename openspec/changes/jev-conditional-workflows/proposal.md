@@ -1,4 +1,7 @@
 # Proposal
+## 当前实施状态（2026-10-21）
+
+主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。候选 `40d1a13d69ae0e84d0779bdbcbba94c061581290` 的 GitHub CI run `39481982722` 已全部通过，但不包含当前工作树里的 Enterprise response-check judge 接线。该接线把官方裁判绑定到当前 route 的账本 callback，并拒绝 scorer 预注入的非 ledgered 客户端；unknown judge attempt 保留 `score_status=unknown`、unknown 费用为 null；定向回归 `90 passed`，全量 deterministic `1923 passed, 18 skipped (212.46s)`。本轮没有 provider 请求。历史首波的 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。真实 worker 强制取消、新 cohort 和四域 live 评分闭环尚未完成。
 
 ## 历史执行快照（2026-10-20，首波 live 执行前）
 
@@ -29,7 +32,7 @@
 
 ### 2026-10-21 CI 复验状态
 
-候选 `1b13fc2e42744e5287f153333b95f22a6e3b6a20` 的 CI `39474267980` 因历史 v6 迁移测试夹具使用了当前 `TicketStore` 而失败；Python 3.13 deterministic、Workbench、构建/wheel/MCP/Compose 检查通过，PostgreSQL 集成 604 passed、30 skipped、1 failed，Python 3.11 job 因 fail-fast 取消。夹具现按 v6 schema 直接写入旧表，本地候选 `323e5e5` 的相关 PostgreSQL 迁移回归为 `3 passed`，Ruff 与 OpenSpec strict 通过。修复尚未推送且没有同 SHA CI 结果；主 change 因 11.1 复核重开暂为 66/79。没有发起新的模型或公开评测请求，首波旧 unknown 不重放，公开基准仍为 0/286。
+较早候选 `1b13fc2e42744e5287f153333b95f22a6e3b6a20` 的 CI `39474267980` 曾因历史 v6 迁移夹具使用当前 `TicketStore` 而失败。夹具改为直接按 v6 schema 写入，相关 PostgreSQL 迁移回归 `3 passed`；修复随后进入候选 `40d1a13d69ae0e84d0779bdbcbba94c061581290`，CI `39481982722` 已全部通过。当前未提交的 Enterprise judge adapter 不属于该 run，仍须提交后做同 SHA CI。主 change 因 11.1 复核重开为 66/79。没有发起新的模型或公开评测请求，首波旧 unknown 不重放，公开基准仍为 0/286。
 
 ### 2026-10-20 EnterpriseOps 脚本路线工程闭环
 

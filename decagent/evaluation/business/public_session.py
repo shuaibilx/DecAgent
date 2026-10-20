@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
+from decimal import Decimal, InvalidOperation
 from math import isfinite
 from pathlib import Path
 from time import perf_counter
@@ -405,6 +406,33 @@ class EvaluationPlanSession:
         return all(
             callable(getattr(self.environment, name, None))
             for name in ("user_turn", "call_user_tool", "score_simulation")
+        )
+
+    @property
+    def requires_official_judge(self):
+        return (
+            not self.supports_user_simulation
+            and getattr(self._scorer, "requires_judge", False) is True
+        )
+
+    def configure_official_judge(self, *, model, callback):
+        """Attach a route-ledgered judge to an Enterprise response-check scorer."""
+        self._active()
+        if not self.requires_official_judge:
+            raise ValueError("This isolated session does not require an Enterprise judge")
+        if getattr(self._scorer, "judge_client_configured", False) is True:
+            raise ValueError(
+                "Controlled response checks require a scorer without a preconfigured judge"
+            )
+        if type(model) is not str or not model.strip() or len(model) > 256:
+            raise ValueError("A bounded official judge model identity is required")
+        if not callable(callback):
+            raise TypeError("A measured, ledgered official judge callback is required")
+        from .enterprise_scoring import BudgetedEnterpriseJudge
+
+        bridge = _LedgeredEnterpriseJudgeBridge(callback, model)
+        self._scorer.configure_judge_client(
+            BudgetedEnterpriseJudge(bridge, bridge.usage_snapshot)
         )
 
     @property
@@ -931,6 +959,114 @@ class EvaluationPlanSession:
             "verified": self._closed and environment_closed,
             "session_closed": self._closed,
             "environment_closed": environment_closed,
+        }
+
+
+class _LedgeredEnterpriseJudgeBridge:
+    """Adapt verifier messages to the frozen, ledgered public judge callback."""
+
+    def __init__(self, callback, model):
+        self.callback = callback
+        self.model = model
+        ledger = getattr(callback, "ledger", None)
+        self.trial_id = getattr(callback, "trial_id", None)
+        self.route = getattr(callback, "route", None)
+        if (
+            not callable(getattr(ledger, "model_attempts_snapshot", None))
+            or type(self.trial_id) is not str
+            or type(self.route) is not str
+        ):
+            raise TypeError("Enterprise judge callback must expose its durable attempt ledger")
+        self.ledger = ledger
+
+    @staticmethod
+    def _messages(messages):
+        if type(messages) not in {list, tuple} or not 1 <= len(messages) <= 8:
+            raise ValueError("Enterprise judge messages exceed the frozen request contract")
+        role_names = {
+            "system": "system",
+            "human": "user",
+            "user": "user",
+            "ai": "assistant",
+            "assistant": "assistant",
+            "tool": "tool",
+        }
+        result = []
+        for message in messages:
+            if type(message) is dict:
+                role, content = message.get("role"), message.get("content")
+            else:
+                role = getattr(message, "type", None)
+                content = getattr(message, "content", None)
+            role = role_names.get(role)
+            if role is None or type(content) is not str or len(content) > 32_768:
+                raise ValueError("Enterprise judge messages must be bounded text messages")
+            result.append({"role": role, "content": content})
+        return result
+
+    async def ainvoke(self, messages):
+        """Call the sync HTTP adapter in its current ledger-owning thread."""
+        from .routes import ModelReply
+
+        reply = self.callback(
+            {"model": self.model, "messages": self._messages(messages)}
+        )
+        if (
+            not isinstance(reply, ModelReply)
+            or type(reply.value) is not dict
+            or type(reply.value.get("content")) is not str
+            or reply.value.get("tool_calls") != []
+        ):
+            raise ValueError("Enterprise judge callback returned an invalid text-only response")
+        return SimpleNamespace(content=reply.value["content"])
+
+    def usage_snapshot(self):
+        rows = self.ledger.model_attempts_snapshot(self.trial_id, self.route)
+        counted = [
+            row for row in rows
+            if row.get("role") == "judge" and row.get("status") != "not_sent"
+        ]
+        if any(row.get("status") not in {"settled", "settled_overrun"} for row in counted):
+            from .enterprise_scoring import EnterpriseScoringError
+
+            raise EnterpriseScoringError("Enterprise judge dispatch usage is unresolved")
+        input_tokens, output_tokens = 0, 0
+        seconds = 0.0
+        costs = []
+        for row in counted:
+            prompt = row.get("actual_input_tokens")
+            completion = row.get("actual_output_tokens")
+            elapsed = row.get("attempt_seconds")
+            if (
+                type(prompt) is not int or prompt < 0
+                or type(completion) is not int or completion < 0
+                or type(elapsed) not in {int, float} or elapsed < 0
+            ):
+                from .enterprise_scoring import EnterpriseScoringError
+
+                raise EnterpriseScoringError("Enterprise judge usage is incomplete")
+            input_tokens += prompt
+            output_tokens += completion
+            seconds += float(elapsed)
+            amount = row.get("actual_cost_usd")
+            if amount is None:
+                costs.append(None)
+            else:
+                try:
+                    costs.append(Decimal(str(amount)))
+                except (InvalidOperation, ValueError) as exc:
+                    from .enterprise_scoring import EnterpriseScoringError
+
+                    raise EnterpriseScoringError(
+                        "Enterprise judge cost evidence is invalid"
+                    ) from exc
+        cost = None if any(item is None for item in costs) else sum(costs, Decimal("0"))
+        return {
+            "requests": len(counted),
+            "prompt_tokens": input_tokens,
+            "completion_tokens": output_tokens,
+            "cost_usd": cost,
+            "seconds": seconds,
         }
 
 

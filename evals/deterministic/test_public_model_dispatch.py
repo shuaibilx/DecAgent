@@ -1,3 +1,4 @@
+import asyncio
 import json
 from dataclasses import replace
 from decimal import Decimal
@@ -383,6 +384,203 @@ def test_role_factory_binds_tau_user_and_judge_profiles_without_crossing_roles()
     assert adapters["official_judge"].profile is plan.profiles.judge
     assert adapters["user_model"] == plan.profiles.user_simulator.model
     assert adapters["judge_model"] == plan.profiles.judge.model
+
+
+def test_role_factory_binds_ledgered_judge_for_enterprise_response_check(tmp_path):
+    plan = _plan_with_known_primary_prices()
+    ledger, trial_id, route = _started_ledger(tmp_path, plan)
+
+    def callback(_request, *, timeout_seconds):
+        assert timeout_seconds > 0
+        return ModelReply(
+            {"content": '{"score":9,"reasoning":"supported"}', "tool_calls": []},
+            tokens=8,
+            cost_usd=None,
+            model=plan.profiles.judge.model,
+            input_tokens=6,
+            output_tokens=2,
+            profile=plan.profiles.judge,
+        )
+
+    factory = LedgeredModelAdapterFactory(
+        {
+            "react": lambda *_: callback,
+            "official_judge": lambda *_: callback,
+        },
+        {
+            "react": lambda request: len(str(request).encode("utf-8")),
+            "official_judge": lambda request: len(str(request).encode("utf-8")),
+        },
+        ledger,
+        plan.profiles,
+        trial_id_for=lambda _trial: trial_id,
+    )
+
+    adapters = factory(
+        SimpleNamespace(supports_user_simulation=False, requires_official_judge=True),
+        SimpleNamespace(**plan.profiles.digests),
+        route,
+    )
+
+    assert adapters["official_judge"].profile is plan.profiles.judge
+    assert adapters["judge_model"] == plan.profiles.judge.model
+    ledger.close()
+
+
+def test_enterprise_judge_bridge_measures_attempts_without_inventing_cost():
+    from decagent.evaluation.business.enterprise_scoring import BudgetedEnterpriseJudge
+    from decagent.evaluation.business.public_session import _LedgeredEnterpriseJudgeBridge
+
+    class Ledger:
+        rows = []
+
+        def model_attempts_snapshot(self, _trial_id, _route):
+            return list(self.rows)
+
+    class Callback:
+        ledger = Ledger()
+        trial_id = "trial"
+        route = "react_skill_mcp"
+
+        def __call__(self, request):
+            assert request == {
+                "model": "qwen-judge-v1",
+                "messages": [
+                    {"role": "system", "content": "Score only the evidence."},
+                    {"role": "user", "content": "Actual response."},
+                ],
+            }
+            self.ledger.rows.append(
+                {
+                    "role": "judge",
+                    "status": "settled",
+                    "actual_input_tokens": 5,
+                    "actual_output_tokens": 3,
+                    "actual_cost_usd": None,
+                    "attempt_seconds": 0.25,
+                }
+            )
+            return ModelReply(
+                {"content": '{"score":9}', "tool_calls": []},
+                tokens=8,
+                cost_usd=None,
+                model="qwen-judge-v1",
+                input_tokens=5,
+                output_tokens=3,
+            )
+
+    callback = Callback()
+    bridge = _LedgeredEnterpriseJudgeBridge(callback, "qwen-judge-v1")
+    budgeted = BudgetedEnterpriseJudge(bridge, bridge.usage_snapshot)
+    response = asyncio.run(
+        budgeted.ainvoke(
+            [
+                SimpleNamespace(type="system", content="Score only the evidence."),
+                SimpleNamespace(type="human", content="Actual response."),
+            ]
+        )
+    )
+
+    assert response.content == '{"score":9}'
+    assert bridge.usage_snapshot() == {
+        "requests": 1,
+        "prompt_tokens": 5,
+        "completion_tokens": 3,
+        "cost_usd": None,
+        "seconds": 0.25,
+    }
+
+
+def test_enterprise_judge_bridge_rejects_unknown_dispatch_usage():
+    from decagent.evaluation.business.enterprise_scoring import EnterpriseScoringError
+    from decagent.evaluation.business.public_session import _LedgeredEnterpriseJudgeBridge
+
+    class Ledger:
+        def model_attempts_snapshot(self, _trial_id, _route):
+            return [
+                {
+                    "role": "judge",
+                    "status": "unknown",
+                    "actual_input_tokens": None,
+                    "actual_output_tokens": None,
+                    "actual_cost_usd": None,
+                    "attempt_seconds": 1.0,
+                }
+            ]
+
+    class Callback:
+        ledger = Ledger()
+        trial_id = "trial"
+        route = "react_skill_mcp"
+
+        def __call__(self, _request):
+            raise AssertionError("An existing unknown attempt must not be replayed")
+
+    bridge = _LedgeredEnterpriseJudgeBridge(Callback(), "qwen-judge-v1")
+
+    with pytest.raises(EnterpriseScoringError, match="unresolved"):
+        bridge.usage_snapshot()
+
+
+def test_enterprise_session_requires_ledgered_judge_even_if_a_client_was_injected():
+    from decagent.evaluation.business.public_session import EvaluationPlanSession
+
+    session = object.__new__(EvaluationPlanSession)
+    session.environment = SimpleNamespace(supports_user_simulation=False)
+    session._scorer = SimpleNamespace(
+        requires_judge=True,
+        judge_client_configured=True,
+    )
+
+    assert session.requires_official_judge is True
+
+
+def test_enterprise_session_rejects_preconfigured_judge_for_controlled_route():
+    from decagent.evaluation.business.public_session import EvaluationPlanSession
+
+    session = object.__new__(EvaluationPlanSession)
+    session._closed = False
+    session.environment = SimpleNamespace(supports_user_simulation=False)
+    session.spec = SimpleNamespace(assert_active=lambda: True)
+    session._scorer = SimpleNamespace(
+        requires_judge=True,
+        judge_client_configured=True,
+    )
+
+    with pytest.raises(ValueError, match="preconfigured judge"):
+        session.configure_official_judge(model="qwen-judge-v1", callback=lambda _request: None)
+
+
+def test_enterprise_session_binds_response_check_judge_through_budget_adapter():
+    from decagent.evaluation.business.enterprise_scoring import BudgetedEnterpriseJudge
+    from decagent.evaluation.business.public_session import EvaluationPlanSession
+
+    class Scorer:
+        requires_judge = True
+        judge_client_configured = False
+        configured = None
+
+        def configure_judge_client(self, client):
+            self.configured = client
+
+    session = object.__new__(EvaluationPlanSession)
+    session._closed = False
+    session.environment = SimpleNamespace(supports_user_simulation=False)
+    session.spec = SimpleNamespace(assert_active=lambda: True)
+    session._scorer = Scorer()
+    class Callback:
+        ledger = SimpleNamespace(model_attempts_snapshot=lambda *_args: [])
+        trial_id = "trial"
+        route = "react_skill_mcp"
+
+        def __call__(self, _request):
+            return None
+
+    callback = Callback()
+
+    session.configure_official_judge(model="qwen-judge-v1", callback=callback)
+
+    assert isinstance(session._scorer.configured, BudgetedEnterpriseJudge)
 
 
 def test_unknown_dispatched_model_outcome_blocks_route_and_cannot_replay(tmp_path):

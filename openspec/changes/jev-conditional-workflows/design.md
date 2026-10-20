@@ -646,3 +646,9 @@ Verification: focused model dispatch, public ledger, public route, live runner, 
 ### 2026-10-21 历史 v6 迁移测试夹具复核
 
 候选 CI `39474267980` 发现 `test_business_identity_migration.py` 在 v6 schema fixture 中调用依赖后续 `workspace_id` 列的当前 `TicketStore`。测试夹具改为直接向 v6 的 people/category 表写入历史行，不改迁移实现。相关 PostgreSQL migration tests `3 passed`；全量 integration 及修复后精确 SHA 的 GitHub CI 尚待复验。该复核不改变运行时设计；selective-business-evaluation spec 已包含 candidate SHA 在 claim 前绑定、历史无 SHA ledger 拒绝补绑的要求，因此本次不增删规范需求。
+
+### 2026-10-21 EnterpriseOps response-check judge 受控接线
+
+EnterpriseOps pinned 原始 verifier 可含 response_check，其 judge 现在由公开模型适配器按 judge role 创建，并通过当前 route 的 LedgeredModelCallback 进行 profile 校验、预算预留、单次 dispatch 和 settle/unknown。EvaluationPlanSession.requires_official_judge 对所有 Enterprise response_check 启用账本绑定；ControlledRoutes 在评分前绑定 callback。若 scorer 已注入客户端，受控 session 明确拒绝，避免绕过 route 账本；EnterpriseOfficialScorer 继续运行原始 verifier。消息适配只接受有界文本 role/content，不暴露 verifier 结果给 Agent。bridge 从当前 route 的 attempt snapshot 读取真实请求、prompt/completion token、费用来源和时间；价格未知时返回 null，未结算 attempt 不能形成分数。τ 的官方模拟器/裁判路径保持原状。
+
+受控验证包含：公开 factory 为 Enterprise response-check 绑定冻结 judge profile；受控 ReAct route 将 callback 接到原始 verifier；费用 unknown 保留已知 usage；unknown dispatch 阻断评分。相关 route/model/scorer/runner 回归 90 passed，Ruff 与 git diff --check 通过。没有模型、MCP、账单或公开评分派发。此代码仍未进入精确候选 CI；取消任意忽略 deadline 的同步调用、worker/监督者分离、新候选 cohort 和四域真实评分/cleanup 仍是 live gate。

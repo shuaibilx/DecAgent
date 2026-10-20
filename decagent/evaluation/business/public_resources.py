@@ -610,8 +610,12 @@ class LedgeredModelAdapterFactory:
             required_names.add("semantic")
             if "jev" not in profiles:
                 raise ValueError("A frozen Jev profile is required for Jev routes")
-        if getattr(session, "supports_user_simulation", False):
-            required_names.update({"user_simulator", "official_judge"})
+        supports_user_simulation = getattr(session, "supports_user_simulation", False)
+        requires_official_judge = getattr(session, "requires_official_judge", False)
+        if supports_user_simulation or requires_official_judge:
+            required_names.add("official_judge")
+        if supports_user_simulation:
+            required_names.add("user_simulator")
         if not required_names <= set(self.callback_factories):
             raise ValueError("Required route model callbacks are not configured")
 
@@ -652,6 +656,9 @@ class LedgeredModelAdapterFactory:
             raise
         if getattr(session, "supports_user_simulation", False):
             adapters["user_model"] = profiles["user_simulator"].model
+        if getattr(session, "supports_user_simulation", False) or getattr(
+            session, "requires_official_judge", False
+        ):
             adapters["judge_model"] = profiles["judge"].model
         return PublicModelAdapters(adapters, resources)
 

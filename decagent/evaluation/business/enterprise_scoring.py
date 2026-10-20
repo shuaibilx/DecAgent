@@ -243,6 +243,27 @@ class EnterpriseOfficialScorer:
         self._observed_judge_usage = None
 
     @property
+    def requires_judge(self):
+        configs = self._spec.verifiers
+        return any(
+            type(config) is dict and config.get("verifier_type") == "response_check"
+            for config in configs
+        ) if type(configs) in {tuple, list} else False
+
+    @property
+    def judge_client_configured(self):
+        return self._judge_client is not None
+
+    def configure_judge_client(self, judge_client):
+        if not self.requires_judge:
+            raise EnterpriseScoringError("This task has no response-check judge")
+        if not isinstance(judge_client, BudgetedEnterpriseJudge):
+            raise TypeError("Response-check judge must use the measured budget adapter")
+        if self._judge_client is not None:
+            raise EnterpriseScoringError("Response-check judge configuration is immutable")
+        self._judge_client = judge_client
+
+    @property
     def private_audit_evidence(self):
         return deepcopy(self._private_audit_evidence)
 

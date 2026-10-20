@@ -349,6 +349,7 @@ class ObservedUsage:
         else:
             self.complete = False
             self.cost_complete = False
+            self.judge_cost_usd = None
         if observed["requests"]:
             self.attempts.append(ModelAttempt(
                 "judge", None, observed["tokens"], observed["cost_usd"],
@@ -809,6 +810,24 @@ class ControlledRoutes:
                         initial_user_message = session.start_conversation()
                         task_input = deepcopy(session.task_input)
                         validate_schema(input_schema, task_input)
+                    elif getattr(session, "requires_official_judge", False):
+                        if user_simulator is not None or user_model is not None:
+                            raise ValueError(
+                                "Enterprise response checks do not use a simulated user"
+                            )
+                        if (
+                            type(judge_model) is not str
+                            or not judge_model.strip()
+                            or not callable(official_judge)
+                        ):
+                            raise ValueError(
+                                "Enterprise response checks require the ledgered official judge"
+                            )
+                        configure_judge = getattr(session, "configure_official_judge", None)
+                        if not callable(configure_judge):
+                            raise ValueError("Enterprise session cannot bind its official judge")
+                        configure_judge(model=judge_model, callback=official_judge)
+                        initial_user_message = None
                     else:
                         if any(
                             value is not None

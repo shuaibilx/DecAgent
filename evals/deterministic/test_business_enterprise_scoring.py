@@ -25,7 +25,9 @@ class FakeEngine:
     async def execute_verifier(self, config, response, database_id, **kwargs):
         self.calls.append((config, deepcopy(response), database_id, kwargs))
         if config.verifier_type == "response_check":
-            await self.judge_client.llm.ainvoke([])
+            await self.judge_client.llm.ainvoke(
+                [SimpleNamespace(type="human", content="synthetic verifier input")]
+            )
         outcome = self.outcomes[len(self.calls) - 1]
         if isinstance(outcome, BaseException):
             raise outcome
@@ -494,6 +496,98 @@ def test_unknown_judge_price_keeps_official_score_and_known_token_usage():
     }
 
 
+def test_controlled_route_binds_enterprise_judge_from_ledgered_adapter(tmp_path):
+    from contextlib import contextmanager
+
+    from decagent.evaluation.business.comparison import Route
+    from decagent.evaluation.business.public_session import EvaluationPlanSession
+    from decagent.evaluation.business.routes import ControlledRoutes, ModelReply
+
+    environment, scope, trial, _, _ = enterprise_session_fixture(tmp_path)
+    environment.spec.verifiers = ({"verifier_type": "response_check", "validation_config": {}},)
+    scorer, engine, _ = make_scorer(environment.spec, [{"passed": True}])
+
+    class Ledger:
+        rows = []
+
+        def model_attempts_snapshot(self, _trial_id, _route):
+            return list(self.rows)
+
+    class JudgeCallback:
+        def __init__(self):
+            self.ledger = Ledger()
+            self.trial_id = "trial"
+            self.route = "react_skill_mcp"
+
+        def __call__(self, request):
+            assert request["model"] == "synthetic-judge"
+            assert request["messages"] == [
+                {"role": "user", "content": "synthetic verifier input"}
+            ]
+            self.ledger.rows.append(
+                {
+                    "role": "judge",
+                    "status": "settled",
+                    "actual_input_tokens": 4,
+                    "actual_output_tokens": 2,
+                    "actual_cost_usd": "0.001",
+                    "attempt_seconds": 0.1,
+                }
+            )
+            return ModelReply(
+                {"content": '{"score":9}', "tool_calls": []},
+                tokens=6,
+                cost_usd=Decimal("0.001"),
+                model="synthetic-judge",
+                input_tokens=4,
+                output_tokens=2,
+            )
+
+    judge = JudgeCallback()
+
+    @contextmanager
+    def factory(frozen, isolation):
+        session = EvaluationPlanSession.from_enterprise(
+            environment,
+            scope,
+            frozen,
+            isolation,
+            journal_root=tmp_path,
+            scorer=scorer,
+        )
+        try:
+            yield session
+        finally:
+            session.close()
+
+    def adapters(_session, _trial, _route):
+        return {
+            "react": lambda _request: ModelReply(
+                {"finish": True, "message": "Actual final answer."},
+                tokens=2,
+                cost_usd=Decimal("0"),
+                model="synthetic-primary",
+            ),
+            "official_judge": judge,
+            "judge_model": "synthetic-judge",
+        }
+
+    try:
+        result = ControlledRoutes(factory).run(
+            Route.REACT_SKILL_MCP,
+            trial,
+            model_adapter_factory=adapters,
+        )
+        assert result.failure_kind is None, result.error
+        assert result.score is not None and result.score.official and result.score.success
+        assert result.usage.judge_requests == 1
+        assert result.usage.judge_tokens == 6
+        assert result.usage.judge_cost_usd == Decimal("0.001")
+        assert len(engine.calls) == 1
+    finally:
+        scope.__exit__(None, None, None)
+
+
 @pytest.mark.parametrize("unknown", [False, True])
 def test_failed_judge_dispatch_keeps_known_or_unknown_usage_in_private_audit(unknown):
     task_spec = spec([{"verifier_type": "response_check", "validation_config": {}}])
@@ -545,27 +639,47 @@ def test_failed_official_judge_usage_is_retained_by_route_result(tmp_path, unkno
     environment, scope, trial, _, _ = enterprise_session_fixture(tmp_path)
     environment.spec.verifiers = ({"verifier_type": "response_check", "validation_config": {}},)
 
+    class Ledger:
+        def __init__(self):
+            self.rows = []
+
+        def model_attempts_snapshot(self, _trial_id, _route):
+            return list(self.rows)
+
     class Judge:
-        requests = 0
+        def __init__(self):
+            self.ledger = Ledger()
+            self.trial_id = "isolated-route-trial"
+            self.route = Route.REACT_SKILL_MCP.value
 
-        async def ainvoke(self, _messages):
-            self.requests += 1
-            raise TimeoutError("synthetic provider failure")
+        def __call__(self, request, *, timeout_seconds=None):
+            assert request["model"] == "synthetic-judge"
+            assert timeout_seconds is None
+            self.ledger.rows.append(
+                {
+                    "role": "judge",
+                    "status": "unknown" if unknown else "settled",
+                    "actual_input_tokens": None if unknown else 4,
+                    "actual_output_tokens": None if unknown else 0,
+                    "actual_cost_usd": None if unknown else "0.001",
+                    "attempt_seconds": 0.1,
+                }
+            )
+            if unknown:
+                raise TimeoutError("synthetic provider failure")
+            return ModelReply(
+                {"content": "synthetic judge result", "tool_calls": []},
+                tokens=4,
+                cost_usd=Decimal("0.001"),
+                model="synthetic-judge",
+                input_tokens=4,
+                output_tokens=0,
+            )
 
-        def usage(self):
-            return {
-                "requests": self.requests,
-                "prompt_tokens": None if unknown and self.requests else 4 * self.requests,
-                "completion_tokens": 0,
-                "cost_usd": str(Decimal("0.001") * self.requests),
-                "seconds": 0.1 * self.requests,
-            }
-
-    raw = Judge()
+    judge = Judge()
     scorer, _, _ = make_scorer(
         environment.spec,
-        [{"passed": True}],
-        judge_client=BudgetedEnterpriseJudge(raw, raw.usage),
+        [RuntimeError("synthetic verifier failure")],
     )
     audit = []
 
@@ -589,6 +703,8 @@ def test_failed_official_judge_usage_is_retained_by_route_result(tmp_path, unkno
         result = ControlledRoutes(factory).run(
             Route.REACT_SKILL_MCP,
             trial,
+            official_judge=judge,
+            judge_model="synthetic-judge",
             react=lambda _request: ModelReply(
                 {"finish": True, "message": "Actual final answer."},
                 tokens=2,
@@ -601,7 +717,7 @@ def test_failed_official_judge_usage_is_retained_by_route_result(tmp_path, unkno
         assert result.usage.judge_requests == 1
         assert result.usage.judge_tokens == (0 if unknown else 4)
         assert result.usage.complete is not unknown
-        assert result.usage.judge_cost_usd == (Decimal("0") if unknown else Decimal("0.001"))
+        assert result.usage.judge_cost_usd == (None if unknown else Decimal("0.001"))
         assert audit[0]["judge_usage"]["complete"] is not unknown
         assert "validation_config" not in repr(result)
     finally:
