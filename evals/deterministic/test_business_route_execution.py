@@ -452,7 +452,13 @@ def test_plan_route_factory_applies_durable_ledger_to_real_executor_tool_call(tm
     )
 
     root = Path(__file__).resolve().parents[2]
-    public_plan = load_public_run_plan(root, mode="smoke", check_images=False)
+    public_plan = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     frozen_route = Route.PLAN_MCP.value
     frozen_trial = public_plan.trials[0]
     ledger = PublicTrialLedger.create(tmp_path / "route-tool-ledger.sqlite3", public_plan)
@@ -533,7 +539,11 @@ def test_plan_route_uses_ledgered_model_factory_and_tool_gateway_together(tmp_pa
     )
 
     public_plan = load_public_run_plan(
-        Path(__file__).resolve().parents[2], mode="smoke", check_images=False
+        Path(__file__).resolve().parents[2],
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
     )
     primary = replace(
         public_plan.profiles.primary,
@@ -645,7 +655,11 @@ def test_unknown_tool_stops_route_before_official_scoring(tmp_path):
     )
 
     public_plan = load_public_run_plan(
-        Path(__file__).resolve().parents[2], mode="smoke", check_images=False
+        Path(__file__).resolve().parents[2],
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
     )
     frozen_trial = public_plan.trials[0]
     route = Route.PLAN_MCP
@@ -701,6 +715,7 @@ def test_unknown_model_usage_stops_route_before_tools_and_official_scoring(tmp_p
         mode="smoke",
         check_images=False,
         check_runtime=False,
+        check_source_files=False,
     )
     priced_primary = replace(
         selected.profiles.primary,

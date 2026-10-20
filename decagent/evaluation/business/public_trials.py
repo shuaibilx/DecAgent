@@ -270,8 +270,14 @@ def load_public_run_plan(
     readiness_path=None,
     check_images=False,
     check_runtime=True,
+    check_source_files=True,
 ):
-    """Verify every frozen input and return the exact smoke/full task denominator."""
+    """Verify frozen inputs and return the exact smoke/full task denominator.
+
+    ``check_source_files=False`` is for offline tests that exercise the
+    manifest/ledger contract without downloading public benchmark artifacts.
+    Live execution must keep source validation enabled.
+    """
     root = Path(root).resolve()
     if mode not in {"smoke", "full"}:
         raise ValueError("Public evaluation mode must be smoke or full")
@@ -421,7 +427,7 @@ def load_public_run_plan(
         validate_files,
     )
 
-    issues = validate_files(source_manifest_path)
+    issues = validate_files(source_manifest_path) if check_source_files else []
     if check_images:
         local_images = _inspect_local_images(expected_image_refs(source))
         issues.extend(scoring_prerequisite_issues(source, local_images))

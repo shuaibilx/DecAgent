@@ -137,7 +137,13 @@ def test_expired_ledger_lease_cannot_transfer_dispatch_while_old_process_holds_l
     root = Path(__file__).resolve().parents[2]
     project_root = tmp_path / "project"
     selected = replace(
-        load_public_run_plan(root, mode="smoke", check_images=False),
+        load_public_run_plan(
+            root,
+            mode="smoke",
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ),
         root=project_root,
     )
     global_jev_path = canonical_global_jev_ledger_path(project_root)

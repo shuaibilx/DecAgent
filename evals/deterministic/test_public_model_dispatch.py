@@ -26,7 +26,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _plan_with_known_primary_prices():
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     primary = replace(
         plan.profiles.primary,
         pricing_status="known",
@@ -155,7 +161,13 @@ def test_model_callback_respects_caller_deadline_ceiling(tmp_path):
 
 
 def test_missing_upstream_model_identity_is_recorded_as_null_not_profile_identity(tmp_path):
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     profile = plan.profiles.primary
 
@@ -196,7 +208,13 @@ def test_missing_upstream_model_identity_is_recorded_as_null_not_profile_identit
 
 
 def test_reported_upstream_model_drift_stops_the_frozen_batch(tmp_path):
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     ledger = PublicTrialLedger.create(tmp_path / "model-drift.sqlite3", plan)
     trial, later_trial = plan.trials[:2]
     route = Route.REACT_SKILL_MCP
@@ -293,7 +311,13 @@ def test_role_factory_wraps_controlled_route_callbacks_in_public_ledger(tmp_path
 
 
 def test_role_factory_uses_jev_profile_only_for_semantic_jev_route():
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
 
     def callback(_request, *, timeout_seconds):
         return None
@@ -394,7 +418,13 @@ def test_unknown_dispatched_model_outcome_blocks_route_and_cannot_replay(tmp_pat
 
 
 def test_unknown_qwen_cost_keeps_bounded_dispatch_and_never_records_zero(tmp_path):
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     called = []
 
@@ -442,7 +472,13 @@ def test_unknown_qwen_cost_keeps_bounded_dispatch_and_never_records_zero(tmp_pat
 
 
 def test_unknown_jev_price_remains_blocked_by_cumulative_dollar_budget(tmp_path):
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     profile = replace(
         plan.profiles.jev,
@@ -503,7 +539,13 @@ def test_callback_cost_source_must_be_supported_by_the_frozen_contract(tmp_path)
 
 
 def test_provider_billing_keeps_gross_fee_voucher_and_cash_as_separate_evidence(tmp_path):
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     profile = plan.profiles.primary
     evidence = ProviderBillingEvidence(
@@ -564,7 +606,13 @@ def test_provider_billing_keeps_gross_fee_voucher_and_cash_as_separate_evidence(
 
 
 def test_non_usd_provider_billing_is_retained_without_guessed_conversion(tmp_path):
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     profile = plan.profiles.primary
     measured = LedgeredModelCallback(
@@ -619,7 +667,7 @@ def test_provider_billing_rejects_unsupported_currency_and_inconsistent_usd_fee(
         Decimal("0.02"), "USD", source="provider_activity"
     )
     profile = load_public_run_plan(
-        ROOT, mode="smoke", check_images=False, check_runtime=False
+        ROOT, mode="smoke", check_images=False, check_runtime=False, check_source_files=False
     ).profiles.primary
     with pytest.raises(ValueError, match="gross provider fee"):
         ModelReply(

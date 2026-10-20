@@ -564,7 +564,15 @@ def run_public_phase(*, root, ledger, controlled_routes, **kwargs):
 
 
 def test_first_wave_uses_frozen_order_and_continues_after_unknown_route(tmp_path):
-    plan = replace(load_public_run_plan(ROOT, check_images=False), root=tmp_path)
+    plan = replace(
+        load_public_run_plan(
+            ROOT,
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ),
+        root=tmp_path,
+    )
     ledger = FakeLedger(tmp_path)
     ledger.plan = plan
     controlled = PhaseControlledRoutes(ledger, fail_first_route=True)
@@ -604,7 +612,15 @@ def test_first_wave_uses_frozen_order_and_continues_after_unknown_route(tmp_path
 
 
 def test_first_wave_resume_skips_terminal_routes_without_replay(tmp_path):
-    plan = replace(load_public_run_plan(ROOT, check_images=False), root=tmp_path)
+    plan = replace(
+        load_public_run_plan(
+            ROOT,
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ),
+        root=tmp_path,
+    )
     ledger = FakeLedger(tmp_path)
     ledger.plan = plan
     first_trial = plan.initial_smoke_wave[0]["trial_id"]
@@ -638,7 +654,15 @@ def test_first_wave_resume_skips_terminal_routes_without_replay(tmp_path):
 
 
 def test_first_wave_scheduler_honors_persisted_batch_stop_without_loading_trials(tmp_path):
-    plan = replace(load_public_run_plan(ROOT, check_images=False), root=tmp_path)
+    plan = replace(
+        load_public_run_plan(
+            ROOT,
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ),
+        root=tmp_path,
+    )
     ledger = FakeLedger(tmp_path)
     ledger.plan = plan
     ledger.stopped_reason = "model_profile_drift"
@@ -665,7 +689,15 @@ def test_first_wave_scheduler_honors_persisted_batch_stop_without_loading_trials
 
 
 def test_first_wave_scheduler_rejects_trial_metadata_drift_before_route_claim(tmp_path):
-    plan = replace(load_public_run_plan(ROOT, check_images=False), root=tmp_path)
+    plan = replace(
+        load_public_run_plan(
+            ROOT,
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ),
+        root=tmp_path,
+    )
     ledger = FakeLedger(tmp_path)
     ledger.plan = plan
     controlled = PhaseControlledRoutes(ledger)
@@ -691,7 +723,15 @@ def test_first_wave_scheduler_rejects_trial_metadata_drift_before_route_claim(tm
 
 
 def test_first_wave_scheduler_resumes_real_sqlite_ledger_without_replay(tmp_path):
-    plan = replace(load_public_run_plan(ROOT, check_images=False), root=tmp_path)
+    plan = replace(
+        load_public_run_plan(
+            ROOT,
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ),
+        root=tmp_path,
+    )
     ledger_path = canonical_public_trial_ledger_path(tmp_path)
     ledger = PublicTrialLedger.create(ledger_path, plan, lease_seconds=30)
     controlled = PhaseControlledRoutes(ledger)

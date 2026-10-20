@@ -606,3 +606,9 @@ route ledger 将评分状态与业务终态、cleanup 状态分开保存。为�
 ### 2026-10-20 Linux CI 冻结清单换行校验修正
 
 GitHub Actions 的 Python 3.13 在候选 `1004f7a7c7f58addce34d4c88d4a0ff9f6fec998` 上发现 `task_inventory.json` 的原始字节 SHA 在 Linux LF checkout 与 Windows CRLF 工作树不一致，导致 87 项确定性测试在预检阶段失败。`manifest_hashing.py` 现将 source manifest 按 UTF-8 LF、任务清单按原冻结 UTF-8 CRLF 规范化后校验；manifest builder 与正式运行预检共用实现，冻结摘要、任务内容及历史证据不变。新增 builder 和 loader 的 Linux LF 模拟回归。修复后 Windows 本机全量确定性测试 `1903 passed, 17 skipped (247.80s)`，专用 PostgreSQL 集成 `604 passed, 24 skipped (1158.02s)`，全仓 Ruff 与 OpenSpec strict（6 changes）通过；临时数据库已清理。修复候选的 GitHub CI 尚待复验；无模型 API 调用、公开试次账本或业务工具调用，公开 benchmark 仍为 `0/286`。
+
+### 2026-10-20 离线确定性测试与 live provenance 门禁分离
+
+GitHub CI run `39435322121`（候选 `2b65a2a1afc21074385caa3874c139833e363bfb`）在 Python 3.11 的确定性 job 中有 84 项失败：若干测试把本机忽略/未跟踪的公开基准下载附件和 `.env` 当作仓库必备文件。修复在 `load_public_run_plan()` 增加显式 `check_source_files` 开关；默认 `true`，生产/真实评测入口继续校验来源附件，离线 manifest/ledger 测试显式关闭该校验，并且回归断言默认 live preflight 仍拒绝缺失附件。离线测试也显式关闭 runtime 环境校验，避免依赖本机模型配置。将 50ms lease 竞态测试改成直接将 DB lease 到期时间设为过去，消除调度时序偶发失败。
+
+受影响 deterministic 套件复测中；本地全量 deterministic 已达到 `1904 passed, 17 skipped`，全仓 Ruff 通过。第二修复尚未提交或推送，候选 SHA 的远端 CI 待重跑。仍无模型请求、公开试次或业务工具派发，公开基准为 `0/286`。

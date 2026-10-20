@@ -34,7 +34,13 @@ def test_live_settings_loader_uses_only_the_selected_project_dotenv(monkeypatch,
 def test_build_public_trial_binds_environment_fingerprints_and_frozen_cohort():
     from evals.benchmarks.live_public_runner import build_public_comparison_trial
 
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     record = next(
         item
         for item in plan.trials
@@ -67,7 +73,13 @@ def test_build_public_trial_binds_environment_fingerprints_and_frozen_cohort():
 def test_build_public_trial_rejects_partial_boundary_and_invalid_cohort_record():
     from evals.benchmarks.live_public_runner import build_public_comparison_trial
 
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False, check_runtime=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     record = next(
         item
         for item in plan.trials
@@ -246,7 +258,13 @@ def test_live_runner_preflights_all_four_environments_before_opening_ledger(monk
     from decagent.evaluation.business.public_trials import load_public_run_plan
     from evals.benchmarks import live_public_runner
 
-    plan = load_public_run_plan(ROOT, mode="smoke", check_images=False)
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
     events = []
 
     class Runtime:

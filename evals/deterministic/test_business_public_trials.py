@@ -2,7 +2,6 @@ import json
 import sqlite3
 import subprocess
 import sys
-import time
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
@@ -19,7 +18,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def plan(mode="smoke"):
-    return load_public_run_plan(ROOT, mode=mode, check_images=False)
+    return load_public_run_plan(
+        ROOT,
+        mode=mode,
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
 
 
 def _start_public_route_with_machine_deadline(ledger, trial_id, route):
@@ -97,9 +102,43 @@ def test_run_plan_accepts_linux_inventory_checkout_line_endings(monkeypatch):
         return content
 
     monkeypatch.setattr(Path, "read_bytes", read_linux_checkout)
-    selected = load_public_run_plan(ROOT, mode="smoke", check_images=False)
+    selected = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
 
     assert len(selected.trials) == 24
+
+
+def test_offline_plan_skips_external_asset_gate_but_live_preflight_keeps_it(monkeypatch):
+    from evals.benchmarks import validate_source_manifest
+
+    monkeypatch.setattr(
+        validate_source_manifest,
+        "validate_files",
+        lambda _path: ["missing pinned benchmark input"],
+    )
+
+    with pytest.raises(ValueError, match="provenance gate failed"):
+        load_public_run_plan(
+            ROOT,
+            mode="smoke",
+            check_images=False,
+            check_runtime=False,
+            check_source_files=True,
+        )
+
+    offline = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    assert len(offline.trials) == 24
 
 
 def test_first_wave_phase_selects_only_the_four_frozen_cases():
@@ -1615,7 +1654,11 @@ def test_live_process_cannot_resume_an_unexpired_public_trial_lease(tmp_path):
             "from pathlib import Path",
             "from decagent.evaluation.business.public_trials import ("
             "PublicTrialLedger, load_public_run_plan)",
-            "plan = load_public_run_plan(Path.cwd(), check_images=False)",
+            (
+                "plan = load_public_run_plan("
+                "Path.cwd(), check_images=False, check_runtime=False, "
+                "check_source_files=False)"
+            ),
             "try:",
             "    PublicTrialLedger.resume(sys.argv[1], plan)",
             "except ValueError as exc:",
@@ -1641,7 +1684,7 @@ def test_live_process_cannot_resume_an_unexpired_public_trial_lease(tmp_path):
 def test_takeover_fences_an_expired_owner_before_it_can_start_a_route(tmp_path):
     selected = plan()
     path = tmp_path / "trials.sqlite3"
-    stale = PublicTrialLedger.create(path, selected, lease_seconds=0.05)
+    stale = PublicTrialLedger.create(path, selected, lease_seconds=30)
     trial = selected.trials[0]
     route = selected.routes[0]
     stale.start_route(trial["trial_id"], route)
@@ -1656,7 +1699,11 @@ def test_takeover_fences_an_expired_owner_before_it_can_start_a_route(tmp_path):
     )
     stale._heartbeat_stop.set()
     stale._heartbeat_thread.join(timeout=1)
-    time.sleep(0.12)
+    stale._connection.execute(
+        "UPDATE execution_lease SET expires_at_utc=? WHERE lease_name=?",
+        ("2000-01-01T00:00:00+00:00", "public-evaluation"),
+    )
+    stale._connection.commit()
 
     current = PublicTrialLedger.resume(path, selected, lease_seconds=30)
     with pytest.raises(ValueError, match="execution lease was lost"):

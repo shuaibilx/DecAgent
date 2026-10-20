@@ -255,3 +255,9 @@ python -m pytest evals/integration -q
 
 新增 `execute_public_phase()` 后，定向 `test_business_public_execution.py` 为 `12 passed`，覆盖冻结的 8 槽顺序、Qwen unknown 路线不重放但继续其他 pending 路线、恢复时跳过已终态路线、持久 batch stop 后不加载 trial/session，以及真实 SQLite ledger 关闭并恢复后已完成路线不重放。完整 `evals/deterministic` 为 `1837 passed, 14 skipped (268.23s)`；`uv run --extra dev ruff check decagent evals` 通过；`openspec validate --changes --strict` 为 `6 passed, 0 failed`；`git diff --check` 通过（Windows LF/CRLF 提示不构成 whitespace error）。这不是 live phase 运行；无新增模型/MCP 请求，公开任务仍 `0/286`，provider/session factory、工具及同步 callback 强取消、四域真实评分与 cleanup 仍待完成，10.10.D/E 和 9.6.F/G 不勾选。
 
+
+### 2026-10-20 CI 第二轮失败与修复（不勾选任务）
+
+远端 run `39435322121` 在候选 `2b65a2a1afc21074385caa3874c139833e363bfb` 的 Python 3.11 deterministic job 有 84 个失败，原因是离线测试依赖未随仓库提交、由本机 `.env` 或下载缓存提供的外部 benchmark 附件。`load_public_run_plan()` 的来源校验保持默认开启；纯离线测试显式传 `check_source_files=False` 与 `check_runtime=False`，新增回归确保默认预检对缺失来源仍失败。live CLI 未更改，仍执行 runtime、source、image、readiness 和候选 SHA 检查。
+
+同时将 50ms lease expiry 测试改为直接写入已过期 UTC 时间，避免 CI 机器调度慢于测试时限而造成非确定性失败。最新全量本地 deterministic 为 `1904 passed, 17 skipped`，受影响测试组复验进行中；远端 CI、对应 OpenSpec strict、PostgreSQL、本机全仓最终结果待本候选提交后复验。没有模型请求或正式试次派发，benchmark 仍为 `0/286`。

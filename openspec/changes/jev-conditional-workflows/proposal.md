@@ -4,7 +4,7 @@
 
 当前主 change 有 78 项任务，已完成 66 项，剩余 12 项：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E。`guest-sop-local-trial` 为 0/28。公开基准仍是 0/286；固定首波 4 个任务、8 个路线槽位已有受门禁保护的 live CLI，但本次没有派发 live 模型请求或 ledger-backed live route。另有 4 条 EnterpriseOps 脚本路线用于工程验收，均只执行一次只读查询并取得 0.0 官方任务分数；它们不是首波真实模型试次。当前代码工作树有未提交修改，精确候选 SHA 门禁因此阻止执行。9.6.B 的 EnterpriseOps 原始 verifier 工程验收与 9.6.C 的 τ bridge 工程 smoke 均已完成；这些结果都不代表 Agent 正确完成公开任务或首波真实模型验收。下方更早的状态作为历史证据保留。
 
-首波已有规范账本、模型/工具账本适配器、manifest 身份绑定、单路线入口、受控 provider callbacks、四任务环境预检和 first-wave phase scheduler。τ bridge 现拒绝不接受 `timeout_seconds` 的同步模型 callback，防止无界 callback 进入派发路径；用户模拟器/裁判时限现为请求级 cap，不再修改共享 channel 默认值。但无法强杀自行忽略 timeout 的任意 Python 同步函数。CLI 要求同一干净 HEAD 存在成功 GitHub CI，校验模型配置与 readiness、本地摘要固定的 EnterpriseOps 镜像、τ Python 3.12 runtime 和新报告路径，然后才可进入 supervisor 与规范账本。当前工作树仍有未提交修改，故门禁未通过；本轮没有进行模型 API 调用。四域真实受控响应闭环、强制取消、评分/清理故障注入和完整首波尚未验收，不能称为真实评测闭环。最新全量确定性回归为 `1899 passed, 17 skipped`，这不改变 66/78 与 0/286 状态。
+首波已有规范账本、模型/工具账本适配器、manifest 身份绑定、单路线入口、受控 provider callbacks、四任务环境预检和 first-wave phase scheduler。τ bridge 现拒绝不接受 `timeout_seconds` 的同步模型 callback，防止无界 callback 进入派发路径；用户模拟器/裁判时限现为请求级 cap，不再修改共享 channel 默认值。但无法强杀自行忽略 timeout 的任意 Python 同步函数。CLI 要求同一干净 HEAD 存在成功 GitHub CI，校验模型配置与 readiness、本地摘要固定的 EnterpriseOps 镜像、τ Python 3.12 runtime 和新报告路径，然后才可进入 supervisor 与规范账本。当前远端候选 `2b65a2a1afc21074385caa3874c139833e363bfb` 的 CI 因离线确定性测试错误依赖本地 benchmark 下载附件及 `.env` 而失败；修复已在本地工作树，远端复验待完成。本轮尚未进行模型 API 调用。四域真实受控响应闭环、强制取消、评分/清理故障注入和完整首波尚未验收，不能称为真实评测闭环。最新完整确定性回归为 `1904 passed, 17 skipped`（第二次 CI 修复后本机结果），这不改变 66/78 与 0/286 状态。
 
 ### 2026-10-20 EnterpriseOps 原始 verifier 工程验收
 

@@ -43,7 +43,7 @@ def _catalog():
 
 def _profile():
     return load_public_run_plan(
-        ROOT, mode="smoke", check_images=False, check_runtime=False
+        ROOT, mode="smoke", check_images=False, check_runtime=False, check_source_files=False
     ).profiles.primary
 
 
@@ -177,7 +177,7 @@ def test_public_tau_simulator_callback_binds_official_user_tool_schema_and_usage
     from decagent.evaluation.business.public_models import public_tau_model_callback_factory
 
     profile = load_public_run_plan(
-        ROOT, mode="smoke", check_images=False, check_runtime=False
+        ROOT, mode="smoke", check_images=False, check_runtime=False, check_source_files=False
     ).profiles.user_simulator
     turn = ModelTurn(
         "",
@@ -241,7 +241,7 @@ def test_public_tau_judge_requires_text_and_rejects_tool_calls():
     from decagent.evaluation.business.public_models import public_tau_model_callback_factory
 
     profile = load_public_run_plan(
-        ROOT, mode="smoke", check_images=False, check_runtime=False
+        ROOT, mode="smoke", check_images=False, check_runtime=False, check_source_files=False
     ).profiles.judge
     primary = ScriptedPrimary(
         ModelTurn(
@@ -278,7 +278,7 @@ def test_first_wave_model_adapter_wires_agent_and_tau_roles_without_fallback(tmp
     )
 
     run_plan = load_public_run_plan(
-        ROOT, mode="smoke", check_images=False, check_runtime=False
+        ROOT, mode="smoke", check_images=False, check_runtime=False, check_source_files=False
     )
     ledger = PublicTrialLedger.create(tmp_path / "public.sqlite3", run_plan)
     trial_id = run_plan.trials[0]["trial_id"]
@@ -339,7 +339,7 @@ def test_ledgered_adapter_uses_callback_exact_prompt_bound_and_closes_client(tmp
     from decagent.evaluation.business.public_models import public_planner_callback_factory
 
     run_plan = load_public_run_plan(
-        ROOT, mode="smoke", check_images=False, check_runtime=False
+        ROOT, mode="smoke", check_images=False, check_runtime=False, check_source_files=False
     )
     ledger = PublicTrialLedger.create(tmp_path / "public.sqlite3", run_plan)
     trial_record = run_plan.trials[0]
