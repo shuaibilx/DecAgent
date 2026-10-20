@@ -185,5 +185,5 @@ machine-time ledger 增加 nullable `agent_started_at_utc`，兼容迁移不改�
 
 公开评测 Qwen primary、user-simulator 和 judge provider 请求现在经一次性子进程发出，监督进程保留 route ledger 和 reserve/dispatch/settle 权限。规范 worker guard 使 supervisor 接管前确认旧 provider 子进程已经退出；进程 deadline 会终止 worker 树，未知结果沿用 unknown 且不重放。相关目标需求已同步到 `selective-business-evaluation` delta spec，implementation/design/tasks 记录了适用范围与缺口。
 
-这只处理一次 provider transport，尚未把完整 route/session 搬到独立 worker；通用阻塞工具回调、Jev adapter 和端到端真实 scoring/cleanup 仍未全验收。代码尚未提交、尚未进入同 SHA GitHub CI；没有新增 Qwen/Jev/业务工具/评分调用。OpenSpec 主 change 保持 66/79，公开 benchmark 0/286，历史首波仍是 4 failed、4 unknown，`--execute` 关闭。
+这只处理一次 provider transport，尚未把完整 route/session 搬到独立 worker；通用阻塞工具回调、Jev adapter 和端到端真实 scoring/cleanup 仍未全验收。代码已提交为 `3d50b3e`，尚未 push，尚未进入同 SHA GitHub CI；没有新增 Qwen/Jev/业务工具/评分调用。OpenSpec 主 change 保持 66/79，公开 benchmark 0/286，历史首波仍是 4 failed、4 unknown，`--execute` 关闭。
 
