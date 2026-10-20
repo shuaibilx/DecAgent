@@ -11,7 +11,7 @@
 本轮新增 τ callback deadline 契约回归：旧实现下不带 `timeout_seconds` 的同步 callback 会被调用（新测试先复现）；现于 callback 执行前拒绝并关闭 worker。用户模拟器和裁判改为传递 90/120 秒单请求 timeout cap，与 route/batch deadline 取最小值，避免竞争请求继承临时改写的共享 channel timeout。六个相关 τ/公开执行/账本/模型派发/live-runner 文件共 `127 passed, 14 skipped`；全量确定性套件 `1899 passed, 17 skipped (259.61s)`。该修正不完成通用同步函数取消，不改变任何任务勾选，也没有模型、业务工具或评分器请求。
 
 ## 当前执行状态（2026-10-21，CI 迁移夹具复核后）
-候选 `40d1a13d69ae0e84d0779bdbcbba94c061581290` 的 GitHub CI run `39481982722` 已全部通过（Python 3.11/3.13、PostgreSQL integration、构建/wheel/MCP/Compose 与 Workbench）。它不包含当前工作树的 Enterprise response-check judge adapter；本轮受控定向回归为 `90 passed`，全量 deterministic 为 `1923 passed, 18 skipped (212.46s)`。提交后仍须以最终候选 SHA 通过完整远端 CI，并补齐进程级取消门禁。
+候选 `40d1a13d69ae0e84d0779bdbcbba94c061581290` 的 GitHub CI run `39481982722` 已全部通过（Python 3.11/3.13、PostgreSQL integration、构建/wheel/MCP/Compose 与 Workbench），但不包含 Enterprise response-check judge adapter。本地已把该受控接线与规格/文档作为单独切片提交；GitHub push 两次遇 HTTPS connection reset、一次在端口 443 连接超时，远端未收到该提交，也没有新的 CI run。route/judge/scorer/ledger 相关定向回归 `90 passed`，全量 deterministic `1923 passed, 18 skipped (211.86s)`，Ruff 和 OpenSpec strict 通过。进程级可取消监督仍未实现，真实评测保持关闭。
 
 OpenSpec 任务为 **66/79 已完成，13 项未完成**：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E，以及复核后重新打开的 11.1。固定首波的 4 个任务、8 条 ReAct/Plan 路线已进入正式账本，候选 SHA `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 GitHub CI `39442012550` 通过；但 8 条路线终态为 4 unknown、4 failed、0 completed，8 条清理 verified、官方评分均未运行。CSM 一条 `find_user` 工具调用为 unknown，目录 effect 标注为 write，副作用未知，不能将清理完成解释为业务无副作用。Qwen 4 次请求中，1 次用量可知为 6,952 tokens 且费用 unknown，另 3 次用量/费用 unknown。Jev 和裁判请求为 0。首波路线不重放，公开 benchmark 仍为 0/286。
 

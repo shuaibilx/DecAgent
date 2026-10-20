@@ -1,7 +1,7 @@
 # Proposal
 ## 当前实施状态（2026-10-21）
 
-主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。候选 `40d1a13d69ae0e84d0779bdbcbba94c061581290` 的 GitHub CI run `39481982722` 已全部通过，但不包含当前工作树里的 Enterprise response-check judge 接线。该接线把官方裁判绑定到当前 route 的账本 callback，并拒绝 scorer 预注入的非 ledgered 客户端；unknown judge attempt 保留 `score_status=unknown`、unknown 费用为 null；定向回归 `90 passed`，全量 deterministic `1923 passed, 18 skipped (212.46s)`。本轮没有 provider 请求。历史首波的 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。真实 worker 强制取消、新 cohort 和四域 live 评分闭环尚未完成。
+主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。候选 `40d1a13d69ae0e84d0779bdbcbba94c061581290` 的 GitHub CI run `39481982722` 已全部通过，但不包含 Enterprise response-check judge 接线。本地已把该受控接线与规格/文档作为单独切片提交；push 遇 HTTPS connection reset/timeout，远端未收到提交，尚无覆盖此切片的 CI。接线把官方裁判绑定到当前 route 的账本 callback，并拒绝 scorer 预注入的非 ledgered 客户端；unknown judge attempt 保留 `score_status=unknown`、unknown 费用为 null；route/judge/scorer/ledger 定向回归 `90 passed`，全量 deterministic `1923 passed, 18 skipped (211.86s)`，Ruff 和 OpenSpec strict 通过。本轮没有 provider 请求。历史首波的 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。真实 worker 强制取消、新 cohort 和四域 live 评分闭环尚未完成。
 
 ## 历史执行快照（2026-10-20，首波 live 执行前）
 
