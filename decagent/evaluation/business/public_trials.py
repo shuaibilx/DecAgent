@@ -9,7 +9,6 @@ import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from hashlib import sha256
 from math import isfinite
 from pathlib import Path
 from uuid import uuid4
@@ -17,6 +16,7 @@ from uuid import uuid4
 from decagent.decisions.contracts import digest
 
 from .ledger import GlobalJevLedger
+from .manifest_hashing import source_manifest_sha256, task_inventory_sha256
 from .model_profiles import EvaluationModelProfiles
 from .public_limits import FIRST_WAVE_BATCH_LIMITS
 from .public_supervisor import canonical_public_supervisor_lock_path
@@ -224,10 +224,6 @@ def _read_json(path):
         raise ValueError("Frozen public evaluation input is unreadable") from exc
 
 
-def _sha256(data):
-    return sha256(data).hexdigest()
-
-
 def _verified_manifest_digest(manifest):
     recorded = manifest.get("manifest_digest")
     payload = {key: value for key, value in manifest.items() if key != "manifest_digest"}
@@ -294,7 +290,7 @@ def load_public_run_plan(
     profile_document = _read_json(profiles_path)
     profiles = EvaluationModelProfiles.from_dict(profile_document)
     manifest_digest = _verified_manifest_digest(manifest)
-    source_digest = _sha256(source_bytes)
+    source_digest = source_manifest_sha256(source_bytes)
     inventory_info = source.get("task_inventory")
     if type(inventory_info) is not dict or manifest.get("source_manifest_sha256") != source_digest:
         raise ValueError("Public comparison manifest references another source manifest")
@@ -302,7 +298,7 @@ def load_public_run_plan(
     if not inventory_path.is_relative_to(root) or inventory_path.is_symlink():
         raise ValueError("Frozen task inventory escapes the project root")
     inventory_bytes = inventory_path.read_bytes()
-    inventory_digest = _sha256(inventory_bytes)
+    inventory_digest = task_inventory_sha256(inventory_bytes)
     if (
         inventory_digest != inventory_info.get("sha256")
         or inventory_digest != manifest.get("task_inventory_sha256")

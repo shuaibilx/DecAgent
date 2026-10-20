@@ -86,6 +86,22 @@ def test_dry_run_validates_fixed_inputs_without_creating_state_or_calling_servic
     assert set(tmp_path.iterdir()) == before
 
 
+def test_run_plan_accepts_linux_inventory_checkout_line_endings(monkeypatch):
+    inventory_path = (ROOT / "evals/benchmarks/manifests/task_inventory.json").resolve()
+    read_bytes = Path.read_bytes
+
+    def read_linux_checkout(path):
+        content = read_bytes(path)
+        if path.resolve() == inventory_path:
+            return content.replace(b"\r\n", b"\n")
+        return content
+
+    monkeypatch.setattr(Path, "read_bytes", read_linux_checkout)
+    selected = load_public_run_plan(ROOT, mode="smoke", check_images=False)
+
+    assert len(selected.trials) == 24
+
+
 def test_first_wave_phase_selects_only_the_four_frozen_cases():
     report = build_dry_run_report(plan(), phase="first-wave")
 

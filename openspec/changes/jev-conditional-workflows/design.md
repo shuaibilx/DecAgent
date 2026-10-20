@@ -602,3 +602,7 @@ route ledger 将评分状态与业务终态、cleanup 状态分开保存。为�
 `_StdioChannel` 收到 τ worker 的 `parent_call` 后，现在要求父进程 callback 显式接受 `timeout_seconds`，并只以剩余 deadline 调用它；不接受该参数的 callback 在执行前被拒绝，随后当前 τ worker 被关闭，不会重放。这个边界防止无界 callback 被误认为受 deadline 约束。用户模拟器与裁判的 90/120 秒角色时限改为 `timeout_cap_seconds` 请求级参数；它与 route/batch deadline 取最小值，不再临时修改共享 channel 的默认 timeout，因此并发/后续请求不会继承其他角色的 timeout。模型适配器会把有效值继续传到 HTTP client timeout；不过 Python 不能安全强杀任意同步函数，因此 callback 若接受但故意忽略 timeout，仍可能阻塞 supervisor。跨进程 supervisor 隔离/取消尚未完成。本变更不构成完整取消保证，也不改变 OpenSpec 任务勾选状态。
 
 新增回归先以不具备 timeout 契约的 callback 复现原有放行行为，再验证拒绝发生在 callback 调用前且 worker 退出；另验证单请求 timeout cap 会超时并关闭当前 worker，用户模拟器/裁判传入 90/120 cap 且不改共享 channel。相关 τ、公开执行、账本、模型派发及 live runner 文件合计 `127 passed, 14 skipped`。全量 `evals/deterministic` 为 `1899 passed, 17 skipped (259.61s)`；全仓 Ruff、OpenSpec strict（6 changes）和 `git diff --check` 通过。没有模型 API、benchmark ledger、业务 MCP 或评分器请求；公开 benchmark 仍为 `0/286`。
+
+### 2026-10-20 Linux CI 冻结清单换行校验修正
+
+GitHub Actions 的 Python 3.13 在候选 `1004f7a7c7f58addce34d4c88d4a0ff9f6fec998` 上发现 `task_inventory.json` 的原始字节 SHA 在 Linux LF checkout 与 Windows CRLF 工作树不一致，导致 87 项确定性测试在预检阶段失败。`manifest_hashing.py` 现将 source manifest 按 UTF-8 LF、任务清单按原冻结 UTF-8 CRLF 规范化后校验；manifest builder 与正式运行预检共用实现，冻结摘要、任务内容及历史证据不变。新增 builder 和 loader 的 Linux LF 模拟回归。修复后 Windows 本机全量确定性测试 `1903 passed, 17 skipped (247.80s)`，专用 PostgreSQL 集成 `604 passed, 24 skipped (1158.02s)`，全仓 Ruff 与 OpenSpec strict（6 changes）通过；临时数据库已清理。修复候选的 GitHub CI 尚待复验；无模型 API 调用、公开试次账本或业务工具调用，公开 benchmark 仍为 `0/286`。

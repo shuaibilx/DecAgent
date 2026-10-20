@@ -220,6 +220,12 @@ current status is `pre_registered_not_run`;
 the engineering protocol smokes below do not change that status or count as
 public task attempts.
 
+Frozen input SHA-256 values are newline-stable: the source manifest is hashed
+as UTF-8 text with LF line endings, while the task inventory retains its
+original UTF-8 CRLF canonical digest. The verifier normalizes checkout line
+endings before hashing, so Git's Windows/Linux checkout settings do not look
+like benchmark-data drift; all non-newline content remains covered by SHA-256.
+
 Exposure groups remain `unassigned` because task-family mappings still need
 independent review. The manifest does not copy prompts, simulator scenarios,
 verifiers, expected actions, or database contents. Rebuild it deterministically

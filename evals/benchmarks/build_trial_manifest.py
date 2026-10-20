@@ -3,7 +3,6 @@
 import argparse
 import json
 from dataclasses import asdict
-from hashlib import sha256
 from pathlib import Path
 
 from decagent.decisions.contracts import digest
@@ -12,6 +11,10 @@ from decagent.evaluation.business.comparison import (
     UNBOUND_MODEL_PROFILE_DIGEST,
 )
 from decagent.evaluation.business.final_response import DEFAULT_RESPONSE_POLICY
+from decagent.evaluation.business.manifest_hashing import (
+    source_manifest_sha256,
+    task_inventory_sha256,
+)
 from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
 from decagent.evaluation.business.public_limits import FIRST_WAVE_BATCH_LIMITS
 
@@ -88,7 +91,7 @@ def build_trial_manifest(
     if not inventory_path.is_relative_to(root):
         raise ValueError("Frozen task inventory escapes the project")
     inventory_bytes = inventory_path.read_bytes()
-    inventory_sha = sha256(inventory_bytes).hexdigest()
+    inventory_sha = task_inventory_sha256(inventory_bytes)
     if inventory_sha != inventory_record["sha256"]:
         raise ValueError("Frozen task inventory checksum differs from source manifest")
     inventory = json.loads(inventory_bytes)
@@ -220,7 +223,7 @@ def build_trial_manifest(
         "schema_version": f"business-comparison-trial-manifest-{manifest_version}",
         "manifest_id": f"decagent-public-workflow-comparison-v{manifest_version}",
         "status": "pre_registered_not_run",
-        "source_manifest_sha256": sha256(source_bytes).hexdigest(),
+        "source_manifest_sha256": source_manifest_sha256(source_bytes),
         "task_inventory_sha256": inventory_sha,
         "model_profile_status": (
             "unbound"

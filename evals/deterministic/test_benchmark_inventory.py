@@ -3,6 +3,10 @@ from pathlib import Path
 
 import pytest
 
+from decagent.evaluation.business.manifest_hashing import (
+    source_manifest_sha256,
+    task_inventory_sha256,
+)
 from evals.benchmarks.build_task_inventory import (
     _stable_subset,
     _validate_agent_boundary,
@@ -12,6 +16,53 @@ from evals.benchmarks.build_trial_manifest import build_trial_manifest
 INVENTORY_PATH = (
     Path(__file__).resolve().parents[1] / "benchmarks" / "manifests" / "task_inventory.json"
 )
+
+
+def test_frozen_manifest_digests_are_independent_of_git_line_endings():
+    source_lf = b'{"version": 1}\n'
+    inventory_lf = b'{"task": "fixed"}\n'
+    source_crlf = source_lf.replace(b"\n", b"\r\n")
+    inventory_crlf = inventory_lf.replace(b"\n", b"\r\n")
+
+    assert source_manifest_sha256(source_lf) == source_manifest_sha256(source_crlf)
+    assert task_inventory_sha256(inventory_lf) == task_inventory_sha256(inventory_crlf)
+
+
+def test_frozen_inventory_digest_matches_manifest_on_current_and_linux_eol():
+    source = json.loads(
+        (INVENTORY_PATH.parent / "source_manifest.json").read_text(encoding="utf-8")
+    )
+    expected = source["task_inventory"]["sha256"]
+    current = INVENTORY_PATH.read_bytes()
+    linux = current.replace(b"\r\n", b"\n")
+
+    assert task_inventory_sha256(current) == expected
+    assert task_inventory_sha256(linux) == expected
+
+
+def test_trial_manifest_builder_accepts_linux_inventory_line_endings(monkeypatch):
+    root = Path(__file__).resolve().parents[2]
+    profile_path = INVENTORY_PATH.parent / "evaluation_model_profiles_v3.json"
+    profiles_document = json.loads(profile_path.read_text(encoding="utf-8"))
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+
+    profiles = EvaluationModelProfiles.from_dict(profiles_document)
+    expected = json.loads(
+        (INVENTORY_PATH.parent / "source_manifest.json").read_text(encoding="utf-8")
+    )["task_inventory"]["sha256"]
+    inventory_path = INVENTORY_PATH.resolve()
+    read_bytes = Path.read_bytes
+
+    def read_linux_checkout(path):
+        content = read_bytes(path)
+        if path.resolve() == inventory_path:
+            return content.replace(b"\r\n", b"\n")
+        return content
+
+    monkeypatch.setattr(Path, "read_bytes", read_linux_checkout)
+    built = build_trial_manifest(root, model_profiles=profiles, manifest_version=7)
+
+    assert built["task_inventory_sha256"] == expected
 
 
 def test_resource_subset_is_stable_across_source_order_and_bounded():
