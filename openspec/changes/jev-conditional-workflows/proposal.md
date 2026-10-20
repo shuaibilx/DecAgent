@@ -1,7 +1,7 @@
 # Proposal
 ## 当前实施状态（2026-10-21）
 
-主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。候选 `40d1a13d69ae0e84d0779bdbcbba94c061581290` 的 GitHub CI run `39481982722` 已全部通过，但不包含 Enterprise response-check judge 接线。本地已把该受控接线与规格/文档作为单独切片提交；push 遇 HTTPS connection reset/timeout，远端未收到提交，尚无覆盖此切片的 CI。接线把官方裁判绑定到当前 route 的账本 callback，并拒绝 scorer 预注入的非 ledgered 客户端；unknown judge attempt 保留 `score_status=unknown`、unknown 费用为 null；route/judge/scorer/ledger 定向回归 `90 passed`，全量 deterministic `1923 passed, 18 skipped (211.86s)`，Ruff 和 OpenSpec strict 通过。本轮没有 provider 请求。历史首波的 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。真实 worker 强制取消、新 cohort 和四域 live 评分闭环尚未完成。
+主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。最新已推送候选为 `b621d49ed1100c1fc6e765bd58113b608a9f9d88`，CI run `39493187866` 的构建/Compose 与 Workbench job 已通过，Python 3.11/3.13 job 尚在执行。当前本地另有候选隔离账本路径切片，尚未提交；全量 deterministic `1931 passed, 18 skipped`，Ruff、OpenSpec strict 与 diff check 通过。该切片后续需以新提交 SHA 重新通过 GitHub CI。历史首波的 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。完整 route worker、通用同步工具强制取消、新 cohort 与四域 live 评分闭环尚未完成；本轮没有新增 provider、Jev、业务工具或官方评分请求。
 
 ## 历史执行快照（2026-10-20，首波 live 执行前）
 
@@ -187,3 +187,9 @@ machine-time ledger 增加 nullable `agent_started_at_utc`，兼容迁移不改�
 
 这只处理一次 provider transport，尚未把完整 route/session 搬到独立 worker；通用阻塞工具回调、Jev adapter 和端到端真实 scoring/cleanup 仍未全验收。代码已提交为 `3d50b3e`，尚未 push，尚未进入同 SHA GitHub CI；没有新增 Qwen/Jev/业务工具/评分调用。OpenSpec 主 change 保持 66/79，公开 benchmark 0/286，历史首波仍是 4 failed、4 unknown，`--execute` 关闭。
 
+
+### 2026-10-21 cohort 与候选 SHA 隔离的规范账本路径
+
+静态 v7 首波账本路径不能同时满足“新候选独立记账”和“旧 unknown 永不覆盖”。新首波 ledger 路径现由冻结 cohort digest 与已经过同 SHA CI 的 candidate SHA 确定，写入 `.decagent/business-eval/public-trials/cohorts/<cohort-digest>-<candidate-sha>.sqlite3`。同一二元组只能恢复原账本；更换 cohort 或候选得到独立路径，任意 state 路径覆盖仍拒绝。历史 v7 ledger 保持原样，Jev attempt 继续使用同一规范的累计全局账本。规范目录检查也覆盖候选目录组件的符号链接。
+
+测试覆盖新旧账本并存、同候选恢复、不同候选/不同 cohort 隔离、路径输入拒绝和候选/phase dispatcher 对 canonical path 的校验；四个受影响 deterministic 文件为 `88 passed`。主 change 仍 `66/79`，公开 benchmark `0/286`。没有创建真实试次、派发模型/工具/评分请求或改变 live gate；本改动仅解决候选身份与历史状态的文件隔离。

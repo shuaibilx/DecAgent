@@ -149,7 +149,11 @@ def test_expired_ledger_lease_cannot_transfer_dispatch_while_old_process_holds_l
     )
     global_jev_path = canonical_global_jev_ledger_path(project_root)
     GlobalJevLedger(global_jev_path).initialize()
-    ledger_path = canonical_public_trial_ledger_path(project_root)
+    ledger_path = canonical_public_trial_ledger_path(
+        project_root,
+        cohort_digest=selected.cohort_digest,
+        candidate_sha="a" * 40,
+    )
     lock_path = canonical_public_supervisor_lock_path(project_root)
 
     context = multiprocessing.get_context("spawn")

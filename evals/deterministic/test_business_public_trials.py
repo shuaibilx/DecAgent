@@ -261,6 +261,9 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
     )
     project_root = tmp_path / "project"
     plan_root = replace(plan(), root=project_root)
+    legacy_path = canonical_public_trial_ledger_path(project_root)
+    legacy_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_path.write_bytes(b"preserved legacy cohort ledger")
     GlobalJevLedger(
         project_root / ".decagent" / "business-eval" / "global-jev-ledger.json"
     ).initialize()
@@ -272,7 +275,6 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
             supervisor=PublicSupervisor(tmp_path / "wrong.lock"),
             candidate_sha="a" * 40,
         )
-
     with PublicSupervisor(tmp_path / "wrong-held.lock") as wrong_supervisor:
         with pytest.raises(ValueError, match="canonical supervisor lock"):
             open_first_wave_public_trial_ledger(
@@ -308,7 +310,11 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
             score_evidence=_score_evidence(trial),
             cleanup_verified=True, cleanup_evidence_digest="c" * 64,
         )
-        assert Path(ledger.path) == canonical_public_trial_ledger_path(project_root)
+        assert Path(ledger.path) == canonical_public_trial_ledger_path(
+            project_root,
+            cohort_digest=plan_root.cohort_digest,
+            candidate_sha="a" * 40,
+        )
         assert ledger.global_jev_ledger.path == canonical_global_jev_ledger_path(project_root)
         ledger.close()
 
@@ -324,13 +330,16 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
         resumed.close()
 
     with PublicSupervisor(canonical_lock) as supervisor:
-        with pytest.raises(ValueError, match="candidate SHA differs"):
-            open_first_wave_public_trial_ledger(
-                project_root,
-                plan_root,
-                supervisor=supervisor,
-                candidate_sha="b" * 40,
-            )
+        next_candidate = open_first_wave_public_trial_ledger(
+            project_root,
+            plan_root,
+            supervisor=supervisor,
+            candidate_sha="b" * 40,
+        )
+        assert next_candidate.candidate_sha == "b" * 40
+        assert next_candidate.route_status(trial["trial_id"], route) == "pending"
+        next_candidate.close()
+    assert legacy_path.read_bytes() == b"preserved legacy cohort ledger"
 
     with pytest.raises(ValueError, match="canonical cohort ledger"):
         validate_public_trial_ledger_path(project_root, tmp_path / "alternate.sqlite3")
@@ -342,6 +351,47 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
                 supervisor=supervisor,
                 candidate_sha="a" * 40,
             )
+
+
+def test_public_trial_ledger_path_is_scoped_to_frozen_cohort_and_candidate(tmp_path):
+    from decagent.evaluation.business.public_trials import (
+        canonical_public_trial_ledger_path,
+        validate_public_trial_ledger_path,
+    )
+
+    root = tmp_path / "project"
+    cohort = "c" * 64
+    first_sha, second_sha = "a" * 40, "b" * 40
+    first = canonical_public_trial_ledger_path(
+        root, cohort_digest=cohort, candidate_sha=first_sha
+    )
+    second_candidate = canonical_public_trial_ledger_path(
+        root, cohort_digest=cohort, candidate_sha=second_sha
+    )
+    second_cohort = canonical_public_trial_ledger_path(
+        root, cohort_digest="d" * 64, candidate_sha=first_sha
+    )
+
+    assert first != second_candidate
+    assert first != second_cohort
+    assert first == validate_public_trial_ledger_path(
+        root,
+        first,
+        cohort_digest=cohort,
+        candidate_sha=first_sha,
+    )
+    assert first == root.resolve() / ".decagent/business-eval/public-trials/cohorts" / (
+        cohort + "-" + first_sha + ".sqlite3"
+    )
+    with pytest.raises(ValueError, match="canonical cohort ledger"):
+        validate_public_trial_ledger_path(
+            root,
+            second_candidate,
+            cohort_digest=cohort,
+            candidate_sha=first_sha,
+        )
+    with pytest.raises(ValueError, match="cohort digest"):
+        canonical_public_trial_ledger_path(root, cohort_digest="../escape", candidate_sha=first_sha)
 
 
 def test_first_wave_ledger_never_initializes_a_missing_global_jev_ledger(tmp_path):
@@ -365,7 +415,11 @@ def test_first_wave_ledger_never_initializes_a_missing_global_jev_ledger(tmp_pat
                 supervisor=supervisor,
                 candidate_sha="a" * 40,
             )
-    assert not canonical_public_trial_ledger_path(project_root).exists()
+    assert not canonical_public_trial_ledger_path(
+        project_root,
+        cohort_digest=selected.cohort_digest,
+        candidate_sha="a" * 40,
+    ).exists()
 
 
 def test_run_plan_rejects_manifest_with_changed_profile_or_digest(tmp_path):

@@ -11,7 +11,7 @@
 本轮新增 τ callback deadline 契约回归：旧实现下不带 `timeout_seconds` 的同步 callback 会被调用（新测试先复现）；现于 callback 执行前拒绝并关闭 worker。用户模拟器和裁判改为传递 90/120 秒单请求 timeout cap，与 route/batch deadline 取最小值，避免竞争请求继承临时改写的共享 channel timeout。六个相关 τ/公开执行/账本/模型派发/live-runner 文件共 `127 passed, 14 skipped`；全量确定性套件 `1899 passed, 17 skipped (259.61s)`。该修正不完成通用同步函数取消，不改变任何任务勾选，也没有模型、业务工具或评分器请求。
 
 ## 当前执行状态（2026-10-21，CI 迁移夹具复核后）
-候选 `40d1a13d69ae0e84d0779bdbcbba94c061581290` 的 GitHub CI run `39481982722` 已全部通过（Python 3.11/3.13、PostgreSQL integration、构建/wheel/MCP/Compose 与 Workbench），但不包含 Enterprise response-check judge adapter。本地已把该受控接线与规格/文档作为单独切片提交；GitHub push 两次遇 HTTPS connection reset、一次在端口 443 连接超时，远端未收到该提交，也没有新的 CI run。route/judge/scorer/ledger 相关定向回归 `90 passed`，全量 deterministic `1923 passed, 18 skipped (211.86s)`，Ruff 和 OpenSpec strict 通过。进程级可取消监督仍未实现，真实评测保持关闭。
+最新已推送候选 `b621d49ed1100c1fc6e765bd58113b608a9f9d88` 的 CI run `39493187866` 仍在执行：构建/Compose 与 Workbench job 已成功，Python 3.11/3.13 数据库集成阶段尚未返回终态。当前本地候选隔离 ledger 切片未提交，需在提交后对精确 SHA 重新跑 CI。该切片全量 deterministic `1931 passed, 18 skipped`，Ruff、OpenSpec strict 通过。真实评测保持关闭。
 
 OpenSpec 任务为 **66/79 已完成，13 项未完成**：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E，以及复核后重新打开的 11.1。固定首波的 4 个任务、8 条 ReAct/Plan 路线已进入正式账本，候选 SHA `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 GitHub CI `39442012550` 通过；但 8 条路线终态为 4 unknown、4 failed、0 completed，8 条清理 verified、官方评分均未运行。CSM 一条 `find_user` 工具调用为 unknown，目录 effect 标注为 write，副作用未知，不能将清理完成解释为业务无副作用。Qwen 4 次请求中，1 次用量可知为 6,952 tokens 且费用 unknown，另 3 次用量/费用 unknown。Jev 和裁判请求为 0。首波路线不重放，公开 benchmark 仍为 0/286。
 
@@ -299,3 +299,7 @@ first-wave 公开模型 adapter 的单次 provider 请求已改为一次性 spaw
 验证证据：模型 worker deadline、Windows worker 后代回收、父进程退出后拒绝执行 provider target、unknown ledger 不可重放、当前角色 key 隔离，以及主锁释放后旧 worker 阻止新 supervisor 的进程级用例。最终公开评测相关 deterministic 文件 `140 passed`；此前主切片全量 deterministic `1929 passed, 18 skipped`（之后只移除 facade 中未使用的额外 secrets 字段并补充一个 parent-exit 用例）。全仓 Ruff、OpenSpec strict `6 passed, 0 failed`、`git diff --check` 通过。代码已提交为 `3d50b3e`，尚未 push，也没有覆盖它的远端 CI；OpenSpec tasks 总状态仍为 66/79，13 项待办，10.10.D/E 与 9.6.F/G 不勾选。
 
 边界：这仍不是完整 route worker/supervisor 隔离；ControlledRoutes、session、route ledger 和结果整理仍由 supervisor 同步执行，通用业务工具及任意忽略 timeout 的 Python callback 并未因此获得强制取消。没有派发模型、Jev、业务工具或官方裁判请求；旧首波 4 failed/4 unknown 不变且不重放，公开 benchmark 仍为 0/286，`--execute` 维持 fail closed。
+
+### 2026-10-21 批次账本按 cohort 与候选 SHA 隔离（任务未完成）
+
+新增候选专属 canonical ledger 路径：冻结 cohort digest 与 CI 候选 SHA 共同决定文件名；同一候选恢复原账本，不同候选或 cohort 使用新文件，路径覆盖与符号链接仍 fail closed。旧静态 v7 ledger 未修改，Jev attempt 仍进入同一全局累计账本。新增回归覆盖历史 ledger 保留、新候选独立 pending 状态、路径隔离与错配拒绝；public trials/execution/supervisor 四个 deterministic 文件 `88 passed`。该实现推进 10.10.B 的身份持久化边界，但尚未打通全批额度端到端派发与结算，因此 10.10.B 保持未勾选；主 change 仍为 `66/79`，公开 benchmark `0/286`，live gate 关闭。未发送任何模型、Jev、业务工具或官方评分请求。

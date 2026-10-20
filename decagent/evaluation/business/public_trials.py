@@ -26,6 +26,9 @@ _LEDGER_SCHEMA = "public-trial-ledger-v6"
 PUBLIC_TRIAL_LEDGER_RELATIVE_PATH = Path(
     ".decagent/business-eval/public-trials/public-smoke-v7.sqlite3"
 )
+PUBLIC_COHORT_LEDGER_DIRECTORY = Path(
+    ".decagent/business-eval/public-trials/cohorts"
+)
 _LEASE_NAME = "public-evaluation"
 _RUN_ROUTES = ("react_skill_mcp", "plan_mcp")
 _SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}\Z")
@@ -160,20 +163,49 @@ class PublicRunPlan:
         )
 
 
-def canonical_public_trial_ledger_path(root):
-    return Path(root).resolve() / PUBLIC_TRIAL_LEDGER_RELATIVE_PATH
+def canonical_public_trial_ledger_path(
+    root, *, cohort_digest=None, candidate_sha=None
+):
+    """Resolve a ledger path from an exact frozen cohort and CI candidate.
 
-
-def validate_public_trial_ledger_path(root, candidate):
+    Omitting both identities returns the historical v7 path for read-only
+    migration and compatibility checks. New first-wave execution must provide
+    both and receives a candidate-scoped path under the canonical directory.
+    """
     project_root = Path(root).resolve()
-    canonical = canonical_public_trial_ledger_path(project_root)
+    if cohort_digest is None and candidate_sha is None:
+        return project_root / PUBLIC_TRIAL_LEDGER_RELATIVE_PATH
+    if (
+        type(cohort_digest) is not str
+        or re.fullmatch(r"[a-f0-9]{64}", cohort_digest) is None
+    ):
+        raise ValueError("A valid frozen cohort digest is required for a new ledger")
+    if (
+        type(candidate_sha) is not str
+        or re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", candidate_sha) is None
+    ):
+        raise ValueError("A valid candidate SHA is required for a new ledger")
+    filename = f"{cohort_digest}-{candidate_sha}.sqlite3"
+    return project_root / PUBLIC_COHORT_LEDGER_DIRECTORY / filename
+
+
+def validate_public_trial_ledger_path(
+    root, candidate, *, cohort_digest=None, candidate_sha=None
+):
+    project_root = Path(root).resolve()
+    canonical = canonical_public_trial_ledger_path(
+        project_root,
+        cohort_digest=cohort_digest,
+        candidate_sha=candidate_sha,
+    )
     requested = Path(candidate)
     if not requested.is_absolute():
         requested = project_root / requested
     if requested.resolve(strict=False) != canonical:
         raise ValueError("Public first-wave execution requires its canonical cohort ledger")
     current = project_root
-    for component in PUBLIC_TRIAL_LEDGER_RELATIVE_PATH.parts:
+    relative = canonical.relative_to(project_root)
+    for component in relative.parts:
         current = current / component
         if current.is_symlink():
             raise ValueError("Public trial ledger path cannot contain symlinks")
@@ -203,8 +235,16 @@ def open_first_wave_public_trial_ledger(
         project_root
     ):
         raise ValueError("Public evaluation requires the canonical supervisor lock")
+    path = canonical_public_trial_ledger_path(
+        project_root,
+        cohort_digest=plan.cohort_digest,
+        candidate_sha=candidate_sha,
+    )
     path = validate_public_trial_ledger_path(
-        project_root, canonical_public_trial_ledger_path(project_root)
+        project_root,
+        path,
+        cohort_digest=plan.cohort_digest,
+        candidate_sha=candidate_sha,
     )
     global_jev_ledger = open_existing_global_jev_ledger(project_root)
     if path.exists():

@@ -522,6 +522,10 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** live runner 创建或恢复首波 cohort ledger
 - **THEN** 它必须在任何 route claim 前持久记录精确通过同一 SHA GitHub CI 的 candidate SHA；恢复必须使用完全相同的 SHA，route dispatcher 和 report builder 都必须核对该绑定。已有 route/model/tool attempt 但缺少 candidate SHA 的历史 ledger 必须拒绝绑定和继续执行，不得从新进程、外部报告或当前 HEAD 推断或补写其历史候选身份
 
+#### Scenario: Candidate-bound first-wave ledgers preserve prior cohorts
+- **WHEN** 显式执行一个冻结 cohort 与已通过 CI 的 candidate SHA
+- **THEN** ledger 路径必须由该 cohort digest 与 candidate SHA 在规范目录中确定；同一二元组只能恢复同一 ledger，任意路径覆盖必须失败关闭。不同候选的执行使用独立、可审计的批次 ledger，不能覆盖或改写旧候选的 unknown；历史 v7 ledger 保持原样，Jev attempt 仍进入同一累计全局账本
+
 #### Scenario: Route dispatch requires ledger-bound model and tool adapters
 - **WHEN** 首波 ReAct 或 Plan route 被监督执行器领取
 - **THEN** 执行入口必须验证规范 supervisor 锁、规范 smoke ledger、route 仍为 pending，且 model adapter 与 tool gateway 均绑定同一 ledger、trial ID 和 route；直接传入 planner/ReAct 等未计量 callback 必须在领取 route 前拒绝

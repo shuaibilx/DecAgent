@@ -79,6 +79,7 @@ def bound_trial(
 
 class FakeLedger:
     def __init__(self, root):
+        self.root = Path(root)
         self.candidate_sha = "a" * 40
         self.status = "pending"
         self.events = []
@@ -90,6 +91,14 @@ class FakeLedger:
         )
         self.tau_step_counts = {}
         self.model_attempts = {}
+
+    def bind_plan(self, plan):
+        self.plan = plan
+        self.path = canonical_public_trial_ledger_path(
+            self.root,
+            cohort_digest=plan.cohort_digest,
+            candidate_sha=self.candidate_sha,
+        )
 
     def model_attempts_snapshot(self, trial_id, route):
         return list(self.model_attempts.get((trial_id, route), []))
@@ -664,7 +673,7 @@ def test_first_wave_uses_frozen_order_and_continues_after_unknown_route(tmp_path
         root=tmp_path,
     )
     ledger = FakeLedger(tmp_path)
-    ledger.plan = plan
+    ledger.bind_plan(plan)
     controlled = PhaseControlledRoutes(ledger, fail_first_route=True)
     loaded_trials = []
 
@@ -712,7 +721,7 @@ def test_first_wave_resume_skips_terminal_routes_without_replay(tmp_path):
         root=tmp_path,
     )
     ledger = FakeLedger(tmp_path)
-    ledger.plan = plan
+    ledger.bind_plan(plan)
     first_trial = plan.initial_smoke_wave[0]["trial_id"]
     first_route = plan.routes[0]
     ledger.statuses[(first_trial, first_route)] = "completed"
@@ -754,7 +763,7 @@ def test_first_wave_scheduler_honors_persisted_batch_stop_without_loading_trials
         root=tmp_path,
     )
     ledger = FakeLedger(tmp_path)
-    ledger.plan = plan
+    ledger.bind_plan(plan)
     ledger.stopped_reason = "model_profile_drift"
     controlled = PhaseControlledRoutes(ledger)
     factory_calls = []
@@ -789,7 +798,7 @@ def test_first_wave_scheduler_rejects_trial_metadata_drift_before_route_claim(tm
         root=tmp_path,
     )
     ledger = FakeLedger(tmp_path)
-    ledger.plan = plan
+    ledger.bind_plan(plan)
     controlled = PhaseControlledRoutes(ledger)
     item = plan.initial_smoke_wave[0]
 
@@ -822,7 +831,11 @@ def test_first_wave_scheduler_resumes_real_sqlite_ledger_without_replay(tmp_path
         ),
         root=tmp_path,
     )
-    ledger_path = canonical_public_trial_ledger_path(tmp_path)
+    ledger_path = canonical_public_trial_ledger_path(
+        tmp_path,
+        cohort_digest=plan.cohort_digest,
+        candidate_sha="a" * 40,
+    )
     ledger = PublicTrialLedger.create(ledger_path, plan, lease_seconds=30)
     ledger.bind_candidate_sha("a" * 40)
     controlled = PhaseControlledRoutes(ledger)

@@ -273,12 +273,21 @@ def execute_public_route(
         raise ValueError("The canonical live-evaluation supervisor lock must be held")
     plan = getattr(ledger, "plan", None)
     ledger_path = getattr(ledger, "path", None)
+    expected_ledger_path = (
+        canonical_public_trial_ledger_path(
+            project_root,
+            cohort_digest=plan.cohort_digest,
+            candidate_sha=candidate_sha,
+        )
+        if isinstance(plan, PublicRunPlan)
+        else canonical_public_trial_ledger_path(project_root)
+    )
     if (
         getattr(plan, "mode", None) != "smoke"
         or Path(getattr(plan, "root", "")).resolve() != project_root
         or ledger_path is None
         or Path(ledger_path).resolve(strict=False)
-        != canonical_public_trial_ledger_path(project_root)
+        != expected_ledger_path
     ):
         raise ValueError("The canonical first-wave public ledger and smoke plan are required")
     if trial.dataset == "tau-bench" and getattr(
@@ -598,6 +607,17 @@ def execute_public_phase(
         raise ValueError("The canonical live-evaluation supervisor lock must be held")
     plan = getattr(ledger, "plan", None)
     ledger_path = getattr(ledger, "path", None)
+    candidate_sha = getattr(ledger, "candidate_sha", None)
+    expected_ledger_path = (
+        canonical_public_trial_ledger_path(
+            project_root,
+            cohort_digest=plan.cohort_digest,
+            candidate_sha=candidate_sha,
+        )
+        if isinstance(plan, PublicRunPlan)
+        and type(candidate_sha) is str
+        else canonical_public_trial_ledger_path(project_root)
+    )
     if (
         not isinstance(plan, PublicRunPlan)
         or plan.mode != "smoke"
@@ -606,7 +626,7 @@ def execute_public_phase(
         or len(plan.initial_smoke_wave) != 4
         or ledger_path is None
         or Path(ledger_path).resolve(strict=False)
-        != canonical_public_trial_ledger_path(project_root)
+        != expected_ledger_path
     ):
         raise ValueError("The canonical frozen first-wave smoke cohort is required")
     if not callable(trial_factory) or not callable(route_kwargs_factory):

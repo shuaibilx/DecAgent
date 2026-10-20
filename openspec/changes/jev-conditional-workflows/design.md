@@ -35,7 +35,7 @@
 
 ### 公开评测的单机监督与规范账本装载（2026-10-20）
 
-公开首波不能只依赖 SQLite lease 判断发送者已死亡：lease 过期仅允许账本 fencing，真实出站权限还需要本机监督进程生命周期锁。`PublicSupervisor` 在固定项目路径 `.decagent/business-eval/public-evaluation.lock` 上持有 OS 文件锁（Windows `msvcrt`，POSIX `flock`）；进程退出由 OS 释放锁。只有持有该规范锁的进程可以调用 `open_first_wave_public_trial_ledger`。此函数只接受冻结的 smoke cohort，固定 route ledger 到 `.decagent/business-eval/public-trials/public-smoke-v7.sqlite3`，并只读打开既有 `.decagent/business-eval/global-jev-ledger.json`；不允许 CLI/state path 重新选择，不允许缺失时初始化 Jev ledger。换 phase/state path 或并发进程不能因此重新获得额度。
+公开首波不能只依赖 SQLite lease 判断发送者已死亡：lease 过期仅允许账本 fencing，真实出站权限还需要本机监督进程生命周期锁。`PublicSupervisor` 在固定项目路径 `.decagent/business-eval/public-evaluation.lock` 上持有 OS 文件锁（Windows `msvcrt`，POSIX `flock`）；进程退出由 OS 释放锁。只有持有该规范锁的进程可以调用 `open_first_wave_public_trial_ledger`。它只接受冻结的 smoke cohort 和已通过同 SHA CI 门禁的候选；当前 route ledger 路径由 cohort digest 与 candidate SHA 在 `.decagent/business-eval/public-trials/cohorts/` 下确定，同一候选恢复原账本，不同候选使用独立文件。历史 `.decagent/business-eval/public-trials/public-smoke-v7.sqlite3` 不迁移、不覆盖；Jev attempt 仍只读打开既有 `.decagent/business-eval/global-jev-ledger.json`，不允许 CLI/state path 重新选择或在缺失时初始化。换 phase/state path 或并发进程不能因此重新获得额度。
 
 OS 锁现已由受门禁保护的 first-wave dispatcher 在环境预检后、打开规范 ledger 时持有，并通过跨进程排他性单测。端到端“已标记派发后挂起、lease 过期、第二进程等待、旧进程恢复”演练仍未完成；当前工作树不满足 clean candidate gate，尚无真实模型派发。只有 dispatcher 持锁并独占模型凭据并完成该故障演练后，才能宣称真实派发竞态已解决。
 
@@ -662,3 +662,9 @@ EnterpriseOps pinned 原始 verifier 可含 response_check，其 judge 现在由
 此切片不等于完整 route worker/supervisor 架构：`ControlledRoutes`、session、路由状态和 route ledger 操作仍在监督进程同步执行；一般业务工具 callback 及任意 Python 阻塞同步 callback 仍须分别遵循自己的 timeout-aware 子进程/传输契约。Jev semantic path 尚未采用该 primary worker adapter。若真实执行中收到 timeout，现有 ledger 仍将该次已派发 attempt 和 route 保留为 unknown，不自动重试。新设计要求已加入 selective-business-evaluation delta spec；首波真实执行和所有新模型 dispatch 仍关闭。
 
 验证覆盖结果帧、单角色凭证传递、父进程退出后不执行 provider target、超时后 worker/后代进程回收、模型 attempt 记为 unknown 且不可重放，以及释放主锁时仍存活的 worker 阻止 supervisor takeover。一次主切片的全量 deterministic 为 `1929 passed, 18 skipped`；随后移除 facade 中未使用的额外 secrets 字段并增加 parent-exit 回归，最终公开评测相关 deterministic 文件 `140 passed`，全仓 Ruff 与 OpenSpec strict `6 passed, 0 failed` 通过。该证据仅验证隔离与锁机制，不代表 Qwen、Jev、工具或官方评分器真实调用已成功，也不改变历史 8 条路线结果。
+
+### 2026-10-21 Candidate-scoped canonical ledger
+
+The historical `public-smoke-v7.sqlite3` path remains available only for compatibility and history inspection. A new first-wave execution derives its canonical path from both the frozen cohort digest and the CI-verified candidate SHA, under `.decagent/business-eval/public-trials/cohorts/`. This makes same-candidate resume idempotent while different candidates cannot overwrite, inherit, or erase old route attempts. The shared canonical Jev ledger remains global, so candidate scoping cannot reset Jev's cumulative budget. Arbitrary path overrides and symlinked canonical components fail closed. The old v7 ledger is not migrated or modified by this path change.
+
+The path and dispatcher regressions cover candidate/cohort separation, same-candidate resume, preserved legacy data, and rejection of mismatched paths. The four affected deterministic files pass (`88 passed`). This is a ledger identity/isolation change only: it does not create benchmark trials or authorize model, Jev, tool, or scorer dispatch. Live execution remains closed; full route-worker separation and remaining cancellation gaps are still outstanding.
