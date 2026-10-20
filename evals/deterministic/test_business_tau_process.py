@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import time
 from dataclasses import replace
@@ -537,6 +538,49 @@ def test_pinned_configuration_rejects_unknown_domain_and_case():
         runtime.open("arbitrary", "0")
     with pytest.raises(ValueError, match="task"):
         runtime.open("retail", "not-in-official-split")
+
+
+def test_pinned_tau_runtime_accepts_linux_inventory_line_endings(monkeypatch):
+    module = bridge()
+    root = Path(__file__).resolve().parents[2]
+    manifest = json.loads(
+        (root / "evals/benchmarks/manifests/source_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    inventory_path = (root / manifest["task_inventory"]["path"]).resolve()
+    original_read_bytes = Path.read_bytes
+    windows_bytes = original_read_bytes(inventory_path)
+    linux_bytes = windows_bytes.replace(b"\r\n", b"\n")
+
+    def read_linux_checkout(path):
+        if path.resolve() == inventory_path:
+            return linux_bytes
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", read_linux_checkout)
+
+    runtime = module.PinnedTauRuntime.from_manifest(root, Path(sys.executable))
+
+    assert runtime.case_ids("retail", split="train")
+
+
+def test_tau_runtime_verifier_help_works_from_isolated_python():
+    configured = os.environ.get("DECAGENT_TEST_TAU_PYTHON")
+    if not configured:
+        pytest.skip("opt-in pinned tau subprocess runtime is not configured")
+    root = Path(__file__).resolve().parents[2]
+    script = root / "evals/benchmarks/verify_tau_runtime.py"
+    result = subprocess.run(
+        [configured, "-X", "utf8", str(script), "--help"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "--output" in result.stdout
 
 
 def test_pinned_runtime_separates_train_smoke_from_frozen_test_cases():

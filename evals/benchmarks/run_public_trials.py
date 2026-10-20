@@ -120,6 +120,7 @@ def _execute_live_first_wave(args, command):
             readiness_path=args.readiness_evidence,
             check_images=True,
             check_runtime=True,
+            check_source_files=True,
         )
         phase, report = execute_live_first_wave(
             run_plan,
@@ -179,6 +180,8 @@ def main(argv=None):
         profiles_path=args.model_profiles,
         readiness_path=args.readiness_evidence,
         check_images=args.check_images,
+        check_runtime=False,
+        check_source_files=False,
     )
     try:
         report = build_dry_run_report(run_plan, phase=args.phase)

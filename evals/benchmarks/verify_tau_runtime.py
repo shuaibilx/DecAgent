@@ -12,6 +12,7 @@ import json
 import os
 import platform
 import socket
+import sys
 import tarfile
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -68,12 +69,17 @@ def initialize(factory, task):
 
 
 def verify(root):
+    root = Path(root).resolve()
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from decagent.evaluation.business.manifest_hashing import task_inventory_sha256
+
     manifest = json.loads((root / "evals/benchmarks/manifests/source_manifest.json").read_text())
     source_record = manifest["tau2_bench"]["source_repository"]
     source = (root / source_record["local_path"]).resolve()
     checked = verify_archive(root, source, source_record)
     inventory_path = root / manifest["task_inventory"]["path"]
-    if sha256(inventory_path.read_bytes()).hexdigest() != manifest["task_inventory"]["sha256"]:
+    if task_inventory_sha256(inventory_path.read_bytes()) != manifest["task_inventory"]["sha256"]:
         raise ValueError("Pinned task inventory checksum differs")
     inventory = json.loads(inventory_path.read_text())["resource_subsets"]["tau2_bench_supplement"][
         "domains"

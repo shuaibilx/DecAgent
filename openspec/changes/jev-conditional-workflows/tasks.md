@@ -261,3 +261,9 @@ python -m pytest evals/integration -q
 远端 run `39435322121` 在候选 `2b65a2a1afc21074385caa3874c139833e363bfb` 的 Python 3.11 deterministic job 有 84 个失败，原因是离线测试依赖未随仓库提交、由本机 `.env` 或下载缓存提供的外部 benchmark 附件。`load_public_run_plan()` 的来源校验保持默认开启；纯离线测试显式传 `check_source_files=False` 与 `check_runtime=False`，新增回归确保默认预检对缺失来源仍失败。live CLI 未更改，仍执行 runtime、source、image、readiness 和候选 SHA 检查。
 
 同时将 50ms lease expiry 测试改为直接写入已过期 UTC 时间，避免 CI 机器调度慢于测试时限而造成非确定性失败。最新全量本地 deterministic 为 `1904 passed, 17 skipped`，受影响测试组复验进行中；远端 CI、对应 OpenSpec strict、PostgreSQL、本机全仓最终结果待本候选提交后复验。没有模型请求或正式试次派发，benchmark 仍为 `0/286`。
+
+### 2026-10-20 CI 第三轮失败及修复（任务仍未勾选）
+
+候选 `60ea6f6dce5855cb078c4796abeaa3708d988247` 的 CI run `39438714094`：Python 3.11 deterministic 失败 `3 failed, 1901 passed, 17 skipped`，Python 3.13 因 fail-fast 取消；package/images、wheel/MCP 协议、offline Compose 和 workbench browser jobs 通过。三个失败分别来自默认 dry-run 读取本地 live `.env`，以及 τ process 仍以原始字节检查 Linux LF inventory。`run_public_trials.py` 的 dry-run 已关闭 live runtime/source-file 检查；live 执行分支继续显式校验两者。τ bridge 和官方 runtime verifier 改用共享 CRLF 规范化 `task_inventory_sha256`。新增 Linux LF 回归后相关 suite `91 passed, 13 skipped`，τ 独立解释器 verifier CLI 回归 `1 passed`；最新完整 deterministic `1906 passed, 18 skipped (224.22s)`，远端最终候选复验待完成。pinned τ Python 3.12 的 `verify_tau_runtime.py` 初始化核验 80/80 ready，0 模型请求；Ruff、OpenSpec strict 与 `git diff --check` 通过。
+
+按计划核对本机发布安全边界：仓库没有 self-hosted Runner 注册（GitHub API `total_count=0`），本机无 Runner 服务/进程；默认分支 release job 只在托管 GitHub runner 发布 GHCR。没有需要关闭的公共本机部署 job，也没有停止现有 DecAgent 容器。此状态不代表私有 Runner/CD 或外网部署已完成。

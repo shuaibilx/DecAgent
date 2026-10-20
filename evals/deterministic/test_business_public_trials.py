@@ -203,6 +203,26 @@ def test_command_line_defaults_to_dry_run_and_live_flag_fails_closed(tmp_path, c
     assert not (tmp_path / "run.sqlite3").exists()
 
 
+def test_dry_run_cli_does_not_require_live_runtime_or_downloaded_benchmark_assets(
+    monkeypatch,
+    capsys,
+):
+    from evals.benchmarks import run_public_trials
+
+    calls = {}
+
+    def load_plan(*args, **kwargs):
+        calls.update(kwargs)
+        return plan()
+
+    monkeypatch.setattr(run_public_trials, "load_public_run_plan", load_plan)
+
+    assert run_public_trials.main(["--root", str(ROOT), "--mode", "smoke"]) == 0
+    assert json.loads(capsys.readouterr().out)["dry_run"] is True
+    assert calls["check_runtime"] is False
+    assert calls["check_source_files"] is False
+
+
 def test_dry_run_report_is_exclusive_and_confined_to_evidence(tmp_path):
     from evals.benchmarks.run_public_trials import _write_dry_run_report
 

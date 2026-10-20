@@ -612,3 +612,9 @@ GitHub Actions 的 Python 3.13 在候选 `1004f7a7c7f58addce34d4c88d4a0ff9f6fec9
 GitHub CI run `39435322121`（候选 `2b65a2a1afc21074385caa3874c139833e363bfb`）在 Python 3.11 的确定性 job 中有 84 项失败：若干测试把本机忽略/未跟踪的公开基准下载附件和 `.env` 当作仓库必备文件。修复在 `load_public_run_plan()` 增加显式 `check_source_files` 开关；默认 `true`，生产/真实评测入口继续校验来源附件，离线 manifest/ledger 测试显式关闭该校验，并且回归断言默认 live preflight 仍拒绝缺失附件。离线测试也显式关闭 runtime 环境校验，避免依赖本机模型配置。将 50ms lease 竞态测试改成直接将 DB lease 到期时间设为过去，消除调度时序偶发失败。
 
 受影响 deterministic 套件复测中；本地全量 deterministic 已达到 `1904 passed, 17 skipped`，全仓 Ruff 通过。第二修复尚未提交或推送，候选 SHA 的远端 CI 待重跑。仍无模型请求、公开试次或业务工具派发，公开基准为 `0/286`。
+
+### 2026-10-20 CI 第三轮边界修正与 Runner 状态核验
+
+候选 `60ea6f6dce5855cb078c4796abeaa3708d988247` 的 GitHub CI run `39438714094` 中，Python 3.11 deterministic `3 failed, 1901 passed, 17 skipped`；Python 3.13 因 matrix `fail-fast` 被取消。失败由 dry-run 默认读取 live `.env`（1 项）和 `tau_process.PinnedTauRuntime` 对 frozen inventory 使用原始字节 SHA（2 项）引起。dry-run 现不加载 live runtime 或外部下载资产；live `--execute` 仍显式启用 runtime、source、image、readiness 门禁。τ process 与 `verify_tau_runtime.py` 改为共享 `task_inventory_sha256()`，保留冻结清单摘要并接受 GitHub Linux LF checkout。新增回归先失败后修复；受影响套件 `91 passed, 13 skipped`，tau-only verifier CLI 的独立解释器回归 `1 passed`，全量 deterministic `1906 passed, 18 skipped (224.22s)`，Ruff 与 OpenSpec strict 均通过。pinned τ 解释器另完成 `verify_tau_runtime.py` 80/80 初始化核验；全程 0 模型请求。没有公开路线、benchmark MCP 工具或正式评分派发。
+
+部署边界只读核验：GitHub API 当前返回该仓库 self-hosted runners 数量为 0；本机未发现 Actions Runner 服务或进程；默认分支 release workflow 仅依赖 `ubuntu-latest` 发布 GHCR，不存在 public workflow 调度本机 Runner 的 job。现有 `decagent-api`、worker、broker、proxy、Postgres 容器保持运行。故不需要注销/停用任何 Runner，也没有为满足计划而停服务；私有 Runner/CD 迁移仍属后续部署工作。

@@ -15,11 +15,12 @@ import time
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from hashlib import sha256
 from math import isfinite
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
+
+from .manifest_hashing import task_inventory_sha256
 
 MAX_FRAME = 4 * 1024 * 1024
 
@@ -299,7 +300,7 @@ class PinnedTauRuntime:
         inventory_path = (root / manifest["task_inventory"]["path"]).resolve()
         if (
             not inventory_path.is_relative_to(root)
-            or sha256(inventory_path.read_bytes()).hexdigest()
+            or task_inventory_sha256(inventory_path.read_bytes())
             != manifest["task_inventory"]["sha256"]
         ):
             raise ValueError("Frozen tau task inventory differs")

@@ -246,6 +246,7 @@ def test_live_cli_requires_images_readiness_runtime_and_credentials_before_dispa
     assert calls[0][0] == "plan"
     assert calls[0][1]["check_images"] is True
     assert calls[0][1]["check_runtime"] is True
+    assert calls[0][1]["check_source_files"] is True
     assert calls[1][0] == "execute"
     assert calls[1][1]["candidate_sha"] == "a" * 40
     assert json.loads((tmp_path / report).read_text(encoding="utf-8"))["dry_run"] is False
