@@ -9,7 +9,7 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from decagent.business.contracts import canonical
-from decagent.business.tickets.store import TicketStore, _json
+from decagent.business.tickets.store import _json
 from decagent.storage import database as storage
 from evals.integration.database_support import temporary_database
 
@@ -62,12 +62,16 @@ def test_identity_upgrade_preserves_legacy_ticket_receipt_history_and_task(
     legacy_v6_database,
 ):
     db = legacy_v6_database
-
-    tickets = TicketStore(db.url)
-    assert tickets.execute("seed", {}, "seed-legacy")["ok"]
-    directory = tickets.execute("directory", {}, "directory")["data"]
-    category = directory["categories"][0]["id"]
-    requester = directory["people"][0]["id"]
+    category, requester = str(uuid4()), str(uuid4())
+    with db.connect() as connection:
+        connection.execute(
+            "INSERT INTO business.people(id,name,team) VALUES(%s,'Legacy requester','Ops')",
+            (requester,),
+        )
+        connection.execute(
+            "INSERT INTO business.categories(id,name) VALUES(%s,'Legacy category')",
+            (category,),
+        )
     ticket_id = _legacy_create(db, "Legacy named request", category, "old-write")
     # A pre-v2 row may have a directory requester while still lacking an authenticated actor.
     with db.connect() as connection:
