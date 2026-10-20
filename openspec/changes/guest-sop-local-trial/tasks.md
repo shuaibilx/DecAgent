@@ -5,8 +5,8 @@
 ## 1. Workspace 数据与身份边界
 
 - [x] 1.1 追加 workspace/legacy 归属迁移及必要唯一/关联约束；隔离 PostgreSQL 验证旧员工、任务、审批、记忆、操作和 checkpoint 原身份不变，迁移重复执行安全。证据：`020_business_workspaces.sql` 为既有业务表添加 legacy workspace 和同空间复合外键；集成测试验证旧标识、receipt 与 checkpoint 不变、重复迁移可重跑、MCP 响应不泄漏内部 workspace 字段、跨空间工单分类引用被拒绝；另通过身份升级、备份还原、记忆、计划、服务和 MCP 回归 65 项。
-- [ ] 1.2 扩展可信员工身份与凭证的 workspace 解析，统一 workspace-aware 数据访问；测试拒绝客户端覆盖空间和跨空间关联，并保留旧员工登录/MCP 协议回归。
-- [ ] 1.3 隔离目录、工单与分派候选，限制 supervisor 为本空间；两空间集成测试覆盖读取/列表/写入/候选和原子版本冲突。
+- [x] 1.2 扩展可信员工身份与凭证的 workspace 解析，统一 workspace-aware 数据访问；测试拒绝客户端覆盖空间和跨空间关联，并保留旧员工登录/MCP 协议回归。证据：`EmployeeIdentity`、浏览器会话、MCP 凭证及任务恢复均从数据库绑定 workspace；工作台任务、操作、审批、审计和 MCP 访问使用同一空间；请求体伪造 workspace 返回 422，伪造身份不能使用其他空间的会话/凭证；隔离 PostgreSQL 的员工认证、操作、工单 ACL、MCP 与 Gateway 回归 80 项通过，新增 workspace 端到端切片测试通过。
+- [x] 1.3 隔离目录、工单与分派候选，限制 supervisor 为本空间；两空间集成测试覆盖读取/列表/写入/候选和原子版本冲突。证据：目录、详情、历史、列表、分派候选、工单写入、操作/回执 SQL 均注入可信 workspace；双空间集成测试拒绝跨空间工单、回执和人员候选，仅列出本空间目录/工单；相同资源的过期 revision 在提交时失败且不产生新副作用。
 - [ ] 1.4 隔离任务、审批、操作、回执、trace/export 与 Worker/MCP 分派；两空间猜 ID、重放确认、切换员工和恢复测试全部拒绝越权。
 - [ ] 1.5 将固定 company_scope 迁移为可信 workspace，保持已发布工作流的当前员工稳定记忆槽；测试跨空间同 subject、不合法来源、旧记忆恢复和撤销。
 - [ ] 1.6 交付 workspace 身份链和迁移/回退说明，包含泳道图；逐条与本组集成测试和实际迁移核对。

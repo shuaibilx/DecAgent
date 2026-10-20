@@ -64,7 +64,7 @@ def get_employee_by_login(database, login: str):
     """Return a trusted account row for server-side authentication or None."""
     with database.connect() as conn:
         return conn.execute(
-            "SELECT id,login,person_id,role,password_hash,active,credential_revision "
+            "SELECT id,login,person_id,role,password_hash,active,credential_revision,workspace_id "
             "FROM business.employee_accounts WHERE login=%s",
             (login,),
         ).fetchone()
@@ -74,7 +74,7 @@ def get_employee_by_id(database, employee_id):
     """Reload current account state for sessions and credential checks."""
     with database.connect() as conn:
         return conn.execute(
-            "SELECT id,login,person_id,role,password_hash,active,credential_revision "
+            "SELECT id,login,person_id,role,password_hash,active,credential_revision,workspace_id "
             "FROM business.employee_accounts WHERE id=%s",
             (employee_id,),
         ).fetchone()

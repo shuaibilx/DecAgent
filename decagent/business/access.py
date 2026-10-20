@@ -2,6 +2,7 @@
 
 from decagent.business.contracts import PluginSpec
 from decagent.business.tickets import builtin_manifest
+from decagent.business.workspaces import LEGACY_WORKSPACE_ID, parse_workspace_id
 
 _SPEC = PluginSpec.from_mapping(builtin_manifest())
 _BASE = {"directory", "get", "list", "receipt", "create", "comment", "close", "reopen"}
@@ -13,20 +14,22 @@ class AccessError(ValueError):
         self.code = code
 
 
-def principal(conn, actor_employee_id, *, lock=False):
+def principal(conn, actor_employee_id, *, workspace_id=LEGACY_WORKSPACE_ID, lock=False):
+    workspace_id = parse_workspace_id(workspace_id)
     row = conn.execute(
-        "SELECT a.id,a.person_id,a.role,a.credential_revision FROM business.employee_accounts a "
-        "JOIN business.people p ON p.id=a.person_id WHERE a.id=%s AND a.active AND p.active"
-        + (" FOR UPDATE OF a,p" if lock else ""),
-        (actor_employee_id,),
+        "SELECT a.id,a.person_id,a.role,a.credential_revision,a.workspace_id "
+        "FROM business.employee_accounts a JOIN business.people p ON p.id=a.person_id "
+        "AND p.workspace_id=a.workspace_id WHERE a.id=%s AND a.workspace_id=%s "
+        "AND a.active AND p.active" + (" FOR UPDATE OF a,p" if lock else ""),
+        (actor_employee_id, workspace_id),
     ).fetchone()
     if not row:
         raise AccessError("unauthorized", "Employee account unavailable")
     return row
 
 
-def allowed_commands(conn, actor_employee_id):
-    actor = principal(conn, actor_employee_id)
+def allowed_commands(conn, actor_employee_id, *, workspace_id=LEGACY_WORKSPACE_ID):
+    actor = principal(conn, actor_employee_id, workspace_id=workspace_id)
     if actor["role"] == "supervisor":
         return set(_SPEC.commands)
     return _BASE | ({"start", "resolve"} if actor["role"] == "handler" else set())
@@ -44,16 +47,19 @@ def _visible(actor, ticket):
 
 def _ticket(conn, actor, ticket_id, *, lock=False):
     row = conn.execute(
-        "SELECT * FROM business.tickets WHERE id=%s" + (" FOR UPDATE" if lock else ""),
-        (ticket_id,),
+        "SELECT * FROM business.tickets WHERE id=%s AND workspace_id=%s"
+        + (" FOR UPDATE" if lock else ""),
+        (ticket_id, actor["workspace_id"]),
     ).fetchone()
     if not row or not _visible(actor, row):
         raise AccessError("not_found", "Ticket unavailable")
     return row
 
 
-def authorize_write(conn, actor_employee_id, command, params, *, lock=False):
-    actor = principal(conn, actor_employee_id, lock=lock)
+def authorize_write(
+    conn, actor_employee_id, command, params, *, workspace_id=LEGACY_WORKSPACE_ID, lock=False
+):
+    actor = principal(conn, actor_employee_id, workspace_id=workspace_id, lock=lock)
     try:
         _SPEC.validate(command, params)
         if _SPEC.commands[command].effect != "write":
@@ -79,37 +85,41 @@ def authorize_write(conn, actor_employee_id, command, params, *, lock=False):
     if command == "assign":
         target = conn.execute(
             "SELECT a.id FROM business.employee_accounts a JOIN business.people p "
-            "ON p.id=a.person_id WHERE a.person_id=%s AND a.active AND p.active "
+            "ON p.id=a.person_id AND p.workspace_id=a.workspace_id "
+            "WHERE a.person_id=%s AND a.workspace_id=%s AND a.active AND p.active "
             "AND a.role IN ('handler','supervisor')" + (" FOR UPDATE OF a,p" if lock else ""),
-            (params["person_id"],),
+            (params["person_id"], actor["workspace_id"]),
         ).fetchone()
         if not target:
             raise AccessError("invalid_reference", "Assignable employee unavailable")
     return effective
 
 
-def get_ticket(conn, actor_employee_id, ticket_id):
-    return _ticket(conn, principal(conn, actor_employee_id), ticket_id)
+def get_ticket(conn, actor_employee_id, ticket_id, *, workspace_id=LEGACY_WORKSPACE_ID):
+    return _ticket(conn, principal(conn, actor_employee_id, workspace_id=workspace_id), ticket_id)
 
 
-def get_history(conn, actor_employee_id, ticket_id):
-    get_ticket(conn, actor_employee_id, ticket_id)
+def get_history(conn, actor_employee_id, ticket_id, *, workspace_id=LEGACY_WORKSPACE_ID):
+    get_ticket(conn, actor_employee_id, ticket_id, workspace_id=workspace_id)
     return conn.execute(
-        "SELECT * FROM business.ticket_history WHERE ticket_id=%s ORDER BY revision", (ticket_id,)
+        "SELECT * FROM business.ticket_history WHERE ticket_id=%s AND workspace_id=%s "
+        "ORDER BY revision",
+        (ticket_id, workspace_id),
     ).fetchall()
 
 
-def list_tickets(conn, actor_employee_id, params):
-    actor = principal(conn, actor_employee_id)
+def list_tickets(conn, actor_employee_id, params, *, workspace_id=LEGACY_WORKSPACE_ID):
+    actor = principal(conn, actor_employee_id, workspace_id=workspace_id)
     _SPEC.validate("list", params)
     return conn.execute(
-        "SELECT * FROM business.tickets WHERE "
+        "SELECT * FROM business.tickets WHERE workspace_id=%s AND "
         "(%s='supervisor' OR (employee_id IS NOT NULL AND "
         "(employee_id=%s OR (%s='handler' AND assignee_id=%s)))) "
         "AND (%s::text IS NULL OR status=%s) "
         "AND (%s::uuid IS NULL OR assignee_id=%s::uuid) "
         "ORDER BY created_at,id LIMIT %s",
         (
+            actor["workspace_id"],
             actor["role"],
             actor["id"],
             actor["role"],
@@ -123,10 +133,11 @@ def list_tickets(conn, actor_employee_id, params):
     ).fetchall()
 
 
-def get_receipt(conn, actor_employee_id, operation_id):
-    actor = principal(conn, actor_employee_id)
+def get_receipt(conn, actor_employee_id, operation_id, *, workspace_id=LEGACY_WORKSPACE_ID):
+    actor = principal(conn, actor_employee_id, workspace_id=workspace_id)
     row = conn.execute(
-        "SELECT * FROM business.operation_receipts WHERE operation_id=%s", (operation_id,)
+        "SELECT * FROM business.operation_receipts WHERE operation_id=%s AND workspace_id=%s",
+        (operation_id, actor["workspace_id"]),
     ).fetchone()
     if row and row["employee_id"] != actor["id"] and actor["role"] != "supervisor":
         raise AccessError("not_found", "Operation unavailable")

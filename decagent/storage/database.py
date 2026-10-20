@@ -10,6 +10,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from decagent.business.workspaces import LEGACY_WORKSPACE_ID, parse_workspace_id
 from decagent.policy import Redactor
 from decagent.storage.safe_record import exact_safe_record
 
@@ -158,14 +159,24 @@ class Database:
         *,
         employee_id=None,
         credential_ref=None,
+        workspace_id=None,
     ):
         instruction = authorization.get("instruction")
         if not isinstance(instruction, str) or not instruction.strip() or len(instruction) > 65536:
             raise ValueError("A bounded business instruction is required")
         if (employee_id is None) != (credential_ref is None):
             raise ValueError("Employee and business credential must be bound together")
+        if "workspace_id" in authorization:
+            raise ValueError("Workspace ownership is resolved from trusted server identity")
+        workspace_id = parse_workspace_id(workspace_id or LEGACY_WORKSPACE_ID)
         task_id = uuid4()
         with self.connect() as conn:
+            workspace = conn.execute(
+                "SELECT id FROM business.workspaces WHERE id=%s AND active FOR SHARE",
+                (workspace_id,),
+            ).fetchone()
+            if not workspace:
+                raise ValueError("Business workspace is unavailable")
             scope = conn.execute(
                 "SELECT * FROM app.business_scopes WHERE id=%s FOR SHARE", (scope_id,)
             ).fetchone()
@@ -173,6 +184,23 @@ class Database:
                 raise ValueError("Business scope is missing or disabled")
             if authorization.get("plugin_digest") != scope["manifest_digest"]:
                 raise ValueError("Business contract has changed")
+            if employee_id is not None:
+                employee = conn.execute(
+                    "SELECT id FROM business.employee_accounts WHERE id=%s AND workspace_id=%s "
+                    "AND active FOR SHARE",
+                    (employee_id, workspace_id),
+                ).fetchone()
+                credential = conn.execute(
+                    "SELECT c.id FROM business.mcp_credentials c "
+                    "JOIN business.employee_accounts a ON a.id=c.employee_id "
+                    "AND a.workspace_id=c.workspace_id "
+                    "WHERE c.id=%s AND c.employee_id=%s AND c.workspace_id=%s "
+                    "AND c.account_revision=a.credential_revision "
+                    "AND c.revoked_at IS NULL AND c.expires_at>now() FOR SHARE OF c,a",
+                    (credential_ref, employee_id, workspace_id),
+                ).fetchone()
+                if not employee or not credential:
+                    raise ValueError("Employee credential is not bound to this workspace")
             snapshot = {
                 **authorization,
                 "task_id": str(task_id),
@@ -183,11 +211,13 @@ class Database:
             }
             return conn.execute(
                 "INSERT INTO app.tasks"
-                "(id,kind,business_scope_id,authorization_snapshot,budget,graph_version,"
-                "employee_id,credential_ref) VALUES(%s,'business',%s,%s,%s,%s,%s,%s) RETURNING *",
+                "(id,kind,business_scope_id,workspace_id,authorization_snapshot,budget,"
+                "graph_version,employee_id,credential_ref) "
+                "VALUES(%s,'business',%s,%s,%s,%s,%s,%s,%s) RETURNING *",
                 (
                     task_id,
                     scope_id,
+                    workspace_id,
                     Jsonb(exact_safe_record(snapshot, self.redactor)),
                     Jsonb(budget or {}),
                     graph_version,
@@ -207,17 +237,18 @@ class Database:
         with self.connect() as conn:
             task = conn.execute(
                 "UPDATE app.tasks SET event_seq=event_seq+1 WHERE id=%s "
-                "RETURNING project_id,event_seq",
+                "RETURNING project_id,event_seq,workspace_id",
                 (task_id,),
             ).fetchone()
             if not task:
                 raise KeyError("Task not found")
             return conn.execute(
-                "INSERT INTO app.events(task_id,project_id,seq,kind,payload) "
-                "VALUES(%s,%s,%s,%s,%s) RETURNING *",
+                "INSERT INTO app.events(task_id,project_id,workspace_id,seq,kind,payload) "
+                "VALUES(%s,%s,%s,%s,%s,%s) RETURNING *",
                 (
                     task_id,
                     task["project_id"],
+                    task["workspace_id"],
                     task["event_seq"],
                     kind,
                     Jsonb(self.redactor.sanitize(payload, surface="ui")),
@@ -256,13 +287,20 @@ class Database:
                 ).fetchone()
             row = conn.execute(
                 "UPDATE app.tasks SET event_seq=event_seq+1 WHERE id=%s "
-                "RETURNING project_id,event_seq",
+                "RETURNING project_id,event_seq,workspace_id",
                 (task_id,),
             ).fetchone()
             event = conn.execute(
-                "INSERT INTO app.events(task_id,project_id,seq,kind,payload) "
-                "VALUES(%s,%s,%s,%s,%s) RETURNING *",
-                (task_id, row["project_id"], row["event_seq"], kind, Jsonb(safe)),
+                "INSERT INTO app.events(task_id,project_id,workspace_id,seq,kind,payload) "
+                "VALUES(%s,%s,%s,%s,%s,%s) RETURNING *",
+                (
+                    task_id,
+                    row["project_id"],
+                    row["workspace_id"],
+                    row["event_seq"],
+                    kind,
+                    Jsonb(safe),
+                ),
             ).fetchone()
             conn.execute(
                 "INSERT INTO app.idempotency_keys(scope,key,input_hash,response) "

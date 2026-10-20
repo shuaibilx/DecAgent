@@ -57,7 +57,9 @@ class BusinessControl:
         allowed = None
         if identity is not None:
             with self.database.connect() as conn:
-                allowed = access.allowed_commands(conn, identity.employee_id)
+                allowed = access.allowed_commands(
+                    conn, identity.employee_id, workspace_id=identity.workspace_id
+                )
         return [
             {
                 "scope_id": str(row["id"]),
@@ -118,6 +120,7 @@ class BusinessControl:
             identity.source != "employee_session"
             or task["kind"] != "business"
             or task["employee_id"] != identity.employee_id
+            or task["workspace_id"] != identity.workspace_id
         ):
             raise AccessError("not_found", "Employee task unavailable")
 
@@ -128,10 +131,17 @@ class BusinessControl:
         credential = conn.execute(
             "SELECT c.id FROM business.mcp_credentials c "
             "JOIN business.employee_accounts a ON a.id=c.employee_id "
-            "WHERE c.id=%s AND c.employee_id=%s AND c.account_revision=%s "
+            "AND a.workspace_id=c.workspace_id "
+            "WHERE c.id=%s AND c.employee_id=%s AND c.workspace_id=%s "
+            "AND c.account_revision=%s "
             "AND c.revoked_at IS NULL AND c.expires_at>now() AND a.active "
             "AND a.credential_revision=c.account_revision FOR SHARE OF c,a",
-            (UUID(str(credential_ref)), identity.employee_id, identity.account_revision),
+            (
+                UUID(str(credential_ref)),
+                identity.employee_id,
+                identity.workspace_id,
+                identity.account_revision,
+            ),
         ).fetchone()
         if credential is None:
             raise AccessError("unauthorized", "Employee MCP credential unavailable")
@@ -205,12 +215,13 @@ class BusinessControl:
                 "inputs": inputs,
             }
         return conn.execute(
-            "INSERT INTO app.tasks(id,kind,business_scope_id,authorization_snapshot,budget,"
-            "graph_version,employee_id,credential_ref) "
-            "VALUES(%s,'business',%s,%s,%s,%s,%s,%s) RETURNING *",
+            "INSERT INTO app.tasks(id,kind,business_scope_id,workspace_id,authorization_snapshot,"
+            "budget,graph_version,employee_id,credential_ref) "
+            "VALUES(%s,'business',%s,%s,%s,%s,%s,%s,%s) RETURNING *",
             (
                 task_id,
                 scope["id"],
+                identity.workspace_id,
                 Jsonb(exact_safe_record(snapshot, self.database.redactor)),
                 Jsonb(body.budget.model_dump()),
                 "business-3" if self.conditional_workflows_enabled else "business-2",

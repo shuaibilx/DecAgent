@@ -31,28 +31,38 @@ class OperationService:
             raise AccessError("forbidden", "Original employee browser session required")
         if identity.source == "mcp_token":
             query = (
-                "SELECT employee_id FROM business.mcp_credentials WHERE token_hash=%s "
+                "SELECT employee_id,workspace_id FROM business.mcp_credentials "
+                "WHERE token_hash=%s AND workspace_id=%s "
                 "AND employee_id=%s AND account_revision=%s AND id=%s "
                 "AND revoked_at IS NULL AND expires_at>now()"
             )
             args = (
                 identity.token_hash,
+                identity.workspace_id,
                 identity.employee_id,
                 identity.account_revision,
                 identity.credential_ref,
             )
         elif identity.source == "employee_session":
             query = (
-                "SELECT employee_id FROM business.employee_sessions WHERE token_hash=%s "
+                "SELECT employee_id,workspace_id FROM business.employee_sessions "
+                "WHERE token_hash=%s AND workspace_id=%s "
                 "AND employee_id=%s AND account_revision=%s "
                 "AND revoked_at IS NULL AND expires_at>now()"
             )
-            args = (identity.token_hash, identity.employee_id, identity.account_revision)
+            args = (
+                identity.token_hash,
+                identity.workspace_id,
+                identity.employee_id,
+                identity.account_revision,
+            )
         else:
             raise AccessError("unauthorized", "Employee authentication required")
         if not conn.execute(query + (" FOR SHARE" if lock else ""), args).fetchone():
             raise AccessError("unauthorized", "Employee credential unavailable")
-        actor = access.principal(conn, identity.employee_id, lock=lock)
+        actor = access.principal(
+            conn, identity.employee_id, workspace_id=identity.workspace_id, lock=lock
+        )
         if actor["credential_revision"] != identity.account_revision:
             raise AccessError("unauthorized", "Employee credential unavailable")
         return actor
@@ -73,18 +83,23 @@ class OperationService:
             )
         return scope
 
-    def _preflight(self, conn, actor_id, command, params, *, lock=False):
-        effective = access.authorize_write(conn, actor_id, command, params, lock=lock)
+    def _preflight(self, conn, actor_id, command, params, *, workspace_id, lock=False):
+        effective = access.authorize_write(
+            conn, actor_id, command, params, workspace_id=workspace_id, lock=lock
+        )
         resource = None
         if command == "create":
             if not params["title"].strip():
                 raise AccessError("invalid_input", "Ticket title must not be blank")
             if not conn.execute(
-                "SELECT id FROM business.categories WHERE id=%s", (params["category_id"],)
+                "SELECT id FROM business.categories WHERE id=%s AND workspace_id=%s",
+                (params["category_id"], workspace_id),
             ).fetchone():
                 raise AccessError("invalid_reference", "Category unavailable")
         else:
-            ticket = access.get_ticket(conn, actor_id, params["ticket_id"])
+            ticket = access.get_ticket(
+                conn, actor_id, params["ticket_id"], workspace_id=workspace_id
+            )
             if ticket["revision"] != params["expected_revision"]:
                 raise AccessError("revision_conflict", "Ticket changed; prepare a new operation")
             transition = self.spec.manifest["workflow"].get("transitions", {}).get(command)
@@ -130,8 +145,9 @@ class OperationService:
         if not isinstance(operation_id, str) or not 1 <= len(operation_id) <= 200:
             raise AccessError("invalid_input", "Invalid operation handle")
         row = conn.execute(
-            "SELECT * FROM business.operations WHERE id=%s" + (" FOR UPDATE" if lock else ""),
-            (operation_id,),
+            "SELECT * FROM business.operations WHERE id=%s AND workspace_id=%s"
+            + (" FOR UPDATE" if lock else ""),
+            (operation_id, actor["workspace_id"]),
         ).fetchone()
         if not row or (
             row["employee_id"] != actor["id"] and (original or actor["role"] != "supervisor")
@@ -185,8 +201,9 @@ class OperationService:
             else None
         )
         prior = conn.execute(
-            "SELECT * FROM business.operations WHERE employee_id=%s AND request_id=%s",
-            (actor["id"], request_id),
+            "SELECT * FROM business.operations WHERE employee_id=%s AND workspace_id=%s "
+            "AND request_id=%s",
+            (actor["id"], actor["workspace_id"], request_id),
         ).fetchone()
         if prior:
             if prior["input_hash"] != input_hash:
@@ -196,7 +213,9 @@ class OperationService:
             elif program is not None:
                 raise AccessError("invalid_grant", "External operation cannot attach an Agent task")
             return self._view(conn, prior)
-        effective, resource = self._preflight(conn, actor["id"], command, params)
+        effective, resource = self._preflight(
+            conn, actor["id"], command, params, workspace_id=actor["workspace_id"]
+        )
         confirmation = self.spec.commands[command].confirmation
         needs_approval = (
             (program is not None and program["requires_confirmation"])
@@ -205,14 +224,16 @@ class OperationService:
         )
         state = "awaiting_approval" if needs_approval else "ready"
         row = conn.execute(
-            "INSERT INTO business.operations(id,employee_id,request_id,scope_id,command,"
+            "INSERT INTO business.operations(id,employee_id,workspace_id,request_id,scope_id,"
+            "command,"
             "params,effective_params,input_hash,contract_digest,expected_revision,"
             "resource_snapshot,source,state,confirmation_required,supersedes,agent_task_id,"
             "agent_action_id,agent_generation,scope_revision) "
-            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
             (
                 "op_" + uuid4().hex,
                 actor["id"],
+                actor["workspace_id"],
                 request_id,
                 scope["id"],
                 command,
@@ -238,11 +259,12 @@ class OperationService:
                 (row["id"], program["action_id"]),
             )
         conn.execute(
-            "INSERT INTO business.employee_audit(id,actor_employee_id,source,event,outcome,"
-            "operation_id) VALUES(%s,%s,%s,'operation_prepared','allowed',%s)",
+            "INSERT INTO business.employee_audit(id,actor_employee_id,workspace_id,source,event,"
+            "outcome,operation_id) VALUES(%s,%s,%s,%s,'operation_prepared','allowed',%s)",
             (
                 uuid4(),
                 actor["id"],
+                actor["workspace_id"],
                 "mcp" if identity.source == "mcp_token" else "web",
                 row["id"],
             ),
@@ -292,10 +314,12 @@ class OperationService:
     def _receipt_evidence(self, conn, row):
         """Only a bound receipt plus matching durable history proves a write committed."""
         receipt = conn.execute(
-            "SELECT * FROM business.operation_receipts WHERE operation_id=%s", (row["id"],)
+            "SELECT * FROM business.operation_receipts WHERE operation_id=%s AND workspace_id=%s",
+            (row["id"], row["workspace_id"]),
         ).fetchone()
         history = conn.execute(
-            "SELECT * FROM business.ticket_history WHERE operation_id=%s", (row["id"],)
+            "SELECT * FROM business.ticket_history WHERE operation_id=%s AND workspace_id=%s",
+            (row["id"], row["workspace_id"]),
         ).fetchall()
         if receipt is None:
             return ("partial_history" if history else "absent"), None
@@ -303,7 +327,8 @@ class OperationService:
             return "receipt_mismatch", None
         event = history[0]
         ticket = conn.execute(
-            "SELECT id,revision FROM business.tickets WHERE id=%s", (receipt["resource_id"],)
+            "SELECT id,revision FROM business.tickets WHERE id=%s AND workspace_id=%s",
+            (receipt["resource_id"], row["workspace_id"]),
         ).fetchone()
         saved_result = receipt["result"]
         saved_ticket = saved_result.get("ticket") if isinstance(saved_result, dict) else None
@@ -339,8 +364,8 @@ class OperationService:
     def _unknown(self, conn, row, code):
         return conn.execute(
             "UPDATE business.operations SET state='unknown',result=NULL,error_code=%s,"
-            "updated_at=now() WHERE id=%s RETURNING *",
-            (code, row["id"]),
+            "updated_at=now() WHERE id=%s AND workspace_id=%s RETURNING *",
+            (code, row["id"], row["workspace_id"]),
         ).fetchone()
 
     def _reconcile(self, conn, row, *, grant=None):
@@ -351,8 +376,8 @@ class OperationService:
             if row["state"] != "succeeded":
                 row = conn.execute(
                     "UPDATE business.operations SET state='succeeded',result=%s,error_code=NULL,"
-                    "updated_at=now() WHERE id=%s RETURNING *",
-                    (Jsonb(result), row["id"]),
+                    "updated_at=now() WHERE id=%s AND workspace_id=%s RETURNING *",
+                    (Jsonb(result), row["id"], row["workspace_id"]),
                 ).fetchone()
             return row
         if evidence != "absent":
@@ -370,13 +395,21 @@ class OperationService:
                 return self._unknown(conn, row, "recovery_grant_required")
         try:
             self._operation_scope(conn, row)
-            self._preflight(conn, row["employee_id"], row["command"], row["params"], lock=True)
+            self._preflight(
+                conn,
+                row["employee_id"],
+                row["command"],
+                row["params"],
+                workspace_id=row["workspace_id"],
+                lock=True,
+            )
         except AccessError as exc:
             return self._failure(conn, row, exc.code)
         if row["confirmation_required"]:
             approval = conn.execute(
-                "SELECT * FROM business.operation_approvals WHERE operation_id=%s FOR UPDATE",
-                (row["id"],),
+                "SELECT * FROM business.operation_approvals WHERE operation_id=%s "
+                "AND workspace_id=%s FOR UPDATE",
+                (row["id"], row["workspace_id"]),
             ).fetchone()
             if not approval or approval["consumed_at"] is not None:
                 return self._unknown(conn, row, "approval_evidence_missing")
@@ -395,21 +428,22 @@ class OperationService:
                 return self._failure(conn, row, "approval_expired")
         return conn.execute(
             "UPDATE business.operations SET state='ready',attempt_id=NULL,error_code=NULL,"
-            "updated_at=now() WHERE id=%s RETURNING *",
-            (row["id"],),
+            "updated_at=now() WHERE id=%s AND workspace_id=%s RETURNING *",
+            (row["id"], row["workspace_id"]),
         ).fetchone()
 
     def _expire(self, conn, row):
         if row["confirmation_required"] and row["state"] == "ready":
             approval = conn.execute(
-                "SELECT expires_at FROM business.operation_approvals WHERE operation_id=%s",
-                (row["id"],),
+                "SELECT expires_at FROM business.operation_approvals WHERE operation_id=%s "
+                "AND workspace_id=%s",
+                (row["id"], row["workspace_id"]),
             ).fetchone()
             if approval and approval["expires_at"] <= datetime.now(UTC):
                 row = conn.execute(
                     "UPDATE business.operations SET state='expired',error_code='approval_expired',"
-                    "updated_at=now() WHERE id=%s RETURNING *",
-                    (row["id"],),
+                    "updated_at=now() WHERE id=%s AND workspace_id=%s RETURNING *",
+                    (row["id"], row["workspace_id"]),
                 ).fetchone()
         return row
 
@@ -432,14 +466,16 @@ class OperationService:
             raise AccessError("operation_conflict", "Approval input binding changed")
         row = self._expire(conn, row)
         prior = conn.execute(
-            "SELECT * FROM business.operation_approvals WHERE operation_id=%s", (row["id"],)
+            "SELECT * FROM business.operation_approvals WHERE operation_id=%s AND workspace_id=%s",
+            (row["id"], row["workspace_id"]),
         ).fetchone()
         if prior:
             if prior["decision"] != decision:
                 raise AccessError("operation_conflict", "Operation already has a different reply")
             if decision == "edit":
                 replacement = conn.execute(
-                    "SELECT * FROM business.operations WHERE supersedes=%s", (row["id"],)
+                    "SELECT * FROM business.operations WHERE supersedes=%s AND workspace_id=%s",
+                    (row["id"], row["workspace_id"]),
                 ).fetchone()
                 if not replacement or replacement["params"] != edited_params:
                     raise AccessError("operation_conflict", "Edited operation input changed")
@@ -450,13 +486,20 @@ class OperationService:
         if decision != "reject":
             try:
                 self._operation_scope(conn, row)
-                self._preflight(conn, actor["id"], row["command"], row["params"], lock=True)
+                self._preflight(
+                    conn,
+                    actor["id"],
+                    row["command"],
+                    row["params"],
+                    workspace_id=actor["workspace_id"],
+                    lock=True,
+                )
             except AccessError as exc:
                 row = conn.execute(
                     "UPDATE business.operations SET state='failed',error_code=%s,"
                     "updated_at=now() "
-                    "WHERE id=%s RETURNING *",
-                    (exc.code, row["id"]),
+                    "WHERE id=%s AND workspace_id=%s RETURNING *",
+                    (exc.code, row["id"], row["workspace_id"]),
                 ).fetchone()
                 return self._view(conn, row)
         replacement = None
@@ -470,12 +513,14 @@ class OperationService:
                 supersedes=row["id"],
             )
         conn.execute(
-            "INSERT INTO business.operation_approvals(operation_id,employee_id,input_hash,"
+            "INSERT INTO business.operation_approvals(operation_id,employee_id,workspace_id,"
+            "input_hash,"
             "contract_digest,expected_revision,policy_version,decision,expires_at) "
-            "VALUES(%s,%s,%s,%s,%s,'business-approval-v2',%s,now()+interval '15 minutes')",
+            "VALUES(%s,%s,%s,%s,%s,%s,'business-approval-v2',%s,now()+interval '15 minutes')",
             (
                 row["id"],
                 actor["id"],
+                actor["workspace_id"],
                 row["input_hash"],
                 row["contract_digest"],
                 row["expected_revision"],
@@ -483,26 +528,32 @@ class OperationService:
             ),
         )
         row = conn.execute(
-            "UPDATE business.operations SET state=%s,updated_at=now() WHERE id=%s RETURNING *",
-            ("ready" if decision == "approve" else "rejected", row["id"]),
+            "UPDATE business.operations SET state=%s,updated_at=now() "
+            "WHERE id=%s AND workspace_id=%s RETURNING *",
+            ("ready" if decision == "approve" else "rejected", row["id"], row["workspace_id"]),
         ).fetchone()
         conn.execute(
-            "INSERT INTO business.employee_audit(id,actor_employee_id,source,event,outcome,"
-            "operation_id) VALUES(%s,%s,'web',%s,'allowed',%s)",
-            (uuid4(), actor["id"], "operation_" + decision, row["id"]),
+            "INSERT INTO business.employee_audit(id,actor_employee_id,workspace_id,source,event,"
+            "outcome,operation_id) VALUES(%s,%s,%s,'web',%s,'allowed',%s)",
+            (uuid4(), actor["id"], actor["workspace_id"], "operation_" + decision, row["id"]),
         )
         return replacement or self._view(conn, row)
 
     def _failure(self, conn, row, code):
         row = conn.execute(
             "UPDATE business.operations SET state=%s,error_code=%s,updated_at=now() "
-            "WHERE id=%s RETURNING *",
-            ("expired" if code == "approval_expired" else "failed", code, row["id"]),
+            "WHERE id=%s AND workspace_id=%s RETURNING *",
+            (
+                "expired" if code == "approval_expired" else "failed",
+                code,
+                row["id"],
+                row["workspace_id"],
+            ),
         ).fetchone()
         conn.execute(
-            "INSERT INTO business.employee_audit(id,actor_employee_id,source,event,outcome,"
-            "operation_id) VALUES(%s,%s,'system','operation_commit','failed',%s)",
-            (uuid4(), row["employee_id"], row["id"]),
+            "INSERT INTO business.employee_audit(id,actor_employee_id,workspace_id,source,event,"
+            "outcome,operation_id) VALUES(%s,%s,%s,'system','operation_commit','failed',%s)",
+            (uuid4(), row["employee_id"], row["workspace_id"], row["id"]),
         )
         return self._view(conn, row)
 
@@ -523,7 +574,14 @@ class OperationService:
                         return self._view(conn, row)
                     try:
                         self._operation_scope(conn, row)
-                        self._preflight(conn, actor["id"], row["command"], row["params"], lock=True)
+                        self._preflight(
+                            conn,
+                            actor["id"],
+                            row["command"],
+                            row["params"],
+                            workspace_id=actor["workspace_id"],
+                            lock=True,
+                        )
                     except AccessError as exc:
                         return self._failure(conn, row, exc.code)
                     if row["agent_task_id"] is not None:
@@ -542,7 +600,14 @@ class OperationService:
                         actor = self._identity(conn, identity, lock=True)
                         row = self._operation(conn, actor, operation_id, lock=True, original=True)
                         self._operation_scope(conn, row)
-                        self._preflight(conn, actor["id"], row["command"], row["params"], lock=True)
+                        self._preflight(
+                            conn,
+                            actor["id"],
+                            row["command"],
+                            row["params"],
+                            workspace_id=actor["workspace_id"],
+                            lock=True,
+                        )
                         result = TicketStore(self.database.url).execute_in_transaction(
                             conn, actor["id"], operation_id, grant=grant
                         )
@@ -552,10 +617,10 @@ class OperationService:
                             (Jsonb(result), operation_id),
                         ).fetchone()
                         conn.execute(
-                            "INSERT INTO business.employee_audit(id,actor_employee_id,source,event,"
-                            "outcome,operation_id) VALUES(%s,%s,'system','operation_commit',"
-                            "'allowed',%s)",
-                            (uuid4(), actor["id"], operation_id),
+                            "INSERT INTO business.employee_audit(id,actor_employee_id,workspace_id,"
+                            "source,event,outcome,operation_id) VALUES(%s,%s,%s,'system',"
+                            "'operation_commit','allowed',%s)",
+                            (uuid4(), actor["id"], actor["workspace_id"], operation_id),
                         )
                         completed = self._view(conn, row)
                     return completed
@@ -574,8 +639,9 @@ class OperationService:
                         code = "invalid_reference"
                     with conn.transaction():
                         row = conn.execute(
-                            "SELECT * FROM business.operations WHERE id=%s FOR UPDATE",
-                            (operation_id,),
+                            "SELECT * FROM business.operations WHERE id=%s AND workspace_id=%s "
+                            "FOR UPDATE",
+                            (operation_id, identity.workspace_id),
                         ).fetchone()
                         return self._failure(conn, row, code)
             except AccessError as exc:
@@ -598,29 +664,33 @@ class OperationService:
             return
         with conn.transaction():
             original = conn.execute(
-                "SELECT employee_id FROM business." + table + " WHERE token_hash=%s",
-                (identity.token_hash,),
+                "SELECT employee_id FROM business." + table + " WHERE token_hash=%s "
+                "AND workspace_id=%s",
+                (identity.token_hash, identity.workspace_id),
             ).fetchone()
             if not original or original["employee_id"] != identity.employee_id:
                 return
             row = conn.execute(
-                "SELECT * FROM business.operations WHERE id=%s AND employee_id=%s FOR UPDATE",
-                (operation_id, identity.employee_id),
+                "SELECT * FROM business.operations WHERE id=%s AND employee_id=%s "
+                "AND workspace_id=%s FOR UPDATE",
+                (operation_id, identity.employee_id, identity.workspace_id),
             ).fetchone()
             if not row:
                 return
             if row["state"] in {"ready", "awaiting_approval"}:
                 conn.execute(
                     "UPDATE business.operations SET error_code='employee_credential_unavailable',"
-                    "updated_at=now() WHERE id=%s",
-                    (operation_id,),
+                    "updated_at=now() WHERE id=%s AND workspace_id=%s",
+                    (operation_id, identity.workspace_id),
                 )
             conn.execute(
-                "INSERT INTO business.employee_audit(id,actor_employee_id,source,event,outcome,"
-                "operation_id) VALUES(%s,%s,%s,'credential_rejected','denied',%s)",
+                "INSERT INTO business.employee_audit(id,actor_employee_id,workspace_id,"
+                "source,event,"
+                "outcome,operation_id) VALUES(%s,%s,%s,%s,'credential_rejected','denied',%s)",
                 (
                     uuid4(),
                     identity.employee_id,
+                    identity.workspace_id,
                     "mcp" if identity.source == "mcp_token" else "web",
                     operation_id,
                 ),

@@ -112,7 +112,9 @@ class BusinessMCPServer:
 
     def _allowed_tools(self, identity):
         with self.database.connect() as conn:
-            allowed_commands = access.allowed_commands(conn, identity.employee_id)
+            allowed_commands = access.allowed_commands(
+                conn, identity.employee_id, workspace_id=identity.workspace_id
+            )
         return {
             *("tickets_" + command for command in allowed_commands & READ_COMMANDS),
             *("tickets_prepare_" + command for command in allowed_commands & WRITE_COMMANDS),
@@ -144,16 +146,40 @@ class BusinessMCPServer:
     def _read(self, identity, command, arguments):
         with self.database.connect() as conn:
             if command == "directory":
-                return self.ticket_store._read(conn, command, arguments)
+                return self.ticket_store._read(
+                    conn, command, arguments, workspace_id=identity.workspace_id
+                )
             if command == "get":
-                ticket = access.get_ticket(conn, identity.employee_id, arguments["ticket_id"])
-                history = access.get_history(conn, identity.employee_id, arguments["ticket_id"])
+                ticket = access.get_ticket(
+                    conn,
+                    identity.employee_id,
+                    arguments["ticket_id"],
+                    workspace_id=identity.workspace_id,
+                )
+                history = access.get_history(
+                    conn,
+                    identity.employee_id,
+                    arguments["ticket_id"],
+                    workspace_id=identity.workspace_id,
+                )
                 return _json({"ticket": ticket, "history": history})
             if command == "list":
                 return _json(
-                    {"tickets": access.list_tickets(conn, identity.employee_id, arguments)}
+                    {
+                        "tickets": access.list_tickets(
+                            conn,
+                            identity.employee_id,
+                            arguments,
+                            workspace_id=identity.workspace_id,
+                        )
+                    }
                 )
-            receipt = access.get_receipt(conn, identity.employee_id, arguments["operation_id"])
+            receipt = access.get_receipt(
+                conn,
+                identity.employee_id,
+                arguments["operation_id"],
+                workspace_id=identity.workspace_id,
+            )
             return {"receipt": self.ticket_store._receipt(receipt) if receipt else None}
 
     def _call(self, name, arguments, grant, token):

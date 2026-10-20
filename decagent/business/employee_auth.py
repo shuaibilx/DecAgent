@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from decagent.business.workspaces import LEGACY_WORKSPACE_ID, parse_workspace_id
+
 COOKIE_NAME = "decagent_employee_session"
 _BROWSER_PREFIX = "dce_"
 _MCP_PREFIX = "dcm_"
@@ -27,6 +29,10 @@ class EmployeeIdentity:
     source: str
     token_hash: str
     credential_ref: UUID | None = None
+    workspace_id: UUID = LEGACY_WORKSPACE_ID
+
+    def __post_init__(self):
+        object.__setattr__(self, "workspace_id", parse_workspace_id(self.workspace_id))
 
     def public(self):
         return {
@@ -74,15 +80,16 @@ class EmployeeAuth:
         with self.database.connect() as conn:
             row = conn.execute(
                 "INSERT INTO business.employee_sessions"
-                "(token_hash,employee_id,account_revision,csrf_hash,expires_at) "
-                "SELECT %s,id,credential_revision,%s,now()+%s*interval '1 second' "
-                "FROM business.employee_accounts WHERE id=%s AND active=true "
+                "(token_hash,employee_id,workspace_id,account_revision,csrf_hash,expires_at) "
+                "SELECT %s,id,workspace_id,credential_revision,%s,now()+%s*interval '1 second' "
+                "FROM business.employee_accounts WHERE id=%s AND workspace_id=%s AND active=true "
                 "AND credential_revision=%s RETURNING expires_at",
                 (
                     _hash(token),
                     _hash(csrf),
                     self.session_seconds,
                     account["id"],
+                    account["workspace_id"],
                     account["credential_revision"],
                 ),
             ).fetchone()
@@ -96,9 +103,11 @@ class EmployeeAuth:
             return None
         with self.database.connect() as conn:
             row = conn.execute(
-                "SELECT s.token_hash,a.id,a.person_id,a.login,a.role,a.credential_revision "
+                "SELECT s.token_hash,s.workspace_id,a.id,a.person_id,a.login,a.role,"
+                "a.credential_revision "
                 "FROM business.employee_sessions s "
                 "JOIN business.employee_accounts a ON a.id=s.employee_id "
+                "AND a.workspace_id=s.workspace_id "
                 "WHERE s.token_hash=%s AND s.revoked_at IS NULL AND s.expires_at>now() "
                 "AND a.active=true AND s.account_revision=a.credential_revision",
                 (_hash(token),),
@@ -113,6 +122,7 @@ class EmployeeAuth:
             row["credential_revision"],
             "employee_session",
             row["token_hash"],
+            workspace_id=row["workspace_id"],
         )
 
     def valid_mutation(self, request, identity):
@@ -125,9 +135,20 @@ class EmployeeAuth:
             row = conn.execute(
                 "SELECT s.csrf_hash FROM business.employee_sessions s "
                 "JOIN business.employee_accounts a ON a.id=s.employee_id "
-                "WHERE s.token_hash=%s AND s.revoked_at IS NULL AND s.expires_at>now() "
-                "AND a.active=true AND s.account_revision=a.credential_revision",
-                (identity.token_hash,),
+                "AND a.workspace_id=s.workspace_id "
+                "WHERE s.token_hash=%s AND s.employee_id=%s AND s.account_revision=%s "
+                "AND s.revoked_at IS NULL AND s.expires_at>now() "
+                "AND s.workspace_id=%s AND a.id=%s AND a.active=true "
+                "AND a.credential_revision=%s "
+                "AND s.account_revision=a.credential_revision",
+                (
+                    identity.token_hash,
+                    identity.employee_id,
+                    identity.account_revision,
+                    identity.workspace_id,
+                    identity.employee_id,
+                    identity.account_revision,
+                ),
             ).fetchone()
         return bool(row and hmac.compare_digest(row["csrf_hash"], _hash(csrf)))
 
@@ -136,8 +157,9 @@ class EmployeeAuth:
             raise ValueError("Employee browser session required")
         with self.database.connect() as conn:
             conn.execute(
-                "UPDATE business.employee_sessions SET revoked_at=now() WHERE token_hash=%s",
-                (identity.token_hash,),
+                "UPDATE business.employee_sessions SET revoked_at=now() "
+                "WHERE token_hash=%s AND workspace_id=%s",
+                (identity.token_hash, identity.workspace_id),
             )
 
     def issue_mcp(self, identity):
@@ -154,25 +176,34 @@ class EmployeeAuth:
                 session = conn.execute(
                     "SELECT s.employee_id FROM business.employee_sessions s "
                     "JOIN business.employee_accounts a ON a.id=s.employee_id "
+                    "AND a.workspace_id=s.workspace_id "
                     "WHERE s.token_hash=%s AND s.employee_id=%s "
-                    "AND s.revoked_at IS NULL AND s.expires_at>now() AND a.active "
+                    "AND s.workspace_id=%s AND s.revoked_at IS NULL "
+                    "AND s.expires_at>now() AND a.active "
                     "AND s.account_revision=a.credential_revision "
                     "AND a.credential_revision=%s FOR UPDATE OF s,a",
-                    (identity.token_hash, identity.employee_id, identity.account_revision),
+                    (
+                        identity.token_hash,
+                        identity.employee_id,
+                        identity.workspace_id,
+                        identity.account_revision,
+                    ),
                 ).fetchone()
                 if not session:
                     raise ValueError("Employee session unavailable")
                 row = conn.execute(
                     "INSERT INTO business.mcp_credentials"
-                    "(id,token_hash,employee_id,account_revision,expires_at) "
-                    "SELECT %s,%s,id,credential_revision,now()+%s*interval '1 second' "
-                    "FROM business.employee_accounts WHERE id=%s AND active=true "
-                    "AND credential_revision=%s RETURNING expires_at",
+                    "(id,token_hash,employee_id,workspace_id,account_revision,expires_at) "
+                    "SELECT %s,%s,id,workspace_id,credential_revision,"
+                    "now()+%s*interval '1 second' "
+                    "FROM business.employee_accounts WHERE id=%s AND workspace_id=%s "
+                    "AND active=true AND credential_revision=%s RETURNING expires_at",
                     (
                         credential_ref,
                         _hash(token),
                         self.mcp_seconds,
                         identity.employee_id,
+                        identity.workspace_id,
                         identity.account_revision,
                     ),
                 ).fetchone()
@@ -201,9 +232,11 @@ class EmployeeAuth:
             return None
         with self.database.connect() as conn:
             row = conn.execute(
-                "SELECT c.id AS credential_ref,c.token_hash,a.id,a.person_id,a.login,a.role,"
+                "SELECT c.id AS credential_ref,c.token_hash,c.workspace_id,a.id,a.person_id,"
+                "a.login,a.role,"
                 "a.credential_revision FROM business.mcp_credentials c "
                 "JOIN business.employee_accounts a ON a.id=c.employee_id "
+                "AND a.workspace_id=c.workspace_id "
                 "WHERE c.token_hash=%s AND c.revoked_at IS NULL AND c.expires_at>now() "
                 "AND a.active=true AND c.account_revision=a.credential_revision",
                 (_hash(token),),
@@ -219,6 +252,7 @@ class EmployeeAuth:
             "mcp_token",
             row["token_hash"],
             row["credential_ref"],
+            row["workspace_id"],
         )
 
     def revoke_mcp(self, identity, credential_ref):
@@ -228,8 +262,8 @@ class EmployeeAuth:
         with self.database.connect() as conn:
             row = conn.execute(
                 "UPDATE business.mcp_credentials SET revoked_at=COALESCE(revoked_at,now()) "
-                "WHERE id=%s AND employee_id=%s RETURNING id",
-                (ref, identity.employee_id),
+                "WHERE id=%s AND employee_id=%s AND workspace_id=%s RETURNING id",
+                (ref, identity.employee_id, identity.workspace_id),
             ).fetchone()
         if not row:
             return False
@@ -240,11 +274,14 @@ class EmployeeAuth:
         """Trusted broker use only: resolve a saved task principal to its protected token."""
         with self.database.connect() as conn:
             row = conn.execute(
-                "SELECT t.kind,t.employee_id AS task_employee_id,t.credential_ref,"
+                "SELECT t.kind,t.workspace_id,t.employee_id AS task_employee_id,t.credential_ref,"
                 "c.employee_id AS credential_employee_id,c.token_hash,c.account_revision,"
-                "c.expires_at,c.revoked_at,a.active,a.credential_revision "
-                "FROM app.tasks t LEFT JOIN business.mcp_credentials c ON c.id=t.credential_ref "
-                "LEFT JOIN business.employee_accounts a ON a.id=c.employee_id WHERE t.id=%s",
+                "c.workspace_id AS credential_workspace_id,c.expires_at,c.revoked_at,"
+                "a.workspace_id AS employee_workspace_id,a.active,a.credential_revision "
+                "FROM app.tasks t LEFT JOIN business.mcp_credentials c "
+                "ON c.id=t.credential_ref AND c.workspace_id=t.workspace_id "
+                "LEFT JOIN business.employee_accounts a ON a.id=c.employee_id "
+                "AND a.workspace_id=c.workspace_id WHERE t.id=%s",
                 (UUID(str(task_id)),),
             ).fetchone()
         if (
@@ -253,6 +290,8 @@ class EmployeeAuth:
             or not row["credential_ref"]
             or not row["task_employee_id"]
             or row["task_employee_id"] != row["credential_employee_id"]
+            or row["workspace_id"] != row["credential_workspace_id"]
+            or row["workspace_id"] != row["employee_workspace_id"]
             or not row["active"]
             or row["account_revision"] != row["credential_revision"]
             or row["revoked_at"] is not None

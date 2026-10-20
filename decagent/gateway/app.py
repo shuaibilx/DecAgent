@@ -306,12 +306,21 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
 
     def append_event(conn, task, kind, payload):
         row = conn.execute(
-            "UPDATE app.tasks SET event_seq=event_seq+1 WHERE id=%s RETURNING event_seq",
-            (task["id"],),
+            "UPDATE app.tasks SET event_seq=event_seq+1 WHERE id=%s AND workspace_id=%s "
+            "RETURNING event_seq",
+            (task["id"], task["workspace_id"]),
         ).fetchone()
         conn.execute(
-            "INSERT INTO app.events(task_id,project_id,seq,kind,payload) VALUES(%s,%s,%s,%s,%s)",
-            (task["id"], task["project_id"], row["event_seq"], kind, Jsonb(safe(payload))),
+            "INSERT INTO app.events(task_id,project_id,workspace_id,seq,kind,payload) "
+            "VALUES(%s,%s,%s,%s,%s,%s)",
+            (
+                task["id"],
+                task["project_id"],
+                task["workspace_id"],
+                row["event_seq"],
+                kind,
+                Jsonb(safe(payload)),
+            ),
         )
 
     def mutate(request, body, operation, *, status=200):
@@ -516,9 +525,9 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
 
     def employee_task_row(conn, employee, task_id, *, lock=False):
         row = conn.execute(
-            "SELECT * FROM app.tasks WHERE id=%s AND kind='business' AND employee_id=%s"
-            + (" FOR UPDATE" if lock else ""),
-            (task_id, employee.employee_id),
+            "SELECT * FROM app.tasks WHERE id=%s AND kind='business' AND employee_id=%s "
+            "AND workspace_id=%s" + (" FOR UPDATE" if lock else ""),
+            (task_id, employee.employee_id, employee.workspace_id),
         ).fetchone()
         if row is None:
             raise ApiError(404, "not_found", "Business task unavailable")
@@ -572,7 +581,11 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     @app.get("/api/v2/business/plugins")
     def employee_plugins(request: Request):
         with database.connect() as conn:
-            commands = access.allowed_commands(conn, request.state.employee.employee_id)
+            commands = access.allowed_commands(
+                conn,
+                request.state.employee.employee_id,
+                workspace_id=request.state.employee.workspace_id,
+            )
         return safe(
             [
                 {
@@ -621,8 +634,9 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
             rows = conn.execute(
                 "SELECT id,kind,state,phase,created_at,event_seq,budget,"
                 "authorization_snapshot FROM app.tasks WHERE kind='business' AND employee_id=%s "
+                "AND workspace_id=%s "
                 "ORDER BY created_at DESC,id LIMIT 100",
-                (request.state.employee.employee_id,),
+                (request.state.employee.employee_id, request.state.employee.workspace_id),
             ).fetchall()
         return safe(
             [
@@ -870,17 +884,20 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     def employee_operations(request: Request):
         employee = request.state.employee
         with database.connect() as conn:
-            actor = access.principal(conn, employee.employee_id)
+            actor = access.principal(conn, employee.employee_id, workspace_id=employee.workspace_id)
             if actor["role"] == "supervisor":
                 rows = conn.execute(
                     "SELECT id,supersedes,resource_snapshot FROM business.operations "
-                    "ORDER BY created_at DESC,id LIMIT 100"
+                    "WHERE workspace_id=%s "
+                    "ORDER BY created_at DESC,id LIMIT 100",
+                    (employee.workspace_id,),
                 ).fetchall()
             else:
                 rows = conn.execute(
                     "SELECT id,supersedes,resource_snapshot FROM business.operations "
-                    "WHERE employee_id=%s ORDER BY created_at DESC,id LIMIT 100",
-                    (employee.employee_id,),
+                    "WHERE employee_id=%s AND workspace_id=%s "
+                    "ORDER BY created_at DESC,id LIMIT 100",
+                    (employee.employee_id, employee.workspace_id),
                 ).fetchall()
         return [browser_operation(employee, row["id"], known=row) for row in rows]
 

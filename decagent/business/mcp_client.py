@@ -206,7 +206,9 @@ class MCPConnectionManager:
 
     def _allowed_tools(self, identity):
         with self.employee_auth.database.connect() as conn:
-            allowed = access.allowed_commands(conn, identity.employee_id)
+            allowed = access.allowed_commands(
+                conn, identity.employee_id, workspace_id=identity.workspace_id
+            )
         return {
             *("tickets_" + command for command in allowed & READ_COMMANDS),
             *("tickets_prepare_" + command for command in allowed & WRITE_COMMANDS),

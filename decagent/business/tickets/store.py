@@ -12,6 +12,7 @@ from decagent.business import access
 from decagent.business.codec import error
 from decagent.business.contracts import PluginSpec, canonical, validate_schema
 from decagent.business.tickets import builtin_manifest
+from decagent.business.workspaces import LEGACY_WORKSPACE_ID, parse_workspace_id
 
 
 class TicketError(ValueError):
@@ -74,11 +75,14 @@ class TicketStore:
             ).fetchone()
             return {"ok": True, "data": {**result, "receipt": self._receipt(receipt)}}
 
-    def directory(self, params=None):
+    def directory(self, params=None, *, workspace_id=LEGACY_WORKSPACE_ID):
         params = {} if params is None else params
         self.spec.validate("directory", params)
         with psycopg.connect(self.database_url, row_factory=dict_row) as conn:
-            return {"ok": True, "data": self._read(conn, "directory", params)}
+            return {
+                "ok": True,
+                "data": self._read(conn, "directory", params, workspace_id=workspace_id),
+            }
 
     def execute(self, command, params, operation_id):
         """Compatibility for local directory setup; domain writes require employee MCP."""
@@ -138,7 +142,12 @@ class TicketStore:
         ):
             raise TicketError("contract_changed", "Business registration changed")
         params = access.authorize_write(
-            conn, employee_id, operation["command"], operation["params"], lock=True
+            conn,
+            employee_id,
+            operation["command"],
+            operation["params"],
+            workspace_id=operation["workspace_id"],
+            lock=True,
         )
         if _json(params) != operation["effective_params"]:
             raise TicketError("operation_conflict", "Saved employee input changed")
@@ -157,8 +166,9 @@ class TicketStore:
         approval = None
         if operation["confirmation_required"]:
             approval = conn.execute(
-                "SELECT * FROM business.operation_approvals WHERE operation_id=%s FOR UPDATE",
-                (operation_id,),
+                "SELECT * FROM business.operation_approvals WHERE operation_id=%s "
+                "AND workspace_id=%s FOR UPDATE",
+                (operation_id, operation["workspace_id"]),
             ).fetchone()
             if not approval or any(
                 (
@@ -174,7 +184,8 @@ class TicketStore:
             ):
                 raise TicketError("approval_expired", "Current specific approval required")
         previous = conn.execute(
-            "SELECT * FROM business.operation_receipts WHERE operation_id=%s", (operation_id,)
+            "SELECT * FROM business.operation_receipts WHERE operation_id=%s AND workspace_id=%s",
+            (operation_id, operation["workspace_id"]),
         ).fetchone()
         if previous:
             if any(
@@ -190,14 +201,16 @@ class TicketStore:
             employee_id=employee_id,
             operation_id=operation_id,
             source=operation["source"],
+            workspace_id=operation["workspace_id"],
         )
         ticket = result["ticket"]
         receipt = conn.execute(
-            "INSERT INTO business.operation_receipts(operation_id,input_hash,command,resource_id,"
-            "revision,result,employee_id,contract_digest) "
-            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+            "INSERT INTO business.operation_receipts(operation_id,workspace_id,input_hash,command,"
+            "resource_id,revision,result,employee_id,contract_digest) "
+            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
             (
                 operation_id,
+                operation["workspace_id"],
                 operation["input_hash"],
                 operation["command"],
                 ticket["id"],
@@ -209,24 +222,28 @@ class TicketStore:
         ).fetchone()
         if approval:
             conn.execute(
-                "UPDATE business.operation_approvals SET consumed_at=now() WHERE operation_id=%s",
-                (operation_id,),
+                "UPDATE business.operation_approvals SET consumed_at=now() "
+                "WHERE operation_id=%s AND workspace_id=%s",
+                (operation_id, operation["workspace_id"]),
             )
         data = {**result, "receipt": self._receipt(receipt)}
         validate_schema(self.spec.commands[operation["command"]].result_schema, data)
         return data
 
     @staticmethod
-    def _get(conn, ticket_id, lock=False):
+    def _get(conn, ticket_id, workspace_id=LEGACY_WORKSPACE_ID, lock=False):
+        workspace_id = parse_workspace_id(workspace_id)
         row = conn.execute(
-            "SELECT * FROM business.tickets WHERE id=%s" + (" FOR UPDATE" if lock else ""),
-            (ticket_id,),
+            "SELECT * FROM business.tickets WHERE id=%s AND workspace_id=%s"
+            + (" FOR UPDATE" if lock else ""),
+            (ticket_id, workspace_id),
         ).fetchone()
         if not row:
             raise TicketError("not_found", "Ticket not found")
         return row
 
-    def _read(self, conn, command, params):
+    def _read(self, conn, command, params, *, workspace_id=LEGACY_WORKSPACE_ID):
+        workspace_id = parse_workspace_id(workspace_id)
         if command == "directory":
             kind = params.get("kind", "all")
             query = params.get("query", "")
@@ -235,21 +252,33 @@ class TicketStore:
             categories = []
             if kind in {"all", "people"}:
                 people = conn.execute(
-                    "SELECT * FROM business.people WHERE active AND "
+                    "SELECT * FROM business.people WHERE workspace_id=%s AND active AND "
                     "strpos(lower(name),lower(%s))>0 AND (%s::text IS NULL OR team=%s) "
                     "ORDER BY name,team,id",
-                    (query, params.get("team"), params.get("team")),
+                    (workspace_id, query, params.get("team"), params.get("team")),
                 ).fetchall()
             if kind in {"all", "categories"}:
                 categories = conn.execute(
-                    "SELECT * FROM business.categories WHERE strpos(lower(name),lower(%s))>0 "
+                    "SELECT * FROM business.categories WHERE workspace_id=%s "
+                    "AND strpos(lower(name),lower(%s))>0 "
                     "ORDER BY name,id",
-                    (query,),
+                    (workspace_id, query),
                 ).fetchall()
             return _json({"people": people, "categories": categories})
         raise TicketError("invalid_command", "Only directory administration is available here")
 
-    def _write(self, conn, command, params, *, employee_id=None, operation_id=None, source=None):
+    def _write(
+        self,
+        conn,
+        command,
+        params,
+        *,
+        employee_id=None,
+        operation_id=None,
+        source=None,
+        workspace_id=LEGACY_WORKSPACE_ID,
+    ):
+        workspace_id = parse_workspace_id(workspace_id)
         if command == "seed":
             namespace = UUID("2fb6c147-0c0a-4c46-aaf2-5ea71f7c2e85")
             people = [
@@ -279,8 +308,8 @@ class TicketStore:
                 raise TicketError("invalid_input", "Ticket title must not be blank")
             ticket = conn.execute(
                 "INSERT INTO business.tickets"
-                "(id,title,description,category_id,requester_id,priority,employee_id) "
-                "VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+                "(id,title,description,category_id,requester_id,priority,employee_id,workspace_id) "
+                "VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
                 (
                     uuid4(),
                     params["title"],
@@ -289,10 +318,11 @@ class TicketStore:
                     params.get("requester_id"),
                     params.get("priority", "normal"),
                     employee_id,
+                    workspace_id,
                 ),
             ).fetchone()
         else:
-            current = self._get(conn, params["ticket_id"], lock=True)
+            current = self._get(conn, params["ticket_id"], workspace_id, lock=True)
             if current["revision"] != params["expected_revision"]:
                 raise TicketError("revision_conflict", "Ticket changed; fetch its latest revision")
             transitions = {
@@ -313,7 +343,8 @@ class TicketStore:
             priority = current["priority"]
             if command == "assign":
                 person = conn.execute(
-                    "SELECT id FROM business.people WHERE id=%s AND active", (params["person_id"],)
+                    "SELECT id FROM business.people WHERE id=%s AND workspace_id=%s AND active",
+                    (params["person_id"], workspace_id),
                 ).fetchone()
                 if not person:
                     raise TicketError("invalid_reference", "Active directory person not found")
@@ -330,12 +361,22 @@ class TicketStore:
                 raise TicketError("invalid_input", "Comment must not be blank")
             ticket = conn.execute(
                 "UPDATE business.tickets SET status=%s,assignee_id=%s,resolution=%s,priority=%s,"
-                "revision=revision+1,updated_at=now() WHERE id=%s AND revision=%s RETURNING *",
-                (next_status, assignee, resolution, priority, current["id"], current["revision"]),
+                "revision=revision+1,updated_at=now() WHERE id=%s AND workspace_id=%s "
+                "AND revision=%s RETURNING *",
+                (
+                    next_status,
+                    assignee,
+                    resolution,
+                    priority,
+                    current["id"],
+                    workspace_id,
+                    current["revision"],
+                ),
             ).fetchone()
         conn.execute(
             "INSERT INTO business.ticket_history(id,ticket_id,revision,command,details,"
-            "employee_id,operation_id,source) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)",
+            "employee_id,operation_id,source,workspace_id) "
+            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 uuid4(),
                 ticket["id"],
@@ -345,6 +386,7 @@ class TicketStore:
                 employee_id,
                 operation_id,
                 source,
+                workspace_id,
             ),
         )
         return {"ticket": _json(ticket)}

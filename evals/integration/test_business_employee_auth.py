@@ -2,18 +2,23 @@
 
 import hashlib
 import os
+from dataclasses import replace
 from datetime import timedelta
 from types import SimpleNamespace
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
-from decagent.business.employee_accounts import seed_employee_accounts
+from decagent.business import access
+from decagent.business.access import AccessError
+from decagent.business.employee_accounts import hash_employee_password, seed_employee_accounts
+from decagent.business.operations import OperationService
 from decagent.business.registry import PluginRegistry
 from decagent.business.tickets import builtin_manifest
 from decagent.business.tickets.store import TicketStore
+from decagent.business.workspaces import LEGACY_WORKSPACE_ID
 from decagent.config import Settings
 from decagent.gateway import create_app, initialize_owner
 
@@ -137,7 +142,7 @@ def test_browser_session_enforces_origin_csrf_expiry_and_account_state(employee_
 def test_mcp_token_has_independent_audience_lifetime_and_revocation(employee_api):
     database, client, auth, directory, _, owner_token = employee_api
     login = _login(client, directory)
-    assert login.status_code == 200
+    assert login.status_code == 200, login.text
     issued = client.post("/api/v2/business/auth/mcp-credentials", headers=_csrf(login))
     assert issued.status_code == 201, issued.text
     body = issued.json()
@@ -230,6 +235,281 @@ def test_credential_resolver_requires_matching_task_employee_and_current_credent
         )
     with pytest.raises(ValueError, match="unavailable"):
         auth.resolve_credential_ref(task["id"])
+
+
+def test_authenticated_employee_workspace_is_database_bound_and_request_cannot_override(
+    employee_api,
+):
+    database, client, auth, directory, scope, _ = employee_api
+    workspace_id, person_id, employee_id = uuid4(), uuid4(), uuid4()
+    supervisor_person_id, supervisor_id = uuid4(), uuid4()
+    handler_person_id, handler_id = uuid4(), uuid4()
+    ticket_id, category_id = uuid4(), uuid4()
+    password = "workspace-test-password"
+    fixture_password_hash = hash_employee_password("fixture-only-password")
+    with database.connect() as connection:
+        connection.execute(
+            "INSERT INTO business.workspaces(id,slug,kind) VALUES(%s,'guest-auth-test','guest')",
+            (workspace_id,),
+        )
+        connection.execute(
+            "INSERT INTO business.people(id,name,team,workspace_id) "
+            "VALUES(%s,'Guest employee','Support',%s)",
+            (person_id, workspace_id),
+        )
+        connection.execute(
+            "INSERT INTO business.employee_accounts"
+            "(id,login,person_id,role,password_hash,workspace_id) "
+            "VALUES(%s,'guest-auth-test',%s,'employee',%s,%s)",
+            (employee_id, person_id, hash_employee_password(password), workspace_id),
+        )
+        connection.execute(
+            "INSERT INTO business.people(id,name,team,workspace_id) "
+            "VALUES(%s,'Guest supervisor','Support',%s),(%s,'Guest handler','Support',%s)",
+            (supervisor_person_id, workspace_id, handler_person_id, workspace_id),
+        )
+        connection.execute(
+            "INSERT INTO business.employee_accounts"
+            "(id,login,person_id,role,password_hash,workspace_id) "
+            "VALUES(%s,'guest-supervisor',%s,'supervisor',%s,%s),"
+            "(%s,'guest-handler',%s,'handler',%s,%s)",
+            (
+                supervisor_id,
+                supervisor_person_id,
+                fixture_password_hash,
+                workspace_id,
+                handler_id,
+                handler_person_id,
+                fixture_password_hash,
+                workspace_id,
+            ),
+        )
+        legacy_employee_id = connection.execute(
+            "SELECT id FROM business.employee_accounts WHERE login='employee-it'"
+        ).fetchone()["id"]
+        connection.execute(
+            "INSERT INTO business.categories(id,name,workspace_id) VALUES(%s,'Guest category',%s)",
+            (category_id, workspace_id),
+        )
+        connection.execute(
+            "INSERT INTO business.tickets"
+            "(id,title,category_id,requester_id,employee_id,workspace_id) "
+            "VALUES(%s,'Guest-only ticket',%s,%s,%s,%s)",
+            (ticket_id, category_id, person_id, employee_id, workspace_id),
+        )
+
+    login = _login(client, directory, "guest-auth-test", password)
+    assert login.status_code == 200, login.text
+    browser_identity = auth.authenticate_browser(
+        SimpleNamespace(headers={}, cookies=dict(client.cookies))
+    )
+    assert browser_identity is not None
+    assert browser_identity.workspace_id == workspace_id
+    assert "workspace_id" not in browser_identity.public()
+    with database.connect() as connection:
+        guest_directory = TicketStore(database.url)._read(
+            connection, "directory", {}, workspace_id=browser_identity.workspace_id
+        )
+        assert {person["id"] for person in guest_directory["people"]} == {
+            str(person_id),
+            str(supervisor_person_id),
+            str(handler_person_id),
+        }
+        assert [category["id"] for category in guest_directory["categories"]] == [str(category_id)]
+        assert (
+            access.get_ticket(connection, employee_id, ticket_id, workspace_id=workspace_id)["id"]
+            == ticket_id
+        )
+        assert [
+            ticket["id"]
+            for ticket in access.list_tickets(
+                connection, employee_id, {}, workspace_id=workspace_id
+            )
+        ] == [ticket_id]
+        with pytest.raises(AccessError, match="unavailable"):
+            access.get_ticket(
+                connection, legacy_employee_id, ticket_id, workspace_id=LEGACY_WORKSPACE_ID
+            )
+        assert not access.list_tickets(
+            connection, legacy_employee_id, {}, workspace_id=LEGACY_WORKSPACE_ID
+        )
+        assert access.authorize_write(
+            connection,
+            supervisor_id,
+            "assign",
+            {
+                "ticket_id": str(ticket_id),
+                "expected_revision": 1,
+                "person_id": str(handler_person_id),
+            },
+            workspace_id=workspace_id,
+        )["person_id"] == str(handler_person_id)
+        legacy_person_id = connection.execute(
+            "SELECT person_id FROM business.employee_accounts WHERE id=%s", (legacy_employee_id,)
+        ).fetchone()["person_id"]
+        with pytest.raises(AccessError, match="Assignable employee unavailable"):
+            access.authorize_write(
+                connection,
+                supervisor_id,
+                "assign",
+                {
+                    "ticket_id": str(ticket_id),
+                    "expected_revision": 1,
+                    "person_id": str(legacy_person_id),
+                },
+                workspace_id=workspace_id,
+            )
+
+    issued = client.post("/api/v2/business/auth/mcp-credentials", headers=_csrf(login))
+    assert issued.status_code == 201
+    credential_ref = UUID(issued.json()["credential_ref"])
+    mcp_token = (directory / f"mcp-{credential_ref}.token").read_text().strip()
+    mcp_identity = auth.authenticate_mcp_token(mcp_token)
+    assert mcp_identity is not None and mcp_identity.workspace_id == workspace_id
+    with database.connect() as connection:
+        assert (
+            connection.execute(
+                "SELECT workspace_id FROM business.employee_sessions WHERE employee_id=%s",
+                (employee_id,),
+            ).fetchone()["workspace_id"]
+            == workspace_id
+        )
+        assert (
+            connection.execute(
+                "SELECT workspace_id FROM business.mcp_credentials WHERE id=%s",
+                (credential_ref,),
+            ).fetchone()["workspace_id"]
+            == workspace_id
+        )
+
+    foreign_identity = replace(browser_identity, workspace_id=uuid4())
+    forged_role_identity = replace(
+        browser_identity,
+        employee_id=supervisor_id,
+        person_id=supervisor_person_id,
+        role="supervisor",
+    )
+    stale_revision_identity = replace(
+        browser_identity, account_revision=browser_identity.account_revision + 1
+    )
+    mutation_request = SimpleNamespace(
+        headers={"Origin": ORIGIN, "X-CSRF-Token": login.json()["csrf_token"]},
+        cookies=dict(client.cookies),
+    )
+    assert not auth.valid_mutation(
+        mutation_request,
+        foreign_identity,
+    )
+    assert not auth.valid_mutation(mutation_request, forged_role_identity)
+    assert not auth.valid_mutation(mutation_request, stale_revision_identity)
+    with pytest.raises(ValueError, match="session unavailable"):
+        auth.issue_mcp(foreign_identity)
+
+    denied = client.post(
+        "/api/v2/business/tasks",
+        json={
+            "scope_id": str(scope["id"]),
+            "instruction": "Create a guest task",
+            "workspace_id": str(UUID(int=0)),
+        },
+        headers=_csrf(login),
+    )
+    assert denied.status_code == 422
+
+    submitted = client.post(
+        "/api/v2/business/tasks",
+        json={"scope_id": str(scope["id"]), "instruction": "Read my workspace tickets"},
+        headers={**_csrf(login), "Idempotency-Key": "guest-workspace-task"},
+    )
+    assert submitted.status_code == 201, submitted.text
+    task_id = UUID(submitted.json()["id"])
+    assert client.get(f"/api/v2/business/tasks/{task_id}").status_code == 200
+    with database.connect() as connection:
+        task = connection.execute(
+            "SELECT employee_id,credential_ref,workspace_id FROM app.tasks WHERE id=%s",
+            (task_id,),
+        ).fetchone()
+        task_credential = connection.execute(
+            "SELECT workspace_id,employee_id FROM business.mcp_credentials WHERE id=%s",
+            (task["credential_ref"],),
+        ).fetchone()
+        event = connection.execute(
+            "SELECT workspace_id FROM app.events WHERE task_id=%s", (task_id,)
+        ).fetchone()
+    assert task["employee_id"] == employee_id
+    assert task["workspace_id"] == workspace_id
+    assert task_credential["workspace_id"] == workspace_id
+    assert task_credential["employee_id"] == employee_id
+    assert event["workspace_id"] == workspace_id
+
+    operations = OperationService(database)
+    prepared = operations.prepare(
+        mcp_identity,
+        "guest-workspace-operation",
+        "create",
+        {"title": "Guest-created ticket", "category_id": str(category_id)},
+    )
+    if prepared["state"] == "awaiting_approval":
+        operations.reply(
+            browser_identity, prepared["operation_id"], prepared["input_hash"], "approve"
+        )
+    committed = operations.commit(mcp_identity, prepared["operation_id"])
+    assert committed["state"] == "succeeded", committed
+    created_ticket = committed["result"]["ticket"]
+    with database.connect() as connection:
+        receipt = connection.execute(
+            "SELECT workspace_id FROM business.operation_receipts WHERE operation_id=%s",
+            (prepared["operation_id"],),
+        ).fetchone()
+        assert receipt["workspace_id"] == workspace_id
+        assert (
+            access.get_receipt(
+                connection,
+                legacy_employee_id,
+                prepared["operation_id"],
+                workspace_id=LEGACY_WORKSPACE_ID,
+            )
+            is None
+        )
+        with pytest.raises(AccessError, match="unavailable"):
+            access.get_ticket(
+                connection,
+                legacy_employee_id,
+                created_ticket["id"],
+                workspace_id=LEGACY_WORKSPACE_ID,
+            )
+
+    stale = operations.prepare(
+        mcp_identity,
+        "guest-workspace-stale-write",
+        "comment",
+        {"ticket_id": str(ticket_id), "expected_revision": 1, "body": "stale comment"},
+    )
+    if stale["state"] == "awaiting_approval":
+        operations.reply(browser_identity, stale["operation_id"], stale["input_hash"], "approve")
+    with database.connect() as connection:
+        connection.execute(
+            "UPDATE business.tickets SET revision=revision+1 WHERE id=%s AND workspace_id=%s",
+            (ticket_id, workspace_id),
+        )
+    stale_result = operations.commit(mcp_identity, stale["operation_id"])
+    assert stale_result["state"] == "failed"
+    assert stale_result["error_code"] == "revision_conflict"
+    with database.connect() as connection:
+        assert (
+            connection.execute(
+                "SELECT count(*) AS count FROM business.ticket_history WHERE operation_id=%s",
+                (stale["operation_id"],),
+            ).fetchone()["count"]
+            == 0
+        )
+        assert (
+            connection.execute(
+                "SELECT count(*) AS count FROM business.operation_receipts WHERE operation_id=%s",
+                (stale["operation_id"],),
+            ).fetchone()["count"]
+            == 0
+        )
 
 
 @pytest.mark.parametrize("invalidate", ["revoked_at=now()", "expires_at=now()-interval '1 second'"])
