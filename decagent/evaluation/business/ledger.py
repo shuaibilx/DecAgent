@@ -12,6 +12,9 @@ from decagent.business.codec import strict_json
 
 PRIOR_SPEND = Decimal("0.000253176")
 CAP = Decimal("1")
+GLOBAL_JEV_LEDGER_RELATIVE_PATH = Path(
+    ".decagent/business-eval/global-jev-ledger.json"
+)
 
 
 def _amount(value):
@@ -19,6 +22,44 @@ def _amount(value):
     if not amount.is_finite() or amount < 0:
         raise ValueError("Spend must be a finite nonnegative amount")
     return amount
+
+
+def canonical_global_jev_ledger_path(root):
+    """Return the sole project-scoped Jev ledger path used by public evaluation."""
+    return Path(root).resolve() / GLOBAL_JEV_LEDGER_RELATIVE_PATH
+
+
+def validate_global_jev_ledger_path(root, candidate):
+    """Reject alternate paths and symlinked path components before any ledger action."""
+    project_root = Path(root).resolve()
+    canonical = canonical_global_jev_ledger_path(project_root)
+    requested = Path(candidate)
+    if not requested.is_absolute():
+        requested = project_root / requested
+    if requested.resolve(strict=False) != canonical:
+        raise ValueError("Public evaluation requires the canonical project Jev ledger path")
+    current = project_root
+    for component in GLOBAL_JEV_LEDGER_RELATIVE_PATH.parts:
+        current = current / component
+        if current.is_symlink():
+            raise ValueError("Public evaluation Jev ledger path cannot contain symlinks")
+    return canonical
+
+
+def open_existing_global_jev_ledger(root):
+    """Open and validate the existing cumulative ledger without creating or resetting it."""
+    path = validate_global_jev_ledger_path(
+        root, canonical_global_jev_ledger_path(root)
+    )
+    if not path.exists():
+        raise FileNotFoundError(
+            "Existing project Jev ledger is required; initialization is forbidden"
+        )
+    if not path.is_file() or path.is_symlink():
+        raise ValueError("Project Jev ledger must be an existing regular file")
+    ledger = GlobalJevLedger(path)
+    ledger.snapshot()
+    return ledger
 
 
 class GlobalJevLedger:
@@ -139,6 +180,18 @@ class GlobalJevLedger:
             self._write(value)
             if row["reservation_exceeded"]:
                 raise ValueError("Actual Jev cost exceeded reserved bound; ledger preserved")
+
+    def mark_unknown_if_pending(self, key):
+        """Fail closed after a public-ledger owner takes over an interrupted Jev call."""
+        with self._locked():
+            value = self._read()
+            row = next((item for item in value["attempts"] if item["id"] == key), None)
+            if row is None:
+                raise ValueError("Global Jev reservation is missing")
+            if row["status"] == "pending":
+                row.update(status="unknown", tokens=None, cost_usd=None, actual_model=None)
+                self._write(value)
+            return row["status"]
 
 
 class GlobalAttemptBudget:

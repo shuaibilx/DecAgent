@@ -12,7 +12,7 @@ from decagent.business.tickets import builtin_manifest
 
 from .calibration import fit_export
 from .dataset import DEFAULT_DATASET, freeze_dataset, load_dataset, select_cases
-from .ledger import GlobalJevLedger
+from .ledger import GlobalJevLedger, validate_global_jev_ledger_path
 from .metrics import build_report
 from .schedule import make_schedule
 from .thresholds import (
@@ -50,6 +50,10 @@ def parser():
     report = commands.add_parser("report", help="Recompute a saved report offline")
     report.add_argument("--input", type=Path, required=True)
     report.add_argument("--output", type=Path)
+    eligibility = commands.add_parser(
+        "eligibility-diagnostic", help="Check frozen auxiliary sample gates; no model calls"
+    )
+    eligibility.add_argument("--output", type=Path, required=True)
     fit = commands.add_parser(
         "calibrate-fit", help="Fit only a complete development export offline"
     )
@@ -106,6 +110,9 @@ def main(argv=None):
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     command = args.command or "inspect"
+    if hasattr(args, "ledger"):
+        project_root = Path(__file__).resolve().parents[3]
+        args.ledger = validate_global_jev_ledger_path(project_root, args.ledger)
     if command == "generate":
         _print({"path": str(freeze_dataset(args.output))})
         return 0
@@ -113,6 +120,14 @@ def main(argv=None):
         ledger = GlobalJevLedger(args.ledger)
         ledger.initialize()
         _print(ledger.snapshot())
+        return 0
+    if command == "eligibility-diagnostic":
+        from .eligibility import development_eligibility_report
+
+        _new_output(args.output)
+        report = development_eligibility_report(workflow_path=args.dataset)
+        _write(args.output, report)
+        _print({"report": str(args.output), "status": report["status"], "live_calls": 0})
         return 0
     dataset = load_dataset(args.dataset)
     if command == "inspect":

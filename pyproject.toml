@@ -30,6 +30,9 @@ decagent = "decagent.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["decagent"]
 
+[tool.hatch.build.targets.sdist]
+exclude = ["/evals/benchmarks/vendor_cache/**", "/evals/benchmarks/research/**"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
