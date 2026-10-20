@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 import httpx2
 from mcp import ClientSession, MCPError
 from mcp.client.streamable_http import streamable_http_client
+from mcp.types import INTERNAL_ERROR
 
 from decagent.business import access
 from decagent.business.codec import strict_json
@@ -229,10 +230,21 @@ class MCPConnectionManager:
                 session = await stack.enter_async_context(ClientSession(reader, writer))
                 try:
                     await session.discover()
-                except MCPError:
-                    connection.ready.set_exception(
-                        MCPProtocolError("Business MCP modern protocol discovery failed")
-                    )
+                except MCPError as exc:
+                    # The pinned MCP SDK uses this JSON-RPC sentinel for non-JSON HTTP errors.
+                    if (
+                        exc.code == INTERNAL_ERROR
+                        and exc.message == "Server returned an error response"
+                    ):
+                        connection.ready.set_exception(
+                            MCPTransportError(
+                                "Business MCP discovery endpoint returned an HTTP error"
+                            )
+                        )
+                    else:
+                        connection.ready.set_exception(
+                            MCPProtocolError("Business MCP modern protocol discovery failed")
+                        )
                     return
                 except Exception:
                     connection.ready.set_exception(

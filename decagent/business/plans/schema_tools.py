@@ -69,12 +69,23 @@ def schema_types(root, schema):
     return frozenset(types)
 
 
-def schema_at_path(root, schema, path):
+def schema_at_path(root, schema, path, *, allow_open_evaluation_result=False):
     current = [schema]
     for part in path:
         found = []
         for parent in current:
             for variant in schema_variants(root, parent):
+                if (
+                    allow_open_evaluation_result
+                    and variant.get("x-decagent-open-result-path") is True
+                ):
+                    found.append(
+                        {
+                            "type": sorted(JSON_TYPES),
+                            "x-decagent-open-result-path": True,
+                        }
+                    )
+                    continue
                 if isinstance(part, str):
                     properties = variant.get("properties", {})
                     if part in properties:

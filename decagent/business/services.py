@@ -32,11 +32,11 @@ from decagent.decisions import JevAdapter
 from decagent.decisions.contracts import digest, evaluation, json_value, validate_answers
 from decagent.models.primary import (
     ModelUsage,
-    PrimaryModel,
     PrimaryRequestNotDispatched,
     PrimaryResponseRejected,
 )
-from decagent.runtime.model_calls import BudgetedPrimary, LedgerAttemptBudget
+from decagent.runtime.model_calls import LedgerAttemptBudget
+from decagent.runtime.model_factory import build_budgeted_primary
 from decagent.storage.budget import BudgetExceeded
 from decagent.storage.safe_record import exact_safe_record
 from decagent.storage.usage import UsageLedger
@@ -414,17 +414,16 @@ class BusinessServices:
             model = (
                 self.primary_factory(self.settings, self.protocol)
                 if self.primary_factory
-                else PrimaryModel.from_settings(
-                    self.settings,
-                    tool_definitions=self.protocol.definitions,
-                    validator=self.protocol.validate,
-                )
+                else None
             )
-            self._primary = BudgetedPrimary(
-                model,
+            self._primary = build_budgeted_primary(
+                self.settings,
+                self.config,
                 self.ledger,
-                price=self.config.main_price,
-                unknown_cost_reservation=self.config.unknown_main_reservation,
+                purpose="business_plan",
+                model=model,
+                tool_definitions=self.protocol.definitions,
+                validator=self.protocol.validate,
                 before_dispatch=self.guard,
             )
         return self._primary

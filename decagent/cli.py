@@ -14,6 +14,13 @@ def main(argv=None):
     parser.add_argument("--version", action="version", version=__version__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="Check local configuration without paid model calls")
+    readiness = commands.add_parser(
+        "model-readiness", help="Run the isolated, capped Qwen/OpenRouter readiness diagnostic"
+    )
+    readiness.add_argument("--live", action="store_true", help="Dispatch the bounded probe")
+    readiness.add_argument("--resume-known-not-sent", action="store_true")
+    readiness.add_argument("--ledger", default=".decagent/routed-model-readiness-v1.sqlite")
+    readiness.add_argument("--evidence")
     commands.add_parser("migrate", help="Apply versioned database migrations")
     commands.add_parser("init", help="Initialize the owner credential in the local data directory")
     serve = commands.add_parser("serve", help="Start the authenticated workbench")
@@ -67,6 +74,17 @@ def main(argv=None):
     restore.add_argument("source")
     args = parser.parse_args(argv)
     settings = Settings.from_env()
+    if args.command == "model-readiness":
+        from decagent.evaluation.business.routed_readiness import main as readiness_main
+
+        forwarded = ["--ledger", args.ledger]
+        if args.live:
+            forwarded.append("--live")
+        if args.resume_known_not_sent:
+            forwarded.append("--resume-known-not-sent")
+        if args.evidence:
+            forwarded.extend(("--evidence", args.evidence))
+        return readiness_main(forwarded)
     if args.command in {"plugins", "business", "seed-tickets"}:
         from decagent.business.administration import run_command
 

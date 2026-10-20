@@ -8,6 +8,7 @@ from decagent.business.mcp_contract import FORBIDDEN_INPUT_KEYS
 
 from .bindings import TRANSFORM_CONTRACTS
 from .contracts import MAX_BRANCH_DEPTH, Plan
+from .evaluation_catalog import EvaluationCatalog
 from .schema_tools import schema_at_path, schema_types, schema_variants, type_compatible
 from .templates import QuestionRegistry
 
@@ -212,7 +213,7 @@ def _producer_schema(node, spec, questions, transforms):
     return {"type": "null"}
 
 
-def _reference(binding, consumer, nodes, schemas, input_schema, ancestors, dominators):
+def _reference(binding, consumer, nodes, schemas, input_schema, ancestors, dominators, spec):
     source = binding["source"]
     if source == "literal":
         return
@@ -229,6 +230,12 @@ def _reference(binding, consumer, nodes, schemas, input_schema, ancestors, domin
         if source == "accepted_decision":
             valid = kind == "decide" and provenance == "accepted_decision"
         else:
+            if type(spec) is EvaluationCatalog and provenance == "write_receipt":
+                raise PlanCompileError(
+                    "evaluation_receipt",
+                    "Public benchmark execution cannot claim a company write receipt",
+                    consumer,
+                )
             valid = (
                 (kind == "read_tool" and provenance == "tool_result")
                 or (kind == "governed_write" and provenance in {"tool_result", "write_receipt"})
@@ -246,12 +253,21 @@ def _reference(binding, consumer, nodes, schemas, input_schema, ancestors, domin
                 "branch_reference", "Required reference crosses a branch", consumer
             )
         root = schemas[producer]
-    leaf = schema_at_path(root, root, binding["path"])
+    leaf = schema_at_path(
+        root,
+        root,
+        binding["path"],
+        allow_open_evaluation_result=(
+            type(spec) is EvaluationCatalog
+            and source != "task_input"
+            and nodes[producer]["type"] in {"read_tool", "governed_write"}
+        ),
+    )
     if not type_compatible(binding["value_type"], schema_types(root, leaf)):
         raise PlanCompileError("reference_type", "Reference type disagrees with producer", consumer)
 
 
-def _inputs(node, schema):
+def _inputs(node, schema, *, allow_evaluation_business_fields=False):
     inputs = node.get("inputs", {})
     variants = schema_variants(schema, schema)
     properties, required = {}, set()
@@ -266,7 +282,7 @@ def _inputs(node, schema):
         raise PlanCompileError("unknown_parameter", "Unregistered parameter binding", node["id"])
     for name, binding in inputs.items():
         key = "".join(char for char in name.lower() if char.isalnum())
-        if key in FORBIDDEN_INPUT_KEYS:
+        if key in FORBIDDEN_INPUT_KEYS and not allow_evaluation_business_fields:
             raise PlanCompileError("authority", "Program-owned identity field", node["id"])
         if not type_compatible(binding["value_type"], schema_types(schema, properties[name])):
             raise PlanCompileError(
@@ -288,6 +304,8 @@ def default_input_schema():
 
 def compile_plan(value, spec, *, input_schema=None, transforms=None):
     """Validate topology, versions, registered effects, field types and provenance."""
+    if type(spec) is EvaluationCatalog:
+        spec.assert_active()
     plan = value if isinstance(value, Plan) else Plan.from_mapping(value)
     questions = QuestionRegistry.from_spec(spec)
     if plan.registry_fingerprint != questions.fingerprint:
@@ -307,7 +325,11 @@ def compile_plan(value, spec, *, input_schema=None, transforms=None):
         kind = node["type"]
         if kind in {"read_tool", "governed_write"}:
             command = node["tool" if kind == "read_tool" else "command"]["command"]
-            _inputs(node, spec.commands[command].input_schema)
+            _inputs(
+                node,
+                spec.commands[command].input_schema,
+                allow_evaluation_business_fields=type(spec) is EvaluationCatalog,
+            )
         elif kind == "decide":
             definition = questions.validate_reference(node["question"])
             if set(node["inputs"]) - set(definition["state_fields"]):
@@ -317,26 +339,68 @@ def compile_plan(value, spec, *, input_schema=None, transforms=None):
             if node["inputs"]["instruction"]["source"] not in {"task_input", "node_output"}:
                 raise PlanCompileError("question_input", "Instruction must have real source", name)
             if definition["candidate_source"]:
-                directory = node["inputs"].get("directory")
-                if not directory or directory["source"] != "node_output":
-                    raise PlanCompileError(
-                        "candidate_source", "Directory must be a real read", name
-                    )
-                producer = nodes.get(directory["node_id"], {})
-                if (
-                    producer.get("type") != "read_tool"
-                    or producer.get("tool", {}).get("command") != "directory"
-                ):
-                    raise PlanCompileError(
-                        "candidate_source", "Unregistered candidate source", name
-                    )
+                if definition["candidate_source"] == "tool:retrieve_knowledge":
+                    if type(spec) is not EvaluationCatalog:
+                        raise PlanCompileError(
+                            "candidate_source",
+                            "Benchmark candidates require an isolated catalog",
+                            name,
+                        )
+                    candidates = node["inputs"].get("articles")
+                    if (
+                        not candidates
+                        or candidates["source"] != "node_output"
+                        or candidates["path"] != ["value"]
+                    ):
+                        raise PlanCompileError(
+                            "candidate_source",
+                            "Candidates must come from the exact retrieve_knowledge result",
+                            name,
+                        )
+                    producer = nodes.get(candidates["node_id"], {})
+                    if (
+                        producer.get("type") != "read_tool"
+                        or producer.get("tool", {}).get("plugin_id") != spec.id
+                        or producer.get("tool", {}).get("command") != "retrieve_knowledge"
+                        or "limit" in producer.get("inputs", {})
+                    ):
+                        raise PlanCompileError(
+                            "candidate_source",
+                            "CSM choices require one unbounded retrieve_knowledge read",
+                            name,
+                        )
+                    state_filter = producer.get("inputs", {}).get("state")
+                    if (
+                        not state_filter
+                        or state_filter["source"] != "literal"
+                        or state_filter["value"] != "published"
+                    ):
+                        raise PlanCompileError(
+                            "candidate_source",
+                            "CSM choices require an explicit published-state filter",
+                            name,
+                        )
+                else:
+                    directory = node["inputs"].get("directory")
+                    if not directory or directory["source"] != "node_output":
+                        raise PlanCompileError(
+                            "candidate_source", "Directory must be a real read", name
+                        )
+                    producer = nodes.get(directory["node_id"], {})
+                    if (
+                        producer.get("type") != "read_tool"
+                        or producer.get("tool", {}).get("command") != "directory"
+                    ):
+                        raise PlanCompileError(
+                            "candidate_source", "Unregistered candidate source", name
+                        )
         elif kind == "transform":
             definition = transforms[node["transform"]["transform_id"]]
             _inputs(node, definition["input_schema"])
         for binding in _bindings({key: item for key, item in node.items() if key != "inputs"}):
-            _reference(binding, name, nodes, schemas, input_schema, ancestors, available)
+            _reference(binding, name, nodes, schemas, input_schema, ancestors, available, spec)
         for binding in node.get("inputs", {}).values():
-            _reference(binding, name, nodes, schemas, input_schema, ancestors, available)
+            _reference(binding, name, nodes, schemas, input_schema, ancestors, available, spec)
         if kind == "complete":
             completed = True
             if set(node["evidence"]) - set(evidence):
@@ -345,7 +409,9 @@ def compile_plan(value, spec, *, input_schema=None, transforms=None):
             for evidence_id in node["evidence"]:
                 item = evidence[evidence_id]
                 for binding in _bindings(item):
-                    _reference(binding, name, nodes, schemas, input_schema, ancestors, available)
+                    _reference(
+                        binding, name, nodes, schemas, input_schema, ancestors, available, spec
+                    )
                 actual = actual or item["kind"] in {"tool_result", "write_receipt"}
             if not actual:
                 raise PlanCompileError("completion", "Goal lacks actual business evidence", name)

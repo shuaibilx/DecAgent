@@ -3,6 +3,7 @@
 import math
 import re
 from decimal import Decimal
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from psycopg.types.json import Jsonb
@@ -21,6 +22,34 @@ CONDITIONAL_MODEL_DEFAULTS = {
     "max_actions": 128,
 }
 IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
+SAFE_MODEL_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}\Z")
+
+
+def _safe_model_value(value, name):
+    if value is not None and (
+        not isinstance(value, str) or SAFE_MODEL_VALUE.fullmatch(value) is None
+    ):
+        raise ValueError(f"Invalid {name}")
+    return value
+
+
+def _safe_endpoint(value):
+    if value is None:
+        return None
+    if not isinstance(value, str) or len(value) > 512:
+        raise ValueError("Invalid endpoint")
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {"https", "http"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or (parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "localhost"})
+    ):
+        raise ValueError("Invalid endpoint")
+    return value
 
 
 def _identifier(value, name):
@@ -100,21 +129,114 @@ class UsageLedger:
     def _counted(rows):
         return [row for row in rows if row.get("dispatch_state") != "not_sent"]
 
-    def _overall(self, task, rows, bounds, *, before_action=False):
+    @staticmethod
+    def _unknown_cost_rows(rows):
+        return [
+            row
+            for row in rows
+            if row["actual_cost"] is None
+            and (
+                row["status"] == "unknown"
+                or row.get("dispatch_state") in {"dispatching", "unknown"}
+            )
+        ]
+
+    @staticmethod
+    def _has_successful_recovery(row, rows):
+        by_id = {str(item["id"]): item for item in rows}
+        for candidate in rows:
+            if candidate["status"] != "settled" or candidate.get("dispatch_state") != "responded":
+                continue
+            if candidate["actual_cost"] is None:
+                continue
+            current = candidate
+            visited = set()
+            while current.get("recovery_of") is not None:
+                parent_id = str(current["recovery_of"])
+                if parent_id in visited:
+                    break
+                visited.add(parent_id)
+                if parent_id == str(row["id"]):
+                    return True
+                current = by_id.get(parent_id)
+                if current is None:
+                    break
+        return False
+
+    @classmethod
+    def _valid_recovery(cls, recovery_id, rows, *, recovery_receipt_id=None):
+        by_id = {str(row["id"]): row for row in rows}
+        candidate = by_id.get(str(recovery_id))
+        if candidate is None or candidate["model_family"] != "primary":
+            return False
+        ancestors = set()
+        current = candidate
+        retryable_unknown = False
+        while current is not None:
+            current_id = str(current["id"])
+            if current_id in ancestors or current.get("model_family") != "primary":
+                return False
+            ancestors.add(current_id)
+            if (
+                current["status"] == "unknown"
+                and current.get("dispatch_state") == "unknown"
+                and current.get("error_category")
+                in {"timeout", "connection", "transient_http"}
+            ):
+                retryable_unknown = True
+            parent_id = current.get("recovery_of")
+            current = by_id.get(str(parent_id)) if parent_id is not None else None
+        candidate_unknown = (
+            candidate["status"] == "unknown"
+            and candidate.get("dispatch_state") == "unknown"
+            and candidate.get("error_category")
+            in {"timeout", "connection", "transient_http"}
+        )
+        candidate_proven_not_sent = (
+            candidate["status"] == "settled"
+            and candidate.get("dispatch_state") == "not_sent"
+            and bool(candidate.get("error_code"))
+        )
+        if not candidate_unknown and not candidate_proven_not_sent:
+            return False
+        if not retryable_unknown:
+            return False
+        children = [
+            row
+            for row in rows
+            if row.get("recovery_of") is not None
+            and str(row["recovery_of"]) == str(recovery_id)
+        ]
+        if children:
+            if len(children) != 1 or recovery_receipt_id is None:
+                return False
+            child = children[0]
+            if (
+                str(child["id"]) != str(recovery_receipt_id)
+                or child["model_family"] != "primary"
+                or child["status"] != "reserved"
+            ):
+                return False
+        unresolved = cls._unknown_cost_rows(rows)
+        return bool(unresolved) and all(str(row["id"]) in ancestors for row in unresolved)
+
+    def _overall(
+        self, task, rows, bounds, *, before_action=False, allow_unknown_recovery_id=None,
+        recovery_receipt_id=None,
+    ):
         if task["graph_version"] == "business-3":
             if task["state"] not in {"running", "recovering"}:
                 raise BudgetExceeded("Task is not active", code="task_not_active")
             if not task["budget_lease_valid"]:
                 raise BudgetExceeded("Task lease expired", code="task_lease_expired")
-            if any(
-                row["actual_cost"] is None
-                and (
-                    row["status"] == "unknown"
-                    or row.get("dispatch_state") in {"dispatching", "unknown"}
-                )
-                for row in rows
+            unresolved = self._unknown_cost_rows(rows)
+            if unresolved and not all(
+                self._has_successful_recovery(row, rows) for row in unresolved
             ):
-                raise BudgetExceeded("Model cost is unresolved", code="unknown_model_cost")
+                if allow_unknown_recovery_id is None or not self._valid_recovery(
+                    allow_unknown_recovery_id, rows, recovery_receipt_id=recovery_receipt_id
+                ):
+                    raise BudgetExceeded("Model cost is unresolved", code="unknown_model_cost")
         if task["active_seconds"] >= bounds.get("max_active_seconds", 1800):
             raise BudgetExceeded("Active task time exhausted", code="active_time_budget_exhausted")
         _, cost = self._held_usage(rows)
@@ -235,6 +357,11 @@ class UsageLedger:
         node_ids=None,
         question_count=None,
         exception_reason=None,
+        recovery_of=None,
+        request_role=None,
+        requested_model=None,
+        endpoint=None,
+        requested_output_tokens=None,
     ):
         if (
             type(tokens) is not int
@@ -253,6 +380,24 @@ class UsageLedger:
             question_count,
             exception_reason,
         )
+        if request_role is not None:
+            _identifier(request_role, "request role")
+        requested_model = _safe_model_value(requested_model, "requested model")
+        endpoint = _safe_endpoint(endpoint)
+        if requested_output_tokens is not None and (
+            type(requested_output_tokens) is not int
+            or not 1 <= requested_output_tokens <= 8192
+            or requested_output_tokens > tokens
+        ):
+            raise ValueError("Invalid requested output token limit")
+        if recovery_of is not None:
+            try:
+                recovery_of = str(recovery_of)
+                from uuid import UUID
+
+                recovery_of = UUID(recovery_of)
+            except (TypeError, ValueError, AttributeError):
+                raise ValueError("Invalid recovery receipt") from None
         node_ids = attribution["node_ids"]
         with self.database.connect() as conn:
             task = self._task(conn)
@@ -266,6 +411,11 @@ class UsageLedger:
                     prior["requested_tokens"] != tokens
                     or prior["reserved_cost"] != cost
                     or prior["provider"] != provider
+                    or prior["recovery_of"] != recovery_of
+                    or prior["request_role"] != request_role
+                    or prior["requested_model"] != requested_model
+                    or prior["endpoint"] != endpoint
+                    or prior["requested_output_tokens"] != requested_output_tokens
                     or any(prior[name] != value for name, value in attribution.items())
                 ):
                     raise ValueError("Reservation key reused for different request")
@@ -274,6 +424,11 @@ class UsageLedger:
             conditional = task["graph_version"] == "business-3"
             if conditional and model_family is None:
                 raise ValueError("Conditional requests require explicit model attribution")
+            if recovery_of is not None and (not conditional or model_family != "primary"):
+                raise BudgetExceeded(
+                    "Only a conditional primary request may recover unknown usage",
+                    code="unknown_model_cost",
+                )
             if cost is None and (
                 conditional or not (allow_unknown_price and bounds.get("allow_unknown_price"))
             ):
@@ -281,7 +436,13 @@ class UsageLedger:
                     "Unknown price requires a bounded fee reservation", code="unknown_model_price"
                 )
             rows = self._rows(conn)
-            self._overall(task, rows, bounds)
+            if recovery_of is not None and not self._valid_recovery(recovery_of, rows):
+                raise BudgetExceeded(
+                    "Unknown request is not eligible for recovery", code="unknown_model_cost"
+                )
+            self._overall(
+                task, rows, bounds, allow_unknown_recovery_id=recovery_of
+            )
             counted = self._counted(rows) if conditional else rows
             held_tokens, held_cost = self._held_usage(rows)
             if len(counted) >= bounds.get("max_calls", 30):
@@ -321,8 +482,10 @@ class UsageLedger:
                 "INSERT INTO app.usage_records"
                 "(id,task_id,reservation_key,attempt,provider,requested_tokens,reserved_cost,"
                 "model_family,purpose,plan_revision,node_id,node_ids,question_count,exception_reason,"
-                "dispatch_state,model_budget_version) "
-                "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                "dispatch_state,model_budget_version,recovery_of,request_role,requested_model,"
+                "endpoint,requested_output_tokens) "
+                "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "RETURNING id",
                 (
                     uuid4(),
                     self.task_id,
@@ -340,6 +503,11 @@ class UsageLedger:
                     exception_reason,
                     "reserved" if model_family else None,
                     MODEL_BUDGET_VERSION if conditional else None,
+                    recovery_of,
+                    request_role,
+                    requested_model,
+                    endpoint,
+                    requested_output_tokens,
                 ),
             ).fetchone()["id"]
 
@@ -350,9 +518,27 @@ class UsageLedger:
     def mark_dispatched(self, receipt_id):
         with self.database.connect() as conn:
             task = self._task(conn)
+            receipt = conn.execute(
+                "SELECT * FROM app.usage_records WHERE id=%s AND task_id=%s",
+                (receipt_id, self.task_id),
+            ).fetchone()
+            if receipt is None:
+                raise ValueError("Unknown model reservation")
             if task["graph_version"] == "business-3":
                 bounds, rows = self._bounds(task), self._rows(conn)
-                self._overall(task, rows, bounds)
+                self._overall(
+                    task,
+                    rows,
+                    bounds,
+                    allow_unknown_recovery_id=receipt["recovery_of"],
+                    recovery_receipt_id=receipt_id,
+                )
+                if receipt["recovery_of"] is not None and not self._valid_recovery(
+                    receipt["recovery_of"], rows, recovery_receipt_id=receipt_id
+                ):
+                    raise BudgetExceeded(
+                        "Unknown request is not eligible for recovery", code="unknown_model_cost"
+                    )
                 counted = self._counted(rows)
                 tokens, cost = self._held_usage(rows)
                 if len(counted) > bounds["max_calls"] or tokens > bounds["max_tokens"]:
@@ -400,12 +586,29 @@ class UsageLedger:
             if not row:
                 raise ValueError("Unknown or completed dispatch cannot be released as not sent")
 
-    def settle_model(self, receipt_id, tokens, cost, *, response_state, error_code=None):
+    def settle_model(
+        self, receipt_id, tokens, cost, *, response_state, error_code=None,
+        resolved_model=None, server_request_id=None, latency_ms=None, error_category=None,
+        provider_status=None,
+    ):
         return self.settle(
-            receipt_id, tokens, cost, response_state=response_state, error_code=error_code
+            receipt_id,
+            tokens,
+            cost,
+            response_state=response_state,
+            error_code=error_code,
+            resolved_model=resolved_model,
+            server_request_id=server_request_id,
+            latency_ms=latency_ms,
+            error_category=error_category,
+            provider_status=provider_status,
         )
 
-    def settle(self, receipt_id, tokens, cost, *, response_state=None, error_code=None):
+    def settle(
+        self, receipt_id, tokens, cost, *, response_state=None, error_code=None,
+        resolved_model=None, server_request_id=None, latency_ms=None, error_category=None,
+        provider_status=None,
+    ):
         if tokens is not None and (type(tokens) is not int or tokens < 0):
             raise ValueError("Usage cannot be negative or noninteger")
         if cost is not None and (not cost.is_finite() or cost < 0):
@@ -414,6 +617,16 @@ class UsageLedger:
             raise ValueError("Invalid response state")
         if error_code is not None:
             _identifier(error_code, "model error code")
+        resolved_model = _safe_model_value(resolved_model, "resolved model")
+        server_request_id = _safe_model_value(server_request_id, "server request id")
+        if latency_ms is not None and (type(latency_ms) is not int or latency_ms < 0):
+            raise ValueError("Invalid provider latency")
+        if error_category is not None:
+            _identifier(error_category, "provider error category")
+        if provider_status is not None and (
+            type(provider_status) is not int or not 100 <= provider_status <= 599
+        ):
+            raise ValueError("Invalid provider HTTP status")
         with self.database.connect() as conn:
             self._task(conn)
             row = conn.execute(
@@ -440,6 +653,15 @@ class UsageLedger:
                 )
             conn.execute(
                 "UPDATE app.usage_records SET actual_tokens=%s,actual_cost=%s,status=%s,"
-                "dispatch_state=%s,error_code=COALESCE(%s,error_code) WHERE id=%s",
-                (tokens, cost, status, dispatch_state, error_code, receipt_id),
+                "dispatch_state=%s,error_code=COALESCE(%s,error_code),"
+                "resolved_model=COALESCE(%s,resolved_model),"
+                "server_request_id=COALESCE(%s,server_request_id),"
+                "latency_ms=COALESCE(%s,latency_ms),"
+                "error_category=COALESCE(%s,error_category),"
+                "provider_status=COALESCE(%s,provider_status) WHERE id=%s",
+                (
+                    tokens, cost, status, dispatch_state, error_code,
+                    resolved_model, server_request_id, latency_ms, error_category,
+                    provider_status, receipt_id,
+                ),
             )

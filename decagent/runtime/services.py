@@ -27,7 +27,6 @@ from decagent.memory import ContextBudgetError, ContextBuilder, MemoryManager, R
 from decagent.models.primary import (
     ModelTurn,
     ModelUsage,
-    PrimaryModel,
     PrimaryRequestNotDispatched,
     PrimaryResponseRejected,
     ToolProposal,
@@ -48,7 +47,8 @@ from .context import current_context_for
 from .decisions import DecisionCoordinator
 from .intervention import InterventionCoordinator
 from .memory import capture_verified_candidates
-from .model_calls import BudgetedPrimary, LedgerAttemptBudget
+from .model_calls import LedgerAttemptBudget
+from .model_factory import build_budgeted_primary
 from .operations import OperationJournal, ReproductionUnavailable, WaitingRequired, ask_confirmation
 
 
@@ -123,11 +123,12 @@ class RuntimeServices:
         self.memories = MemoryManager(
             database, self.evidence, decision_engine, dataset_version=dataset
         )
-        self.model = BudgetedPrimary(
-            primary or PrimaryModel.from_settings(settings),
+        self.model = build_budgeted_primary(
+            settings,
+            runtime_config,
             self.ledger,
-            price=runtime_config.main_price,
-            unknown_cost_reservation=runtime_config.unknown_main_reservation,
+            purpose="agent_response",
+            model=primary,
             before_dispatch=self.fence,
         )
         self.journal = OperationJournal(self)

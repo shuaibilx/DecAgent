@@ -725,19 +725,24 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
 
         def operation(conn, _operation_id):
             employee_task_row(conn, employee, task_id, lock=True)
-            updated = DecisionPolicyStore(ScopedDatabase(database, conn)).set_task_threshold(
+            policies = DecisionPolicyStore(ScopedDatabase(database, conn))
+            updated = policies.set_task_threshold(
                 employee,
                 task_id,
                 body.policy_id,
                 body.policy_version,
                 body.threshold,
             )
+            effective = policies.resolve(employee, task_id, body.policy_id, body.policy_version)
+            if effective.policy is None:
+                raise ApiError(409, "policy_unavailable", "Published decision policy unavailable")
             return {
                 "task_id": str(task_id),
                 "policy_id": body.policy_id,
                 "policy_version": body.policy_version,
                 "threshold": updated["threshold"],
                 "revision": updated["revision"],
+                "effective_revision": effective.effective_revision,
             }
 
         return mutate_employee(request, body, operation)

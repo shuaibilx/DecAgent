@@ -7,7 +7,12 @@ import pytest
 
 from decagent.business.contracts import PluginSpec
 from decagent.business.tickets import builtin_manifest
-from decagent.models.primary import ModelTurn, ModelUsage, ToolProposal
+from decagent.models.primary import (
+    ModelTurn,
+    ModelUsage,
+    PrimaryResponseRejected,
+    ToolProposal,
+)
 from evals.deterministic.test_business_plan_compiler import read_plan
 
 
@@ -47,6 +52,34 @@ def test_first_model_plan_is_validated_without_a_followup_request():
     assert proposal.turns[0].usage.total_tokens == 15
 
 
+def test_planner_prompt_includes_a_compilable_format_example_not_a_target_answer():
+    import json
+
+    from decagent.business.plans.compiler import compile_plan
+    from decagent.business.plans.prompt_catalog import expand_catalog
+
+    candidate = planner(ScriptedModel([]))
+    instructions = candidate.instructions()
+    catalog = expand_catalog(json.loads(instructions[instructions.index('{'):]))
+    example = catalog.get("format_example")
+    assert example is not None, "The full schema alone failed the live provider schema smoke"
+    compiled = compile_plan(example["plan"], candidate.spec, input_schema=example["input_schema"])
+    assert compiled.plan.entry == "directory"
+    assert "format example is not the user's target" in instructions
+
+
+def test_format_example_is_omitted_when_its_registered_contract_is_incompatible():
+    candidate = planner(ScriptedModel([]))
+    candidate.transforms = {}
+    # A packaged example must never authorize tools absent from this plugin.
+    manifest = builtin_manifest()
+    result = manifest["commands"]["directory"]["result_schema"]
+    result["properties"].pop("categories")
+    result["required"] = [name for name in result["required"] if name != "categories"]
+    candidate.spec = PluginSpec.from_mapping(manifest)
+    assert candidate.format_example() is None
+
+
 def test_one_format_repair_keeps_original_usage_and_reason():
     invalid = read_plan()
     invalid["nodes"][0]["python"] = "arbitrary code"
@@ -57,6 +90,20 @@ def test_one_format_repair_keeps_original_usage_and_reason():
     assert len(result.turns) == 2
     assert result.turns[0].usage.total_tokens == 15
     assert "repair" in model.calls[1][0]["content"].lower()
+
+
+def test_unknown_usage_rejection_stops_without_a_format_repair_request():
+    model = ScriptedModel(
+        [
+            PrimaryResponseRejected(reason="tool_schema", usage=None, model="qwen3.8-flash"),
+            turn(read_plan()),
+        ]
+    )
+
+    with pytest.raises(PrimaryResponseRejected):
+        planner(model).plan({"instruction": "Read current directory"})
+
+    assert len(model.calls) == 1
 
 
 def test_second_invalid_plan_stops_instead_of_open_ended_model_loop():

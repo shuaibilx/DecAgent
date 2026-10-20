@@ -6,6 +6,7 @@ import socket
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from uuid import uuid4
 
 import pytest
@@ -132,14 +133,32 @@ def test_environment_endpoint_change_closes_old_connection(service, monkeypatch)
         employee = _client(manager, auth, tokens, "employee-it")
         assert employee.read("list", {}) == {"tickets": []}
         assert manager.connection_count == 1
-        unused = socket.socket()
-        unused.bind(("127.0.0.1", 0))
-        port = unused.getsockname()[1]
-        unused.close()
+        class UnavailableHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(503)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def do_POST(self):
+                self.do_GET()
+
+            def log_message(self, *_args):
+                pass
+
+        unavailable = ThreadingHTTPServer(("127.0.0.1", 0), UnavailableHandler)
+        rejector = threading.Thread(target=unavailable.serve_forever, daemon=True)
+        rejector.start()
+        port = unavailable.server_address[1]
         monkeypatch.setenv("DECAGENT_TICKETS_MCP_URL", f"http://127.0.0.1:{port}/mcp")
-        with pytest.raises(MCPTransportError):
-            employee.read("list", {})
-        assert manager.connection_count == 0
+        try:
+            with pytest.raises(MCPTransportError):
+                employee.read("list", {})
+            assert manager.connection_count == 0
+        finally:
+            unavailable.shutdown()
+            unavailable.server_close()
+            rejector.join(timeout=1)
+        assert not rejector.is_alive()
 
 
 def test_employee_connections_are_isolated_and_revocation_closes_one(service):

@@ -218,6 +218,7 @@ function renderPlan(snapshot, trace, planError, traceError) {
     summary.append(el("p", "版本 " + plan.revision + " · " + plan.nodes.length + " 个节点 · 目标：" +
       (plan.goal?.description || plan.goal?.id || "已登记目标")));
     summary.append(el("p", "计划摘要：" + (plan.content_digest || "不可用"), "muted"));
+    renderThresholdExplanation(snapshot, summary);
     for (const [key, label] of [["completed_nodes", "已完成"], ["active_nodes", "已激活"],
       ["pending_nodes", "待执行"], ["inactive_nodes", "未走分支"], ["blocked_nodes", "被阻塞"]]) {
       const values = snapshot[key] || [];
@@ -279,10 +280,20 @@ function renderPlan(snapshot, trace, planError, traceError) {
     if (!(trace.timeline || []).length) $("trace-timeline").append(el("li", "暂无事件。", "muted"));
   } else $("trace-timeline").append(el("li", "时间线暂不可用：" + (traceError?.message || "请求失败"), "failed"));
 }
+function renderThresholdExplanation(snapshot, target) {
+  const explanation = snapshot.threshold_explanation || {};
+  const section = el("section", undefined, "certainty-explanation");
+  section.append(el("h3", "理解语义决策的三种指标"));
+  for (const [key, label] of [["certainty", "Jev 单次把握度"],
+    ["accuracy", "验证集实测正确率"], ["confidence_interval", "统计置信区间"]]) {
+    if (explanation[key]) section.append(el("p", label + "：" + explanation[key]));
+  }
+  if (section.children.length > 1) target.append(section);
+}
 function renderPolicyControls(snapshot) {
   const panel = el("section", undefined, "policy-panel");
   panel.append(el("h3", "语义判断阈值策略"));
-  panel.append(el("p", "Jev 的 certainty 是模型对单次答案的把握；它不等于实测正确率。允许选项来自绑定策略的验证报告，统计区间描述验证集估计的不确定性。提高阈值通常会增加人工接管。", "muted"));
+  panel.append(el("p", "阈值仅能在管理员允许且经过验证的候选范围内调整；提高阈值通常会增加人工接管。", "muted"));
   for (const policy of snapshot.policies) {
     const card = el("article", undefined, "policy-record");
     card.append(el("h4", policy.policy_id + " · v" + policy.policy_version + " · " + policy.status));
@@ -326,17 +337,14 @@ function renderMemories(memories, dependencies, memoryError, dependencyError) {
   const dependencyView = $("memory-dependencies"); dependencyView.replaceChildren();
   if (dependencies) {
     if (dependencies.not_declared) {
-      dependencyView.append(el("p", "当前计划没有声明员工记忆槽；不会读取记忆来填充任务上下文。", "muted"));
-      if (!memories.length) {
-        list.append(el("p", "当前员工在此业务范围没有记忆记录。新记忆必须先由可信流程提出，再由本人确认。", "muted"));
-      }
-      return;
+      dependencyView.append(el("p", "当前计划没有声明员工记忆槽，不会读取记忆来填充任务上下文；你仍可在下方查看和管理自己的记忆。", "muted"));
+    } else {
+      const invalid = (dependencies.invalid_dependencies || []).map(item =>
+        item.memory_kind + "/" + item.subject + " (" + item.reason + ")");
+      dependencyView.append(el("p", dependencies.valid ? "当前任务声明的记忆槽均已通过有效性检查。" :
+        "当前任务记忆槽需要处理：" + (invalid.join("、") || "工作流或上下文不可用"),
+        dependencies.valid ? "approved" : "failed"));
     }
-    const invalid = (dependencies.invalid_dependencies || []).map(item =>
-      item.memory_kind + "/" + item.subject + " (" + item.reason + ")");
-    dependencyView.append(el("p", dependencies.valid ? "当前任务声明的记忆槽均已通过有效性检查。" :
-      "当前任务记忆槽需要处理：" + (invalid.join("、") || "工作流或上下文不可用"),
-      dependencies.valid ? "approved" : "failed"));
   } else if (dependencyError) dependencyView.append(el("p", "无法校验当前任务的记忆依赖：" + dependencyError.message, "muted"));
   if (memoryError) {
     list.append(el("p", "无法读取当前任务的员工记忆：" + memoryError.message, "failed"));
@@ -426,12 +434,15 @@ function renderSemanticApproval(task, approval) {
     for (const button of controls.querySelectorAll("button")) button.disabled = true;
     const approvalId = request.approval_id || approval.id;
     try {
-      await api("/tasks/" + task.id + "/decisions/" + approvalId + "/reply", {method: "POST", body: {
+      const result = await api("/tasks/" + task.id + "/decisions/" + approvalId + "/reply", {method: "POST", body: {
         expected_digest: request.digest || approval.digest,
         expected_plan_revision: request.plan_revision || question.plan_revision || 1,
         decision, ...(value !== undefined ? {value} : {}), ...(text !== undefined ? {text} : {}),
       }});
-      notice("员工判断已保存；该判断不会批准任何业务写操作。"); await selectTask(task.id);
+      notice(result.status === "stale"
+        ? "候选已变化或过期，本次选择未采用；任务已刷新，请检查最新业务信息后重新判断。"
+        : "员工判断已保存；该判断不会批准任何业务写操作。");
+      await selectTask(task.id);
     } catch (error) {
       notice(error.message);
       for (const button of controls.querySelectorAll("button")) button.disabled = false;
@@ -660,7 +671,14 @@ bind("logout", "click", async () => {
   resetWorkspace();
 });
 bind("plugin-select", "change", describePlugin);
-bind("refresh", "click", async () => { await loadTasks(); if (state.task) await selectTask(state.task.id); });
+bind("refresh", "click", async () => {
+  const selectedTaskId = state.task?.id;
+  const selection = state.selection;
+  await loadTasks();
+  if (selectedTaskId && selection === state.selection && state.task?.id === selectedTaskId) {
+    await selectTask(selectedTaskId);
+  }
+});
 bind("refresh-tickets", "click", loadTickets);
 bind("refresh-operations", "click", async () => {
   await loadOperations(); if (state.operation) await selectOperation(state.operation.operation_id);
@@ -681,20 +699,22 @@ bind("business-form", "submit", async () => {
   } finally { button.disabled = false; }
 });
 bind("cancel-task", "click", async () => {
-  const id = state.task.id; await api(`/tasks/${id}/cancel`, {method: "POST", body: {}});
-  await selectTask(id);
+  const id = state.task.id, selection = state.selection;
+  await api(`/tasks/${id}/cancel`, {method: "POST", body: {}});
+  if (selection === state.selection && state.task?.id === id) await selectTask(id);
 });
 bind("resume-task", "click", async () => {
-  const id = state.task.id; await api(`/tasks/${id}/resume`, {method: "POST", body: {}});
-  await selectTask(id);
+  const id = state.task.id, selection = state.selection;
+  await api(`/tasks/${id}/resume`, {method: "POST", body: {}});
+  if (selection === state.selection && state.task?.id === id) await selectTask(id);
 });
 bind("budget-form", "submit", async () => {
-  const id = state.task.id;
+  const id = state.task.id, selection = state.selection;
   const budget = {...state.task.budget, max_calls: Number($("resume-calls").value),
     max_tokens: Number($("resume-tokens").value), max_active_seconds: Number($("resume-active").value),
     max_cost: $("resume-cost").value.trim() || null};
   await api(`/tasks/${id}/resume`, {method: "POST", body: {budget}});
-  await selectTask(id);
+  if (selection === state.selection && state.task?.id === id) await selectTask(id);
 });
 bind("issue-credential", "click", async () => {
   const credential = await api("/auth/mcp-credentials", {method: "POST"});

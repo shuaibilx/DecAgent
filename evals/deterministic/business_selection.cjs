@@ -1,4 +1,4 @@
-// Reordered responses must not steal the owner's newer task selection.
+// Reordered responses must not steal the employee's newer task selection.
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
 function element() {
   return {children: [], listeners: {}, value: '', hidden: false, disabled: false,
@@ -12,13 +12,16 @@ async function check(handler, event) {
     getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
     createElement: element}, sessionStorage: {getItem() {return '';}, setItem() {}, removeItem() {}},
     crypto: {randomUUID() {return 'fixture-key';}}, setTimeout, clearTimeout,
-    EventSource: function () {throw Error('Unexpected SSE');},
+    EventSource: function () {
+      this.close = () => {};
+      this.addEventListener = () => {};
+    },
     fetch(url, options) {return new Promise(resolve => pending.push({url, options, resolve}));}});
   vm.runInContext(fs.readFileSync('decagent/gateway/static/business.js', 'utf8'), context);
   const task = id => ({id, state: 'succeeded', phase: 'finalize', event_seq: 0,
     budget: {}, approvals: [], decisions: [], actions: []});
   context.taskA = task('A'); context.taskB = task('B');
-  vm.runInContext("state.task = taskA; state.requestedTask = 'A'", context);
+  vm.runInContext("state.task = taskA", context);
   const oldAction = elements.get(handler).listeners[event]({preventDefault() {}});
   const newerSelection = vm.runInContext("selectTask('B')", context);
   pending[0].resolve({ok: true, json: async () => handler === 'refresh' ? [] : context.taskA});
@@ -26,13 +29,18 @@ async function check(handler, event) {
   assert.equal(pending.length, 2, `${handler} must not refresh the old task`);
   pending[1].resolve({ok: true, json: async () => context.taskB});
   await new Promise(resolve => setImmediate(resolve));
-  for (const request of pending.slice(2)) {
-    assert.equal(request.url, '/api/v1/tasks');
-    request.resolve({ok: true, json: async () => []});
+  for (let index = 2; index < pending.length; index++) {
+    const request = pending[index];
+    let result = [];
+    if (request.url.endsWith('/tasks/B')) result = context.taskB;
+    else if (request.url.endsWith('/tasks/A')) result = context.taskA;
+    else if (request.url.endsWith('/plan')) result = {legacy: true, plan: null, nodes: []};
+    else if (request.url.endsWith('/trace')) result = {task_id: 'B', timeline: []};
+    request.resolve({ok: true, json: async () => result});
+    await new Promise(resolve => setImmediate(resolve));
   }
   await Promise.all([oldAction, newerSelection]);
-  assert.equal(vm.runInContext('state.requestedTask', context), 'B');
-  assert.equal(vm.runInContext('state.task.id', context), 'B');
+  assert.equal(vm.runInContext('state.task.id', context), 'B', handler);
   if (handler !== 'refresh') assert.equal(pending[0].url.includes('/tasks/A/'), true);
 }
 const deadline = setTimeout(() => {throw Error('Unresolved selection test');}, 5000);

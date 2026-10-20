@@ -31,6 +31,8 @@ MIGRATIONS = (
     "015_business_decision_interventions.sql",
     "016_business_memory.sql",
     "017_business_workflows.sql",
+    "018_model_routing_attempts.sql",
+    "019_model_provider_status_and_output_caps.sql",
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

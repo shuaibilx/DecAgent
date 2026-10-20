@@ -2,17 +2,24 @@
 
 import json
 from dataclasses import dataclass
+from importlib.resources import files
 from typing import Protocol
 
 from decagent.business.codec import strict_json
 from decagent.business.context import ContextBudgetError
 from decagent.decisions.contracts import canonical_json
-from decagent.models.primary import PrimaryModel, PrimaryResponseRejected
-from decagent.runtime.model_calls import BudgetedPrimary
+from decagent.models.primary import PrimaryResponseRejected
+from decagent.models.validation_feedback import (
+    ModelValidationError,
+    ValidationIssue,
+    bounded_validation_issues,
+)
+from decagent.runtime.model_factory import build_budgeted_primary
 
 from .bindings import TRANSFORM_CONTRACTS
 from .compiler import compile_plan
 from .contracts import Plan, plan_schema
+from .diagnostics import plan_validation_issues
 from .prompt_catalog import pack_catalog
 from .templates import QuestionRegistry
 
@@ -40,8 +47,9 @@ class PlanProposal:
 
 
 class PlanProposalInvalid(ValueError):
-    def __init__(self, turns, reason):
+    def __init__(self, turns, reason, validation_issues=()):
         self.turns, self.reason = tuple(turns), reason
+        self.validation_issues = bounded_validation_issues(validation_issues)
         super().__init__("Planner returned invalid plans after bounded format repair")
 
 
@@ -63,7 +71,10 @@ def plan_tool_definitions():
 def validate_plan_tool(name, params):
     if name != PLAN_TOOL:
         raise ValueError("Planner may propose only the registered plan control")
-    return Plan.from_mapping(params).to_mapping()
+    try:
+        return Plan.from_mapping(params).to_mapping()
+    except ValueError as error:
+        raise ModelValidationError(plan_validation_issues(error)) from None
 
 
 class ConditionalPlanner:
@@ -77,6 +88,24 @@ class ConditionalPlanner:
         if type(max_request_tokens) is not int or max_request_tokens < 1:
             raise ValueError("Planner request input bound must be a positive integer")
         self.max_request_tokens = max_request_tokens
+
+    def format_example(self):
+        """Show syntax only when the shipped example compiles for this registry.
+
+        The live planner returned tool-schema errors with the schema alone.
+        This public, read-only example contains neither evaluation labels nor
+        runtime facts, and cannot authorize a mismatching capability contract.
+        """
+        document = json.loads(files(__package__).joinpath("examples.json").read_text("utf-8"))
+        example = document["examples"]["directory"]
+        try:
+            compile_plan(
+                example["plan"], self.spec,
+                input_schema=example["input_schema"], transforms=self.transforms,
+            )
+        except ValueError:
+            return None
+        return example
 
     def instructions(self, *, repair=False):
         capabilities = [
@@ -106,6 +135,8 @@ class ConditionalPlanner:
             "If facts are missing use ask_user or explicit missing exits; do not assume values. "
             "The next branch does not require another planner call. "
             "Respond with one plan only, not a sequence of business tool calls. "
+            "The format example is not the user's target. Adapt its structure to the "
+            "authorized instruction; never copy its goal as the answer to another task. "
             "In the catalog, a $catalog_ref exactly references its shared_fragments entry; "
             "expand those references when reading schemas. No schema information is omitted. "
             + (
@@ -120,6 +151,7 @@ class ConditionalPlanner:
                         "capabilities": capabilities,
                         "questions": self.registry.describe(),
                         "transforms": self.transforms,
+                        "format_example": self.format_example(),
                     }
                 )
             )
@@ -145,7 +177,7 @@ class ConditionalPlanner:
         body = canonical_json(context)
         if len(body.encode("utf-8")) > self.max_context_bytes:
             raise ValueError("Required planning context exceeds its input bound")
-        turns = []
+        turns, validation_issues = [], ()
         for repair in (False, True):
             messages = [
                 {"role": "system", "content": self.instructions(repair=repair)},
@@ -155,8 +187,14 @@ class ConditionalPlanner:
                 messages.append(
                     {
                         "role": "user",
-                        "content": "The prior response was invalid. Produce a schema-valid plan. "
-                        "Preserve the same user goal and frozen facts.",
+                        "content": canonical_json({
+                            "instruction": "The prior response was invalid. Produce a complete "
+                            "schema-valid plan. Correct the listed validation issues; preserve "
+                            "the same user goal and frozen facts. Locations are structural "
+                            "field names and zero-based node indices, never business values.",
+                            "validation_issues": [issue.to_mapping()
+                                                  for issue in validation_issues],
+                        }),
                     }
                 )
             schema_bytes = getattr(self.primary, "schema_bytes", None)
@@ -192,8 +230,20 @@ class ConditionalPlanner:
             except PrimaryResponseRejected as rejected:
                 # The injected budget layer already settles independently known usage.
                 turns.append(rejected)
+                if rejected.usage is None:
+                    # A format repair is another provider request; never dispatch it
+                    # while the preceding response's billing usage is unresolved.
+                    raise
+                validation_issues = rejected.validation_issues or (
+                    ValidationIssue("invalid_plan"),
+                )
                 continue
             turns.append(turn)
+            if turn.usage is None:
+                # The budget transport has already retained its unknown settlement.
+                # This is a completed response, never a local non-dispatch or a retry.
+                raise PrimaryResponseRejected(reason="usage_missing", model=turn.model)
+            candidate = None
             try:
                 candidate = self._extract(turn)
                 compiled = compile_plan(
@@ -201,27 +251,39 @@ class ConditionalPlanner:
                 )
                 if context.get("parent_revision") is not None:
                     if compiled.plan.revision != context["parent_revision"] + 1:
-                        raise ValueError("Revision must follow its parent")
+                        raise ModelValidationError((ValidationIssue("parent_revision"),))
                 return PlanProposal(compiled.plan, tuple(turns), repair)
-            except ValueError:
+            except ModelValidationError as error:
+                validation_issues = error.validation_issues
                 continue
-        raise PlanProposalInvalid(turns, "invalid_plan")
+            except ValueError as error:
+                validation_issues = plan_validation_issues(error, candidate)
+                continue
+        raise PlanProposalInvalid(turns, "invalid_plan", validation_issues)
 
 
-def budgeted_planner(settings, config, spec, ledger, *, before_dispatch=None, transforms=None):
-    model = PrimaryModel.from_settings(
+def budgeted_planner(
+    settings,
+    config,
+    spec,
+    ledger,
+    *,
+    before_dispatch=None,
+    transforms=None,
+    fallback_allowed=True,
+    force_fallback=False,
+):
+    primary = build_budgeted_primary(
         settings,
+        config,
+        ledger,
+        purpose="plan",
         max_output_tokens=8192,
         tool_definitions=plan_tool_definitions(),
         validator=validate_plan_tool,
-    )
-    primary = BudgetedPrimary(
-        model,
-        ledger,
-        price=config.main_price,
-        max_output_tokens=8192,
-        unknown_cost_reservation=config.unknown_main_reservation,
         before_dispatch=before_dispatch,
+        fallback_allowed=fallback_allowed,
+        force_fallback=force_fallback,
     )
     return ConditionalPlanner(
         primary, spec, transforms=transforms, max_request_tokens=config.context_tokens

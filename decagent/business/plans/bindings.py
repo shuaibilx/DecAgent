@@ -13,6 +13,7 @@ from decagent.business.questions import priority_for_score
 from decagent.decisions.contracts import canonical_json
 
 from .contracts import plan_schema
+from .evaluation_catalog import EvaluationCatalog
 
 ALL_TYPES = ["string", "integer", "number", "boolean", "object", "array", "null"]
 ANY_VALUE = {"type": ALL_TYPES}
@@ -228,7 +229,7 @@ def resolve_inputs(node, context, spec=None):
     values, trace = {}, {}
     for name, binding in node.get("inputs", {}).items():
         key = "".join(char for char in name.lower() if char.isalnum())
-        if key in FORBIDDEN_INPUT_KEYS:
+        if key in FORBIDDEN_INPUT_KEYS and type(spec) is not EvaluationCatalog:
             raise BindingInvalid("Program-owned identity cannot be supplied by a plan")
         resolved = resolve_binding(binding, context)
         values[name], trace[name] = resolved.value, resolved.provenance

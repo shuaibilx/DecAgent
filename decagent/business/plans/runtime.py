@@ -20,6 +20,7 @@ from .bindings import (
 )
 from .compiler import compile_plan
 from .completion import verify_completion
+from .evaluation_catalog import EvaluationCatalog
 
 TERMINAL = frozenset({"succeeded", "failed", "skipped"})
 
@@ -56,11 +57,19 @@ class PlanRuntime:
         prime_decisions=None,
         before_node=None,
         recover_original=None,
+        completion_verifier=None,
     ):
         self.repository, self.execute = repository, execute
         self.after_save = after_save
         self.prime_decisions = prime_decisions
         self.before_node, self.recover_original = before_node, recover_original
+        self.completion_verifier = completion_verifier
+        if type(repository.spec) is EvaluationCatalog:
+            repository.spec.assert_active()
+            if not callable(completion_verifier):
+                raise ValueError("Isolated evaluation requires an execution-finished verifier")
+        elif completion_verifier is not None:
+            raise ValueError("Custom completion verifiers are limited to isolated evaluation")
         self.memories = memories or {}
         snapshot = repository.context_snapshot()
         task = repository.guard()
@@ -165,6 +174,16 @@ class PlanRuntime:
             data = run_transform(ref["transform_id"], ref["version"], inputs)
             return self._record(kind, data, context, inputs), {"targets": node["next"]}
         if kind == "complete":
+            if self.completion_verifier is not None:
+                result = self.completion_verifier(compiled, node, context)
+                if (
+                    not isinstance(result, dict)
+                    or result.get("kind") != "evaluation_execution_finished"
+                    or result.get("valid") is not True
+                    or result.get("business_goal_verified") is not False
+                ):
+                    raise ValueError("Evaluation completion may only attest execution finished")
+                return {"completion": result}, {"targets": []}
             with self.repository.database.connect() as conn:
                 self.repository.guard(conn)
                 actions = conn.execute(
@@ -303,7 +322,12 @@ class PlanRuntime:
                 {**(saved["output_snapshot"] or {}), "request": pending.request},
                 generation=saved["execution_generation"],
             )
-            return {"status": "waiting", "node_id": node["id"], "request": pending.request}
+            return {
+                "status": "waiting",
+                "node_id": node["id"],
+                "request": pending.request,
+                **({"unknown": True} if pending.unknown else {}),
+            }
         except NodeFailure as exc:
             return self._save(
                 node, "failed", {"reason": str(exc)}, self._exit(node["on_error"]), saved

@@ -136,7 +136,10 @@ def test_unknown_response_survives_recovery_and_blocks_new_actions_and_models(da
     ledger = UsageLedger(database, task["id"])
     receipt = reserve(ledger, "lost-response")
     ledger.mark_dispatched(receipt)
-    ledger.settle_model(receipt, None, None, response_state="unknown", error_code="transport_error")
+    ledger.settle_model(
+        receipt, None, None, response_state="unknown", error_code="transport_error",
+        error_category="transport_error",
+    )
     restored = UsageLedger(database, task["id"])
     for action in [restored.assert_action_available, lambda: reserve(restored, "new-key", "jev")]:
         with pytest.raises(BudgetExceeded) as caught:
@@ -146,6 +149,157 @@ def test_unknown_response_survives_recovery_and_blocks_new_actions_and_models(da
     assert saved["status"] == "unknown" and saved["reserved_cost"] == Decimal(".01")
     with pytest.raises(ValueError):
         restored.mark_not_sent(receipt, reason="local_validation")
+
+
+def test_unknown_primary_can_only_be_retried_as_a_separately_reserved_recovery(database):
+    task = conditional_task(database, max_calls=8, max_primary_calls=6, max_cost="1")
+    ledger = UsageLedger(database, task["id"])
+    original = reserve(ledger, "qwen-first", exception_reason="provider_retry")
+    ledger.mark_dispatched(original)
+    ledger.settle_model(
+        original, None, None, response_state="unknown", error_code="provider_timeout",
+        error_category="timeout",
+    )
+
+    with pytest.raises(BudgetExceeded) as blocked:
+        reserve(ledger, "qwen-unrelated", exception_reason="provider_retry")
+    assert blocked.value.code == "unknown_model_cost"
+
+    retry = ledger.reserve_model(
+        "qwen-retry",
+        1,
+        "qwen",
+        10,
+        Decimal(".01"),
+        model_family="primary",
+        purpose="plan",
+        exception_reason="provider_retry",
+        recovery_of=original,
+        request_role="plan",
+        requested_model="qwen3.8-flash",
+        endpoint="https://maas.qianwenaiapi.com/compatible-mode/v1",
+        requested_output_tokens=5,
+    )
+    ledger.mark_dispatched(retry)
+    ledger.settle_model(
+        retry, 7, Decimal(".01"), response_state="responded", error_code=None,
+        provider_status=200, server_request_id="provider-req-123",
+    )
+
+    another = reserve(ledger, "qwen-after-recovery", exception_reason="provider_retry")
+    assert another != retry
+    saved = rows(database, task)
+    assert len(saved) == 3
+    assert saved[0]["status"] == "unknown" and saved[0]["reserved_cost"] == Decimal(".01")
+    assert saved[1]["recovery_of"] == original and saved[1]["status"] == "settled"
+    assert saved[1]["requested_output_tokens"] == 5
+    assert saved[1]["provider_status"] == 200
+    assert saved[1]["server_request_id"] == "provider-req-123"
+    assert saved[2]["recovery_of"] is None
+
+
+def test_proven_not_sent_recovery_can_be_retried_without_dropping_original_unknown(database):
+    task = conditional_task(database, max_calls=8, max_primary_calls=6, max_cost="1")
+    ledger = UsageLedger(database, task["id"])
+    original = reserve(ledger, "qwen-first", exception_reason="provider_retry")
+    ledger.mark_dispatched(original)
+    ledger.settle_model(
+        original, None, None, response_state="unknown", error_code="provider_timeout",
+        error_category="timeout",
+    )
+    first_recovery = ledger.reserve_model(
+        "qwen-recovery-preflight-failure", 1, "qwen", 10, Decimal(".01"),
+        model_family="primary", purpose="plan", exception_reason="provider_retry",
+        recovery_of=original,
+    )
+    ledger.mark_not_sent(first_recovery, reason="before_dispatch_guard")
+
+    retry = ledger.reserve_model(
+        "qwen-recovery-after-preflight", 1, "qwen", 10, Decimal(".01"),
+        model_family="primary", purpose="plan", exception_reason="provider_retry",
+        recovery_of=first_recovery,
+    )
+    ledger.mark_dispatched(retry)
+    ledger.settle_model(retry, 7, Decimal(".01"), response_state="responded")
+
+    saved = rows(database, task)
+    assert [row["dispatch_state"] for row in saved] == ["unknown", "not_sent", "responded"]
+    assert saved[2]["recovery_of"] == first_recovery
+
+
+def test_unknown_recovery_is_single_use_and_charges_both_reservations(database):
+    task = conditional_task(
+        database, max_calls=8, max_primary_calls=6, max_tokens=100, max_cost=".025"
+    )
+    ledger = UsageLedger(database, task["id"])
+    original = reserve(ledger, "qwen-first")
+    ledger.mark_dispatched(original)
+    ledger.settle_model(
+        original, None, None, response_state="unknown", error_code="provider_timeout",
+        error_category="timeout",
+    )
+
+    retry = ledger.reserve_model(
+        "qwen-retry",
+        1,
+        "qwen",
+        10,
+        Decimal(".01"),
+        model_family="primary",
+        purpose="plan",
+        exception_reason="provider_retry",
+        recovery_of=original,
+    )
+    ledger.mark_dispatched(retry)
+    ledger.settle_model(
+        retry, 7, Decimal(".01"), response_state="responded", error_code=None
+    )
+    with pytest.raises(BudgetExceeded) as cost_blocked:
+        reserve(ledger, "beyond-token-budget", exception_reason="provider_retry")
+    assert cost_blocked.value.code == "cost_budget_exhausted"
+
+    with pytest.raises(BudgetExceeded):
+        ledger.reserve_model(
+            "second-recovery",
+            1,
+            "deepseek",
+            10,
+            Decimal(".02"),
+            model_family="primary",
+            purpose="plan",
+            exception_reason="provider_retry",
+            recovery_of=original,
+        )
+
+    saved = rows(database, task)
+    assert len(saved) == 2
+    assert saved[0]["recovery_of"] is None
+    assert saved[1]["recovery_of"] == original
+
+
+def test_jev_cannot_recover_an_unknown_primary_request(database):
+    task = conditional_task(database)
+    ledger = UsageLedger(database, task["id"])
+    original = reserve(ledger, "qwen-first")
+    ledger.mark_dispatched(original)
+    ledger.settle_model(
+        original, None, None, response_state="unknown", error_code="provider_timeout",
+        error_category="timeout",
+    )
+
+    with pytest.raises(BudgetExceeded) as caught:
+        ledger.reserve_model(
+            "jev-recovery",
+            1,
+            "jev",
+            10,
+            Decimal(".02"),
+            model_family="jev",
+            purpose="decision",
+            recovery_of=original,
+        )
+    assert caught.value.code == "unknown_model_cost"
+    assert len(rows(database, task)) == 1
 
 
 def test_unsettled_dispatch_stays_reserved_after_crash(database):

@@ -51,6 +51,12 @@ def test_plan_view_recovers_actual_path_without_a_worker_lease_or_cache(trace_ca
     assert value["observations"][0]["value"] == observed
     assert value["task"]["state"] == "running"
     assert value["waiting"] is None
+    assert value["policies"] == []
+    assert value["threshold_explanation"] == {
+        "certainty": "Jev 对本次答案的把握程度，不代表判断已被证明正确。",
+        "accuracy": "在独立验证数据集上观察到的实际正确比例。",
+        "confidence_interval": "验证集实测正确率的统计不确定范围，不代表单次答案把握度。",
+    }
     with database.connect() as conn:
         after = conn.execute(
             "SELECT * FROM app.business_plan_heads WHERE task_id=%s", (repo.task_id,)

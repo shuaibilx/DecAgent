@@ -309,10 +309,10 @@ class BusinessTraceControl:
                     (task_id,),
                 ).fetchall(),
                 threshold_explanation={
-                    "certainty": "Model answer certainty; not an empirical accuracy guarantee",
-                    "accuracy": "Measured correctness on the policy validation dataset",
+                    "certainty": "Jev 对本次答案的把握程度，不代表判断已被证明正确。",
+                    "accuracy": "在独立验证数据集上观察到的实际正确比例。",
                     "confidence_interval": (
-                        "Statistical uncertainty of measured accuracy; not answer certainty"
+                        "验证集实测正确率的统计不确定范围，不代表单次答案把握度。"
                     ),
                 },
             )

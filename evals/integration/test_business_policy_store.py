@@ -192,6 +192,10 @@ def test_employee_threshold_endpoint_exposes_only_qualified_choices_and_checks_s
     )
     assert updated.status_code == 200, updated.text
     assert updated.json()["threshold"] == 0.95
+    snapshot = client.get(f"/api/v2/business/tasks/{task_id}/plan")
+    assert snapshot.status_code == 200, snapshot.text
+    assert snapshot.json()["policies"][0]["effective_threshold"] == 0.95
+    assert snapshot.json()["policies"][0]["override_revision"] == 1
     rejected = client.post(
         path,
         headers={"Idempotency-Key": "below-floor"},
