@@ -642,3 +642,7 @@ Verification: focused model dispatch, public ledger, public route, live runner, 
 ### 2026-10-21 评测候选身份与历史 cohort 边界
 
 已运行过的 v7 首波 cohort 没有持久化 candidate SHA，且包含模型 attempt 和终态 route。不得把当前 commit、其 CI 记录或后生成的 report 倒推为历史试次候选。新实现要求空白且合法的 ledger 在任何 route claim 前绑定一个通过同 SHA GitHub CI 的候选；恢复、dispatch 和 report 必须验证同一绑定。已有活动的无 SHA ledger 不可补绑；损坏 metadata 不可绕过校验。此保护只允许将来的新 cohort 正确归因，不修复历史结果，也不重发其 unknown/failed routes。新 cohort、预算和派发批次需要重新冻结后才能开始真实评测。
+
+### 2026-10-21 历史 v6 迁移测试夹具复核
+
+候选 CI `39474267980` 发现 `test_business_identity_migration.py` 在 v6 schema fixture 中调用依赖后续 `workspace_id` 列的当前 `TicketStore`。测试夹具改为直接向 v6 的 people/category 表写入历史行，不改迁移实现。相关 PostgreSQL migration tests `3 passed`；全量 integration 及修复后精确 SHA 的 GitHub CI 尚待复验。该复核不改变运行时设计；selective-business-evaluation spec 已包含 candidate SHA 在 claim 前绑定、历史无 SHA ledger 拒绝补绑的要求，因此本次不增删规范需求。

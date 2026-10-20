@@ -27,6 +27,10 @@
 
 证据 `evals/benchmarks/evidence/jev-semantic-template-audit-20261020.json` 与 `jev-semantic-template-registry-20261020.json` 来自 pinned CSM MCP 容器工具目录审阅及真实 registry 核验；cleanup verified，0 业务工具调用、0 模型请求。上游 `retrieve_knowledge` 没有 `readOnlyHint`，本地隔离目录仅对匹配已审 schema 的工具应用只读覆盖；生产 capability registry 保持不变。registry/compile/scripted route 回归 8 passed，模板构造器 6 passed，相关公开 Session 套件 36 passed。工具响应没有总数或截断元数据，因此只声称比较实际返回数组。当前 first-wave dry-run 状态已更新为 `reviewed_csm_natural_case_pairing_pending`；该标签表示自然场景已审核但 Jev/Qwen 配对尚未排期，冻结首波仍只有 ReAct/Plan 两路线、8 个路线槽位。真实同状态配对和官方任务成绩仍未运行，故 9.6.D 保持未完成、公开基准仍为 0/286。
 
+### 2026-10-21 CI 复验状态
+
+候选 `1b13fc2e42744e5287f153333b95f22a6e3b6a20` 的 CI `39474267980` 因历史 v6 迁移测试夹具使用了当前 `TicketStore` 而失败；Python 3.13 deterministic、Workbench、构建/wheel/MCP/Compose 检查通过，PostgreSQL 集成 604 passed、30 skipped、1 failed，Python 3.11 job 因 fail-fast 取消。夹具现按 v6 schema 直接写入旧表，本地候选 `323e5e5` 的相关 PostgreSQL 迁移回归为 `3 passed`，Ruff 与 OpenSpec strict 通过。修复尚未推送且没有同 SHA CI 结果；主 change 因 11.1 复核重开暂为 66/79。没有发起新的模型或公开评测请求，首波旧 unknown 不重放，公开基准仍为 0/286。
+
 ### 2026-10-20 EnterpriseOps 脚本路线工程闭环
 
 固定首波 CSM/ITSM 任务各运行 ReAct 与 Plan 一次，共 4 条隔离脚本路线；使用摘要固定的真实 Docker 镜像、真实 MCP read call、生产 `ControlledRoutes`/`PlanRuntime` 和原始 EnterpriseOps verifier，并逐条核验 session/environment cleanup。CSM `find_product` 与 ITSM `list_users` 的只读例外仅绑定各自精确的 pinned image 与工具 schema digest；任何 schema/image 漂移都回到默认写操作策略，显式 `readOnlyHint=false` 仍优先。四条路线均成功到达原始评分器，均为预期的 `task_failure`/0.0，因为脚本只执行一次只读查询；provider 请求和业务写入均为 0。证据：`evals/benchmarks/evidence/scripted-enterprise-first-wave-routes-v2-20261020.json`。该结果验证隔离工具、执行器、评分与清理链，不是模型质量或性能结果，也不计入首波 8 条真实路线或公开基准分母。

@@ -10,13 +10,13 @@
 
 本轮新增 τ callback deadline 契约回归：旧实现下不带 `timeout_seconds` 的同步 callback 会被调用（新测试先复现）；现于 callback 执行前拒绝并关闭 worker。用户模拟器和裁判改为传递 90/120 秒单请求 timeout cap，与 route/batch deadline 取最小值，避免竞争请求继承临时改写的共享 channel timeout。六个相关 τ/公开执行/账本/模型派发/live-runner 文件共 `127 passed, 14 skipped`；全量确定性套件 `1899 passed, 17 skipped (259.61s)`。该修正不完成通用同步函数取消，不改变任何任务勾选，也没有模型、业务工具或评分器请求。
 
-## 当前执行状态（2026-10-21，安全诊断完成后）
+## 当前执行状态（2026-10-21，CI 迁移夹具复核后）
 
-OpenSpec 任务为 **67/79 已完成，12 项未完成**：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E。固定首波的 4 个任务、8 条 ReAct/Plan 路线已进入正式账本，候选 SHA `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 GitHub CI `39442012550` 通过；但 8 条路线终态为 4 unknown、4 failed、0 completed，8 条清理 verified、官方评分均未运行。CSM 一条 `find_user` 工具调用为 unknown，目录 effect 标注为 write，副作用未知，不能将清理完成解释为业务无副作用。Qwen 4 次请求中，1 次用量可知为 6,952 tokens 且费用 unknown，另 3 次用量/费用 unknown。Jev 和裁判请求为 0。首波路线不重放，公开 benchmark 仍为 0/286。
+OpenSpec 任务为 **66/79 已完成，13 项未完成**：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E，以及复核后重新打开的 11.1。固定首波的 4 个任务、8 条 ReAct/Plan 路线已进入正式账本，候选 SHA `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 GitHub CI `39442012550` 通过；但 8 条路线终态为 4 unknown、4 failed、0 completed，8 条清理 verified、官方评分均未运行。CSM 一条 `find_user` 工具调用为 unknown，目录 effect 标注为 write，副作用未知，不能将清理完成解释为业务无副作用。Qwen 4 次请求中，1 次用量可知为 6,952 tokens 且费用 unknown，另 3 次用量/费用 unknown。Jev 和裁判请求为 0。首波路线不重放，公开 benchmark 仍为 0/286。
 
 安全诊断增强已在本地提交 `8ddc70e feat: persist safe public evaluation diagnostics`：模型/工具 attempt 与 route receipt 仅记录白名单失败阶段、安全异常类型和有效 HTTP 状态；异常消息、prompt/response、工具参数/返回和凭证不入库。该改进没有修复首波结果，也没有重新派发模型请求。全量确定性套件 `1911 passed, 18 skipped`；相关公开评测回归 `167 passed`，Ruff 与严格 OpenSpec 校验通过。客观版本/预算和未知项以公开首波账本与证据报告为准；不得把工程验收等同 Agent 质量结论。
 
-`guest-sop-local-trial` 独立 change 已开始实施，workspace legacy 迁移 task 1.1 通过隔离 PostgreSQL 和 65 个业务集成回归；该进度不计入本 change 的 67/79，也不改变尚未完成的公开评测任务。
+`guest-sop-local-trial` 独立 change 已开始实施，workspace legacy 迁移 task 1.1 通过隔离 PostgreSQL 和 65 个业务集成回归；该进度不计入本 change 的 66/79，也不改变尚未完成的公开评测任务。
 
 ### 2026-10-21 首波候选身份保护（不重放历史路线）
 
@@ -25,6 +25,10 @@ OpenSpec 任务为 **67/79 已完成，12 项未完成**：9.6.D–G、10.3–10
 本次离线修复要求 first-wave ledger 在 route claim 前绑定精确的 CI 候选 SHA；同一账本只能恢复相同 SHA，dispatcher 和 live report 都核对该绑定。已有任何路线/模型/工具/τ step/machine-time 活动但没有 SHA 的历史账本拒绝绑定；JSON 损坏或不合法的 SHA 元数据也 fail closed。主入口继续通过同一候选的 GitHub CI gate 取得 SHA。相关公开账本、路由、runner 与 supervisor 定向测试 `86 passed`，修改文件 Ruff 通过、OpenSpec strict `6 passed, 0 failed`，`git diff --check` 通过。全量 deterministic `1915 passed, 18 skipped`；配置本机锁定 τ Python 3.12 runtime 后，τ process/tools 定向套件 `52 passed, 1 skipped`，其中 14 项此前的 runtime skip 实际通过，剩余 1 项因隔离 runtime 未安装可选 `tau2` 包而跳过。未派发 Qwen、Jev、工具或官方裁判请求，未改旧 v1 报告及 canonical ledger；公开 benchmark 仍 `0/286`。这不是 9.6.G 或 10.10.D/E 的完成证据。
 
 重新开展真实比较需要一个与新候选 SHA 绑定的新 cohort、单独冻结的预算和明确的评测批次授权；在此之前只推进不触发真实请求的离线实现与文档。
+
+### 2026-10-21 CI 集成失败与历史迁移夹具修复
+
+候选 `1b13fc2e42744e5287f153333b95f22a6e3b6a20` 的 GitHub CI run `39474267980` 已结束为 failure：Python 3.13 deterministic、Workbench、构建/wheel/MCP/Compose 检查通过；PostgreSQL 集成为 604 passed、30 skipped、1 failed；Python 3.11 matrix job 被 fail-fast 取消。失败是历史 v6 migration fixture 用当前 `TicketStore` 播种，而该 store 依赖后续 schema 的 `workspace_id` 列。现已改为直接按 v6 表结构播种并提交于本地候选 `323e5e5`；受影响迁移集成 `3 passed`，Ruff 和 strict OpenSpec `6/6` 通过。完整集成套件与修复后同 SHA 远端 CI 尚待完成，因此 11.1 保持未完成。测试修复没有触发模型、JeV、业务工具或评分器调用。
 ## 1. 基线留存与兼容准备
 
 - [x] 1.1 留存当前 business-2 MCP 运行契约、基线入口、相关测试与版本指纹，确认没有依赖已退役 CLI 的基线；交付基线 manifest，并验证同一固定任务可由留存入口执行。
