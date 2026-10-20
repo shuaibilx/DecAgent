@@ -33,6 +33,14 @@
 
 **Non-Goals:** 本次不生成或执行任意 Python/JavaScript/SQL/shell，不将 Skill 文本当执行权限，不引入必须的 Pi/向量库/远程 tracing 服务，不做多租户 SaaS 或真实公司 SSO。首版运行时顺序执行业务副作用；独立 Jev 问题可批量，同批不作答案间依赖。
 
+### 公开评测的单机监督与规范账本装载（2026-10-20）
+
+公开首波不能只依赖 SQLite lease 判断发送者已死亡：lease 过期仅允许账本 fencing，真实出站权限还需要本机监督进程生命周期锁。`PublicSupervisor` 在固定项目路径 `.decagent/business-eval/public-evaluation.lock` 上持有 OS 文件锁（Windows `msvcrt`，POSIX `flock`）；进程退出由 OS 释放锁。只有持有该规范锁的进程可以调用 `open_first_wave_public_trial_ledger`。此函数只接受冻结的 smoke cohort，固定 route ledger 到 `.decagent/business-eval/public-trials/public-smoke-v7.sqlite3`，并只读打开既有 `.decagent/business-eval/global-jev-ledger.json`；不允许 CLI/state path 重新选择，不允许缺失时初始化 Jev ledger。换 phase/state path 或并发进程不能因此重新获得额度。
+
+OS 锁现已由受门禁保护的 first-wave dispatcher 在环境预检后、打开规范 ledger 时持有，并通过跨进程排他性单测。端到端“已标记派发后挂起、lease 过期、第二进程等待、旧进程恢复”演练仍未完成；当前工作树不满足 clean candidate gate，尚无真实模型派发。只有 dispatcher 持锁并独占模型凭据并完成该故障演练后，才能宣称真实派发竞态已解决。
+
+公开路线的业务终态、官方评分终态与环境清理终态分别保留。任何已派发的工具结果变成 unknown 时，路线保持 unknown，跳过后续模型/工具及评分；监督者可补写评分/清理状态，但不得把 unknown 改写成 completed。清理证据使用摘要保存，避免把私有任务数据复制进公开 ledger。
+
 ## Decisions
 
 ### 1. JSON 条件计划 + 静态 LangGraph 解释器
@@ -234,7 +242,7 @@ flowchart TB
 
 主要端到端评测使用 EnterpriseOps-Gym 的 CSM/ITSM 任务。每次实验固定仓库版本或提交、任务版本与 ID、许可、容器镜像摘要、数据库快照、工具目录、配置和初始环境指纹；每个任务从其规定的初始状态重置，并使用 benchmark 自带的最终状态 verifier。优先保留原始完整任务，不改写目标、工具结果或成功条件。若预算或运行资源只允许执行固定子集，必须公开选择规则、全部任务 ID 和覆盖范围，不得宣称跑完全量 benchmark。
 
-当前可复现冻结选择记录在 `DecAgent/evals/benchmarks/manifests/source_manifest.json` 和 `task_inventory.json`：EnterpriseOps-Gym 固定到数据集 revision `c8e538eae8a6205294f0a86675fefdc1fac408f6`，主流程选择 CSM/ITSM 两域全部 oracle 行（各 103，共 206）；τ-Bench 固定到 commit `96a3ef92329baf908ffe9dfe188cea34e8701d2a`，补充选择 retail 与 telecom 官方 test 划分（各 40，共 80）。完整官方 ID/划分与确定性 smoke 子集也保存在 inventory。原始数据只保存在本机忽略缓存，无需用户另行下载或将数据重新提交到项目仓库。正式记分前必须通过来源清单校验并具备 manifest 固定摘要的 CSM/ITSM MCP 镜像；当前镜像已固定但尚未本地拉取，因此不得发布正式分数。
+当前可复现冻结选择记录在 `DecAgent/evals/benchmarks/manifests/source_manifest.json` 和 `task_inventory.json`：EnterpriseOps-Gym 固定到数据集 revision `c8e538eae8a6205294f0a86675fefdc1fac408f6`，主流程选择 CSM/ITSM 两域全部 oracle 行（各 103，共 206）；τ-Bench 固定到 commit `96a3ef92329baf908ffe9dfe188cea34e8701d2a`，补充选择 retail 与 telecom 官方 test 划分（各 40，共 80）。完整官方 ID/划分与确定性 smoke 子集也保存在 inventory。原始数据只保存在本机忽略缓存，无需用户另行下载或将数据重新提交到项目仓库。正式记分前必须通过来源清单校验并具备 manifest 固定摘要的 CSM/ITSM MCP 镜像；固定镜像已于 2026-10-18 按摘要拉取并通过本机来源校验；该就绪检查不代表正式流程完成，未经实际执行与官方 verifier 仍不得发布正式分数。
 
 τ-Bench 作为对话与澄清补充集，使用固定仓库版本、域、task IDs、数据库与政策文件。其用户模拟器用于交互压力测试，模拟器自身的模型调用、token、费用和延迟单独记账；模拟用户结果不能冒充真实员工审批或接管数据。τ-Bench 的环境工具通过其 Tool/ToolKit 接口提供，评测适配层须保留原工具语义和状态校验；若经 MCP 包装，所有执行策略必须走同一适配层。版本升级后分开报告，不跨不兼容版本合并成绩。
 
@@ -244,19 +252,39 @@ DecAgent 自有的业务契约专用集保留为针对性补充，至少 40 个�
 
 #### 比较对象
 
+#### 真实最终回复（2026-10-19 确认）
+
+公开计划执行完成后，从当前试次 journal 的实际工具返回生成确定性回复，包含来源 call ID、工具、实际状态与原始观察；只读取已返回的证据，不读取任务 gold、verifier 配置、SQL 查询或裁判结果。计划 goal.description 只描述意图，不可当作已完成事实。存在未知写入时不生成成功回复，也不调用总结来猜测结果。
+
+最终回复策略在运行前冻结并绑定 ComparisonTrial 摘要，所有待比较路线使用相同策略。默认优先使用有界的确定性证据渲染；公开输出契约事先声明必须生成叙述，或完整证据不能在输出上限内表达时，才调用一次显式注入的 Qwen 总结回调。无法在输入预算内完整提供所需证据时停止，不静默截断。总结输入仅有公开任务、政策与本试次实际观察，工具文本视为不可信数据；输出必须引用有效证据，不改变工具状态、权限、完成证明或 verifier。
+
+总结请求经同一预算与 ModelReply/ObservedUsage 计量，属于 Agent primary 请求而非免费的 harness 工作或官方 judge；失败和未知用量保留，不重试。真实评测的主模型就绪门禁仍适用于总结。命中流程复用却追加总结的试次如实报告非零主模型调用，不能据此宣称零 LLM；正常确定性可表达的复用任务仍保持零调用。回复一旦交给官方 verifier 不得据评分改写或重试任务。
+
+该结果回复机制只适配原始公开工具证据，不改变 service-tickets 生产完成校验或将官方任务缩减为纯数据库子集。
+
+#### 比较路线
+
+2026-10-18 执行边界补充：自有数据只作辅助回归，不再作为阈值定策候选。保持冻结集合不扩增、不读取 holdout 调参；工作流六个判断族各 40 条，记忆写入/读取必要性/相关性分别 20/10/10 条，即使全部预测正确也不足每族 100 条门槛。没有独立且复核的验证队列时只报告诊断、保留人工默认；实际准确率和阈值曲线没有匹配预测时均不填造。
+
+主模型保留 `qwen3.8-flash`。先离线诊断请求大小、超时、schema 和参数构造，再在新的就绪授权内最多执行 3 次真实请求：最小只读连通性请求、真实规划接口生成并编译只读计划、仅在前一步收到明确格式错误时做一次格式修复。格式修复包含在 3 次上限中；任一请求超时、派发状态或费用用量未知即停止，不自动重试未知请求、不更换模型；此前未知用量继续保留。就绪失败后暂停依赖主模型的真实路线对照，但可以继续不依赖模型的隔离器、评分器、测试和文档工作。τ-Bench 官方用户模拟器及确有必要的 LLM 裁判也使用该千问服务，分别记录请求、输入/输出 token、延迟和费用，不采用上游默认 GPT/Claude 或隐式重试。Jev 累计 $1 账本保持独立。人工探索由项目使用者完成六个合成工作台场景，覆盖 Choice/Noul/Score、无匹配、补充、拒绝及独立写入确认；仅为单人探索性证据，实际公司员工研究仍待办。
+
 | 层 | 必需基线与实验 |
 | --- | --- |
 | Agent loop | ReAct + Skill + MCP，记录每个主模型调用及工具调用 |
 | 计划执行 | 一次主模型规划 + 确定性执行器 + MCP；工具参数通过已验证的数据绑定映射，后续 MCP 调用不再请求模型；结构化条件只用代码规则 |
 | 运行时语义决策 | 同一有效计划与执行器，在语义运行时分支上分别调用主模型二次判断或 Jev；使用完全相同的状态、可信问题和候选 |
 | 确定性决策 | 对结构化条件单独测量代码规则；不要求 Jev 胜过 if/else，也不允许在该类条件上无必要地调用 Jev |
-| 历史兼容 | 冻结既有 business-2 MCP hybrid 作为补充历史基线；不能替代上述三条主路线 |
+| 历史兼容 | 冻结既有 business-2 MCP hybrid 作为补充历史基线；使用 schema 11 的独立历史数据库与当前 schema 的独立数据库，以同一版本化服务台语义种子和规范化摘要验证配对；不能替代或混入上述三条主路线及公开基准分数 |
 | 复用消融 | 新条件计划冷启动 vs 已发布模板复用，报告前置验证成本 |
 | 记忆消融 | 同一冻结案例启用/禁用经验证记忆，控制初始状态且不跨测试样本学习 |
 
 静态可预判分支在计划阶段确定；运行时结构化分支由代码规则选择；只有依赖真实工具结果或用户文本且无法由受信结构化规则判定的语义分支才进入 Jev/主模型配对试验。Jev 不负责权限、写入批准、回执核验或明确的 SLA/状态比较。未覆盖情况使用有界局部重规划或人工等待，不能静默执行最相近分支。
 
-全组使用相同任务目标、工具实现、权限、身份、必要确认、模型配置和隔离初始状态。每个策略都从同一数据库快照独立重置。计划执行器直接解析前序节点输出并按 MCP schema 校验参数，MCP 工具调用本身不要求 LLM 生成 function call。原 business-2 路线通过受测兼容适配器/冻结包运行，不能以旧 CLI 成绩冒充当前 MCP 基线。τ-Bench 的用户模拟调用单独计量；非性能故障场景与常见业务性能集合提前标明，不因结果差而事后删除。
+全组使用相同任务目标、工具实现、权限、身份、必要确认、模型配置和隔离初始状态。每个策略都从同一数据库快照独立重置。计划执行器直接解析前序节点输出并按 MCP schema 校验参数，MCP 工具调用本身不要求 LLM 生成 function call。原 business-2 路线通过受测兼容适配器/冻结包运行，不能以旧 CLI 成绩冒充当前 MCP 基线。
+
+冻结的 business-2 归档记录 schema 11，且其 `Database.check_version()` 要求数据库迁移版本精确为 1–11；当前 DecAgent schema 为 17，不能在同一数据库中直接运行历史包。历史对照因此使用单独的 schema-11 临时数据库，当前路线使用当前 schema 的临时数据库。两边从同一个版本化服务台语义种子各自构造初始状态，并在开始前核对规范化业务行、员工身份/角色/权限、MCP 命令 schema 与治理规则摘要。schema 差异不得通过修改历史源码或在历史库中应用新迁移来消除；摘要或治理行为无法对齐时仅报告兼容性结果，不将其称为公平的性能配对。该补充历史基线与 EnterpriseOps/τ 的公开基准分开报告。
+
+τ-Bench 的用户模拟调用单独计量；非性能故障场景与常见业务性能集合提前标明，不因结果差而事后删除。
 
 #### 阈值、质量与统计
 
@@ -272,11 +300,55 @@ DecAgent 自有的业务契约专用集保留为针对性补充，至少 40 个�
 
 #### 成本、延迟与通过标准
 
-实际模型请求经账本，缓存命中/脚本夹具/实网分别标记。评测仍受此前累计 Jev 1 美元授权，执行前核对既有 ledger 和未结算项，按批预留，未知费用不自动释放。千问免费额度单列零支付与 token/请求量；不能据此得出模型天然成本为零。不从一次 CLI 调用推断一次模型调用。
+实际模型请求经账本，缓存命中/脚本夹具/实网分别标记。评测仍受此前累计 Jev 1 美元授权，执行前核对既有 ledger 和未结算项，按批预留，未知费用不自动释放。Qwen API 仍产生供应商费用；代金券是账单抵扣，不是零费率。成本比较使用抵扣前 API 费用，另行记录代金券抵扣额与账户实际支付额。不从一次 CLI 调用推断一次模型调用。
+
+时间口径分列评测环境准备、Agent 执行区间、私有评分、清理与总墙钟时间。Agent 区间从冻结任务/工具上下文就绪到终止，包含规划、编译、参数映射、MCP 和运行时检查；机器耗时从该区间减去观测到的人工与用户模拟器等待。Docker 创建/快照恢复和官方评分器时间不混入 Agent 延迟，但保留总耗时供复现。初始化失败须标记 Agent 未启动，不能将其零执行耗时当作快速成功证据。
 
 质量达到目标、禁止副作用为零、所有恢复与隔离断言通过，是发布前提。普通成功非复用任务目标至少 90% 落在 1–3 次 primary 内；适用成功复用任务必须零 primary。90% 是本次验收设计值，需报告所有失败/异常任务及其请求量，不能只挑成功样本解释总体成功率。
 
 流程效率结论按冻结任务配对：新路线任务成功率点估计不低于 ReAct + Skill + MCP 基线，primary 请求中位数下降；机器耗时 p50 下降、p95 不回退，模型实际计费/同价估算成本不增加。对语义运行时决策，只有在质量可接受且 Jev 相比主模型二次判断降低成本或延迟时，才声称 Jev 带来收益；结构化代码规则作为独立基线，不要求 Jev 与其竞争。业务混合集总体成本也不增加。差异附区间；区间不能支持改善时写“未证明”，不声称倍数。比较不达标不阻止交付实现和报告，但相关性能验收任务保持未通过，不把安全通过当性能通过。若预算耗尽导致未跑齐，保留明确待办。
+
+#### 主质量对照与生产预算副评
+
+主质量对照给三条路线相同的宽松、评测专用边界：每任务最多 200 次 Agent 模型请求、200 次工具调用、1,000,000 个模型 token、30 分钟 Agent 机器时间；τ-Bench 另遵守官方 200 步上限。该边界用于观察完整成功率与失败行为，不能把生产 primary hard limit 6 误作所有路线的公平停止条件。生产副评单独保留现有 primary target 3/hard 6、Jev 24、总模型请求 30、100,000 token 与 1,800 活跃秒等预算。两类结果分别汇总；用户模拟器和必要裁判的模型资源不混入 Agent 请求数，但单独报告其 token/费用，并计入整个实验的总成本与总墙钟时间。默认并发 1、最多每批 10 个任务，每种路线独立重置状态；Jev 批次开始前核对并预留累计 $1 账本，费用未知立即停止。
+
+首个固定真实评测批次由四域各 1 个任务、ReAct/Plan 两条路线组成，共 8 个路线试次。该批次另受全局累计停止线约束：最多 500 次 Qwen 请求、5,000,000 输入与输出 token、14,400 秒总墙钟、1,600 次工具调用；Agent 最多 300 次/3,000,000 token，官方用户模拟器最多 160 次/1,600,000 token，官方裁判最多 40 次/400,000 token。所有重试、格式修复和受控总结按实际角色计入。每路线原有额度继续生效；unknown 不释放预留，恢复或换进程不能重获批次额度。达到任一上限时保留未开始路线和未完成配对。后续 24 例、全量和额外语义/消融试次另行根据实耗制定预算，不复制首波授权。
+
+#### 开发暴露范围
+
+EnterpriseOps 固定 CSM/ITSM 206 条始终保留在总分母；此前固定冒烟及其预先定义的相关任务族标记为 `development_exposed`，其他任务标记为 `not_exposed`。报告全体、暴露组和未暴露组的准确分子分母；未暴露组只能称为未暴露子集，不能宣称为官方或独立 holdout。τ-Bench 每个域从官方 train 按固定 ID 顺序取前 2 条冒烟，后续调试只使用 train；官方 test 80 条只有在计划、模板、模型和环境配置冻结后才运行，不在查看 test 结果后调参。
+
+### 10a. 隔离评测工具注册（2026-10-18 用户已确认）
+
+采用仅由可信评测代码构造的 EvaluationCatalog，不修改 PluginSpec.from_mapping 的 service-tickets 限制，也不增加生产 HTTP 的开关或通用远程工具注册。目录绑定活动试验作用域、基准版本、原始工具 schema 与目录摘要；关闭作用域后不能编译或执行。生产路径继续禁止覆盖员工身份；隔离基准中原 API 的 user_id 等业务参数按其原 schema 接受，不能被误作本机认证凭据。
+
+编译器、绑定器和 PlanRuntime 仍为同一实现；仅显式支持这种受信目录的 schema/结果契约与完成策略。MCP 原响应完整保留，可提供标明来源的确定性 JSON 观察视图，不能通过模型猜测生成工具输出。未来结果路径在缺少上游 outputSchema 时作运行时类型检查；不放宽生产闭合结果 schema 的静态验证。
+
+试验状态与生产 PostgreSQL 业务表分离：新建且独占的本地持久试验日志保存计划、节点、参数来源、真实调用和未知结果，复用生产解释器的存储端口。每次试验创建新日志与官方环境实例；不加载前一测试记忆或节点。模拟写入仅调用该试验的原始工具，成功响应不被伪装成公司审批回执；传输未知的写入停在原节点，不能盲目重试。正式企业业务的 prepare/确认/commit 代码不变。
+
+上游明确返回的 MCP isError 是已收到的工具错误，与传输异常区分。原始成功/错误响应完整保留在试验日志；ReAct 按原观察继续恢复，计划进入显式 on_error，不能将明确错误改成未知写入。当前 EnterpriseOps 初始身份基于固定快照摘要与恢复上下文；正式配对仍须补充独立恢复状态验证，不能把该摘要称为已测量的全部数据库状态摘要。
+
+完成节点只核验实际观察、激活路径与本试验日志，返回明确的 execution_finished；官方目标成功、错误副作用和最终状态由独立官方评分器提供。没有评分器结果不能生成合格 RouteRun。官方用户模拟器、澄清与原业务确认规则仍在相同工具适配层之外由评测协议驱动，费用单列。
+
+首阶段先接通原始工具和结构化流程。Jev 节点仍只能引用已发布可信模板；没有适用模板时显式拒绝，不根据公开工具说明自动生成问题、评分尺度或模拟高确定性。模板、主模型 readiness 和完整公开任务的后续验收仍是独立门槛。
+
+### 10b. τ-Bench 独立运行时桥（2026-10-18 用户已确认）
+
+固定 τ2 版本的依赖锁与应用 MCP 2.3.0 依赖冲突，不放宽任一依赖锁，也不修改上游源码。可信评测代码为每个试验启动一个专用 Python 3.12 子进程，通过有界、带请求 ID 的本机 stdio JSON 协议连接原始 Environment 与应用侧 MCP。子进程不导入 DecAgent/MCP，应用不导入 τ2。环境创建使用原官方任务初始化；工具 schema、原始参数、文本结果、错误标志与上游可变状态元数据保持一致。工具目录不暴露任务参考答案、用户模拟器私有情景或评分器。
+
+进程路径、来源版本、域与任务由可信评测器选择，不接受模型传入命令或任意代码。子进程禁止外网和模型调用，不继承模型凭据；启动、帧大小和单请求均有上限，协议失配/进程退出/超时后关闭该试验且不重试原工具。写入是否完成未知时由既有试验日志停在 unknown，不因重启创建新写入。关闭 MCP 会话同时回收其拥有的子进程，初始化失败也须清理。原始数据库摘要可供私有评测器比较重置状态，不能进入模型任务上下文。
+
+80 个官方 test 任务的双重初始化一致性只证明离线运行时就绪，不能计为任务执行或成功。完整对话、用户模拟器与官方评分仍须独立接通并计量后才能报告任务成绩。
+
+### 10c. 正式评测闭环补充
+
+τ 工具 worker 与 Agent 共用每个试次的同一个权威 `Environment`：评测私有控制面负责构造原始 `SimulationRun`、调用原用户模拟器/用户工具、传递真实对话轮次、保留完整轨迹并调用官方 evaluator；Agent 只接收已发生的用户消息和合法工具响应。私有任务情景、参考动作、目标状态及 scorer 字段不进入 MCP 工具目录或 Agent 输入。每个路线的对话协议都能发送消息、请求澄清、接收用户回复并继续/终止；不能把此能力只提供给计划路线。官方 tau evaluator 是任务成功判定来源，工具顺序相似度不得代替官方分数。需要 LLM 裁判时遵循 10.1 的 Qwen 及单独记账约束。
+
+用户模拟器一次回复包含多个用户侧工具调用时，先完整验证这一批，再按原顺序在同一 `Environment` 内执行；多条结果组成 τ2 `MultiToolMessage` 一次交回模拟器，所有工具结果返回前不得再次请求模拟器。评测轨迹保留批次边界、工具结果顺序及 `requestor=user`，评分桥只在构造 τ2 原始评分消息时按上游接口要求展开。不能把多调用拆成“工具一—模拟器—工具二—模拟器”，否则会改变官方用户状态和对话分支。
+
+EnterpriseOps 的每次重置记录独立测得的初始数据库状态指纹；评测器在恢复后从私有数据库状态采集器读取状态，再与任务固定快照核对。`UpstreamScorerHook` 调用原 `VerifierEngine.execute_verifier`，保留官方业务目标结果；response-check 中若原 verifier 使用模型，也要将裁判请求列入独立 usage。没有测到的禁止副作用或中间授权边界标记为 `not_measured`，不得默认为零。
+
+公开路线使用冻结 task manifest 和逐试次证据记录；初始化失败记为 `not_started`，Agent 失败仍进入结果与失败分母，官方评分故障记为 `scoring_error` 并可对同一保存状态重新评分，不重新运行 Agent。环境准备、Agent、用户模拟/人工等待、官方评分、清理和总墙钟分别计时。任务超过计划表达或运行资源边界时按原始任务计为 unsupported/failed 并留在分母，不能裁剪任务目标或将能力限制隐藏在预检中。
 
 ### 11. 工作台与可观测性
 
@@ -309,5 +381,224 @@ DecAgent 自有的业务契约专用集保留为针对性补充，至少 40 个�
 
 ## Open Questions
 
+### 2026-10-20 冻结 cohort 的离线 phase 选择
+
+`build_dry_run_report(plan, phase=...)` 只做只读选择，不改变 cohort digest、route ledger 或任何预算：`first-wave` 按 manifest 明确列出的四个 case 顺序选择 4/24 任务与 8/48 路线槽；`remaining-smoke` 从同一 smoke cohort 排除首波，选择 20/24 与 40/48；`full` 只接受 full cohort，选择 286/286 与 572/572。CLI `--phase` 将该选择和完整 cohort 分母同时写入 dry-run 报告。
+
+此接口是 E7 live phase runner 的安全前置，不等于持久 claim/resume：它不会写入 ledger、认领 route、判断 completed/unknown，也不执行模型/MCP。后续 runner 必须在同一 smoke 账本中推进 first-wave 与 remaining-smoke，完整 cohort 使用独立固定身份；在 claim、恢复、锁、配额和清理都接通前，`--execute` 继续 fail closed。
+
+`ControlledRoutes` 的循环边界已按动作语义拆开：PlanRuntime 控制步最多为已编译计划节点数（上限 32），ReAct 轮次单独封顶 200 次模型请求；模型请求与 MCP 工具调用继续由 `ObservedUsage`/持久账本各自计数。τ 固定源码 `96a3ef9` 的半双工 `Orchestrator.step()` 每次角色交接将 `step_count` 加一；Agent/User 发出的一个工具调用批次由 Environment 一次处理，因此不能按批内工具数推导步数。`EvaluationPlanSession`、`ControlledRoutes` 和公开 ledger 现分别记录并限制 `tau_steps`：用户模拟器每次回应、Agent 的每次对外动作、每个环境工具批次各占一个 τ 步尝试，账本在模拟器或工具副作用前持久预留。Plan 的 `decide` 节点也按 Agent 动作计入；模型请求数、MCP 工具数、Plan 控制步和 τ 步仍是不同维度。此映射只保证受控执行器采用与冻结运行时一致的角色交接单位，正式环境、原 scorer 和 cleanup 的四域闭环仍待 live 验收。
+
+### 通用模型端点与有限降级
+
+主模型优先使用 `qwen3.8-flash` 和现有 MAAS 兼容端点；备用通用模型固定为 OpenRouter `deepseek/deepseek-v4.1-flash`，默认从现有 Jev OpenRouter key 取凭证，不在配置、日志或 evidence 中复制密钥。只有 `DECAGENT_JEV_PROVIDER=openrouter` 且 key 非空时，备用配置可启动；否则明确报告 fallback 未配置。Jev 的 provider、模型及累计账本独立不变。
+
+模型 factory 按角色构造有版本的 profile：Planner、最终回复、通用模型语义对照、τ 用户模拟器和裁判使用同一组可选主/备配置，但保持 role 单独归因。所有完整回放与公开评测在启动前冻结 profile 摘要；benchmark 各路线强制选择相同的单一模型 profile 并关闭跨模型降级，不跨模型混合分数。产品请求是否触发降级写入本任务的模型 attempt trace。
+
+只有可重试的传输类错误、408、429 或 5xx 才能重试：同一 Qwen profile 最多两次（首次失败等待 2 秒；合法 Retry-After≤30 秒时遵守，超过则暂停），之后一次 DeepSeek fallback。认证/权限、模型不存在、参数不支持等错误立即停止同 profile；格式/plan validation 仍受 planner 的一次结构化修正上限约束。每次请求单独 Reserve/settle，UsageLedger 把暂时 unknown 的请求预留继续计入硬额度。新备用派发必须以 `recovery_of` 绑定同一任务中、刚才由 trusted orchestration 标记的单一 unknown provider attempt；最多一次 recovery，Jev 或工具写操作不能借用该例外。fallback 的输入/输出费用须有 OpenRouter provider policy `max_price` 硬上界并在本地按模型/实际使用上下文核算，否则拒绝派发。响应记实际 model/provider、OpenRouter generation id 和请求 id（若适配器可取得）；响应未知且没有 generation id 时保留 unknown，不做账单轮询自动释放。
+
+新的独立 readiness 批次沿用原 10.7 历史账本，不覆写或重放。上限是 8 次请求、300,000 累计 input+output tokens、该批次 DeepSeek $1；每个 provider attempt 先原子预留 tokens、费用和请求槽，已用完/预留不足即停止。测试顺序是 Qwen 最小非流式/用量、工具参数兼容、生产只读计划编译；再按剩余额度以 DeepSeek 验证对应步骤；只有非流式通过后才检查流式。最终计划必须由原生产 compiler 接受，不执行 MCP 业务写入。分类记录连接/读取/HTTP/响应解析/usage/schema/compile 状态；未知问题不归为已确认的 Qwen 服务缺陷。
+
+已知本地 preflight 失败仅能通过显式 `--resume-known-not-sent` 延续同一批次：账本必须证明没有任何已派发/unknown attempt，已有 attempt 必须均为 settled/not_sent 且 token/费用为零，已有阶段必须失败或跳过；前次身份、阶段和结果先追加归档，再允许重试。只有诊断源码指纹变化，或严格匹配旧版本的价格来源标签修正且费率数值相同，才能变更批次身份。模型、端点、费率数值和批次上限变化一律拒绝。任何已派发、计量未知或通过阶段均不可恢复。
+
+本设计不让模型切换接管工具/MCP 重试：模型只负责重新生成纯计划/回复；若先前工具提交为 unknown，先按原 request key 查凭证再决定继续，绝不重新提交该写入。
+
+### 2026-10-19 已批准的后续就绪授权
+
+新授权 ID 为 `qwen-readiness-20261019-plan-execution-v1`，只在离线定位具体缺陷、增加失败回归且修复通过后启用。旧响应未保存时不得声称重现了其具体 schema 错误；离线报告须区分直接观测、可复现实现缺陷和未知外部原因。先保存模型、端点主机、catalog/schema/messages 字节规模、编译器与修复摘要，再在独立持久授权计数中最多派发 3 次全新只读请求。每次发送前持久化 attempt，格式修复也消耗同一计数且最多一次；进程崩溃留下 dispatched 记录时不得自动续跑。旧 unknown 请求保持原状态，与新授权关联而不抹除；新授权不是对旧未知请求的重试或自动解除。若新调用未知或无有效计划，停止该阶段并保留正式评测门禁，不自动换模型、扩超时/预算或再申请一轮。正常 ModelTurn 缺少 usage 与拒绝响应 usage 缺失遵守同一停止边界。
+
+上述授权单独追踪为 10.7；10.1 保留上一轮诊断历史。游客试用与独立私有部署仓库的规格、任务和新增预算全部在 `guest-sop-local-trial`，公开基准结果不因此被勾选。
+
+首次派发前固定本轮诊断累计 token 上限为 100,000（现有生产任务默认值），单请求保守输入上限仍为 65,536、输出上限 8,192，并计入累计总量。依据：离线量化 repair 预留约 58,635，加已观察的首轮实际 12,900 为 71,535，旧 65,536 累计边界会在用户本轮允许的一次修复前停止。本轮初始额度选择基于该测量，不修改旧账本或 unknown，也不允许执行中自动扩额。该批次此前引用的“免费额度”费率假设已由用户于 2026-10-20 更正：Qwen API 仍计费、代金券抵扣账单；不得用零费率计算比较成本，保留原始请求和未知费用，并在可核验来源到位前将金额标记为未核实。
+
 只有不影响实现边界的登记值待执行阶段填写：下载时的公开数据精确版本/哈希与许可记录、实测解析模型版本、验证集最终选出的阈值，以及各性能指标实测值。不能提前填入虚构值；方案和失败处理已经在本设计中固定。
 
+### 2026-10-19 公开试次 dry-run 与资源账本补充
+
+公开执行入口固定使用 `comparison_trial_manifest_v5.json` 和
+`evaluation_model_profiles_v2.json`。旧 v4/v1 文件保留为历史输入，不会被就地改写。
+v2 profile 保存 provider、模型、无凭证 HTTPS endpoint、价格来源/版本、token 上限、
+显式采样参数、unsupported 字段、输出/工具选择契约、timeout 与 provider routing；API key
+不进入 manifest、证据或账本。通用模型客户端的评测工厂会对支持的 temperature/top_p 显式
+发送冻结值，并省略 profile 标记为 unsupported 的 seed。公开对照关闭跨模型 fallback，
+以维持同组公平性。Qwen v2 profile 的零费率源于此前对账户代金券的错误理解，
+不得作为供应商费率或账单证据；新计费 profile 必须标出可核验的费率/账单来源，
+并分别记录抵扣前 API 费用、代金券抵扣和实际支付。Jev 价格仍为 owner-reported
+OpenRouter 记录；它们不是独立的供应商价格保证。
+
+`run_public_trials.py` 默认仅做来源、清单、profile、readiness 和（启用时）本地镜像摘要
+检查。dry-run 报告只能以新文件形式写入 benchmark evidence；不得覆盖既有报告。
+`--state` 在 dry-run 下拒绝使用，`--execute` 在真实 callback、适配器、官方评分、清理
+及预算守卫接入前 fail closed，因此 dry-run 绝不创建 ledger 或触发模型/MCP。
+
+公开试次 SQLite ledger 升为 v3：模型 attempt 记录冻结的 provider/model/endpoint/
+price version、profile digest、角色内序号、server IDs、可用的 HTTP 状态与实测时长；
+工具 attempt 保存安全的工具名、effect、参数摘要、回执摘要及 unknown 状态。模型请求、
+工具调用和 Agent 机器时间的额度先预留再结算；中断与 unknown 的用量预留不释放，unknown
+route 禁止自动 replay。单活动执行者通过 lease heartbeat 和递增 generation fencing。用户
+模拟器和裁判仍独立计数，不合并到 Agent 请求与 token 配额。
+
+### 2026-10-20 Qwen 计费更正与 profile v3
+
+v2 Qwen `0/0` rate 是旧的账户代金券解释，不是零费率或账单证据；v2 profile、v5 cohort 和原始 readiness evidence 保持不变。当前未能确认 `maas.qianwenaiapi.com` 在账号中对应的服务地域/费率，也未取得逐请求供应商金额，因此新的 `evaluation_model_profiles_v3.json` 对 primary、user_simulator、judge 使用 `pricing_status=unknown` 和 null 单价，并生成全新 v6 cohort。不能沿用 v2 的零费率，不把账户券抵扣解释成免费。
+
+`ModelReply.cost_usd`、`RouteRun` 费用及公开评测账本现允许成本为 null，同时保留已知输入/输出 token。`ObservedUsage.complete` 只表示模型请求和 token 用量已知；独立的 `cost_complete` 表示成本完整性。公开 ledger schema 升为 v4：unknown-price profile 只能使用 null fee reservation，结算允许已知 token 配 unknown cost；聚合账本不会把缺失费用求和成 `$0`。这种 attempt 仍可进入官方任务评分，成本统计不得参与优势结论。Jev profile、共享累计 `$1` ledger 和 Jev attempt 的精确费用要求不变。
+
+EnterpriseOps 的 response-check judge 现在也接受“请求数、token 和耗时已知、费用未知”的供应商账单状态：`BudgetedEnterpriseJudge` 与 scorer 继续执行原始官方 verifier，`TaskScore` 保留 judge token/请求、费用记为 null，账单完整性不会伪装成评分失败。定向测试 `test_unknown_judge_price_keeps_official_score_and_known_token_usage` 通过。τ worker 原有回调协议同样把缺失成本作为 null 传回，同时保留 token 分项。
+
+当前 profile 尚未逐笔保存 gross API charge、voucher credit 和 cash paid；也没有证实供应商费用回执或适用于该 endpoint 的冻结 tariff。因此 10.8.D 保持待办，不能做 Qwen 成本总额或 Jev/通用模型成本优劣结论。获取足够的账单/地域信息后，单独增加可审计的成本依据，不改写旧账。
+
+已对 `comparison_trial_manifest_v6.json` 执行离线 smoke dry-run：24 个任务、48 个路线槽位，首波 4 个任务/8 个路线；ledger 创建数、模型请求和 MCP 请求均为 0。报告为 `evals/benchmarks/evidence/public-evaluation-dry-run-smoke-v6-20261020.json`。这是固定输入和当前 profile 的准备验证，不是模型或业务流程成绩。
+
+### 2026-10-20 首波批次上限与 v7 cohort
+
+用户确认的四域首波上限已冻结进 `comparison_trial_manifest_v7.json` 和 cohort digest：总计最多 500 次 Qwen 请求、5,000,000 Qwen tokens、1,600 次工具调用和 14,400 秒；Agent、用户模拟器、裁判分别最多 300/3,000,000、160/1,600,000、40/400,000。Jev 继续使用原累计 `$1` 账本，不在本批次中启用跨模型降级。v5/v6 manifest 与 v6 dry-run evidence 保留原样。
+
+公开 ledger schema v5 持久保存原批次开始时间、四小时截止时间、冻结限额摘要和首个 stop reason；请求/Token/工具统计从全部 attempt（含 reservation、unknown）恢复计算，unknown reservation 不释放。开始 route、模型/工具/机器时间 reservation 及 dispatch 前检查剩余批次额度。响应结算发现实际 Qwen token 超过总量或角色额度时，立即持久停止批次。该控制是 dispatch admission gate；当前没有已接入的真实 runner，也不能中止正在进行的外部网络请求，因此 `--execute` 仍 fail closed，10.10.B/D/E 仍未完成。
+
+v7 离线 smoke dry-run 报告为 `evals/benchmarks/evidence/public-evaluation-dry-run-smoke-v7-20261020.json`：24 个任务、48 个路线槽位、首波 4 个任务/8 个路线槽位，模型/MCP 调用 0，未创建 ledger。它验证上限随冻结 cohort 传递，不是模型调用或业务流程测试。
+
+v5 manifest 在原 24 smoke / 286 full 任务分母内额外固定首批四例：CSM
+`task_20260106_161859_265_00364ece_0e836ce8`、ITSM
+`task_20260115_201951_323_391f1eff_659b9dae`、τ retail train `0`、τ telecom train
+`[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Hard]`。
+首波按 ReAct、Plan 顺序组成 8 个路线槽位；loader 即使看到重新计算后的 manifest digest，也会再核对这四个固定 ID 和顺序。
+
+2026-10-19 的 smoke/full 固定清单预检均通过，包括本机固定 EnterpriseOps 镜像检查；
+分别是 24/286 个任务、48/572 个 route slot，首波子集为 4 个任务、8 个 route slot，报告为 `preflight_passed_no_execution`，
+模型调用 0、MCP 调用 0、未创建 ledger。证据保存在
+`evals/benchmarks/evidence/public-evaluation-dry-run-smoke-20261019.json` 与
+`public-evaluation-dry-run-full-20261019.json`。这只证明冻结输入可被预检读取，不是冒烟
+执行、官方评分或 benchmark 得分。Jev 自然语义候选尚未独立审核，故保持 N/A；不得为
+增加样本而构造非自然 Jev 判断。
+
+本轮离线 ledger/route/profile/inventory 定向测试 46 项通过，Ruff 通过。10.8 的冻结
+profile 和计量字段、10.10 的持久资源账本和 fail-closed dry-run 已部分实现；它们尚未
+与真实 provider callback、三路线试次调度、τ 用户模拟/裁判及官方评分/清理执行链打通，
+因此仍不满足 9.6、10.3–10.6、10.8、10.10 的完整验收门槛。
+
+### 2026-10-19 公开评测续行门禁与首批计划
+
+10.9 的 routed readiness 于 2026-10-19 通过，允许进入离线公开执行准备；它不代表公开任务已经执行。首批固定任务为 CSM `task_20260106_161859_265_00364ece_0e836ce8`、ITSM `task_20260115_201951_323_391f1eff_659b9dae`、τ retail train `0`、τ telecom train `[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Hard]`。先对这四例分别执行 ReAct 与 Plan，共 8 个基础路线试次；完成四域工具、最终回复、官方评分及清理闭环后，补齐既定 24 例 smoke。若未来 manifest 版本变化，首批 ID 必须保持不变。
+
+真实评测使用项目既有 `.decagent/business-eval/global-jev-ledger.json`，其 66 条历史 attempt 的已知支出为 `$0.007468398`、无 pending/unknown，当前余额 `$0.992531602`。公开 route 必须引用该账本并按每个 Jev request 原子预留；不得以新目录、新 mode 或新 route 初始化第二个额度。账本缺失或身份不符时 fail closed。Jev 的任何 unknown 用量暂停该实验组所有新增 Jev 请求；Qwen unknown 只终结当前 route，并停止它的后续模型/MCP/裁判调用，其他未开始 route 可继续。unknown route 不 replay。
+
+公开执行 ledger 使用单一活动执行者租约、heartbeat 和递增 fencing generation。lease 未过期时拒绝 resume；lease 过期后的接管必须递增 generation 并将前一执行者未决 attempt 与运行中 route 记为 unknown。每个 reserve、dispatch、settle 和状态转换都校验 generation，使旧执行者即使恢复也不能写入或再次派发。route 的 30 分钟上限由可取消 deadline 执行，不以记录 machine time 代替实际中止。
+
+后续 profile 新版本固定角色实际采样参数、响应/工具选择契约、timeout 和 provider routing，并标记 unsupported 参数；每次 attempt 同时记录请求 profile 和可取得的 resolved provider/model。不能通过 SDK 默认值隐式补齐实验配置。旧 v4 manifest 与 dry-run evidence 保留为历史，版本化 profile/manifest 使用新文件名，任何模型或路由改变均形成新的实验组。
+
+全局实验还需独立总请求/Token/费用/墙钟限制，分别覆盖 Agent、用户模拟器和裁判；每试次的 200 请求、200 工具、100 万 token 和 30 分钟上限仍是局部上限。该总批次政策必须在首次真实派发前固定并写入新 manifest；未固定时仅允许 dry-run。不得挪用 Qwen readiness 的请求额度或 Jev 余额之外的其他授权。
+
+### 2026-10-19 首批 Stage 1 实施进度
+
+`GlobalJevLedger` 提供规范路径校验和只读打开入口，拒绝替代路径/符号链接且不自动初始化；辅助业务评测 CLI 在 `ledger-init` 前校验路径。公开试次 SQLite ledger 已完成共享 Jev reservation 关联与未知费用保留。公开试次 runner 仍只允许 dry-run，因此完整批次执行前仍须把规范的既有账本打开逻辑接入 live 调度入口，并完成 Agent/模拟器/裁判批次额度。v5 smoke/full 预检证据为 `public-evaluation-dry-run-smoke-v5-20261019.json` 与 `public-evaluation-dry-run-full-v5-20261019.json`；四个相关确定性测试文件 `105 passed`，profile factory 与全局 Jev ledger 结算身份有回归覆盖。Qwen/DeepSeek 受控路由另有 `34 passed`，临时 PostgreSQL 上 `test_conditional_model_budget.py` 为 `28 passed`；测试容器已停止并自动删除。
+
+公开 trial ledger 的 execution lease 已具备心跳、租约过期原子接管、递增 generation 与旧 owner fencing。相关确定性测试覆盖活跃 owner 不能被抢占、过期后旧 owner 不能再开始 route 或 dispatch、unknown route 不 replay。租约相关安全项可以单独验收；正式 benchmark 执行仍被模型 callback、官方计分、全局额度及 cleanup 门禁阻止。
+
+### 2026-10-20 PlanRuntime 工具调用账本适配
+
+`ControlledRoutes` 的 session-scoped `gateway_factory` 现在可把受控路由实际调用的工具包装为 `LedgeredToolGateway`。工具发出前先建立资源 reservation 并通过 dispatch admission；若本地门禁在调用上游前拒绝，该 reservation 以 `not_sent` 释放。上游返回后 settle 的只有注册命令、参数摘要、结果摘要和耗时；派发后异常保守标记 route/attempt 为 unknown，后续不 replay。定向测试验证 wrapper 接入生产 PlanRuntime、成功账本摘要、未注册工具不触达上游、派发前拒绝不调用上游和 unknown 防重放。
+
+这只完成工具侧 ledger adapter 的离线接线，不构成真实 benchmark runner。2026-10-20 后续切片另外实现了单请求 `LedgeredModelCallback`，负责冻结 profile 校验、模型资源 reserve/dispatch/settle/unknown、逐次实际费用来源和有限 timeout 传递；它尚未由统一 runner 用于规划、ReAct、语义判断、τ 用户模拟器、裁判和总结等全部角色。Qwen/Jev unknown 的跨路线调度策略、官方评分、完整 cleanup 和四域真实 callbacks 仍未集成，`--execute` 继续 fail closed；9.6.F、10.10.D、10.10.E 保持待办。
+
+另将公开账本中 Qwen primary/user-simulator 的测试结算样例从 `Decimal("0")` 改为 `None`，并检查 token 用量可以完整而费用完整性为 false。这样测试夹具不会把未知费率误表达为零费用；没有新的 Qwen 或 Jev 请求。
+
+### 2026-10-20 单次模型派发的资源账本适配
+
+`LedgeredModelCallback` 是可组合的单次模型 callback，不是路线调度器。调用前由适配器计算完整模型可见输入的保守 token 上界，核对冻结 role/profile，原子预留 route 与批次请求/Token/费用，再记录 dispatch；只有能证明 provider 请求未发送的本地 preflight 错误可释放 reservation。发送后响应缺用量、网络异常或结构不完整即记为 unknown，当前路线停止且不得交给官方 scorer。已知 usage 的费用记录来源为供应商实际账单或冻结 profile 费率；provider billed 金额按原值记录，不能用券抵扣改成零。根据用户批准的首波请求/Token/墙钟硬上限，Qwen primary、user simulator 和 judge 可在费用预留为 null 时执行；若返回不含可靠费用，则仅结算已知 Token、费用保留 unknown，并禁止成本比较。此例外不覆盖 Jev：Jev 必须以已知预留接入原累计 `$1` 账本，未知费用时停止所有新 Jev 请求。
+
+每次调用将 profile timeout、持久 route machine-time deadline 和批次 deadline 的最小值传给 callback。`PrimaryModel.respond(timeout_seconds=...)` 把该值应用到 OpenAI-compatible 同步 HTTP transport 并在请求后恢复客户端原 timeout。τ bridge 在同步 `parent_call` 前计算剩余时间，并将其传给接受 `timeout_seconds` 的受控 callback；`_tau_model_callback`、`ObservedUsage` 与 `LedgeredModelCallback` 继续传递并与 profile/route/batch 上限取最小值。这样真实受控模型请求会在 τ 请求截止前超时返回；τ bridge 随后关闭自己拥有的 worker 子进程树。该路径不强制中断忽略 timeout 参数的任意同步 callback，统一外层 supervisor 仍不能取消正在阻塞的整条 route，也没有覆盖工具传输的通用取消接口。机器时间起止时间保存在公开 ledger；完整批次 route/phase supervisor 尚未实现（单路线受控入口见下文）。
+
+公开 `machine_time_attempts.started_at_utc` 记录 route dispatch/隔离环境启动，`agent_started_at_utc` 记录 Agent 回路的真实起点。环境初始化和 τ 初始用户模拟完成后、进入 `ControlledRoutes` 的 Agent callback 之前，runner 通过 `on_agent_start` hook 调用 `mark_machine_time_agent_started()`；该 ledger 操作只允许对 dispatched reservation 首次执行，并将持久化 deadline 重新锚定到此时间。这样环境准备仍消耗批次墙钟，但不消耗每 route 的 Agent machine-time 上限。重复 hook 不会移动起点或续期。`ControlledRoutes` 只提供 hook 顺序边界，当前尚无统一 runner 负责调用该 ledger method，也未证明任意阻塞工具或 callback 都可被外层 deadline 强制取消；这些限制不改变 `--execute` fail-closed 门槛。
+
+`LedgeredModelAdapterFactory` 将可注入的 planner、ReAct、semantic、summarizer、τ user simulator 和 τ official judge 单请求 callback 按路线接到 `ControlledRoutes.model_adapter_factory`。它通过冻结 manifest trial-ID resolver 选取 ledger route，核对各角色 profile digest，并用每种 callback 的完整输入 token 上界创建 `LedgeredModelCallback`。τ route 同时返回冻结的 user/judge model identifiers；EnterpriseOps response-check judge 仍由 scorer 自己的预算适配端口管理。该 factory 只包装调用者提供的 callback，不构造 endpoint 客户端、不验证调用者回调内部没有隐藏重试，也不负责资源生命周期；集成 runner 仍须确保 callback factory 仅创建客户端、每次回调只发一个请求、结束时关闭客户端。
+
+### 2026-10-20 单路线受控派发入口
+
+新增 `execute_public_route()` 作为 per-route supervisor primitive，仅接受首波 ReAct 与 Plan。它在 claim 前验证项目规范 OS 生命周期锁、规范 smoke ledger 和同一 trial-bound `LedgeredModelAdapterFactory`；直接注入 planner/ReAct/semantic 等 callback 会在 route 状态变更前被拒绝。传给 `ControlledRoutes` 的 gateway factory 必须返回绑定相同 ledger、trial ID 与 route 的 `LedgeredToolGateway`。`start_route_with_machine_time()` 在一个 SQLite `BEGIN IMMEDIATE` 事务中完成 route claim、批次准入、route time-cap 检查与机时 reservation；额度不足则整体回滚，保留 pending route。成功后入口再按 dispatch → Agent-start hook → run → settle → finish 顺序执行；依据 `ExecutionResult` 只保存摘要，不持久化业务工具明文。
+
+未知模型/工具路线仍保持 unknown，只允许补 cleanup；完成路线必须同时具备受信官方分数、成功证据与 verified cleanup。机器时间结算现在支持 supervisor 延迟终态：route 超限先记录 `settled_overrun`，由受控入口以 `resource_overrun` 失败终态保存已有 score 与 cleanup，而不误报 completed。旧直接 ledger 调用默认仍立即把 route 标为失败并抛出超限错误。
+
+该单路线入口当时尚无批次 phase scheduler；后续已增加仅限首波的固定顺序 phase scheduler（见下文）。当前仍无可用 live CLI/provider callback 或 benchmark session/environment factory；phase scheduler 依赖调用方提供隔离试次与 ledger-bound callback factories，也未实现整条 route 的通用强取消。四域 live 闭环及 `--execute` 仍未通过门禁。确定性回归验证了适配器错绑/绕过拒绝、超限与 unknown 保留；不得据此宣称已经派发公开任务。
+
+模型 adapter map 现实现为 dict-compatible `PublicModelAdapters`，保存唯一 callback client 资源并在 `ControlledRoutes` 的官方评分及 scoring usage 读取结束后逆序、幂等关闭。关闭失败被标为 `cleanup_failure`，业务评分证据仍保留，但不得将路线记作成功。callback factory 在构造阶段失败时尽最大努力关闭已创建资源。它只管理 callback 暴露的 `close()` 资源；无法观察或管理闭包内未暴露的隐藏 client，也不代表真实 provider client 已接通。
+
+该切片的确定性证据包括模型 attempt reserve/dispatch/settle、role factory 将 ReAct callback 接到受控路线、用量 unknown 不评分、冻结 profile drift、Qwen known-cost 与 unknown-cost 账本路径、Jev unknown-price 发送前阻断、timeout 上界和评分后 callback 资源关闭/清理失败分类测试；PostgreSQL + 认证 loopback MCP + PlanRuntime 独立集成为 2 passed，但它不覆盖公开模型 provider，也不是 benchmark 路线成绩。该切片没有新增 Qwen、DeepSeek 或 Jev 请求；正式 benchmark 仍为 0/286，live runner 和 `--execute` 保持关闭。
+
+### 2026-10-20 首波固定 phase 调度
+
+新增 `execute_public_phase()`，只接受已经冻结的 smoke `first-wave`。它要求规范 supervisor OS lock、规范首波 ledger、四个固定 trial ID、ReAct/Plan 路线顺序及 durable batch snapshot；按 CSM、ITSM、τ retail、τ telecom 和每例 ReAct、Plan 顺序执行，只向单路线入口交付 pending slot。completed、failed、unknown、scoring_error、not_applicable 等终态均记为 skipped；未知路线不会重放，Qwen unknown 结束当前路线后仍可处理其他 pending 路线。批次已有持久 stop reason 时不再加载环境或构造 route dependencies，返回 8 槽位中的已执行/跳过情况。非终态旧 route 会报错并要求先走 ledger recovery，phase scheduler 不自行猜测或接管。
+
+该函数仍要求调用方显式提供隔离 trial factory 和 ledger-bound route dependency factory；尚未接入 provider client/session factory、CLI、真实四域环境，也没有 phase-wide 可取消监督。测试只使用脚本化 route 回调验证顺序、未知隔离、pending resume 和既有 batch stop 行为，不会发模型或 MCP 请求。`remaining-smoke`、`full` 的 live phase 仍未实现，`--execute` 继续 fail closed。
+
+模型身份落账遵守 requested/resolved 分离：profile fingerprint 是请求身份；provider 响应中的模型名属于 resolved identity。若 provider 没返回 resolved model，`ModelReply.model` 与 `model_attempts.actual_model` 都保留 null，RouteRun 不伪造 actual model 项；若实际名称存在且与冻结 profile 不同，仍先保存本次已发生的 usage/identity，再通过唯一账本写入 `model_profile_drift` 持久停止原因，阻止同批后续路线派发。profile、endpoint、参数和 role identity 继续按冻结值校验。相关确定性回归包括 `test_missing_upstream_model_identity_is_recorded_as_null_not_profile_identity` 与批次漂移停止测试，不会调用外部模型。
+
+### 2026-10-20 原始计费证据字段
+
+`ProviderBillingEvidence` 是单次模型回复可选携带的、逐请求供应商账单证据。公开 attempt 账本分别保存 gross API fee、币种、供应商明确返回的 voucher credit 和 cash paid、证据来源与供应商记录 ID；字段缺失时保留 null，不以账户余额反推，也不把账户或时间窗口总额分摊到路线。USD 原始 gross 与 `actual_cost_usd` 必须一致，因此券只解释谁承担账单，不会降低被比较的模型 API 成本。非 USD 原金额保留，但没有可核验汇率时 USD 成本仍 unknown。`billing_snapshot()` 按原币种汇总路线已有证据并报告缺失项，不合并不同币种。当前只实现持久化契约与离线验证，Qwen 账单查询、时间窗对账和评测报告汇总还未接入，不能据此声称 Qwen 成本已核实。
+
+### 2026-10-20 可恢复的官方评分摘要
+
+route ledger 将评分状态与业务终态、cleanup 状态分开保存。为支持中断后生成诚实的路线报告，新增 `score_evidence_json`，只接受来源固定的最小结构：官方 benchmark 来源、0–1 score、由官方完整分数派生的 success 标记、可测的禁止副作用计数。评分摘要必须与 `score_digest` 相符，并按冻结任务绑定 EnterpriseOps 原始 verifier 或 τ 原始 evaluator；verifier SQL、gold、目标状态和评分文本不进入摘要。任何 route 上的 Agent 模型输入仍只由 `ControlledRoutes` 的公开上下文构造，不读取 ledger 私有评分列。新创建的 scored route 必须携带该摘要；旧 v6 SQLite ledger 通过给 route 表追加 nullable 列迁移，旧记录继续保持摘要缺失，不回填猜测数据。unknown route 仍不能被评分或改写，cleanup 补录不改变业务终态。
+
+该切片只增加 crash-safe 评分摘要存储与读取，不接通 live route runner，也不构成任何公开任务的官方评分。报告尚未生成前，不得从 route status 或 digest 推算成功率。
+
+### 2026-10-20 Route 与工具 deadline 传递
+
+`execute_public_route()` 计算 route machine-time 与 batch wall-time 的最小剩余时间，并通过 `ControlledRoutes` deadline provider 传给 session。`LedgeredToolGateway` 在 reservation 前、reservation 后与 upstream 调用前检查截止时间；若 reservation 后、dispatch 前已过期，记作 verified `not_sent`；若已 dispatch 后超时或出错，则保守记为 unknown，路线不会继续执行或调用官方 scorer。HTTP EnterpriseOps environment 将有效值作为请求级 HTTPX timeout；τ session 向 MCP ClientSession 传入 `read_timeout_seconds`，并将同一上限传至隔离 τ 子进程 bridge。bridge 到期会关闭其拥有的 worker 子进程树。Tool gateway 缺少 timeout-aware 调用签名时会在公开执行入口校验前被拒绝。
+
+相关定向回归为 `191 passed, 11 skipped`，包含 expired-before-dispatch、dispatch 后截止、HTTP timeout、MCP read timeout 和 τ bridge 子进程回收。该实现传递并执行传输层 timeout，但没有通用机制强杀任意忽略 deadline 的 Python 同步 callback；live provider/session factory 和批次 CLI 尚未接通，四域官方评分/cleanup 也未运行。因此这只是取消路径的工程切片，不能据此打开 `--execute` 或声称真实公开评测已闭环。
+
+后续计时复核修正了一个边界：`route_remaining_seconds()` 在 machine-time reservation 已 dispatch、但 Agent-start hook 尚未运行时，返回完整 `reserved_seconds`，避免容器准备和 τ 初始用户回合递减 Agent 专属额度；batch 剩余墙钟仍作为独立最小值约束这些准备期 callback。Agent-start hook 持久化后，剩余时间才由其 deadline 计算。新测试先失败（过期 deadline 返回 0，而期望仍有 30 秒保留额度），修复后账本、路线和 phase scheduler 套件 `129 passed`；完整 `evals/deterministic` 为 `1850 passed, 14 skipped (286.53s)`。这验证计时与 adapter 边界，不验证 provider/session factories 或真实评测。
+
+使用临时 PostgreSQL 17 实例运行 `evals/integration/test_business_route_execution.py` 为 `2 passed (21.20s)`，证明 production PlanRuntime 对接应用 PostgreSQL 与 loopback MCP 的目录读取集成仍通过。它不覆盖公开评测 runner/provider/scorer，也不构成公开 benchmark 分数。专用临时容器在测试后停止并删除；已有容器未更改。
+
+首波 phase scheduler 的脚本化回归为 `12 passed`，包含真实 SQLite ledger 关闭并恢复后跳过 8 条已完成路线；加入该调度器后全量确定性 suite 为 `1837 passed, 14 skipped (268.23s)`，全仓 Ruff 和 OpenSpec strict（6 changes）通过。测试没有触发模型/MCP 请求；仅验证调度控制，不代表 benchmark 执行成绩。
+
+### 2026-10-20 τ 步数账本接入
+
+τ 的 200 步限制现已独立进入 `PublicTrialLedger`：每个 role step 在进入模拟器回调或工具调用前写入 `tau_step_attempts`，有独立序号，资源快照、route receipt 与 `RouteRun` 均分别报告该计数。账本恢复不清零，unknown route 不重放但仍可读取已记录步数；到达上限时在后续模型/工具/模拟器副作用前停止。τ 用户一次返回多个工具调用时，批内工具仍分别作为工具调用计量，但只占一个 Environment τ step；ReAct、Plan 的外部动作、Plan 语义 `decide` 与 user handoff 分开计步。
+
+先行回归验证了独立上限、账本关闭/恢复不重置、达到上限前无工具派发、user multi-tool batch 单个 Environment step、semantic Plan node 单独计 Agent step，以及 unknown receipt 保留持久计数。随后固定 τ-Bench `96a3ef9` 的 retail train ReAct/Plan 与 telecom train ReAct 路线通过实际隔离 worker、原始 τ 工具、用户模拟器、原始 evaluator 和 cleanup；脚本 callback 产生 5/5/7 个 τ role-handoff steps。完整闭环详见下一节，9.6.C 的 τ bridge 工程验收已完成。它不是实时模型评测、不是官方 test split 分数，也没有创建公开试次账本。四域故障注入与正式首波仍由 9.6.G 和 10.10.D/E 覆盖；`--execute` 仍关闭。
+
+### 2026-10-20 固定 τ retail train 工程闭环
+
+在设置 `DECAGENT_TEST_TAU_PYTHON` 指向锁定的 Python 3.12 worker 后，固定 τ train 工程 smoke 实际运行三条路线：retail ReAct、telecom ReAct、retail Plan。三条路线均执行原始 τ 环境、三次模拟用户回复及澄清、原 τ `evaluate_simulation`，并核验 session 与环境关闭；τ 步数分别为 5、5、7。模型响应和用户/裁判回调均为脚本注入，Qwen、DeepSeek、Jev 请求数为 0。新增 telecom 路线时，官方 case ID 长达 213 字符暴露 `EvaluationScope` 的 160 字符过窄上限；已为 case ID 单独扩至 256，benchmark/version 仍限 160，回归验证 213 可接受、257 被拒。锁定 worker 的评测目录及 τ bridge 完整回归共 `45 passed (100.52s)`；新路线和边界的初次回归为 `4 passed (41.42s)`。该工程 smoke 不计官方 test split 成绩或首波试次；τ Plan telecom、EnterpriseOps 真实任务、四域故障注入和正式 phase runner 仍未完成。
+
+2026-10-20 增补 EnterpriseOps scripted route evidence：两个固定任务分别经 ReAct/Plan，共 4 条路线实际运行在摘要固定的 CSM/ITSM 镜像中。评测专用 `EvaluationCatalog` 仅对精确 image/schema digest 上已审核的 `find_product`、`list_users` 赋只读语义；不改变生产 catalog，schema 漂移或显式 write hint 均不会被放行。MCP `structuredContent` 为 null 时才从文本 content 解码 JSON，随后仍执行原 output schema 校验。四条路线均走真实 MCP 读取、原始 EnterpriseOps VerifierEngine 评分和 teardown；每条官方 task score 为 0.0/`task_failure`，这只证明脚本化执行/评分/清理闭环，不代表任务解题能力。证据位于 `evals/benchmarks/evidence/scripted-enterprise-first-wave-routes-v2-20261020.json`。定向 catalog 回归 14 passed；锁定 τ worker 上 ReAct 用户模拟/原始评分 smoke 复核 2 passed。所有 callback 为脚本注入，provider 请求为 0。
+
+上述证据不完成 9.6.F/G 或 10.3：没有统一 live supervisor 派发、没有八条首波真实模型路线、没有 Qwen/Jev 使用量或成本数据，也没有公开基准任务得分。只要候选 SHA/CI、规范账本、真正可取消 deadline、unknown 调度、四域故障注入和评分/清理门禁未同时验收，`--execute` 仍保持 fail closed。当前没有新增规格需求；delta spec 继续规定目标验收行为，进度证据记录在 proposal/design/tasks，不以实现记录修改需求文本。
+
+该文档切片的验证快照：全量确定性测试（新增 telecom Plan 参数化前）`1897 passed, 16 skipped (281.19s)`；新增跨域 Plan 测试 `2 passed`；Ruff 通过、OpenSpec strict `6 passed`、diff whitespace 检查通过。`uv build` 生成 wheel 与 sdist 成功，CLI 和业务 MCP server 帮助入口可运行；核心 MCP loopback/数据库集成再以独立临时 PostgreSQL 17 执行 7 个相关集成文件，`80 passed, 0 skipped (241.03s)`，证据 `evals/benchmarks/evidence/postgres-core-integration-20261020.json`。全量 integration 与核心浏览器 E2E 仍未验收；这些本地测试不能代替同候选 SHA 的 GitHub CI。
+
+2026-10-20 τ Plan 跨域补充：在原有 retail Plan 真实工具 smoke 基础上，把同一个脚本化 Plan/用户澄清/原始 scorer 路径参数化到 telecom，分别使用实际只读工具 `get_order_details` 与 `get_customer_by_phone`。两例均成功完成、各有 3 个用户模拟回合和 7 个 τ role-handoff steps，官方评分结果与 transcript 持久化一致，session/environment cleanup verified。锁定 worker 定向测试 `2 passed (30.85s)`，机器可读证据为 `evals/benchmarks/evidence/tau-plan-cross-domain-smoke-20261020.json`。这补足四个业务域都至少有一个 scripted route 实际调用工具、经过原 scorer 并清理的工程覆盖；仍不等于首波 8 条 ledger-backed live routes，也不构成任务成功率/成本/延迟结论。
+
+2026-10-20 Python compatibility smoke：相同三个评测目录/runner 测试在 Python 3.11.15 与 3.13.0 各 `37 passed`，详见 `evals/benchmarks/evidence/python-matrix-smoke-20261020.json`。Python 3.11 直接 editable 安装失败发生在 pytest 启动之前：项目路径含中文，3.11 site 以本机 CP936 解码 UTF-8 editable `.pth`。非 editable wheel 在 ASCII-path 临时环境通过；3.13 的 `.pth` UTF-8 读取和 repo `.venv`/`uv run` 均通过。此记录是 Windows 本地兼容性说明，不构成正式 CI 完成或远端候选验证。
+
+### 2026-10-20 冻结试次身份绑定与 resolved provider 记录
+
+`PublicComparisonTrial` 在不改变 `ComparisonTrial` dataclass 字段和公平性 fingerprint 的前提下附带规范 SHA-256 manifest trial ID。公开 phase scheduler 和 per-route supervisor 在 route claim 前同时核对 manifest trial ID、benchmark、版本、case ID、exposure group、resource profile、response policy 与全部角色 profile digest；身份错配在任何模型、工具或机时 reservation 前拒绝。由此 ledger execution ID 不能被调用方绑定到其他 case，也不会改变已冻结的实验配对指纹。
+
+模型 attempt 现在只把 callback 实际返回的 provider identity 写入 `actual_provider`。请求 provider 继续保存在 profile 中；provider 没有返回实际上游身份时，attempt 的 resolved provider 保持 null，不再将 requested provider 复制为 actual provider。`test_business_public_execution.py` 与对照身份测试共 32 passed，`test_public_model_dispatch.py` 的对应单请求回归验证实际上游缺失时为 null。该实现仍不创建真实 provider callback 或公开基准试次 factory；`--execute` 保持关闭，正式评测仍为 0/286。
+
+### 2026-10-20 Jev unknown 的跨路线 admission 证据
+
+共享 `GlobalJevLedger` 的 pending/unknown attempt 会阻止所有后续 Jev reservation，不局限于原 route。公开 ledger regression 从一条已启动路线实际经过 `reserve_model_attempt(role="jev") → mark_model_dispatched → mark_model_unknown`，再通过另一条运行中路线调用同一 API，验证派发前拒绝且不新增第二笔本地/global attempt。route 与 Jev ledger 的状态保持 unknown/held，以保护原累计 `$1` 上限。相关试次、模型派发与 route supervisor 定向测试共 `81 passed`，全仓 Ruff、strict OpenSpec 和 `git diff --check` 通过。此证据验证账本级门禁；provider factory、真实 Jev 请求的超时/unknown 故障注入及报告仍未接通，因此不能宣称 live runner 已满足该策略。
+
+### 2026-10-20 EnterpriseOps 原始任务 verifier 验收
+
+9.6.B 的环境/评分闭环现在使用冻结 CSM 与 ITSM smoke 任务自身的私有 verifier，而不再只使用 `SELECT 1` readiness 查询或 synthetic scorer。每个域分别启动两次新的 digest-pinned 容器和数据库；读取并比较私有数据库指纹、确认原 MCP 工具可用，再由 pinned `EnterpriseOfficialScorer` 执行该任务原始 verifier。没有执行任务动作时，CSM 与 ITSM 在两次重置中均返回已评分的 `task_failure`（CSM 0/4、ITSM 0/2）；这证明 verifier 与错误分类链工作，不是 Agent 任务成功。评分摘要只保留 digest、数量与状态，SQL/期望值不暴露，`forbidden_side_effects` 保持 `not_measured`，每个环境 cleanup 均通过核验。`evals/integration/test_business_route_execution.py` 同时覆盖 environment setup failure、official task failure 和 scoring failure 的互斥分类。
+
+证据文件为 `evals/benchmarks/evidence/enterpriseops-official-verifier-smoke-20261020-csm.json` 与 `enterpriseops-official-verifier-smoke-20261020-itsm.json`；本地 Docker 集成 `2 passed`，评分器与路由故障分类定向回归 `92 passed`。0 模型请求、0 业务写入；首波 ReAct/Plan、实时 provider、公开任务成功率和 `--execute` 门禁仍未验收。
+
+### 2026-10-20 CSM 知识文章语义模板审阅
+
+首波 CSM 任务中，用户要求依据产品和故障描述查找、引用合适知识文章；该判断依赖自然语言和真实检索候选，适合受限 `Choice` 与显式 `no_match`。用户工单数量比较、ITSM 明确字段和状态条件仍由代码处理。模板 `csm_knowledge_article@1.0.0-csm-knowledge-1` 已接入评测专用 `QuestionRegistry`、Plan 编译器、`ControlledRoutes` 和原生产 `PlanRuntime`，且只注册到精确类型的隔离 `EvaluationCatalog`。编译器要求文章候选来自一个 `retrieve_knowledge` 读节点的实际结果、查询明确使用字面量 `state=published` 且没有 `limit`；路由再从同一已验证节点记录中附加实际查询参数。模板仅比较真实响应里的已发布记录，不截断候选，不泄露隐藏 verifier 字段；成功选择后仅将已返回的整数 article ID 写入接受结果，并保持 `grants_write_authority=false`。超过 24 个候选、上下文超 16,000 字符、有限查询、无已发布候选或契约不匹配时该判断不适用。
+
+隔离真实容器的工具目录显示上游 `retrieve_knowledge` 没有 `readOnlyHint`，且 input schema 未声明 `required`。为不把它误分类为写操作，EvaluationCatalog 仅对 pinned EnterpriseOps schema 完全匹配的该工具应用只读覆盖；明确 `readOnlyHint=false`、其他 benchmark 或 schema 漂移均不覆盖。真实 schema 注册检查通过，容器 cleanup verified，0 业务工具调用、0 模型请求。`test_business_evaluation_semantic_registry.py` 8 passed、模板构造器 6 passed、公开 Session 相关套件 35 passed；其中脚本 callback route 测试只验证受控节点与生产 PlanRuntime 接线，不是外部模型或公开任务结果。证据为 `evals/benchmarks/evidence/jev-semantic-template-audit-20261020.json`、`jev-semantic-template-registry-20261020.json`。工具响应没有总量或截断标记，所以本次候选集严格等于该次实际返回的数组，不推断未返回记录。真实 runner 对同一冻结状态和候选执行 Jev/Qwen 配对尚未运行；9.6.D 仍未完成，公开基准仍为 0/286，无 Jev 质量/性能结论。
+
+### 2026-10-20 τ 同步模型 callback 的 deadline 契约
+
+`_StdioChannel` 收到 τ worker 的 `parent_call` 后，现在要求父进程 callback 显式接受 `timeout_seconds`，并只以剩余 deadline 调用它；不接受该参数的 callback 在执行前被拒绝，随后当前 τ worker 被关闭，不会重放。这个边界防止无界 callback 被误认为受 deadline 约束。用户模拟器与裁判的 90/120 秒角色时限改为 `timeout_cap_seconds` 请求级参数；它与 route/batch deadline 取最小值，不再临时修改共享 channel 的默认 timeout，因此并发/后续请求不会继承其他角色的 timeout。模型适配器会把有效值继续传到 HTTP client timeout；不过 Python 不能安全强杀任意同步函数，因此 callback 若接受但故意忽略 timeout，仍可能阻塞 supervisor。跨进程 supervisor 隔离/取消尚未完成。本变更不构成完整取消保证，也不改变 OpenSpec 任务勾选状态。
+
+新增回归先以不具备 timeout 契约的 callback 复现原有放行行为，再验证拒绝发生在 callback 调用前且 worker 退出；另验证单请求 timeout cap 会超时并关闭当前 worker，用户模拟器/裁判传入 90/120 cap 且不改共享 channel。相关 τ、公开执行、账本、模型派发及 live runner 文件合计 `127 passed, 14 skipped`。全量 `evals/deterministic` 为 `1899 passed, 17 skipped (259.61s)`；全仓 Ruff、OpenSpec strict（6 changes）和 `git diff --check` 通过。没有模型 API、benchmark ledger、业务 MCP 或评分器请求；公开 benchmark 仍为 `0/286`。

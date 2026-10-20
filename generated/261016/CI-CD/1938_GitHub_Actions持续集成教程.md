@@ -12,10 +12,15 @@ sources:
   - requirements.lock
   - ops/mcp/verify_wheel.py
   - ops/control/offline_smoke.py
+  - evals/deterministic/business_selection.cjs
+  - evals/deterministic/business_trace_rendering.cjs
+  - evals/deterministic/business_semantic_workbench.cjs
 ---
 # DecAgent GitHub Actions 持续集成与镜像发布
 
-持续集成（CI）在代码推送或 Pull Request 时检查项目。版本标签触发的发布工作流（CD）会先复用完整 CI；检查通过后构建三类镜像并推送到 GHCR，最后交给本机 Windows Docker Desktop Runner 更新服务。
+**状态更新（2026-10-20）：** PR [#1](https://github.com/shuaibilx/DecAgent/pull/1) 已合并至 `main`（merge commit `0c747a396a360cc168d62c261f5d3dcd329cfb82`），删除了公共 release workflow 中的 `deploy-local` self-hosted job。现在版本标签只会在 GitHub-hosted Ubuntu 上完成 CI 和 GHCR 镜像发布，不会调度本机部署。GitHub 仓库 Runner 数量为 0，本机也没有 Runner 服务或进程；既有 v0.1.4 容器保持运行且未被本次改动触碰。下文关于 v0.1.4 本机自动部署的内容是历史记录，不能作为当前自动 CD 能力说明。
+
+持续集成（CI）在代码推送或 Pull Request 时检查项目。版本标签触发的发布工作流（CD）会先复用完整 CI；检查通过后构建三类镜像并推送到 GHCR。当前本机部署与可信发布执行器尚未重新设计和验收。
 
 ## 工作流做什么
 
@@ -25,6 +30,8 @@ CI 配置位于 [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)�
 flowchart TD
     A[Push main / Pull Request / 手动运行] --> B[Python 3.11 检查]
     A --> C[Python 3.13 检查]
+    A --> U[工作台 JavaScript 行为检查]
+    U --> U1[语法检查与 3 组无浏览器 UI 回归]
     B --> B1[Ruff]
     B1 --> B2[确定性测试]
     B2 --> B3[PostgreSQL 集成测试：2 workers / worksteal]
@@ -41,6 +48,8 @@ flowchart TD
     K --> L[本机 Windows Runner 拉取 digest]
     L --> M[备份数据库、迁移、健康检查]
 ```
+
+`workbench-ui` 是独立的快速 job，与两个 Python 矩阵和包/镜像烟测并行。它运行工作台静态脚本语法检查，以及选择状态、trace 渲染、语义介入/重复点击三组 Node 回归；不启动数据库或调用模型。完整 PostgreSQL 集成测试仍是总耗时主体，新增快速 job 补齐浏览器逻辑的持续回归，不替代 Playwright 端到端验收。
 
 GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用测试专用数据库名和密码。每个 Python job 用迁移后的模板数据库为每个测试创建独立克隆，并在测试结束后删除克隆库；模板库只在每个 pytest worker 内迁移一次。集成测试固定使用 2 个 `pytest-xdist` worker 和 `worksteal` 分发，以免在 PostgreSQL 上同时启动过多测试。依赖通过 `requirements.lock` 安装，并以该文件作为 pip 缓存键；PostgreSQL 镜像使用固定 digest。Python 3.11/3.13 检查与包构建、容器烟测并行运行；发布仍等待完整 CI 通过。
 
@@ -85,14 +94,16 @@ CI 默认排除 `live` 标记测试，不调用真实 Qwen、OpenRouter/Jev 或 
 
 下方的旧发布记录是 `v0.1.2` 部署失败时的历史状态；最新部署进度见本节末尾。
 
-首次发布 `v0.1.0` 已完成；`v0.1.4` 已通过完整 release gate、发布 GHCR 镜像并完成本机自动部署。后续发布前先确认 `main` 对应的 CI 全绿，再选择一个尚未使用的语义版本标签。以下 `v0.1.5` 仅作下一次 patch 发布示例：
+首次发布 `v0.1.0` 已完成；`v0.1.4` 曾通过完整 release gate、发布 GHCR 镜像并完成本机自动部署，这是历史记录。当前不要把 `v0.1.5` 示例当成部署命令：版本标签会发布 GHCR 镜像，但不会更新本机服务。待私有部署仓库/可信 CD 执行器设计并验收后，再启用自动部署。
+
+以下仅展示语义版本标签格式，不建议在部署路径重新验收前执行：
 
 ```powershell
 git tag -a v0.1.5 -m "DecAgent v0.1.5"
 git push origin v0.1.5
 ```
 
-`release.yml` 会再次执行完整 CI，因此 PR 代码不会直接进入发布。标签必须严格符合 `vMAJOR.MINOR.PATCH`，并指向 `main` 历史中的提交。发布 job 使用 GitHub 托管 runner 和只具备 `packages: write` 的短期 `GITHUB_TOKEN`；部署 job 仅获 `packages: read`。镜像 package 首次创建默认保持私有，源代码仓库仍公开；工作流通过短期令牌拉取镜像，不把模型或 GitHub 凭据保存为 Actions secret。
+`release.yml` 会再次执行完整 CI，因此 PR 代码不会直接进入发布。标签必须严格符合 `vMAJOR.MINOR.PATCH`，并指向 `main` 历史中的提交。当前发布 job 使用 GitHub 托管 runner 和只具备 `packages: write` 的短期 `GITHUB_TOKEN`；工作流没有部署 job，也不需要给公共仓库注册本机 Runner。镜像 package 保持私有；工作流用短期令牌发布镜像，不把模型或 GitHub 凭据保存为 Actions secret。
 
 `v0.1.0` 发布时 GHCR 登录曾失败。三个私有 package 的 **Package settings → Manage Actions access** 均已确认包含仓库 `shuaibilx/DecAgent` 且角色为 **Admin**，截图与 package 配置一致，无需再次调整权限。`v0.1.1` 和 `v0.1.2` 的 `docker/login-action` 均成功登录；`v0.1.2` release run [38991318147](https://github.com/shuaibilx/DecAgent/actions/runs/38991318147) 也成功发布 control、executor、runner 三类镜像。随后部署脚本在数据库备份的 `docker compose exec ... sh -ec ...` 命令处失败，错误来自 Windows PowerShell 5.1 的原生命令参数转发导致容器内 shell 脚本截断；备份、迁移及 Compose 更新都没有运行。脚本现直接调用 PostgreSQL 容器内的 `pg_dump` 并通过本地 Unix socket 连接，避免嵌套 shell 和密码参数传递；本机 Windows PowerShell 5.1 预检及临时 dump 实测通过。此段是 `v0.1.2` 的历史状态，后续结果见下方部署状态。
 
@@ -108,10 +119,10 @@ Release 运行 [38995053020](https://github.com/shuaibilx/DecAgent/actions/runs/
 
 ## 产物与边界
 
-普通 CI 会构建 Python wheel、source distribution 和容器镜像，并在 GitHub Runner 临时磁盘上验证；只有推送版本标签才会发布 GHCR 镜像并触发本机自动部署。CI 全绿说明代码通过设定检查；CD 结果还要看发布 workflow 的镜像发布和本机健康检查，且不代表独立 Linux 部署已验收。
+普通 CI 会构建 Python wheel、source distribution 和容器镜像，并在 GitHub Runner 临时磁盘上验证；只有推送版本标签才会发布 GHCR 镜像。当前发布流程不会部署本机服务。CI 全绿说明代码通过设定检查；GHCR 发布也不代表业务服务已经升级，更不代表独立 Linux 部署已验收。
 
 pip 下载缓存按 `requirements.lock` 复用。GHCR 发布镜像使用独立 Buildx layer cache；普通 CI 的 runner 镜像构建耗时约 10 秒，Compose 离线烟测约 90 秒。完整 CI 运行显示业务集成用例才是主要耗时点：当前使用每 worker 迁移模板库、每测试克隆数据库、2-worker `worksteal` 调度，并输出最慢 25 个用例，以便继续依据实测优化。
 
 触发 GitHub Actions 可能消耗 GitHub Actions 的账户额度。普通测试不需要配置 Qwen、OpenRouter 或 GitHub API 密钥；不要把它们添加为 CI secrets，除非未来某个经批准的测试确实需要真实外部服务。
 
-GitHub 官方文档：[Docker 镜像发布](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images)、[Package Actions access 与可见性](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)、[自托管 Runner 安全使用](https://docs.github.com/en/actions/reference/security/secure-use)。本机 Runner 只匹配受信任的版本发布工作流，不接 Pull Request；但它能访问本机 Docker daemon 和 Compose secret 文件，仓库管理员必须谨慎审查发布流程改动。
+GitHub 官方文档：[Docker 镜像发布](https://docs.github.com/en/actions/tutorials/publish-packages/publishing-and-installing-a-package)、[Package Actions access 与可见性](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)、[自托管 Runner 安全使用](https://docs.github.com/en/actions/reference/security/secure-use)。公共源码仓库当前没有 self-hosted job；如未来恢复 CD，部署执行器应迁入私有部署仓库并验证 release 来源与镜像 digest。
