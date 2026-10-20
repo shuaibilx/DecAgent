@@ -19,9 +19,13 @@ from decagent.evaluation.business.model_profiles import ModelProfile
 from decagent.evaluation.business.public_resources import LedgeredModelAdapterFactory
 from decagent.evaluation.business.routes import ModelCallError, ModelReply
 from decagent.models.primary import (
+    ModelTurn,
     ModelUsage,
     PrimaryModel,
+    PrimaryProviderFailure,
+    PrimaryRequestNotDispatched,
     PrimaryResponseRejected,
+    ToolProposal,
 )
 
 
@@ -144,12 +148,297 @@ class PublicPlannerCallback:
         )
 
 
+def _schema_only_tool_validator(definitions):
+    schemas = {}
+    for definition in definitions or ():
+        function = definition.get("function") if type(definition) is dict else None
+        name = function.get("name") if type(function) is dict else None
+        parameters = function.get("parameters") if type(function) is dict else None
+        if type(name) is not str or type(parameters) is not dict or name in schemas:
+            raise ValueError("One-shot model tool schema is invalid")
+        schemas[name] = deepcopy(parameters)
+
+    class Validator:
+        def __call__(self, name, arguments):
+            schema = schemas.get(name)
+            if schema is None or type(arguments) is not dict:
+                raise ValueError("One-shot model proposed an unregistered tool")
+            validate_schema(schema, arguments)
+            return deepcopy(arguments)
+
+    return Validator() if schemas else None
+
+
+def _primary_result_frame(turn):
+    usage = turn.usage
+    return {
+        "kind": "turn",
+        "turn": {
+            "text": turn.text,
+            "tools": [
+                {"id": item.id, "name": item.name, "params": item.params}
+                for item in turn.tools
+            ],
+            "usage": (
+                {
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                    "total_tokens": usage.total_tokens,
+                }
+                if isinstance(usage, ModelUsage)
+                else None
+            ),
+            "model": turn.model,
+            "server_request_id": turn.server_request_id,
+        },
+    }
+
+
+def _one_shot_primary_dispatch(
+    profile, api_key, known_secrets, tool_definitions, messages, timeout_seconds
+):
+    """Perform exactly one provider request inside an isolated child process."""
+    primary = None
+    try:
+        primary = PrimaryModel.from_evaluation_profile(
+            profile,
+            api_key=api_key,
+            known_secrets=known_secrets,
+            tool_definitions=tool_definitions,
+            validator=_schema_only_tool_validator(tool_definitions),
+        )
+        try:
+            turn = primary.respond(messages, timeout_seconds=timeout_seconds)
+        except PrimaryResponseRejected as exc:
+            usage = exc.usage
+            return {
+                "kind": "response_rejected",
+                "reason": exc.reason,
+                "usage": (
+                    {
+                        "input_tokens": usage.input_tokens,
+                        "output_tokens": usage.output_tokens,
+                        "total_tokens": usage.total_tokens,
+                    }
+                    if isinstance(usage, ModelUsage)
+                    else None
+                ),
+                "model": exc.model,
+                "server_request_id": exc.server_request_id,
+                "validation_issues": list(exc.validation_issues),
+            }
+        except PrimaryRequestNotDispatched as exc:
+            return {"kind": "not_dispatched", "reason": exc.reason}
+        except PrimaryProviderFailure as exc:
+            return {
+                "kind": "provider_failure",
+                "category": exc.category,
+                "status_code": exc.status_code,
+                "retry_after_seconds": exc.retry_after_seconds,
+                "server_request_id": exc.server_request_id,
+            }
+        return _primary_result_frame(turn)
+    finally:
+        if primary is not None:
+            primary.close()
+
+
+class OneShotPrimaryModel:
+    """Ledger-side model facade whose child handles only one provider request.
+
+    The facade retains frozen request configuration but no HTTP client. Every
+    call starts a fresh child after the caller has reserved and marked its
+    attempt dispatched; the child closes the client before returning.
+    """
+
+    def __init__(
+        self,
+        profile,
+        *,
+        api_key,
+        tool_definitions=None,
+        worker_guard_path=None,
+    ):
+        if not isinstance(profile, ModelProfile) or profile.role == "jev":
+            raise ValueError("A non-Jev frozen profile is required")
+        if type(api_key) is not str or not api_key.strip():
+            raise ValueError("A server-side model credential is required")
+        definitions = deepcopy(tool_definitions)
+        if definitions is not None and type(definitions) is not list:
+            raise ValueError("One-shot model tools must be a frozen list")
+        self.profile = profile
+        self.api_key = api_key
+        self.tool_definitions = definitions
+        self.worker_guard_path = worker_guard_path
+        self.schema_bytes = len(
+            json.dumps(definitions or [], ensure_ascii=False).encode("utf-8")
+        )
+        self.requested_model = profile.model
+        self.endpoint = profile.endpoint
+        self._closed = False
+
+    def respond(self, messages, stream=False, *, timeout_seconds=None):
+        from .cancellable_model import (
+            CancellableProcessError,
+            CancellableProcessTimeout,
+            run_cancellable_process,
+        )
+
+        if self._closed:
+            raise PrimaryRequestNotDispatched(reason="input_invalid")
+        if stream or type(messages) not in {list, tuple}:
+            raise PrimaryRequestNotDispatched(reason="input_invalid")
+        timeout = self.profile.timeout_seconds if timeout_seconds is None else timeout_seconds
+        if (
+            type(timeout) not in {int, float}
+            or timeout <= 0
+            or timeout > self.profile.timeout_seconds
+        ):
+            raise PrimaryRequestNotDispatched(reason="input_invalid")
+        try:
+            serialized = json.dumps(
+                {"messages": messages, "tools": self.tool_definitions or []},
+                ensure_ascii=False,
+                allow_nan=False,
+            ).encode("utf-8")
+        except (TypeError, ValueError):
+            raise PrimaryRequestNotDispatched(reason="input_invalid") from None
+        if len(serialized) > 4 * 1024 * 1024:
+            raise PrimaryRequestNotDispatched(reason="context_limit") from None
+        try:
+            frame = run_cancellable_process(
+                _one_shot_primary_dispatch,
+                (
+                    self.profile,
+                    self.api_key,
+                    (self.api_key,),
+                    self.tool_definitions,
+                    list(messages),
+                    float(timeout),
+                ),
+                timeout_seconds=float(timeout),
+                worker_guard_path=self.worker_guard_path,
+            )
+        except CancellableProcessTimeout:
+            raise TimeoutError("One-shot provider request exceeded its deadline") from None
+        except CancellableProcessError as exc:
+            if exc.stage == "isolation_setup":
+                raise PrimaryRequestNotDispatched(reason="input_invalid") from None
+            raise RuntimeError("One-shot provider response is unresolved") from None
+        if type(frame) is not dict:
+            raise RuntimeError("One-shot provider response is unresolved")
+        kind = frame.get("kind")
+        if kind == "not_dispatched":
+            raise PrimaryRequestNotDispatched(reason=frame.get("reason"))
+        if kind == "provider_failure":
+            raise PrimaryProviderFailure(
+                category=frame.get("category"),
+                status_code=frame.get("status_code"),
+                retry_after_seconds=frame.get("retry_after_seconds"),
+                server_request_id=frame.get("server_request_id"),
+            )
+        if kind == "response_rejected":
+            usage_value = frame.get("usage")
+            usage = (
+                ModelUsage(**usage_value)
+                if type(usage_value) is dict
+                and set(usage_value)
+                == {"input_tokens", "output_tokens", "total_tokens"}
+                else None
+            )
+            raise PrimaryResponseRejected(
+                reason=frame.get("reason"),
+                usage=usage,
+                model=frame.get("model"),
+                request_id=frame.get("server_request_id"),
+                validation_issues=frame.get("validation_issues", ()),
+            )
+        if kind != "turn" or type(frame.get("turn")) is not dict:
+            raise RuntimeError("One-shot provider response is unresolved")
+        turn = frame["turn"]
+        usage_value = turn.get("usage")
+        usage = (
+            ModelUsage(**usage_value)
+            if type(usage_value) is dict
+            and set(usage_value) == {"input_tokens", "output_tokens", "total_tokens"}
+            else None
+        )
+        raw_tools = turn.get("tools")
+        if type(raw_tools) is not list:
+            raise RuntimeError("One-shot provider response is unresolved")
+        try:
+            tools = tuple(
+                ToolProposal(item["id"], item["name"], item["params"])
+                for item in raw_tools
+                if type(item) is dict
+                and set(item) == {"id", "name", "params"}
+            )
+        except (KeyError, TypeError):
+            raise RuntimeError("One-shot provider response is unresolved") from None
+        if len(tools) != len(raw_tools) or type(turn.get("text")) is not str:
+            raise RuntimeError("One-shot provider response is unresolved")
+        return ModelTurn(
+            turn["text"],
+            tools,
+            usage,
+            turn.get("model"),
+            turn.get("server_request_id"),
+        )
+
+    def close(self):
+        self._closed = True
+
+
+def _one_shot_primary_factory(
+    profile,
+    *,
+    api_key,
+    known_secrets=(),
+    tool_definitions=None,
+    validator=None,
+    worker_guard_path=None,
+):
+    # The final planner/ReAct/session callback validates against its domain
+    # catalog after the child returns. Only the JSON schema crosses IPC.
+    del known_secrets, validator
+    return OneShotPrimaryModel(
+        profile,
+        api_key=api_key,
+        tool_definitions=tool_definitions,
+        worker_guard_path=worker_guard_path,
+    )
+
+
+def _create_primary(
+    primary_factory,
+    profile,
+    *,
+    api_key,
+    known_secrets,
+    tool_definitions,
+    validator,
+    worker_guard_path,
+):
+    values = {
+        "api_key": api_key,
+        "known_secrets": known_secrets,
+        "tool_definitions": tool_definitions,
+        "validator": validator,
+    }
+    if primary_factory is None:
+        return _one_shot_primary_factory(
+            profile, **values, worker_guard_path=worker_guard_path
+        )
+    return primary_factory(profile, **values)
+
+
 def public_planner_callback_factory(
     profile,
     *,
     api_key,
     known_secrets=(),
     primary_factory=None,
+    worker_guard_path=None,
 ):
     """Build a per-route planner callback from a frozen profile and server key.
 
@@ -161,15 +450,15 @@ def public_planner_callback_factory(
         raise ValueError("A frozen primary model profile is required")
     if type(api_key) is not str or not api_key.strip():
         raise ValueError("A server-side primary model credential is required")
-    factory = primary_factory or PrimaryModel.from_evaluation_profile
-
     def create(session, _trial, _route):
-        primary = factory(
+        primary = _create_primary(
+            primary_factory,
             profile,
             api_key=api_key,
             known_secrets=tuple(known_secrets),
             tool_definitions=plan_tool_definitions(),
             validator=validate_plan_tool,
+            worker_guard_path=worker_guard_path,
         )
         return PublicPlannerCallback(
             primary,
@@ -341,14 +630,13 @@ def public_react_callback_factory(
     api_key,
     known_secrets=(),
     primary_factory=None,
+    worker_guard_path=None,
 ):
     """Build a per-route ReAct client with original, schema-bound MCP tools."""
     if not isinstance(profile, ModelProfile) or profile.role != "primary":
         raise ValueError("A frozen primary model profile is required")
     if type(api_key) is not str or not api_key.strip():
         raise ValueError("A server-side primary model credential is required")
-    factory = primary_factory or PrimaryModel.from_evaluation_profile
-
     def create(session, _trial, _route):
         spec = session.spec
         definitions = _react_tool_definitions(spec)
@@ -357,12 +645,14 @@ def public_react_callback_factory(
             spec.validate(name, params)
             return deepcopy(params)
 
-        primary = factory(
+        primary = _create_primary(
+            primary_factory,
             profile,
             api_key=api_key,
             known_secrets=tuple(known_secrets),
             tool_definitions=definitions,
             validator=validate_tool,
+            worker_guard_path=worker_guard_path,
         )
         return PublicReactCallback(primary, spec, profile=profile)
 
@@ -398,6 +688,7 @@ class PublicTauModelCallback:
         api_key,
         known_secrets=(),
         primary_factory=None,
+        worker_guard_path=None,
     ):
         if role not in {"user_simulator", "judge"}:
             raise ValueError("A τ auxiliary model role is required")
@@ -409,7 +700,8 @@ class PublicTauModelCallback:
         self.profile = profile
         self.api_key = api_key
         self.known_secrets = tuple(known_secrets)
-        self.primary_factory = primary_factory or PrimaryModel.from_evaluation_profile
+        self.primary_factory = primary_factory or _one_shot_primary_factory
+        self.worker_guard_path = worker_guard_path
         self._clients = {}
 
     def _request_parts(self, request):
@@ -454,12 +746,14 @@ class PublicTauModelCallback:
         key = digest(definitions)
         primary = self._clients.get(key)
         if primary is None:
-            primary = self.primary_factory(
+            primary = _create_primary(
+                None if self.primary_factory is _one_shot_primary_factory else self.primary_factory,
                 self.profile,
                 api_key=self.api_key,
                 known_secrets=self.known_secrets,
                 tool_definitions=definitions,
                 validator=validate_tool,
+                worker_guard_path=self.worker_guard_path,
             )
             self._clients[key] = primary
         return primary
@@ -576,6 +870,7 @@ def public_tau_model_callback_factory(
     api_key,
     known_secrets=(),
     primary_factory=None,
+    worker_guard_path=None,
 ):
     """Create an isolated τ user-simulator or official-judge callback factory."""
     if role not in {"user_simulator", "judge"}:
@@ -590,6 +885,7 @@ def public_tau_model_callback_factory(
             api_key=api_key,
             known_secrets=known_secrets,
             primary_factory=primary_factory,
+            worker_guard_path=worker_guard_path,
         )
 
     return create
@@ -621,18 +917,23 @@ def public_first_wave_model_adapter_factory(
         )
         if type(value) is str and value
     )
+    from .public_supervisor import canonical_public_worker_guard_path
+
+    worker_guard_path = canonical_public_worker_guard_path(ledger.plan.root)
     callback_factories = {
         "planner": public_planner_callback_factory(
             profiles.primary,
             api_key=api_key,
             known_secrets=known_secrets,
             primary_factory=primary_factory,
+            worker_guard_path=worker_guard_path,
         ),
         "react": public_react_callback_factory(
             profiles.primary,
             api_key=api_key,
             known_secrets=known_secrets,
             primary_factory=primary_factory,
+            worker_guard_path=worker_guard_path,
         ),
         "user_simulator": public_tau_model_callback_factory(
             profiles.user_simulator,
@@ -640,6 +941,7 @@ def public_first_wave_model_adapter_factory(
             api_key=api_key,
             known_secrets=known_secrets,
             primary_factory=primary_factory,
+            worker_guard_path=worker_guard_path,
         ),
         "official_judge": public_tau_model_callback_factory(
             profiles.judge,
@@ -647,6 +949,7 @@ def public_first_wave_model_adapter_factory(
             api_key=api_key,
             known_secrets=known_secrets,
             primary_factory=primary_factory,
+            worker_guard_path=worker_guard_path,
         ),
     }
     return LedgeredModelAdapterFactory(

@@ -538,6 +538,22 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** route 已返回受控执行与 cleanup 结果，但实际 Agent machine-time 超出冻结上限
 - **THEN** route 以失败终态记录 `resource_overrun`，不得标记 completed；可用的官方分数和 cleanup evidence 仍分别持久保存
 
+### Requirement: Live provider transport is isolated under the supervisor fence
+
+每个真实公开评测模型请求 MUST 先由持有规范 route ledger 的监督进程完成预算预留和 dispatch 标记，再交给一次性子进程执行。子进程 MUST 仅处理一个已授权请求，不得持有 route/预算 ledger、创建可复用模型 client，或接触当前角色以外的模型凭证。子进程 MUST 在 provider 请求前取得规范 worker guard，并确认启动它的监督进程仍存活。新监督进程 MUST 在打开或恢复 route ledger 前持有规范 supervisor lock，并确认没有前一监督进程遗留的 worker guard。达到请求 deadline 时，监督进程 MUST 终止它拥有的整个子进程树；派发后的超时继续按 unknown 处理，不得重放。
+
+#### Scenario: Expired supervisor cannot overlap a live provider worker
+- **WHEN** 前一监督进程的主锁已释放，而该进程启动的一次性 provider worker 仍持有规范 worker guard
+- **THEN** 新监督进程在打开或恢复 ledger 前失败关闭；worker 退出并释放 guard 后才允许重新取得 supervisor lock
+
+#### Scenario: Provider worker starts after its supervisor exits
+- **WHEN** 一次性 worker 在确认调用方已退出后才开始执行目标函数
+- **THEN** worker 不得发送 provider 请求，并在释放其 guard 后退出
+
+#### Scenario: One-shot provider request reaches its deadline
+- **WHEN** provider 请求超过 route/model/batch 计算出的有效 deadline
+- **THEN** supervisor 终止 worker 及其子进程树，model attempt 和 route 保留 unknown，后续调用不被重放
+
 ### Requirement: Frozen profiles capture actual request behavior
 
 公开模型 profile MUST 为每个角色记录模型请求中实际采用的采样参数、输出/工具选择契约、超时及 provider routing。每个参数 MUST 标为固定值或明确不支持；客户端 MUST 对支持的固定参数显式发送值，对不支持参数不得发送；不得依赖未记录的 SDK/provider 默认值。每次 attempt MUST 保存 requested profile 与可取得的 resolved provider/model/server identity。无法取得的 resolved 值显式记录为空；profile、routing 或 resolved model 在组内发生变化时 MUST 停止拼接成绩并启动独立实验组。

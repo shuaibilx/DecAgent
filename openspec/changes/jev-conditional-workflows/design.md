@@ -652,3 +652,13 @@ Verification: focused model dispatch, public ledger, public route, live runner, 
 EnterpriseOps pinned 原始 verifier 可含 response_check，其 judge 现在由公开模型适配器按 judge role 创建，并通过当前 route 的 LedgeredModelCallback 进行 profile 校验、预算预留、单次 dispatch 和 settle/unknown。EvaluationPlanSession.requires_official_judge 对所有 Enterprise response_check 启用账本绑定；ControlledRoutes 在评分前绑定 callback。若 scorer 已注入客户端，受控 session 明确拒绝，避免绕过 route 账本；EnterpriseOfficialScorer 继续运行原始 verifier。消息适配只接受有界文本 role/content，不暴露 verifier 结果给 Agent。bridge 从当前 route 的 attempt snapshot 读取真实请求、prompt/completion token、费用来源和时间；价格未知时返回 null，未结算 attempt 不能形成分数。τ 的官方模拟器/裁判路径保持原状。
 
 受控验证包含：公开 factory 为 Enterprise response-check 绑定冻结 judge profile；受控 ReAct route 将 callback 接到原始 verifier；费用 unknown 保留已知 usage；unknown dispatch 阻断评分。相关 route/model/scorer/runner 回归 90 passed，Ruff 与 git diff --check 通过。没有模型、MCP、账单或公开评分派发。此代码仍未进入精确候选 CI；取消任意忽略 deadline 的同步调用、worker/监督者分离、新候选 cohort 和四域真实评分/cleanup 仍是 live gate。
+
+### 2026-10-21 一次性 provider worker 与接管保护
+
+受控 first-wave model adapter 的 provider HTTP 请求现在通过 `run_cancellable_process()` 进入一次性 spawned 子进程。账本/预算 reserve 与 `mark_model_dispatched()` 仍由监督进程完成；子进程只收到当前请求、冻结 profile、当前模型凭证、工具 schema 与有效 timeout，在进程内创建并关闭一个 `PrimaryModel`，返回有界 JSON 响应。规划/工具结果校验和 attempt settle 仍回到监督进程；子进程不持有 route ledger，也不复用 provider client。子进程不会接收其他角色的 Jev/fallback secrets。
+
+一次性 worker 先取得规范 `.decagent/business-eval/public-worker.lock`，并检查启动它的监督进程仍存活；监督进程取得规范主锁后，也会尝试取得并释放该 worker guard，若 guard 仍被旧请求持有则拒绝开 ledger。这样在旧 supervisor 异常退出而 provider 子进程尚未回收的窗口，新进程不能与旧请求重叠。Windows worker 被放入 `KILL_ON_JOB_CLOSE` Job Object，POSIX worker 建立独立 session；deadline 由父监督进程触发整个拥有的进程树终止。父进程退出后，worker 的 monitor 会结束自身。
+
+此切片不等于完整 route worker/supervisor 架构：`ControlledRoutes`、session、路由状态和 route ledger 操作仍在监督进程同步执行；一般业务工具 callback 及任意 Python 阻塞同步 callback 仍须分别遵循自己的 timeout-aware 子进程/传输契约。Jev semantic path 尚未采用该 primary worker adapter。若真实执行中收到 timeout，现有 ledger 仍将该次已派发 attempt 和 route 保留为 unknown，不自动重试。新设计要求已加入 selective-business-evaluation delta spec；首波真实执行和所有新模型 dispatch 仍关闭。
+
+验证覆盖结果帧、单角色凭证传递、父进程退出后不执行 provider target、超时后 worker/后代进程回收、模型 attempt 记为 unknown 且不可重放，以及释放主锁时仍存活的 worker 阻止 supervisor takeover。一次主切片的全量 deterministic 为 `1929 passed, 18 skipped`；随后移除 facade 中未使用的额外 secrets 字段并增加 parent-exit 回归，最终公开评测相关 deterministic 文件 `140 passed`，全仓 Ruff 与 OpenSpec strict `6 passed, 0 failed` 通过。该证据仅验证隔离与锁机制，不代表 Qwen、Jev、工具或官方评分器真实调用已成功，也不改变历史 8 条路线结果。

@@ -181,3 +181,9 @@ machine-time ledger 增加 nullable `agent_started_at_utc`，兼容迁移不改�
 
 此前首波 live 入口在候选 `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 CI `39442012550` 通过后确实运行了 4 个任务、8 条路线；结果为 4 failed、4 unknown、0 个已评分成功路线，全部 cleanup verified，官方评分未调用。v7 ledger 没有 candidate SHA 元数据，不能安全把该批结果归到后续候选。本地已加不可变候选绑定，并拒绝为含历史 attempt 的旧 ledger 补写 SHA；因此不能用它重跑或追加任务。公开 benchmark 的可报告成绩仍为 `0/286`。任何新真实批次必须先有新 cohort、明确预算和同 SHA CI 证明；历史 unknown 不会重放。
 
+### 2026-10-21 进程级 provider deadline 改进（不打开 live gate）
+
+公开评测 Qwen primary、user-simulator 和 judge provider 请求现在经一次性子进程发出，监督进程保留 route ledger 和 reserve/dispatch/settle 权限。规范 worker guard 使 supervisor 接管前确认旧 provider 子进程已经退出；进程 deadline 会终止 worker 树，未知结果沿用 unknown 且不重放。相关目标需求已同步到 `selective-business-evaluation` delta spec，implementation/design/tasks 记录了适用范围与缺口。
+
+这只处理一次 provider transport，尚未把完整 route/session 搬到独立 worker；通用阻塞工具回调、Jev adapter 和端到端真实 scoring/cleanup 仍未全验收。代码尚未提交、尚未进入同 SHA GitHub CI；没有新增 Qwen/Jev/业务工具/评分调用。OpenSpec 主 change 保持 66/79，公开 benchmark 0/286，历史首波仍是 4 failed、4 unknown，`--execute` 关闭。
+

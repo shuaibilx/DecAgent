@@ -10,32 +10,39 @@ from pathlib import Path
 PUBLIC_SUPERVISOR_LOCK_RELATIVE_PATH = Path(
     ".decagent/business-eval/public-evaluation.lock"
 )
+PUBLIC_WORKER_GUARD_RELATIVE_PATH = Path(
+    ".decagent/business-eval/public-worker.lock"
+)
 
 
 def canonical_public_supervisor_lock_path(root):
     return Path(root).resolve() / PUBLIC_SUPERVISOR_LOCK_RELATIVE_PATH
 
 
+def canonical_public_worker_guard_path(root):
+    return Path(root).resolve() / PUBLIC_WORKER_GUARD_RELATIVE_PATH
+
+
 class PublicSupervisorBusy(RuntimeError):
-    """Another live evaluator still owns the process-lifetime lock."""
+    """Another live evaluator or its dispatched worker still owns the run."""
 
 
-class PublicSupervisor:
-    """Hold an OS-released lock while a process may dispatch benchmark work.
+class PublicWorkerBusy(RuntimeError):
+    """A dispatched provider worker still owns its one-shot process guard."""
 
-    The SQLite lease fences ledger writes. This lock separately prevents a
-    suspended but still-live process from being mistaken for a dead sender.
-    """
 
-    def __init__(self, lock_path, *, acquire_timeout=0.0):
+class _ExclusiveFileLock:
+    def __init__(self, path, *, acquire_timeout, busy_type, busy_message):
         if (
             type(acquire_timeout) not in {int, float}
             or not math.isfinite(acquire_timeout)
             or not 0 <= acquire_timeout <= 60
         ):
-            raise ValueError("Supervisor lock wait must be between 0 and 60 seconds")
-        self.path = Path(lock_path)
+            raise ValueError("Process lock wait must be between 0 and 60 seconds")
+        self.path = Path(path)
         self.acquire_timeout = float(acquire_timeout)
+        self.busy_type = busy_type
+        self.busy_message = busy_message
         self._stream = None
         self._lock_backend = None
 
@@ -45,14 +52,14 @@ class PublicSupervisor:
 
     def acquire(self):
         if self.held:
-            raise ValueError("This process already holds the supervisor lock")
+            raise ValueError("This process already holds the requested process lock")
         if self.path.is_symlink():
-            raise ValueError("Supervisor lock cannot be a symlink")
+            raise ValueError("Process lock cannot be a symlink")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         current = self.path.parent
         while current != current.parent:
             if current.is_symlink():
-                raise ValueError("Supervisor lock path cannot contain symlinks")
+                raise ValueError("Process lock path cannot contain symlinks")
             current = current.parent
         stream = self.path.open("a+b")
         try:
@@ -78,9 +85,7 @@ class PublicSupervisor:
                     return self
                 except OSError as exc:
                     if time.monotonic() >= deadline:
-                        raise PublicSupervisorBusy(
-                            "Another public-evaluation supervisor is still active"
-                        ) from exc
+                        raise self.busy_type(self.busy_message) from exc
                     time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
         except BaseException:
             stream.close()
@@ -101,6 +106,84 @@ class PublicSupervisor:
                 backend.flock(stream.fileno(), backend.LOCK_UN)
         finally:
             stream.close()
+
+
+class PublicWorkerGuard:
+    """Cross-process guard held from child startup through provider exit."""
+
+    def __init__(self, path):
+        self._lock = _ExclusiveFileLock(
+            path,
+            acquire_timeout=0.0,
+            busy_type=PublicWorkerBusy,
+            busy_message="A one-shot public provider worker is still active",
+        )
+
+    @property
+    def held(self):
+        return self._lock.held
+
+    def acquire(self):
+        return self._lock.acquire()
+
+    def release(self):
+        self._lock.release()
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, *_):
+        self.release()
+
+
+class PublicSupervisor:
+    """Hold process exclusion while no old provider worker can still dispatch.
+
+    The SQLite lease fences ledger writes. The supervisor lock prevents another
+    process from taking over while its owner is alive. The worker guard closes
+    the narrower gap where the supervisor exits but an already-dispatched
+    one-shot provider process has not yet observed that exit.
+    """
+
+    def __init__(self, lock_path, *, acquire_timeout=0.0, worker_guard_path=None):
+        self.path = Path(lock_path)
+        self.worker_guard_path = (
+            Path(worker_guard_path)
+            if worker_guard_path is not None
+            else self.path.parent / "public-worker.lock"
+        )
+        self.acquire_timeout = acquire_timeout
+        self._lock = _ExclusiveFileLock(
+            self.path,
+            acquire_timeout=acquire_timeout,
+            busy_type=PublicSupervisorBusy,
+            busy_message="Another public-evaluation supervisor is still active",
+        )
+
+    @property
+    def held(self):
+        return self._lock.held
+
+    def acquire(self):
+        if self.held:
+            raise ValueError("This process already holds the supervisor lock")
+        self._lock.acquire()
+        probe = PublicWorkerGuard(self.worker_guard_path)
+        try:
+            probe.acquire()
+        except PublicWorkerBusy as exc:
+            self._lock.release()
+            raise PublicSupervisorBusy(
+                "A dispatched public provider worker is still active"
+            ) from exc
+        except BaseException:
+            self._lock.release()
+            raise
+        probe.release()
+        return self
+
+    def release(self):
+        self._lock.release()
 
     def __enter__(self):
         return self.acquire()

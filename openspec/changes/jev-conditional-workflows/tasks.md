@@ -291,3 +291,11 @@ python -m pytest evals/integration -q
 候选 `60ea6f6dce5855cb078c4796abeaa3708d988247` 的 CI run `39438714094`：Python 3.11 deterministic 失败 `3 failed, 1901 passed, 17 skipped`，Python 3.13 因 fail-fast 取消；package/images、wheel/MCP 协议、offline Compose 和 workbench browser jobs 通过。三个失败分别来自默认 dry-run 读取本地 live `.env`，以及 τ process 仍以原始字节检查 Linux LF inventory。`run_public_trials.py` 的 dry-run 已关闭 live runtime/source-file 检查；live 执行分支继续显式校验两者。τ bridge 和官方 runtime verifier 改用共享 CRLF 规范化 `task_inventory_sha256`。新增 Linux LF 回归后相关 suite `91 passed, 13 skipped`，τ 独立解释器 verifier CLI 回归 `1 passed`；最新完整 deterministic `1906 passed, 18 skipped (224.22s)`，远端最终候选复验待完成。pinned τ Python 3.12 的 `verify_tau_runtime.py` 初始化核验 80/80 ready，0 模型请求；Ruff、OpenSpec strict 与 `git diff --check` 通过。
 
 按计划核对本机发布安全边界：仓库没有 self-hosted Runner 注册（GitHub API `total_count=0`），本机无 Runner 服务/进程；默认分支 release job 只在托管 GitHub runner 发布 GHCR。没有需要关闭的公共本机部署 job，也没有停止现有 DecAgent 容器。此状态不代表私有 Runner/CD 或外网部署已完成。
+
+### 2026-10-21 一次性模型传输 worker（部分工程验收）
+
+first-wave 公开模型 adapter 的单次 provider 请求已改为一次性 spawned 子进程：账本预留、dispatch 标记、输入/输出契约验证和 settle 仍由监督进程负责；子进程只处理单个已授权请求，在子进程中创建并关闭一个模型 client，不持有 route/预算 ledger、不复用 client，且只接收当前角色凭证。worker 在 provider 请求前取得规范 `.decagent/business-eval/public-worker.lock` 并检查 parent 存活；新 `PublicSupervisor` 在持有主锁后先检查 worker guard，旧 worker 仍活跃时不打开 ledger。deadline 回收子进程树；已派发超时仍为 unknown 且不可重放。规范要求已补入 `selective-business-evaluation` delta spec，并同步至 design/proposal。
+
+验证证据：模型 worker deadline、Windows worker 后代回收、父进程退出后拒绝执行 provider target、unknown ledger 不可重放、当前角色 key 隔离，以及主锁释放后旧 worker 阻止新 supervisor 的进程级用例。最终公开评测相关 deterministic 文件 `140 passed`；此前主切片全量 deterministic `1929 passed, 18 skipped`（之后只移除 facade 中未使用的额外 secrets 字段并补充一个 parent-exit 用例）。全仓 Ruff、OpenSpec strict `6 passed, 0 failed`、`git diff --check` 通过。当前工作区未提交，也没有覆盖它的远端 CI；OpenSpec tasks 总状态仍为 66/79，13 项待办，10.10.D/E 与 9.6.F/G 不勾选。
+
+边界：这仍不是完整 route worker/supervisor 隔离；ControlledRoutes、session、route ledger 和结果整理仍由 supervisor 同步执行，通用业务工具及任意忽略 timeout 的 Python callback 并未因此获得强制取消。没有派发模型、Jev、业务工具或官方裁判请求；旧首波 4 failed/4 unknown 不变且不重放，公开 benchmark 仍为 0/286，`--execute` 维持 fail closed。
