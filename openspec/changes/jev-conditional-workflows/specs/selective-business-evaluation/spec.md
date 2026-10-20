@@ -568,7 +568,7 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 
 #### Scenario: POSIX termination catches descendants racing worker shutdown
 - **WHEN** POSIX worker deadline 终止其进程组，同时 worker 正在创建一个后代进程
-- **THEN** supervisor 在有界等待 worker exit sentinel 后、reap worker 前再次终止该进程组，确认 worker 退出且后代不再运行；该操作不重新派发模型请求，已派发 attempt/route 仍保留 unknown
+- **THEN** supervisor 在有界等待 worker exit sentinel 后再次终止该进程组，并在 reap worker 前有界确认 Linux 进程组内没有活动成员（zombie 不视为仍可运行）。进程表读取不完整也视为无法确认；若硬时限内仍有活动成员或无法确认，必须返回 unresolved tree error，不能声称清理成功；该操作不重新派发模型请求，已派发 attempt/route 仍保留 unknown
 
 ### Requirement: Frozen profiles capture actual request behavior
 

@@ -70,6 +70,18 @@ def _process_is_alive(pid):
             return kernel.WaitForSingleObject(handle, 0) == 0x00000102
         finally:
             kernel.CloseHandle(handle)
+    if sys.platform.startswith("linux"):
+        try:
+            stat = Path("/proc", str(pid), "stat").read_text(encoding="ascii")
+        except FileNotFoundError:
+            return False
+        except OSError:
+            stat = None
+        if stat is not None:
+            closing_paren = stat.rfind(")")
+            fields = stat[closing_paren + 2 :].split() if closing_paren >= 0 else []
+            if fields and fields[0] in {"Z", "X"}:
+                return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -180,6 +192,60 @@ def test_posix_process_tree_termination_sweeps_descendant_started_during_shutdow
 
     assert kill_attempts == [(12345, cancellable_model.signal.SIGKILL)] * 2
     assert not descendant_alive
+
+
+def test_linux_process_group_scan_waits_for_active_members_not_zombies(tmp_path):
+    from decagent.evaluation.business.cancellable_model import (
+        _linux_process_group_has_active_members,
+    )
+
+    proc_root = tmp_path / "proc"
+    proc_root.mkdir()
+    target_group = 4242
+
+    def write_stat(pid, comm, state, process_group):
+        stat_path = proc_root / str(pid) / "stat"
+        stat_path.parent.mkdir()
+        stat_path.write_text(
+            f"{pid} ({comm}) {state} 1 {process_group} {process_group} 0 0 0\n",
+            encoding="ascii",
+        )
+        return stat_path
+
+    active = write_stat(100, "python (worker)", "D", target_group)
+    write_stat(101, "python-zombie", "Z", target_group)
+    write_stat(102, "other-group", "R", target_group + 1)
+
+    assert _linux_process_group_has_active_members(target_group, proc_root=proc_root)
+
+    active.write_text(
+        f"100 (python (worker)) Z 1 {target_group} {target_group} 0 0 0\n",
+        encoding="ascii",
+    )
+    assert not _linux_process_group_has_active_members(target_group, proc_root=proc_root)
+
+
+def test_linux_process_group_scan_fails_closed_when_inventory_is_incomplete(
+    monkeypatch, tmp_path
+):
+    from decagent.evaluation.business.cancellable_model import (
+        _linux_process_group_has_active_members,
+    )
+
+    proc_root = tmp_path / "proc"
+    process_stat = proc_root / "100" / "stat"
+    process_stat.parent.mkdir(parents=True)
+    process_stat.write_text("100 (worker) R 1 4242 4242 0 0 0\n", encoding="ascii")
+    original_read_text = Path.read_text
+
+    def unreadable_stat(path, *args, **kwargs):
+        if path == process_stat:
+            raise PermissionError("simulated incomplete proc entry")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", unreadable_stat)
+
+    assert _linux_process_group_has_active_members(4242, proc_root=proc_root) is None
 
 
 def test_active_one_shot_worker_blocks_supervisor_takeover_after_owner_lock_release(

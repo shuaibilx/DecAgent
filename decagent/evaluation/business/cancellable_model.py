@@ -36,6 +36,43 @@ class CancellableProcessTimeout(TimeoutError):
     """The supervisor deadline elapsed and the owned child tree was terminated."""
 
 
+def _linux_process_group_has_active_members(process_group, *, proc_root=Path("/proc")):
+    """Return whether a Linux process group has members that can still run."""
+    try:
+        process_entries = proc_root.iterdir()
+    except OSError:
+        return None
+    try:
+        for process_entry in process_entries:
+            if not process_entry.name.isdecimal():
+                continue
+            try:
+                stat = (process_entry / "stat").read_text(encoding="ascii")
+            except FileNotFoundError:
+                # The process exited after the directory listing.
+                continue
+            except OSError:
+                # An unreadable entry makes the process-group inventory
+                # incomplete, so callers must not treat it as empty.
+                return None
+            closing_paren = stat.rfind(")")
+            if closing_paren < 0:
+                return None
+            fields = stat[closing_paren + 2 :].split()
+            if len(fields) < 4:
+                return None
+            try:
+                state = fields[0]
+                group_id = int(fields[2])
+            except ValueError:
+                return None
+            if group_id == process_group and state not in {"Z", "X"}:
+                return True
+    except OSError:
+        return None
+    return False
+
+
 def _watch_parent_lifetime():
     parent = multiprocessing.parent_process()
     if parent is None:
@@ -175,6 +212,8 @@ def _terminate_process_tree(process):
     if not process.is_alive():
         process.join(timeout=0)
         return
+    linux_proc_available = False
+    unresolved_process_group = False
     if os.name == "nt":
         import subprocess
 
@@ -212,6 +251,18 @@ def _terminate_process_tree(process):
 
             wait([sentinel], timeout=0.1)
         kill_group()
+        linux_proc_available = Path("/proc").is_dir()
+        unresolved_process_group = False
+        if linux_proc_available:
+            drain_deadline = time.monotonic() + 2.0
+            group_state = _linux_process_group_has_active_members(process.pid)
+            while group_state is not False:
+                if time.monotonic() >= drain_deadline:
+                    break
+                kill_group()
+                time.sleep(0.01)
+                group_state = _linux_process_group_has_active_members(process.pid)
+            unresolved_process_group = group_state is not False
     process.join(timeout=2)
     if process.is_alive():
         process.kill()
@@ -223,6 +274,10 @@ def _terminate_process_tree(process):
             except OSError:
                 pass
         process.join(timeout=2)
+    if linux_proc_available and unresolved_process_group:
+        raise CancellableProcessError(
+            stage="response", exception_type="ProcessTreeDidNotExit"
+        )
 
 
 def run_cancellable_process(

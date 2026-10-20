@@ -2,9 +2,9 @@
 
 ## 最新公开评测实测（2026-10-21）
 
-基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的远端 CI 全绿后，首次经受监督 runner 实际派发冻结首波 4 个任务/8 条 ReAct 与 Plan 路线。结果为 5 failed、3 unknown、0 completed；仅 1 条 EnterpriseOps 路线获得官方 `0.0` 分数，8 条 cleanup 均 verified。Qwen 请求用量部分 unknown、所有费用来源 unknown；Jev 未调用。离线复现发现 planner factory 将空 session schema 传入 validator，以及 τ telecom 的 30 个官方用户工具 schema 超过 adapter 原 8 项上限；两处已有最小修复和先失败后通过的回归。本机 deterministic `1934 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过。第一修复候选 `777ca4e` 的 CI run `39506416272` 暴露一个既有 POSIX 进程组终止竞态：后代可能在首轮 group signal 时刚创建并漏杀，3.13 deterministic 失败，3.11 因 fail-fast 取消；Workbench 与构建/Compose job 成功。监督器现在在有界等待 worker exit sentinel 后、reap worker 前二次 sweep 进程组，并有回归覆盖；Linux Python 3.13 容器重复 20 次通过。此修复仍待新候选 SHA 的完整 CI，端到端公开评测集成尚未验收，不改变预算、unknown 不重放、Jev 仅比较自然适用语义节点等设计决定。
+基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的远端 CI 全绿后，首次经受监督 runner 实际派发冻结首波 4 个任务/8 条 ReAct 与 Plan 路线。结果为 5 failed、3 unknown、0 completed；仅 1 条 EnterpriseOps 路线获得官方 `0.0` 分数，8 条 cleanup 均 verified。Qwen 请求用量部分 unknown、所有费用来源 unknown；Jev 未调用。离线复现发现 planner factory 将空 session schema 传入 validator，以及 τ telecom 的 30 个官方用户工具 schema 超过 adapter 原 8 项上限；两处已有最小修复和先失败后通过的回归。第一修复候选 `777ca4e` 的 CI run `39506416272` 暴露 POSIX 进程组终止竞态；后续候选 `350a085` 的 CI run `39508745410` 在 Python 3.11/3.13 deterministic 均重现：SIGKILL 后代短暂处于 Linux `D` 状态，调用方未等到其退出。Linux 容器排查确认这是尚未完成退出的活动进程，不是 zombie。当前 supervisor 在 reap worker 前再次 sweep，并扫描 `/proc` 中该进程组的成员状态；只有完整扫描确认没有活动成员才算清理完成，zombie 不视为仍可运行，读取不完整或 2 秒内仍有活动成员则返回 unresolved tree error。Windows 本机 full deterministic `1936 passed, 18 skipped`，Ruff/OpenSpec strict 通过；严格 fail-closed 更新后的 Linux Python 3.11 进程树回归 `50/50` 通过；此前 Python 3.11/3.13 各 `50/50` 属于前一版逻辑的历史压力证据。后续代码与规格切片尚未形成新的完整 CI 候选；端到端公开评测集成仍未验收，不改变预算、unknown 不重放、Jev 仅比较自然适用语义节点等设计决定。
 
-具体指标、错误阶段、固定任务 ID、离线复现与跳过项见 [首波公开评测报告](../../../generated/261021/0545_首波公开评测报告.md) 与机器证据 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json`。修复版本机 deterministic、Ruff 与 OpenSpec strict 已通过；首个修复候选的 CI 失败已定位并修复，最新修复 SHA 的 CI 尚待完成。其余 smoke/full 仍需依据账单和可确认实耗另行估算并冻结资源。
+具体指标、错误阶段、固定任务 ID、离线复现与跳过项见 [首波公开评测报告](../../../generated/261021/0545_首波公开评测报告.md) 与机器证据 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json`。本机完整 deterministic `1936 passed, 18 skipped`、Ruff 与 OpenSpec strict 已通过；严格 fail-closed 变更后的 Linux Python 3.11 容器进程树压力回归 `50/50` 通过。Linux Python 3.13 将由最新 SHA 的远端 CI 覆盖；先前版本两种 Python 各 `50/50` 是历史回归证据。前一候选的远端 CI 仍失败，当前最新文件尚待形成 SHA 并通过完整远端 CI。其余 smoke/full 仍需依据账单和可确认实耗另行估算并冻结资源。
 
 ## Context
 
@@ -44,6 +44,8 @@
 公开首波不能只依赖 SQLite lease 判断发送者已死亡：lease 过期仅允许账本 fencing，真实出站权限还需要本机监督进程生命周期锁。`PublicSupervisor` 在固定项目路径 `.decagent/business-eval/public-evaluation.lock` 上持有 OS 文件锁（Windows `msvcrt`，POSIX `flock`）；进程退出由 OS 释放锁。只有持有该规范锁的进程可以调用 `open_first_wave_public_trial_ledger`。它只接受冻结的 smoke cohort 和已通过同 SHA CI 门禁的候选；当前 route ledger 路径由 cohort digest 与 candidate SHA 在 `.decagent/business-eval/public-trials/cohorts/` 下确定，同一候选恢复原账本，不同候选使用独立文件。历史 `.decagent/business-eval/public-trials/public-smoke-v7.sqlite3` 不迁移、不覆盖；Jev attempt 仍只读打开既有 `.decagent/business-eval/global-jev-ledger.json`，不允许 CLI/state path 重新选择或在缺失时初始化。换 phase/state path 或并发进程不能因此重新获得额度。
 
 OS 锁现已由受门禁保护的 first-wave dispatcher 在环境预检后、打开规范 ledger 时持有，并通过跨进程排他性单测。端到端“已标记派发后挂起、lease 过期、第二进程等待、旧进程恢复”演练仍未完成；当前工作树不满足 clean candidate gate，尚无真实模型派发。只有 dispatcher 持锁并独占模型凭据并完成该故障演练后，才能宣称真实派发竞态已解决。
+
+一次性 provider worker 的 POSIX deadline 清理使用独立 session/process group。Linux 下 supervisor 等待 worker exit sentinel、再次发送 group signal，并在 reap worker 前扫描 `/proc`：跳过已退出的 PID 和 zombie，仅在完整进程表扫描确认 group 无活动成员时报告回收成功。扫描不完整或 2 秒 drain deadline 到达时返回 `ProcessTreeDidNotExit`，上层保留 attempt/route unknown，不将不确定清理写成成功。该门禁用于避免 SIGKILL 后仍处于不可中断内核等待的后代被误判已清除。
 
 公开路线的业务终态、官方评分终态与环境清理终态分别保留。任何已派发的工具结果变成 unknown 时，路线保持 unknown，跳过后续模型/工具及评分；监督者可补写评分/清理状态，但不得把 unknown 改写成 completed。清理证据使用摘要保存，避免把私有任务数据复制进公开 ledger。
 
@@ -663,7 +665,7 @@ EnterpriseOps pinned 原始 verifier 可含 response_check，其 judge 现在由
 
 受控 first-wave model adapter 的 provider HTTP 请求现在通过 `run_cancellable_process()` 进入一次性 spawned 子进程。账本/预算 reserve 与 `mark_model_dispatched()` 仍由监督进程完成；子进程只收到当前请求、冻结 profile、当前模型凭证、工具 schema 与有效 timeout，在进程内创建并关闭一个 `PrimaryModel`，返回有界 JSON 响应。规划/工具结果校验和 attempt settle 仍回到监督进程；子进程不持有 route ledger，也不复用 provider client。子进程不会接收其他角色的 Jev/fallback secrets。
 
-一次性 worker 先取得规范 `.decagent/business-eval/public-worker.lock`，并检查启动它的监督进程仍存活；监督进程取得规范主锁后，也会尝试取得并释放该 worker guard，若 guard 仍被旧请求持有则拒绝开 ledger。这样在旧 supervisor 异常退出而 provider 子进程尚未回收的窗口，新进程不能与旧请求重叠。Windows worker 被放入 `KILL_ON_JOB_CLOSE` Job Object，POSIX worker 建立独立 session；deadline 由父监督进程触发整个拥有的进程树终止。父进程退出后，worker 的 monitor 会结束自身。
+一次性 worker 先取得规范 `.decagent/business-eval/public-worker.lock`，并检查启动它的监督进程仍存活；监督进程取得规范主锁后，也会尝试取得并释放该 worker guard，若 guard 仍被旧请求持有则拒绝开 ledger。这样在旧 supervisor 异常退出而 provider 子进程尚未回收的窗口，新进程不能与旧请求重叠。Windows worker 被放入 `KILL_ON_JOB_CLOSE` Job Object，POSIX worker 建立独立 session；deadline 由父监督进程触发整个拥有的进程树终止。POSIX 终止会在 worker sentinel 就绪后、reap leader 前再次发送 group kill，并在 Linux `/proc` 中确认组内无活动进程；zombie 不再执行用户代码，不阻塞 drain。活动成员超过 2 秒仍未退出时报告 unresolved tree error，不得宣称终止完整。父进程退出后，worker 的 monitor 会结束自身。
 
 此切片不等于完整 route worker/supervisor 架构：`ControlledRoutes`、session、路由状态和 route ledger 操作仍在监督进程同步执行；一般业务工具 callback 及任意 Python 阻塞同步 callback 仍须分别遵循自己的 timeout-aware 子进程/传输契约。Jev semantic path 尚未采用该 primary worker adapter。若真实执行中收到 timeout，现有 ledger 仍将该次已派发 attempt 和 route 保留为 unknown，不自动重试。新设计要求已加入 selective-business-evaluation delta spec；首波真实执行和所有新模型 dispatch 仍关闭。
 
