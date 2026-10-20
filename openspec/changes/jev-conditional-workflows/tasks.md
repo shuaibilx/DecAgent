@@ -10,14 +10,13 @@
 
 本轮新增 τ callback deadline 契约回归：旧实现下不带 `timeout_seconds` 的同步 callback 会被调用（新测试先复现）；现于 callback 执行前拒绝并关闭 worker。用户模拟器和裁判改为传递 90/120 秒单请求 timeout cap，与 route/batch deadline 取最小值，避免竞争请求继承临时改写的共享 channel timeout。六个相关 τ/公开执行/账本/模型派发/live-runner 文件共 `127 passed, 14 skipped`；全量确定性套件 `1899 passed, 17 skipped (259.61s)`。该修正不完成通用同步函数取消，不改变任何任务勾选，也没有模型、业务工具或评分器请求。
 
-## 当前执行状态（2026-10-20，首波 live 执行后）
+## 当前执行状态（2026-10-21，安全诊断完成后）
 
-OpenSpec 勾选数仍是 `66/78`；本次真实试次没有满足成功闭环验收，因此没有勾选 9.6.F/G、10.3、10.4、10.10.D/E。候选 SHA `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 GitHub CI run `39442012550` 全部通过，固定四域首波已实际进入规范账本，共派发 8 条 ReAct/Plan 路线。机器结果见 `evals/benchmarks/evidence/public-first-wave-live-20261020.json`，人类可读总结见 `evals/benchmarks/evidence/public-first-wave-live-summary-20261020.md`。
+OpenSpec 任务为 **67/79 已完成，12 项未完成**：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E。固定首波的 4 个任务、8 条 ReAct/Plan 路线已进入正式账本，候选 SHA `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 GitHub CI `39442012550` 通过；但 8 条路线终态为 4 unknown、4 failed、0 completed，8 条清理 verified、官方评分均未运行。CSM 一条 `find_user` 工具调用为 unknown，目录 effect 标注为 write，副作用未知，不能将清理完成解释为业务无副作用。Qwen 4 次请求中，1 次用量可知为 6,952 tokens 且费用 unknown，另 3 次用量/费用 unknown。Jev 和裁判请求为 0。首波路线不重放，公开 benchmark 仍为 0/286。
 
-8 条路线状态为 4 unknown、4 failed、0 completed；8 条清理均 verified，8 条官方评分均为 `not_attempted`。CSM 的 `find_user` 工具调用为 unknown，工具目录 effect 标记为 `write`；不得据 cleanup verified 推断无业务副作用。Qwen 共登记 4 次请求，1 次用量可核实为 6,952 tokens，另外 3 次 usage unknown；没有供应商账单数据，任何一次都不能把费用记作 `$0`。Jev 与 judge 调用均为 0。unknown 路线不重试，另外 40 条 pending smoke 路线也不在本批次继续派发。
+安全诊断增强已在本地提交 `8ddc70e feat: persist safe public evaluation diagnostics`：模型/工具 attempt 与 route receipt 仅记录白名单失败阶段、安全异常类型和有效 HTTP 状态；异常消息、prompt/response、工具参数/返回和凭证不入库。该改进没有修复首波结果，也没有重新派发模型请求。全量确定性套件 `1911 passed, 18 skipped`；相关公开评测回归 `167 passed`，Ruff 与严格 OpenSpec 校验通过。客观版本/预算和未知项以公开首波账本与证据报告为准；不得把工程验收等同 Agent 质量结论。
 
-当前错误日志只保留 `model_dispatch_error`、`tool_dispatch_error`、`agent_failure`、`environment_failure` 这类分类，没有可判定异常阶段的诊断字段；不能离线归因网络、配置或供应商问题。后续真实批次须先完成离线根因定位与不含 prompt、响应正文或密钥的安全诊断增强，再重新冻结试次身份和额度。旧快照中的“live 尚未派发/仍为 0 route attempts”仅描述首波执行前状态，不代表当前状态。
-
+`guest-sop-local-trial` 独立 change 已开始实施，workspace legacy 迁移 task 1.1 通过隔离 PostgreSQL 和 65 个业务集成回归；该进度不计入本 change 的 67/79，也不改变尚未完成的公开评测任务。
 ## 1. 基线留存与兼容准备
 
 - [x] 1.1 留存当前 business-2 MCP 运行契约、基线入口、相关测试与版本指纹，确认没有依赖已退役 CLI 的基线；交付基线 manifest，并验证同一固定任务可由留存入口执行。
