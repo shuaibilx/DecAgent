@@ -74,7 +74,11 @@ class BusinessWorker(Worker):
         try:
             token = self.employee_auth.resolve_credential_ref(task["id"])
             identity = self.employee_auth.authenticate_mcp_token(token)
-            if identity is None or identity.employee_id != task["employee_id"]:
+            if (
+                identity is None
+                or identity.employee_id != task["employee_id"]
+                or identity.workspace_id != task["workspace_id"]
+            ):
                 raise ValueError("Employee identity unavailable")
             return self.mcp_manager.client(identity, token)
         except ValueError as exc:
@@ -126,8 +130,8 @@ class BusinessWorker(Worker):
                         with self.database.connect() as conn:
                             reply = conn.execute(
                                 "SELECT id,status,digest,kind,reply_payload FROM app.approvals "
-                                "WHERE id=%s AND task_id=%s",
-                                (approval_id, task["id"]),
+                                "WHERE id=%s AND task_id=%s AND workspace_id=%s",
+                                (approval_id, task["id"], task["workspace_id"]),
                             ).fetchone()
                         if (
                             not reply
@@ -147,10 +151,15 @@ class BusinessWorker(Worker):
                         with self.database.connect() as conn:
                             request = conn.execute(
                                 "SELECT payload FROM app.events WHERE task_id=%s "
-                                "AND kind='task.resume_requested' "
+                                "AND workspace_id=%s AND kind='task.resume_requested' "
                                 "AND (%s::timestamptz IS NULL OR created_at>=%s::timestamptz) "
                                 "ORDER BY seq DESC LIMIT 1",
-                                (task["id"], snapshot.created_at, snapshot.created_at),
+                                (
+                                    task["id"],
+                                    task["workspace_id"],
+                                    snapshot.created_at,
+                                    snapshot.created_at,
+                                ),
                             ).fetchone()
                         if not request:
                             return None

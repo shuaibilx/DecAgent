@@ -4,6 +4,7 @@ import hashlib
 import os
 from dataclasses import replace
 from datetime import timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -21,6 +22,7 @@ from decagent.business.tickets.store import TicketStore
 from decagent.business.workspaces import LEGACY_WORKSPACE_ID
 from decagent.config import Settings
 from decagent.gateway import create_app, initialize_owner
+from decagent.storage.usage import UsageLedger
 
 pytestmark = pytest.mark.integration
 ORIGIN = "http://127.0.0.1:8000"
@@ -94,6 +96,37 @@ def test_employee_login_uses_account_identity_and_rejects_bad_or_forged_credenti
     assert password not in str(session)
     assert "httponly" in signed_in.headers["set-cookie"].lower()
     assert "samesite=strict" in signed_in.headers["set-cookie"].lower()
+
+
+def test_business_worker_rejects_recovered_credential_from_another_workspace():
+    from decagent.business.mcp_client import MCPAuthenticationError
+    from decagent.business.worker import BusinessWorker
+
+    employee_id, task_workspace, credential_workspace = uuid4(), uuid4(), uuid4()
+
+    class Auth:
+        def resolve_credential_ref(self, task_id):
+            assert task_id == "task-id"
+            return "protected-token"
+
+        def authenticate_mcp_token(self, token):
+            assert token == "protected-token"
+            return SimpleNamespace(employee_id=employee_id, workspace_id=credential_workspace)
+
+    class Manager:
+        def client(self, identity, token):
+            return (identity, token)
+
+    worker = object.__new__(BusinessWorker)
+    worker.employee_auth = Auth()
+    worker.mcp_manager = Manager()
+    task = {
+        "id": "task-id",
+        "employee_id": employee_id,
+        "workspace_id": task_workspace,
+    }
+    with pytest.raises(MCPAuthenticationError, match="Original employee"):
+        worker._client(task)
 
 
 def test_browser_session_enforces_origin_csrf_expiry_and_account_state(employee_api):
@@ -424,9 +457,16 @@ def test_authenticated_employee_workspace_is_database_bound_and_request_cannot_o
     assert submitted.status_code == 201, submitted.text
     task_id = UUID(submitted.json()["id"])
     assert client.get(f"/api/v2/business/tasks/{task_id}").status_code == 200
+    for route in (
+        f"/api/v2/business/tasks/{task_id}/plan",
+        f"/api/v2/business/tasks/{task_id}/trace",
+        f"/api/v2/business/tasks/{task_id}/export",
+    ):
+        response = client.get(route)
+        assert response.status_code == 200, (route, response.status_code, response.text)
     with database.connect() as connection:
         task = connection.execute(
-            "SELECT employee_id,credential_ref,workspace_id FROM app.tasks WHERE id=%s",
+            "SELECT id,employee_id,credential_ref,workspace_id FROM app.tasks WHERE id=%s",
             (task_id,),
         ).fetchone()
         task_credential = connection.execute(
@@ -442,6 +482,116 @@ def test_authenticated_employee_workspace_is_database_bound_and_request_cannot_o
     assert task_credential["employee_id"] == employee_id
     assert event["workspace_id"] == workspace_id
 
+    from decagent.business.worker import BusinessWorker
+
+    class CapturingManager:
+        def client(self, identity, token):
+            self.identity, self.token = identity, token
+            return identity
+
+    worker = object.__new__(BusinessWorker)
+    worker.employee_auth = auth
+    worker.mcp_manager = CapturingManager()
+    restored_identity = worker._client(task)
+    assert restored_identity.employee_id == employee_id
+    assert restored_identity.workspace_id == workspace_id
+    task_token = (directory / f"mcp-{task['credential_ref']}.token").read_text().strip()
+    assert worker.mcp_manager.token == task_token
+
+    # Task-owned runtime rows must inherit the trusted tenant from the task, even
+    # when a legacy writer relies on the schema default for workspace_id.
+    action = database.plan_action(task_id, "workspace-action", "a" * 64, {"operation": "read"})
+    approval = database.ensure_approval(task_id, action["id"], action["digest"], "action")
+    assert action["workspace_id"] == workspace_id
+    assert approval["workspace_id"] == workspace_id
+    with database.connect() as connection:
+        attempt = connection.execute(
+            "INSERT INTO app.action_attempts"
+            "(id,action_id,generation,execution_id,status) "
+            "VALUES(%s,%s,1,%s,'prepared') RETURNING workspace_id",
+            (uuid4(), action["id"], "workspace-attempt-" + str(uuid4())),
+        ).fetchone()
+    assert attempt["workspace_id"] == workspace_id
+    reservation_id = UsageLedger(database, task_id).reserve(
+        "workspace-usage", 0, "test-provider", 1, Decimal("0")
+    )
+    with database.connect() as connection:
+        usage = connection.execute(
+            "SELECT workspace_id FROM app.usage_records WHERE id=%s", (reservation_id,)
+        ).fetchone()
+    assert usage["workspace_id"] == workspace_id
+
+    with database.connect() as connection:
+        connection.execute(
+            "INSERT INTO app.approvals(id,task_id,digest,kind,workspace_id) "
+            "VALUES(%s,%s,%s,'clarification',%s)",
+            (uuid4(), task_id, "b" * 64, LEGACY_WORKSPACE_ID),
+        )
+        approval_id = connection.execute(
+            "SELECT id FROM app.approvals WHERE task_id=%s AND digest=%s",
+            (task_id, "b" * 64),
+        ).fetchone()["id"]
+        assert (
+            connection.execute(
+                "SELECT workspace_id FROM app.approvals WHERE id=%s", (approval_id,)
+            ).fetchone()["workspace_id"]
+            == workspace_id
+        )
+
+    assert client.delete("/api/v2/business/auth/session", headers=_csrf(login)).status_code == 200
+    legacy_login = _login(client, directory)
+    assert legacy_login.status_code == 200
+    legacy_identity = auth.authenticate_browser(
+        SimpleNamespace(headers={}, cookies=dict(client.cookies))
+    )
+    assert legacy_identity is not None and legacy_identity.workspace_id == LEGACY_WORKSPACE_ID
+    protected_routes = (
+        f"/api/v2/business/tasks/{task_id}",
+        f"/api/v2/business/tasks/{task_id}/events?follow=false",
+        f"/api/v2/business/tasks/{task_id}/plan",
+        f"/api/v2/business/tasks/{task_id}/trace",
+        f"/api/v2/business/tasks/{task_id}/export",
+    )
+    for route in protected_routes:
+        response = client.get(route)
+        assert response.status_code == 404, (route, response.status_code, response.text)
+    replay = client.post(
+        f"/api/v2/business/tasks/{task_id}/approvals/{approval_id}/reply",
+        json={"expected_digest": "b" * 64, "decision": "approve"},
+        headers={
+            **_csrf(legacy_login),
+            "Idempotency-Key": "cross-workspace-approval-replay",
+        },
+    )
+    assert replay.status_code == 404, replay.text
+    with database.connect() as connection:
+        assert (
+            connection.execute(
+                "SELECT status FROM app.approvals WHERE id=%s", (approval_id,)
+            ).fetchone()["status"]
+            == "pending"
+        )
+
+    supervisor_login = _login(client, directory, "guest-supervisor", "fixture-only-password")
+    assert supervisor_login.status_code == 200
+    assert client.get(f"/api/v2/business/tasks/{task_id}").status_code == 404
+    supervisor_replay = client.post(
+        f"/api/v2/business/tasks/{task_id}/approvals/{approval_id}/reply",
+        json={"expected_digest": "b" * 64, "decision": "approve"},
+        headers={
+            **_csrf(supervisor_login),
+            "Idempotency-Key": "same-workspace-approval-replay",
+        },
+    )
+    assert supervisor_replay.status_code == 404, supervisor_replay.text
+
+    login = _login(client, directory, "guest-auth-test", password)
+    assert login.status_code == 200
+    browser_identity = auth.authenticate_browser(
+        SimpleNamespace(headers={}, cookies=dict(client.cookies))
+    )
+    assert browser_identity is not None and browser_identity.workspace_id == workspace_id
+
     operations = OperationService(database)
     prepared = operations.prepare(
         mcp_identity,
@@ -450,6 +600,13 @@ def test_authenticated_employee_workspace_is_database_bound_and_request_cannot_o
         {"title": "Guest-created ticket", "category_id": str(category_id)},
     )
     if prepared["state"] == "awaiting_approval":
+        with pytest.raises(AccessError, match="unavailable"):
+            operations.reply(
+                legacy_identity,
+                prepared["operation_id"],
+                prepared["input_hash"],
+                "approve",
+            )
         operations.reply(
             browser_identity, prepared["operation_id"], prepared["input_hash"], "approve"
         )

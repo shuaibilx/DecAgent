@@ -20,6 +20,8 @@ Non-Goals：真实公司 API、付费订阅、注册邮箱/GitHub 绑定、跨�
 
 使用 workspace-aware 数据访问方法统一注入归属条件，复合数据库约束阻止跨空间关联；全局清理/调度仅供内部服务使用。员工 login/person ID 由服务端空间命名避免全局 seed 碰撞。company_scope 从固定字符串改为可信 workspace；稳定记忆槽仍按当前员工和已发布流程解析。共享发布模板只能含无个人数据的参数槽和版本，不共享任务实例或员工记忆。
 
+任务子记录的写入边界再由 PostgreSQL 保护：事件、操作、审批、执行尝试、用量、计划、决策干预和工作流记录在插入时，从可信父任务或父操作派生 workspace；调用方遗漏旧默认值或传入不一致值，都不能改变归属。业务 API、Worker 恢复和 trace/export 仍显式按员工、任务及 workspace 授权/过滤；数据库触发器不替代入口授权。
+
 ### 2. 游客会话、角色与空间生命周期
 
 新增 `/api/v3/guest/session` POST/GET 创建/恢复游客身份，`POST /api/v3/guest/role` 切换本空间预置员工，`DELETE /api/v3/guest/workspace` 清空并撤销空间。服务端生成高熵会话、只保存 hash，Cookie HttpOnly/SameSite、公开 HTTPS Secure，变更请求 CSRF/Origin；本地 HTTP 仅 loopback。不得从客户端 body 或不可信 header 读取执行 workspace。保留原 owner/员工入口，不把游客映射 owner。

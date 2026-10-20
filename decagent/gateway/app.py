@@ -400,35 +400,40 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     def task_view(conn, row):
         approvals = conn.execute(
             "SELECT a.*,x.snapshot AS action FROM app.approvals a "
-            "LEFT JOIN app.actions x ON a.action_id=x.id WHERE a.task_id=%s ORDER BY a.created_at",
-            (row["id"],),
+            "LEFT JOIN app.actions x ON a.action_id=x.id AND a.workspace_id=x.workspace_id "
+            "WHERE a.task_id=%s AND a.workspace_id=%s ORDER BY a.created_at",
+            (row["id"], row["workspace_id"]),
         ).fetchall()
         decisions = conn.execute(
-            "SELECT * FROM app.decision_records WHERE task_id=%s ORDER BY created_at DESC LIMIT 50",
-            (row["id"],),
+            "SELECT * FROM app.decision_records WHERE task_id=%s AND workspace_id=%s "
+            "ORDER BY created_at DESC LIMIT 50",
+            (row["id"], row["workspace_id"]),
         ).fetchall()
         interventions = conn.execute(
             "SELECT kind,payload,seq FROM app.events WHERE task_id=%s "
-            "AND (kind LIKE 'intervention.%%' OR kind='progress.observed') "
+            "AND workspace_id=%s AND (kind LIKE 'intervention.%%' OR kind='progress.observed') "
             "ORDER BY seq DESC LIMIT 50",
-            (row["id"],),
+            (row["id"], row["workspace_id"]),
         ).fetchall()[::-1]
         delivery = conn.execute(
-            "SELECT * FROM app.deliveries WHERE task_id=%s", (row["id"],)
+            "SELECT * FROM app.deliveries WHERE task_id=%s AND workspace_id=%s",
+            (row["id"], row["workspace_id"]),
         ).fetchone()
         waits = conn.execute(
             "SELECT kind,payload,seq FROM app.events WHERE task_id=%s "
-            "AND (kind LIKE '%%wait%%' OR kind LIKE '%%interrupt%%' "
+            "AND workspace_id=%s AND (kind LIKE '%%wait%%' OR kind LIKE '%%interrupt%%' "
             "OR kind LIKE '%%pause%%') ORDER BY seq DESC LIMIT 1",
-            (row["id"],),
+            (row["id"], row["workspace_id"]),
         ).fetchone()
         actions = conn.execute(
-            "SELECT * FROM app.actions WHERE task_id=%s ORDER BY created_at,id", (row["id"],)
+            "SELECT * FROM app.actions WHERE task_id=%s AND workspace_id=%s ORDER BY created_at,id",
+            (row["id"], row["workspace_id"]),
         ).fetchall()
         result = conn.execute(
-            "SELECT payload FROM app.events WHERE task_id=%s AND kind='task.finished' "
+            "SELECT payload FROM app.events WHERE task_id=%s AND workspace_id=%s "
+            "AND kind='task.finished' "
             "ORDER BY seq DESC LIMIT 1",
-            (row["id"],),
+            (row["id"], row["workspace_id"]),
         ).fetchone()
         return {
             **row,
@@ -697,8 +702,9 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
         def operation(conn, operation_id):
             task = employee_task_row(conn, employee, task_id, lock=True)
             approval = conn.execute(
-                "SELECT * FROM app.approvals WHERE id=%s AND task_id=%s FOR UPDATE",
-                (approval_id, task_id),
+                "SELECT * FROM app.approvals WHERE id=%s AND task_id=%s AND workspace_id=%s "
+                "FOR UPDATE",
+                (approval_id, task_id, employee.workspace_id),
             ).fetchone()
             if approval is None:
                 raise ApiError(404, "not_found", "Task approval unavailable")
@@ -722,8 +728,9 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
         def operation(conn, operation_id):
             task = employee_task_row(conn, employee, task_id, lock=True)
             approval = conn.execute(
-                "SELECT * FROM app.approvals WHERE id=%s AND task_id=%s FOR UPDATE",
-                (approval_id, task_id),
+                "SELECT * FROM app.approvals WHERE id=%s AND task_id=%s AND workspace_id=%s "
+                "FOR UPDATE",
+                (approval_id, task_id, employee.workspace_id),
             ).fetchone()
             if approval is None:
                 raise ApiError(404, "not_found", "Semantic decision unavailable")
@@ -773,8 +780,9 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
             if task["state"] == "paused_budget" and body.budget is None:
                 raise ApiError(422, "budget_required", "A revised explicit budget is required")
             pending = conn.execute(
-                "SELECT id FROM app.approvals WHERE task_id=%s AND status='pending' LIMIT 1",
-                (task_id,),
+                "SELECT id FROM app.approvals WHERE task_id=%s AND workspace_id=%s "
+                "AND status='pending' LIMIT 1",
+                (task_id, employee.workspace_id),
             ).fetchone()
             if pending:
                 raise ApiError(409, "approval_required", "Reply to current question first")
@@ -850,16 +858,21 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
             with database.connect() as conn:
                 employee_task_row(conn, employee, task_id)
                 return conn.execute(
-                    "SELECT seq,kind,payload FROM app.events WHERE task_id=%s AND seq>%s "
+                    "SELECT seq,kind,payload FROM app.events WHERE task_id=%s AND workspace_id=%s "
+                    "AND seq>%s "
                     "ORDER BY seq LIMIT 500",
-                    (task_id, after),
+                    (task_id, employee.workspace_id, after),
                 ).fetchall()
 
         async def stream():
             after = int(last)
             while not await request.is_disconnected():
                 current = await asyncio.to_thread(employee_auth.authenticate_browser, request)
-                if current is None or current.employee_id != request.state.employee.employee_id:
+                if (
+                    current is None
+                    or current.employee_id != request.state.employee.employee_id
+                    or current.workspace_id != request.state.employee.workspace_id
+                ):
                     return
                 try:
                     rows = await asyncio.to_thread(batch, after, current)

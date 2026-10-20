@@ -26,6 +26,13 @@
 - **WHEN** 其他空间存在相同 subject 的已验证员工记忆
 - **THEN** 当前工作流不能读取该记录，模型上下文也不得包含它
 
+### Requirement: Task-owned workspace propagation
+任务派生的事件、操作、审批、执行尝试、模型用量、计划、决策干预和工作流记录 MUST 继承可信父任务或父操作的 workspace；客户端或旧内部写入路径提供的空间值 MUST NOT 改变归属。读取任务 trace、导出或恢复人工待办前，系统 MUST 重新验证当前员工、任务和空间身份。
+
+#### Scenario: Legacy writer creates a guest task record
+- **WHEN** 旧写入路径为游客任务创建子记录并遗漏空间或给出 legacy 默认值
+- **THEN** 数据库将记录绑定到父任务的游客空间；另一空间的员工不能读取、回复或恢复该记录
+
 ### Requirement: Local simulated role switching
 
 游客 MUST 能在本人空间的员工、处理人与主管间切换。切换 MUST 重新建立当前身份权限并清理浏览器旧详情；原任务、人工待办和确认 MUST 继续绑定原执行身份。游客 MUST NOT 获得全局 owner、任意 Shell 或真实公司权限。

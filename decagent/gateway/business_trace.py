@@ -49,8 +49,8 @@ class ReadOnlyPlanSource:
         task = conn.execute(
             "SELECT t.*,s.revision AS scope_revision,s.manifest_digest,s.enabled "
             "FROM app.tasks t JOIN app.business_scopes s ON s.id=t.business_scope_id "
-            "WHERE t.id=%s AND t.kind='business' AND t.employee_id=%s",
-            (self.task_id, self.identity.employee_id),
+            "WHERE t.id=%s AND t.kind='business' AND t.employee_id=%s AND t.workspace_id=%s",
+            (self.task_id, self.identity.employee_id, self.identity.workspace_id),
         ).fetchone()
         if task is None:
             raise AccessError("not_found", "Original employee task unavailable")
@@ -63,8 +63,9 @@ class ReadOnlyPlanSource:
     def _load(self, conn):
         saved = conn.execute(
             "SELECT r.* FROM app.business_plan_heads h JOIN app.business_plan_revisions r "
-            "ON r.task_id=h.task_id AND r.revision=h.current_revision WHERE h.task_id=%s",
-            (self.task_id,),
+            "ON r.task_id=h.task_id AND r.revision=h.current_revision "
+            "AND r.workspace_id=h.workspace_id WHERE h.task_id=%s AND h.workspace_id=%s",
+            (self.task_id, self.identity.workspace_id),
         ).fetchone()
         if saved is None:
             return None
@@ -293,8 +294,9 @@ class BusinessTraceControl:
                 else TaskWorkingMemory(source).rebuild(persist=False).to_mapping()
             )
             rows = conn.execute(
-                "SELECT * FROM app.usage_records WHERE task_id=%s ORDER BY created_at,id",
-                (task_id,),
+                "SELECT * FROM app.usage_records WHERE task_id=%s AND workspace_id=%s "
+                "ORDER BY created_at,id",
+                (task_id, task["workspace_id"]),
             ).fetchall()
             state.update(
                 legacy=legacy,
@@ -305,8 +307,9 @@ class BusinessTraceControl:
                 plan_revisions=conn.execute(
                     "SELECT revision,plan_id,content_digest,parent_revision,"
                     "parent_digest,created_at "
-                    "FROM app.business_plan_revisions WHERE task_id=%s ORDER BY revision",
-                    (task_id,),
+                    "FROM app.business_plan_revisions WHERE task_id=%s AND workspace_id=%s "
+                    "ORDER BY revision",
+                    (task_id, task["workspace_id"]),
                 ).fetchall(),
                 threshold_explanation={
                     "certainty": "Jev 对本次答案的把握程度，不代表判断已被证明正确。",
@@ -316,20 +319,21 @@ class BusinessTraceControl:
                     ),
                 },
             )
-            state["policies"] = self._policies(conn, task_id)
+            state["policies"] = self._policies(conn, task)
             state["waiting"] = self._waiting(conn, task, state)
             entries = self._timeline(conn, task, state) if timeline else []
             return state, entries
 
     @staticmethod
-    def _policies(conn, task_id):
+    def _policies(conn, task):
         # Only task-bound policy versions and their report references are visible.
         rows = conn.execute(
             "SELECT p.policy_id,p.policy_version,p.status,p.minimum_threshold,p.validation_record,"
             "b.effective_revision,b.effective_digest,b.configuration "
             "FROM app.task_decision_policy_bindings b JOIN app.decision_policies p "
-            "ON p.policy_id=b.policy_id AND p.policy_version=b.policy_version WHERE b.task_id=%s",
-            (task_id,),
+            "ON p.policy_id=b.policy_id AND p.policy_version=b.policy_version "
+            "AND p.workspace_id=b.workspace_id WHERE b.task_id=%s AND b.workspace_id=%s",
+            (task["id"], task["workspace_id"]),
         ).fetchall()
         return [
             {
@@ -365,9 +369,10 @@ class BusinessTraceControl:
             return None
         row = conn.execute(
             "SELECT seq,kind,payload,created_at FROM app.events WHERE task_id=%s "
+            "AND workspace_id=%s "
             "AND (kind LIKE '%%wait%%' OR kind LIKE '%%interrupt%%' OR kind LIKE '%%pause%%') "
             "ORDER BY seq DESC LIMIT 1",
-            (task["id"],),
+            (task["id"], task["workspace_id"]),
         ).fetchone()
         return _event_item(row, task["id"]) if row else None
 
@@ -377,8 +382,9 @@ class BusinessTraceControl:
         entries = [
             _event_item(row, task_id)
             for row in conn.execute(
-                "SELECT seq,kind,payload,created_at FROM app.events WHERE task_id=%s ORDER BY seq",
-                (task_id,),
+                "SELECT seq,kind,payload,created_at FROM app.events WHERE task_id=%s "
+                "AND workspace_id=%s ORDER BY seq",
+                (task_id, task["workspace_id"]),
             ).fetchall()
         ]
         definitions = {node["id"]: node for node in (state["plan"] or {}).get("nodes", [])}
@@ -445,8 +451,9 @@ class BusinessTraceControl:
         projected = {(row["node_id"], row["generation"]): row for row in state["nodes"]}
         for row in conn.execute(
             "SELECT node_id,execution_generation,plan_revision,status,action_id,updated_at "
-            "FROM app.business_plan_nodes WHERE task_id=%s ORDER BY updated_at,node_id",
-            (task_id,),
+            "FROM app.business_plan_nodes WHERE task_id=%s AND workspace_id=%s "
+            "ORDER BY updated_at,node_id",
+            (task_id, task["workspace_id"]),
         ).fetchall():
             fact = projected.get((row["node_id"], row["execution_generation"]), {})
             policy = (
@@ -474,8 +481,8 @@ class BusinessTraceControl:
         facts = {row["action_id"]: row for row in state["actions"]}
         for row in conn.execute(
             "SELECT id,status,server_operation_id,created_at FROM app.actions "
-            "WHERE task_id=%s ORDER BY created_at,id",
-            (task_id,),
+            "WHERE task_id=%s AND workspace_id=%s ORDER BY created_at,id",
+            (task_id, task["workspace_id"]),
         ).fetchall():
             fact = facts.get(str(row["id"]), {})
             entries.append(
@@ -494,10 +501,17 @@ class BusinessTraceControl:
             )
         for row in conn.execute(
             "SELECT id,request_id,state,input_hash,supersedes,agent_action_id,updated_at "
-            "FROM business.operations WHERE employee_id=%s AND (agent_task_id=%s OR id IN "
-            "(SELECT server_operation_id FROM app.actions WHERE task_id=%s)) "
+            "FROM business.operations WHERE employee_id=%s AND workspace_id=%s "
+            "AND (agent_task_id=%s OR id IN "
+            "(SELECT server_operation_id FROM app.actions WHERE task_id=%s AND workspace_id=%s)) "
             "ORDER BY updated_at,id",
-            (task["employee_id"], task_id, task_id),
+            (
+                task["employee_id"],
+                task["workspace_id"],
+                task_id,
+                task_id,
+                task["workspace_id"],
+            ),
         ).fetchall():
             entries.append(
                 {
@@ -520,9 +534,9 @@ class BusinessTraceControl:
             "SELECT a.id,a.action_id,a.kind,a.status,a.reply,a.created_at,a.replied_at,"
             "i.node_id,i.plan_revision,i.plan_digest,i.binding_digest,i.execution_generation "
             "FROM app.approvals a LEFT JOIN app.business_decision_interventions i "
-            "ON i.approval_id=a.id AND i.task_id=a.task_id "
-            "WHERE a.task_id=%s ORDER BY a.created_at,a.id",
-            (task_id,),
+            "ON i.approval_id=a.id AND i.task_id=a.task_id AND i.workspace_id=a.workspace_id "
+            "WHERE a.task_id=%s AND a.workspace_id=%s ORDER BY a.created_at,a.id",
+            (task_id, task["workspace_id"]),
         ).fetchall():
             entries.append(
                 {
@@ -549,8 +563,8 @@ class BusinessTraceControl:
             )
         for row in conn.execute(
             "SELECT id,kind,policy_id,policy_version,payload,created_at "
-            "FROM app.decision_policy_events WHERE task_id=%s ORDER BY id",
-            (task_id,),
+            "FROM app.decision_policy_events WHERE task_id=%s AND workspace_id=%s ORDER BY id",
+            (task_id, task["workspace_id"]),
         ).fetchall():
             item = _event_item({**row, "seq": row["id"]}, task_id)
             item["id"] = "policy:" + str(row["id"])
