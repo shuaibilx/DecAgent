@@ -22,7 +22,6 @@ from decagent.business.tickets.store import _json
 from decagent.decisions.contracts import digest
 from decagent.storage.safe_record import exact_safe_record
 
-COMPANY_SCOPE = "local-company"
 _HASH = re.compile(r"[a-f0-9]{64}\Z")
 
 
@@ -38,11 +37,12 @@ class MemoryContext:
     contract_fingerprint: str
     question_fingerprint: str
     plan_fingerprint: str
-    company_scope: str = COMPANY_SCOPE
+    workspace_id: str
 
     def __post_init__(self):
         if (
-            self.company_scope != COMPANY_SCOPE
+            not isinstance(self.workspace_id, str)
+            or str(UUID(self.workspace_id)) != self.workspace_id
             or not isinstance(self.scope_id, str)
             or str(UUID(self.scope_id)) != self.scope_id
             or any(
@@ -58,7 +58,9 @@ class MemoryContext:
                 )
             )
         ):
-            raise ValueError("Business memory requires a pinned company, scope and version context")
+            raise ValueError(
+                "Business memory requires a trusted workspace, scope and version context"
+            )
 
 
 class BusinessMemoryStore:
@@ -71,11 +73,16 @@ class BusinessMemoryStore:
     def _scope(self, conn, context):
         if not isinstance(context, MemoryContext):
             raise ValueError("A trusted current memory context is required")
+        workspace = conn.execute(
+            "SELECT id FROM business.workspaces WHERE id=%s AND active FOR SHARE",
+            (context.workspace_id,),
+        ).fetchone()
         row = conn.execute(
             "SELECT * FROM app.business_scopes WHERE id=%s FOR SHARE", (context.scope_id,)
         ).fetchone()
         if (
-            not row
+            not workspace
+            or not row
             or not row["enabled"]
             or row["revision"] != context.scope_revision
             or row["manifest_digest"] != context.contract_fingerprint
@@ -87,6 +94,8 @@ class BusinessMemoryStore:
     def _checked(self, conn, identity, context, *, browser=False):
         actor = self.operations._identity(conn, identity, lock=True, browser_only=browser)
         self._scope(conn, context)
+        if str(actor["workspace_id"]) != context.workspace_id:
+            raise AccessError("workspace_mismatch", "Business memory workspace changed")
         if actor["credential_revision"] != context.account_revision:
             raise AccessError("version_changed", "Business memory account revision changed")
         return actor
@@ -107,6 +116,7 @@ class BusinessMemoryStore:
                 scope["manifest_digest"],
                 question_fingerprint,
                 plan_fingerprint,
+                str(actor["workspace_id"]),
             )
             self._scope(conn, result)
             return result
@@ -148,10 +158,20 @@ class BusinessMemoryStore:
         if raw["kind"] == "task_event":
             row = conn.execute(
                 "SELECT e.seq,e.kind,e.payload,t.id,t.employee_id,t.business_scope_id,"
-                "t.authorization_snapshot FROM app.events e JOIN app.tasks t ON t.id=e.task_id "
+                "t.authorization_snapshot FROM app.events e JOIN app.tasks t "
+                "ON t.id=e.task_id AND t.workspace_id=e.workspace_id "
                 "WHERE e.task_id=%s AND e.seq=%s AND t.kind='business' "
-                "AND t.business_scope_id=%s AND (%s::uuid IS NULL OR t.employee_id=%s)",
-                (raw["task_id"], raw["seq"], context.scope_id, employee_id, employee_id),
+                "AND e.workspace_id=%s AND t.workspace_id=%s AND t.business_scope_id=%s "
+                "AND (%s::uuid IS NULL OR t.employee_id=%s)",
+                (
+                    raw["task_id"],
+                    raw["seq"],
+                    context.workspace_id,
+                    context.workspace_id,
+                    context.scope_id,
+                    employee_id,
+                    employee_id,
+                ),
             ).fetchone()
             if (
                 not row
@@ -167,8 +187,15 @@ class BusinessMemoryStore:
         else:
             row = conn.execute(
                 "SELECT * FROM business.operations WHERE id=%s AND scope_id=%s "
+                "AND workspace_id=%s "
                 "AND (%s::uuid IS NULL OR employee_id=%s) FOR SHARE",
-                (raw["operation_id"], context.scope_id, employee_id, employee_id),
+                (
+                    raw["operation_id"],
+                    context.scope_id,
+                    context.workspace_id,
+                    employee_id,
+                    employee_id,
+                ),
             ).fetchone()
             if (
                 not row
@@ -180,14 +207,21 @@ class BusinessMemoryStore:
                     "invalid_evidence", "Successful current receipt evidence required"
                 )
             source_employee, command = row["employee_id"], row["command"]
-            if command not in access.allowed_commands(conn, source_employee):
+            if command not in access.allowed_commands(
+                conn, source_employee, workspace_id=context.workspace_id
+            ):
                 raise AccessError("forbidden", "Receipt command permission is no longer available")
             verified, result = self.operations._receipt_evidence(conn, row)
             if verified != "verified":
                 raise AccessError(
                     "invalid_evidence", "Receipt evidence and durable history disagree"
                 )
-            access.get_ticket(conn, source_employee, result["receipt"]["resource_id"])
+            access.get_ticket(
+                conn,
+                source_employee,
+                result["receipt"]["resource_id"],
+                workspace_id=context.workspace_id,
+            )
             proof = {
                 "operation": {
                     key: row[key]
@@ -208,12 +242,12 @@ class BusinessMemoryStore:
             }
         if source_employee is None:
             raise AccessError("invalid_evidence", "Evidence must bind the original employee")
-        access.principal(conn, source_employee)
+        access.principal(conn, source_employee, workspace_id=context.workspace_id)
         key, fingerprint = digest(raw), digest(_json(proof))
         if conn.execute(
-            "SELECT 1 FROM app.business_memory_source_revocations WHERE company_scope=%s "
+            "SELECT 1 FROM app.business_memory_source_revocations WHERE workspace_id=%s "
             "AND employee_id=%s AND evidence_key=%s",
-            (context.company_scope, source_employee, key),
+            (context.workspace_id, source_employee, key),
         ).fetchone():
             raise AccessError("source_revoked", "Business memory evidence source was revoked")
         normalized = {
@@ -242,12 +276,14 @@ class BusinessMemoryStore:
                 commands.add(command)
         return [result[key] for key in sorted(result)], commands
 
-    def _audit(self, conn, event, actor, payload, memory_id=None):
+    def _audit(self, conn, event, actor, payload, memory_id=None, *, workspace_id):
         conn.execute(
             "INSERT INTO app.business_memory_audit"
-            "(id,memory_id,actor_employee_id,event,payload,created_at) VALUES(%s,%s,%s,%s,%s,%s)",
+            "(id,workspace_id,memory_id,actor_employee_id,event,payload,created_at) "
+            "VALUES(%s,%s,%s,%s,%s,%s,%s)",
             (
                 uuid4(),
+                workspace_id,
                 memory_id,
                 actor,
                 event,
@@ -259,8 +295,8 @@ class BusinessMemoryStore:
     def _own(self, conn, identity, memory_id, *, lock=False):
         row = conn.execute(
             "SELECT * FROM app.business_memories WHERE id=%s AND employee_id=%s "
-            "AND company_scope=%s" + (" FOR UPDATE" if lock else ""),
-            (memory_id, identity.employee_id, COMPANY_SCOPE),
+            "AND workspace_id=%s" + (" FOR UPDATE" if lock else ""),
+            (memory_id, identity.employee_id, identity.workspace_id),
         ).fetchone()
         if not row:
             raise AccessError("not_found", "Business memory unavailable")
@@ -268,7 +304,14 @@ class BusinessMemoryStore:
 
     def _view(self, row, *, usable=False):
         value = dict(row)
-        for field in ("id", "employee_id", "scope_id", "confirmed_by", "supersedes"):
+        value.pop("workspace_id", None)
+        for field in (
+            "id",
+            "employee_id",
+            "scope_id",
+            "confirmed_by",
+            "supersedes",
+        ):
             if value[field] is not None:
                 value[field] = str(value[field])
         return {
@@ -287,8 +330,9 @@ class BusinessMemoryStore:
     def _rule(self, conn, context, rule_id, rule_version):
         row = conn.execute(
             "SELECT * FROM app.business_memory_rules WHERE rule_id=%s "
-            "AND rule_version=%s AND status='published' AND valid_until>%s FOR SHARE",
-            (rule_id, rule_version, self.clock()),
+            "AND rule_version=%s AND workspace_id=%s AND status='published' "
+            "AND valid_until>%s FOR SHARE",
+            (rule_id, rule_version, context.workspace_id, self.clock()),
         ).fetchone()
         if not row or any(
             str(row[key]) != str(value)
@@ -316,6 +360,49 @@ class BusinessMemoryStore:
             return False
         return True
 
+    @staticmethod
+    def _duplicate(
+        conn,
+        identity,
+        context,
+        *,
+        stamp,
+        kind,
+        subject,
+        content,
+        references,
+        supersedes,
+        rule,
+    ):
+        return conn.execute(
+            "SELECT * FROM app.business_memories WHERE workspace_id=%s AND employee_id=%s "
+            "AND (content_digest=%s OR (kind=%s AND subject=%s AND content=%s "
+            "AND evidence_refs=%s AND scope_id=%s AND scope_revision=%s "
+            "AND account_revision=%s AND contract_fingerprint=%s "
+            "AND question_fingerprint=%s AND plan_fingerprint=%s "
+            "AND supersedes IS NOT DISTINCT FROM %s "
+            "AND rule_id IS NOT DISTINCT FROM %s AND rule_version IS NOT DISTINCT FROM %s)) "
+            "ORDER BY created_at DESC,id LIMIT 1",
+            (
+                context.workspace_id,
+                identity.employee_id,
+                stamp,
+                kind,
+                subject,
+                Jsonb(content),
+                Jsonb(references),
+                context.scope_id,
+                context.scope_revision,
+                context.account_revision,
+                context.contract_fingerprint,
+                context.question_fingerprint,
+                context.plan_fingerprint,
+                supersedes,
+                rule["rule_id"] if rule else None,
+                rule["rule_version"] if rule else None,
+            ),
+        ).fetchone()
+
     def _insert(
         self,
         conn,
@@ -335,6 +422,7 @@ class BusinessMemoryStore:
             if (
                 replaced["kind"] != kind
                 or replaced["subject"] != subject
+                or str(replaced["workspace_id"]) != context.workspace_id
                 or str(replaced["scope_id"]) != context.scope_id
             ):
                 raise ValueError("Supersedes must reference the same current memory subject")
@@ -357,25 +445,32 @@ class BusinessMemoryStore:
             "SELECT pg_advisory_xact_lock(hashtextextended(%s,46131))",
             (str(identity.employee_id) + stamp,),
         )
-        prior = conn.execute(
-            "SELECT * FROM app.business_memories WHERE company_scope=%s "
-            "AND employee_id=%s AND content_digest=%s",
-            (context.company_scope, identity.employee_id, stamp),
-        ).fetchone()
+        prior = self._duplicate(
+            conn,
+            identity,
+            context,
+            stamp=stamp,
+            kind=kind,
+            subject=subject,
+            content=content,
+            references=references,
+            supersedes=supersedes,
+            rule=rule,
+        )
         if prior:
             return prior
         if replaced and replaced["status"] not in {"active", "pending_confirmation"}:
             raise ValueError("Supersedes must reference the same current memory subject")
         active = kind == "verified_workflow_experience"
         row = conn.execute(
-            "INSERT INTO app.business_memories(id,company_scope,employee_id,kind,subject,content,"
+            "INSERT INTO app.business_memories(id,workspace_id,employee_id,kind,subject,content,"
             "evidence_refs,scope_id,scope_revision,account_revision,contract_fingerprint,"
             "question_fingerprint,plan_fingerprint,status,verified_at,expires_at,supersedes,"
             "rule_id,rule_version,content_digest,created_at,updated_at) "
             "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
             (
                 uuid4(),
-                context.company_scope,
+                context.workspace_id,
                 identity.employee_id,
                 kind,
                 subject,
@@ -404,6 +499,7 @@ class BusinessMemoryStore:
             identity.employee_id,
             {"content_digest": stamp, "evidence_refs": references},
             row["id"],
+            workspace_id=context.workspace_id,
         )
         return row
 
@@ -448,11 +544,11 @@ class BusinessMemoryStore:
                 raise AccessError("stale", "Preference confirmation unavailable")
             existing = conn.execute(
                 "SELECT * FROM app.business_memories WHERE employee_id=%s "
-                "AND company_scope=%s AND scope_id=%s AND kind='confirmed_preference' "
+                "AND workspace_id=%s AND scope_id=%s AND kind='confirmed_preference' "
                 "AND subject=%s AND status='active' AND expires_at>%s FOR UPDATE",
                 (
                     identity.employee_id,
-                    context.company_scope,
+                    context.workspace_id,
                     context.scope_id,
                     row["subject"],
                     self.clock(),
@@ -478,6 +574,7 @@ class BusinessMemoryStore:
                     identity.employee_id,
                     {"replacement_id": str(row["id"])},
                     prior["id"],
+                    workspace_id=context.workspace_id,
                 )
             now = self.clock()
             row = conn.execute(
@@ -491,6 +588,7 @@ class BusinessMemoryStore:
                 identity.employee_id,
                 {"content_digest": row["content_digest"], "source": "employee_session"},
                 row["id"],
+                workspace_id=context.workspace_id,
             )
             return self._view(row, usable=True)
 
@@ -500,17 +598,17 @@ class BusinessMemoryStore:
         with self.database.connect() as conn:
             self._checked(conn, identity, context)
             rows = conn.execute(
-                "SELECT m.* FROM app.business_memories m WHERE m.company_scope=%s "
+                "SELECT m.* FROM app.business_memories m WHERE m.workspace_id=%s "
                 "AND m.employee_id=%s AND m.scope_id=%s AND m.scope_revision=%s "
                 "AND m.account_revision=%s AND m.contract_fingerprint=%s "
                 "AND m.question_fingerprint=%s AND m.plan_fingerprint=%s "
                 "AND m.status='active' AND m.expires_at>%s AND NOT EXISTS "
                 "(SELECT 1 FROM app.business_memory_source_revocations r "
-                "WHERE r.company_scope=m.company_scope AND r.employee_id=m.employee_id "
+                "WHERE r.workspace_id=m.workspace_id AND r.employee_id=m.employee_id "
                 "AND EXISTS (SELECT 1 FROM jsonb_array_elements(m.evidence_refs) e "
                 "WHERE e->>'key'=r.evidence_key)) ORDER BY m.verified_at DESC,m.id LIMIT 256",
                 (
-                    context.company_scope,
+                    context.workspace_id,
                     identity.employee_id,
                     context.scope_id,
                     context.scope_revision,
@@ -549,14 +647,14 @@ class BusinessMemoryStore:
         with self.database.connect() as conn:
             self._checked(conn, identity, context)
             rows = conn.execute(
-                "SELECT * FROM app.business_memories WHERE company_scope=%s "
+                "SELECT * FROM app.business_memories WHERE workspace_id=%s "
                 "AND employee_id=%s AND scope_id=%s AND scope_revision=%s "
                 "AND account_revision=%s AND contract_fingerprint=%s "
                 "AND question_fingerprint=%s AND plan_fingerprint=%s "
                 "AND kind=%s AND subject=%s AND status='active' AND expires_at>%s "
                 "ORDER BY verified_at DESC,id LIMIT 256 FOR SHARE",
                 (
-                    context.company_scope,
+                    context.workspace_id,
                     identity.employee_id,
                     context.scope_id,
                     context.scope_revision,
@@ -582,14 +680,14 @@ class BusinessMemoryStore:
             raise ValueError("Own memory history limit must be from one to one hundred")
         with self.database.connect() as conn:
             if context is None:
-                self.operations._identity(conn, identity, lock=True)
+                actor = self.operations._identity(conn, identity, lock=True)
             else:
-                self._checked(conn, identity, context)
+                actor = self._checked(conn, identity, context)
             scope_id = context.scope_id if context else None
             rows = conn.execute(
-                "SELECT * FROM app.business_memories WHERE employee_id=%s AND company_scope=%s "
+                "SELECT * FROM app.business_memories WHERE employee_id=%s AND workspace_id=%s "
                 "AND (%s::uuid IS NULL OR scope_id=%s) ORDER BY created_at DESC,id LIMIT %s",
-                (identity.employee_id, COMPANY_SCOPE, scope_id, scope_id, limit),
+                (identity.employee_id, actor["workspace_id"], scope_id, scope_id, limit),
             ).fetchall()
             return [
                 self._view(row, usable=context is not None and self._available(conn, row, context))
@@ -613,7 +711,14 @@ class BusinessMemoryStore:
                 "WHERE id=%s RETURNING *",
                 (self.clock(), row["id"]),
             ).fetchone()
-            self._audit(conn, "memory_revoked", identity.employee_id, {"reason": reason}, row["id"])
+            self._audit(
+                conn,
+                "memory_revoked",
+                identity.employee_id,
+                {"reason": reason},
+                row["id"],
+                workspace_id=identity.workspace_id,
+            )
             return self._view(row)
 
     def revoke_source(self, identity, context, reference, reason):
@@ -624,10 +729,10 @@ class BusinessMemoryStore:
             normalized, _ = self._source(conn, context, reference, identity.employee_id)
             conn.execute(
                 "INSERT INTO app.business_memory_source_revocations"
-                "(company_scope,employee_id,scope_id,evidence_key,reference,reason,revoked_at) "
+                "(workspace_id,employee_id,scope_id,evidence_key,reference,reason,revoked_at) "
                 "VALUES(%s,%s,%s,%s,%s,%s,%s)",
                 (
-                    context.company_scope,
+                    context.workspace_id,
                     identity.employee_id,
                     context.scope_id,
                     normalized["key"],
@@ -641,6 +746,7 @@ class BusinessMemoryStore:
                 "source_revoked",
                 identity.employee_id,
                 {"evidence_key": normalized["key"], "reason": reason},
+                workspace_id=context.workspace_id,
             )
             return {"status": "revoked", "evidence_key": normalized["key"]}
 
@@ -691,8 +797,8 @@ class BusinessMemoryStore:
             stamp = digest(payload)
             prior = conn.execute(
                 "SELECT * FROM app.business_memory_rules WHERE rule_id=%s "
-                "AND rule_version=%s FOR UPDATE",
-                (rule_id, rule_version),
+                "AND rule_version=%s AND workspace_id=%s FOR UPDATE",
+                (rule_id, rule_version, context.workspace_id),
             ).fetchone()
             if prior:
                 if (
@@ -703,7 +809,7 @@ class BusinessMemoryStore:
                     raise ValueError("Published experience rule version is immutable")
                 return prior
             row = conn.execute(
-                "INSERT INTO app.business_memory_rules(rule_id,rule_version,company_scope,"
+                "INSERT INTO app.business_memory_rules(rule_id,rule_version,workspace_id,"
                 "scope_id,scope_revision,contract_fingerprint,question_fingerprint,plan_fingerprint,"
                 "command,renderer_version,lesson,validation_refs,content_digest,status,published_by,"
                 "published_at,valid_until) "
@@ -712,7 +818,7 @@ class BusinessMemoryStore:
                 (
                     rule_id,
                     rule_version,
-                    context.company_scope,
+                    context.workspace_id,
                     context.scope_id,
                     context.scope_revision,
                     context.contract_fingerprint,
@@ -732,18 +838,20 @@ class BusinessMemoryStore:
                 "rule_published",
                 None,
                 {"rule_id": rule_id, "rule_version": rule_version, "content_digest": stamp},
+                workspace_id=context.workspace_id,
             )
             return row
 
-    def revoke_experience_rule(self, owner, rule_id, rule_version, reason):
+    def revoke_experience_rule(self, owner, context, rule_id, rule_version, reason):
         if not _text(reason):
             raise ValueError("A bounded rule revocation reason is required")
         with self.database.connect() as conn:
             self.policies._owner(conn, owner)
+            self._scope(conn, context)
             row = conn.execute(
                 "UPDATE app.business_memory_rules SET status='revoked' WHERE rule_id=%s "
-                "AND rule_version=%s RETURNING *",
-                (rule_id, rule_version),
+                "AND rule_version=%s AND workspace_id=%s RETURNING *",
+                (rule_id, rule_version, context.workspace_id),
             ).fetchone()
             if not row:
                 raise ValueError("Experience rule unavailable")
@@ -752,6 +860,7 @@ class BusinessMemoryStore:
                 "rule_revoked",
                 None,
                 {"rule_id": rule_id, "rule_version": rule_version, "reason": reason},
+                workspace_id=context.workspace_id,
             )
             return row
 

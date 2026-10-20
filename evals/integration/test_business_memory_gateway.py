@@ -222,8 +222,8 @@ def test_correction_and_idempotency_response_rollback_together(api, database, mo
     old = confirm(sample, propose(sample))
     original = BusinessMemoryStore._audit
 
-    def fail_after_write(self, conn, event, actor, payload, memory_id=None):
-        original(self, conn, event, actor, payload, memory_id)
+    def fail_after_write(self, conn, event, actor, payload, memory_id=None, *, workspace_id):
+        original(self, conn, event, actor, payload, memory_id, workspace_id=workspace_id)
         if event == "preference_proposed":
             raise ValueError("Injected transactional failure")
 

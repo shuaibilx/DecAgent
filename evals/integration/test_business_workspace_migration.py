@@ -9,8 +9,11 @@ from langgraph.checkpoint.base import empty_checkpoint
 from psycopg.errors import ForeignKeyViolation
 from psycopg.types.json import Jsonb
 
+from decagent.business.memory import BusinessMemoryStore
+from decagent.business.registry import PluginRegistry
 from decagent.business.tickets.store import TicketStore
 from decagent.storage import database as storage
+from evals.integration.business_support import FixtureTickets
 from evals.integration.database_support import temporary_database
 
 pytestmark = pytest.mark.integration
@@ -316,3 +319,120 @@ def test_legacy_business_rows_and_checkpoint_are_backfilled_without_identity_cha
                 "VALUES(%s,'Cross-workspace ticket',%s,%s)",
                 (uuid4(), ids["category_id"], guest_workspace_id),
             )
+
+
+def test_legacy_memory_survives_workspace_migration_and_can_be_revoked(pre_workspace_database):
+    database = pre_workspace_database
+    actor = FixtureTickets(database, login="employee-it")
+    scope = PluginRegistry(database).list()[0]
+    now = datetime.now(UTC)
+    memory_id = uuid4()
+    task = database.create_business_task(
+        scope["id"],
+        {"instruction": "Legacy memory recovery source", "plugin_digest": scope["manifest_digest"]},
+        employee_id=actor.identity.employee_id,
+        credential_ref=actor.identity.credential_ref,
+    )
+    event = database.event(task["id"], "business.preference_observed", {"value": "中文"})
+    store = BusinessMemoryStore(database)
+    context = store.context(
+        actor.identity,
+        scope["id"],
+        question_fingerprint="b" * 64,
+        plan_fingerprint="c" * 64,
+    )
+    with database.connect() as connection:
+        source, _ = store._source(
+            connection,
+            context,
+            {"kind": "task_event", "task_id": str(task["id"]), "seq": event["seq"]},
+            actor.identity.employee_id,
+        )
+    with database.connect() as connection:
+        connection.execute(
+            "INSERT INTO app.business_memories"
+            "(id,company_scope,employee_id,kind,subject,content,evidence_refs,scope_id,"
+            "scope_revision,account_revision,contract_fingerprint,question_fingerprint,"
+            "plan_fingerprint,status,verified_at,expires_at,confirmed_by,content_digest,"
+            "created_at,updated_at) "
+            "VALUES(%s,'local-company',%s,'confirmed_preference','response_language',%s,%s,%s,"
+            "%s,%s,%s,%s,%s,'active',%s,%s,%s,%s,%s,%s)",
+            (
+                memory_id,
+                actor.identity.employee_id,
+                Jsonb({"value": "中文"}),
+                Jsonb([source]),
+                scope["id"],
+                scope["revision"],
+                actor.identity.account_revision,
+                scope["manifest_digest"],
+                "b" * 64,
+                "c" * 64,
+                now,
+                now + timedelta(days=30),
+                actor.identity.employee_id,
+                "d" * 64,
+                now,
+                now,
+            ),
+        )
+
+    database.migrate()
+    history = store.get(actor.browser, memory_id)
+    assert history["status"] == "active"
+    assert "workspace_id" not in history
+    with database.connect() as connection:
+        assert (
+            connection.execute(
+                "SELECT count(*) AS n FROM information_schema.columns "
+                "WHERE table_schema='app' AND table_name=ANY(%s) "
+                "AND column_name='company_scope'",
+                (
+                    [
+                        "business_memories",
+                        "business_memory_rules",
+                        "business_memory_source_revocations",
+                    ],
+                ),
+            ).fetchone()["n"]
+            == 0
+        )
+        assert (
+            connection.execute(
+                "SELECT workspace_id FROM app.business_memories WHERE id=%s", (memory_id,)
+            ).fetchone()["workspace_id"]
+            == actor.identity.workspace_id
+        )
+    assert history["content"] == {"value": "中文"}
+    candidates = store.candidates(actor.identity, context)
+    assert [str(candidate["id"]) for candidate in candidates] == [str(memory_id)]
+    assert (
+        store.resolve_slot(
+            actor.identity,
+            context,
+            memory_kind="confirmed_preference",
+            subject="response_language",
+        )["content"]["value"]
+        == "中文"
+    )
+    retried = store.propose_preference(
+        actor.identity,
+        context,
+        subject="response_language",
+        value="中文",
+        evidence_refs=[source],
+    )
+    assert retried["id"] == str(memory_id)
+    assert retried["expires_at"] == history["expires_at"]
+    revoked = store.revoke(
+        actor.browser, memory_id, history["content_digest"], "Legacy preference withdrawn"
+    )
+    assert revoked["status"] == "revoked"
+    with database.connect() as connection:
+        saved = connection.execute(
+            "SELECT workspace_id,event FROM app.business_memory_audit "
+            "WHERE memory_id=%s ORDER BY created_at DESC,id DESC LIMIT 1",
+            (memory_id,),
+        ).fetchone()
+    assert saved["workspace_id"] == actor.identity.workspace_id
+    assert saved["event"] == "memory_revoked"

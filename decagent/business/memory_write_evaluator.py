@@ -283,11 +283,18 @@ class BusinessMemoryWriteEvaluator:
                 },
                 self.database.redactor,
             )
-            duplicate = conn.execute(
-                "SELECT id FROM app.business_memories WHERE company_scope=%s "
-                "AND employee_id=%s AND content_digest=%s",
-                (context.company_scope, identity.employee_id, digest(payload)),
-            ).fetchone()
+            duplicate = self.memories._duplicate(
+                conn,
+                identity,
+                context,
+                stamp=digest(payload),
+                kind=kind,
+                subject=subject,
+                content=content,
+                references=references,
+                supersedes=supersedes,
+                rule=rule,
+            )
         return candidates, payload, str(duplicate["id"]) if duplicate else None
 
     def _evaluate_write(self, identity, context, task_id, *, kind, options, policy, template_id):

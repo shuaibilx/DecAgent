@@ -8,7 +8,7 @@
 - [x] 1.2 扩展可信员工身份与凭证的 workspace 解析，统一 workspace-aware 数据访问；测试拒绝客户端覆盖空间和跨空间关联，并保留旧员工登录/MCP 协议回归。证据：`EmployeeIdentity`、浏览器会话、MCP 凭证及任务恢复均从数据库绑定 workspace；工作台任务、操作、审批、审计和 MCP 访问使用同一空间；请求体伪造 workspace 返回 422，伪造身份不能使用其他空间的会话/凭证；隔离 PostgreSQL 的员工认证、操作、工单 ACL、MCP 与 Gateway 回归 80 项通过，新增 workspace 端到端切片测试通过。
 - [x] 1.3 隔离目录、工单与分派候选，限制 supervisor 为本空间；两空间集成测试覆盖读取/列表/写入/候选和原子版本冲突。证据：目录、详情、历史、列表、分派候选、工单写入、操作/回执 SQL 均注入可信 workspace；双空间集成测试拒绝跨空间工单、回执和人员候选，仅列出本空间目录/工单；相同资源的过期 revision 在提交时失败且不产生新副作用。
 - [x] 1.4 隔离任务、审批、操作、回执、trace/export 与 Worker/MCP 分派；两空间猜 ID、重放确认、切换员工和恢复测试全部拒绝越权。证据：新增 migration 021 从 task/action 派生事件、action、approval、attempt、usage、计划/决策/工作流子记录的 workspace，测试 legacy 默认及错误 legacy 值均被修正为父 task 空间；真实 Worker 凭证恢复保留任务员工/workspace，不匹配身份被拒；同空间 supervisor 与 legacy 员工猜 guest task ID、trace/export、事件流和重放 approval 均为 404，approval 保持 pending，游客本人 trace/plan/export 读取通过；现有 operation/receipt ACL 与 unknown 恢复回归保留。核心业务 PostgreSQL/MCP/Gateway 81 项通过；扩展集成首轮 190 passed、2 failed，失败根因是历史 schema fixture 使用新 workspace 字段；修复 fixture 后，计划/记忆/迁移相关 34 项通过。Ruff 通过。
-- [ ] 1.5 将固定 company_scope 迁移为可信 workspace，保持已发布工作流的当前员工稳定记忆槽；测试跨空间同 subject、不合法来源、旧记忆恢复和撤销。
+- [x] 1.5 将固定 company_scope 迁移为可信 workspace，保持已发布工作流的当前员工稳定记忆槽；测试跨空间同 subject、不合法来源、旧记忆恢复和撤销。证据：migration 022 从员工及已核验回执恢复 workspace、移除固定 `company_scope`，并把经验规则键改为 `(rule_id, rule_version, workspace_id)`；`MemoryContext` 由认证身份构造，记忆候选/稳定槽/来源/发布/撤销均按 workspace + employee 过滤，workspace ID 不出现在记忆 API；同一 `kind + subject` 在两个空间分别解析到各自内容，跨空间回执不能发布规则，同名规则版本可独立发布；旧 active 偏好迁移后仍能从原员工稳定槽读取、重复提议不延长 TTL、原员工可以撤销。相关定向确定性/PostgreSQL 组合 `163 passed`，Ruff 通过。
 - [ ] 1.6 交付 workspace 身份链和迁移/回退说明，包含泳道图；逐条与本组集成测试和实际迁移核对。
 
 ## 2. 游客会话与业务体验

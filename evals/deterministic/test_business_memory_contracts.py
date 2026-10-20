@@ -9,13 +9,13 @@ from decagent.business.memory import BusinessMemoryStore, MemoryContext
 
 
 def context():
-    return MemoryContext(str(uuid4()), 1, 1, "a" * 64, "b" * 64, "c" * 64)
+    return MemoryContext(str(uuid4()), 1, 1, "a" * 64, "b" * 64, "c" * 64, str(uuid4()))
 
 
 @pytest.mark.parametrize(
     "values",
     [
-        {"company_scope": "another-company"},
+        {"workspace_id": "invented"},
         {"scope_revision": True},
         {"account_revision": 0},
         {"scope_id": "invented"},

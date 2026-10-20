@@ -26,6 +26,22 @@
 - **WHEN** 其他空间存在相同 subject 的已验证员工记忆
 - **THEN** 当前工作流不能读取该记录，模型上下文也不得包含它
 
+### Requirement: Workspace-bound employee memory and stable slots
+
+业务记忆、来源撤回、提炼规则和审计 MUST 绑定认证员工当前 workspace。`MemoryContext` MUST 从已验证员工身份构造；所有候选、稳定槽解析、写入、确认和撤销 MUST 同时约束 workspace 与 employee。已发布工作流仍声明 `memory_kind + subject`，执行时只解析当前员工在当前 workspace 下与流程版本匹配的唯一有效记录；workspace ID 不属于面向用户的记忆 API。
+
+#### Scenario: Same stable slot in separate workspaces
+- **WHEN** 两个 workspace 分别为员工保存同一 `kind + subject`，但内容不同
+- **THEN** 每个工作流只解析当前员工和当前 workspace 的值，不把另一空间的内容放入上下文
+
+#### Scenario: Rule source from another workspace
+- **WHEN** owner 在一个 workspace 发布经验规则，但其验证回执属于另一个 workspace
+- **THEN** 来源校验拒绝发布，不产生规则或审计副作用
+
+#### Scenario: Preserve and revoke legacy memory
+- **WHEN** 旧 `company_scope` 记忆升级到 workspace-aware schema
+- **THEN** 记忆保留原员工、内容、期限和状态，仍可按其稳定槽恢复；员工可撤销旧记忆，另一 workspace 无法读取或撤销
+
 ### Requirement: Task-owned workspace propagation
 任务派生的事件、操作、审批、执行尝试、模型用量、计划、决策干预和工作流记录 MUST 继承可信父任务或父操作的 workspace；客户端或旧内部写入路径提供的空间值 MUST NOT 改变归属。读取任务 trace、导出或恢复人工待办前，系统 MUST 重新验证当前员工、任务和空间身份。
 

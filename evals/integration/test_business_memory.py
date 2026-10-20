@@ -1,5 +1,6 @@
 """Business memories have real sources, employee scope and bounded validity."""
 
+import hashlib
 import importlib
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -11,6 +12,8 @@ import pytest
 from psycopg.types.json import Jsonb
 
 from decagent.business.access import AccessError
+from decagent.business.employee_auth import EmployeeIdentity
+from decagent.business.operations import OperationService
 from decagent.business.registry import PluginRegistry
 from decagent.gateway.auth import OwnerIdentity
 from evals.integration.business_support import FixtureTickets
@@ -71,6 +74,109 @@ def confirm(sample, memory):
     )
 
 
+def guest_employee(database, scope, *, login):
+    workspace_id, person_id, employee_id = uuid4(), uuid4(), uuid4()
+    session_hash = hashlib.sha256(uuid4().bytes).hexdigest()
+    credential_ref, mcp_hash = uuid4(), hashlib.sha256(uuid4().bytes).hexdigest()
+    with database.connect() as conn:
+        conn.execute(
+            "INSERT INTO business.workspaces(id,slug,kind) VALUES(%s,%s,'guest')",
+            (workspace_id, "memory-" + workspace_id.hex[:16]),
+        )
+        conn.execute(
+            "INSERT INTO business.people(id,name,team,workspace_id) "
+            "VALUES(%s,'Guest memory user','Support',%s)",
+            (person_id, workspace_id),
+        )
+        account = conn.execute(
+            "INSERT INTO business.employee_accounts"
+            "(id,login,person_id,role,password_hash,workspace_id) "
+            "VALUES(%s,%s,%s,'employee','fixture-only-account-hash',%s) RETURNING *",
+            (employee_id, login, person_id, workspace_id),
+        ).fetchone()
+        conn.execute(
+            "INSERT INTO business.employee_sessions"
+            "(token_hash,employee_id,workspace_id,account_revision,csrf_hash,expires_at) "
+            "VALUES(%s,%s,%s,%s,%s,now()+interval '1 hour')",
+            (session_hash, employee_id, workspace_id, account["credential_revision"], "a" * 64),
+        )
+        conn.execute(
+            "INSERT INTO business.mcp_credentials"
+            "(id,employee_id,workspace_id,account_revision,token_hash,expires_at) "
+            "VALUES(%s,%s,%s,%s,%s,now()+interval '1 hour')",
+            (
+                credential_ref,
+                employee_id,
+                workspace_id,
+                account["credential_revision"],
+                mcp_hash,
+            ),
+        )
+    identity = EmployeeIdentity(
+        employee_id,
+        person_id,
+        login,
+        "employee",
+        account["credential_revision"],
+        "employee_session",
+        session_hash,
+        workspace_id=workspace_id,
+    )
+    mcp_identity = EmployeeIdentity(
+        employee_id,
+        person_id,
+        login,
+        "employee",
+        account["credential_revision"],
+        "mcp_token",
+        mcp_hash,
+        credential_ref,
+        workspace_id=workspace_id,
+    )
+    task = database.create_business_task(
+        scope["id"],
+        {
+            "instruction": "Observe a guest memory preference",
+            "plugin_digest": scope["manifest_digest"],
+        },
+        employee_id=employee_id,
+        credential_ref=credential_ref,
+        workspace_id=workspace_id,
+    )
+    event = database.event(task["id"], "business.preference_observed", {"value": "English"})
+    return identity, task, event, mcp_identity
+
+
+def guest_receipt(database, identity, browser, *, workspace_id):
+    category_id = uuid4()
+    with database.connect() as conn:
+        conn.execute(
+            "INSERT INTO business.categories(id,name,workspace_id) "
+            "VALUES(%s,'Guest memory category',%s)",
+            (category_id, workspace_id),
+        )
+    operations = OperationService(database)
+    prepared = operations.prepare(
+        identity,
+        "guest-memory-rule-" + uuid4().hex,
+        "create",
+        {"title": "Guest verified memory source", "category_id": str(category_id)},
+    )
+    if prepared["state"] == "awaiting_approval":
+        operations.reply(
+            browser,
+            prepared["operation_id"],
+            prepared["input_hash"],
+            "approve",
+        )
+    committed = operations.commit(identity, prepared["operation_id"])
+    assert committed["state"] == "succeeded"
+    return {
+        "kind": "operation_receipt",
+        "operation_id": prepared["operation_id"],
+    }
+
+
 def receipt(sample):
     backend = sample["backend"]
     category = backend.read("directory", {})["categories"][0]["id"]
@@ -120,6 +226,160 @@ def test_preference_requires_original_browser_confirmation_and_has_30_day_ttl(sa
     assert candidates[0]["verified"] is True and candidates[0]["grants_write_authority"] is False
     assert candidates[0]["data"] == {"value": "中文"}
     assert actor.identity.token_hash not in str(candidates)
+
+
+def test_memory_slot_is_bound_to_the_authenticated_workspace_and_employee(database, sample):
+    legacy = confirm(sample, propose(sample))
+    guest_identity, task, event, _ = guest_employee(
+        database, sample["scope"], login="guest-memory-slot"
+    )
+    guest_context = sample["store"].context(
+        guest_identity,
+        sample["scope"]["id"],
+        question_fingerprint="b" * 64,
+        plan_fingerprint="c" * 64,
+    )
+    assert guest_context.workspace_id == str(guest_identity.workspace_id)
+    assert guest_context.workspace_id != sample["context"].workspace_id
+
+    guest_source = {
+        "kind": "task_event",
+        "task_id": str(task["id"]),
+        "seq": event["seq"],
+    }
+    pending = sample["store"].propose_preference(
+        guest_identity,
+        guest_context,
+        subject="response_language",
+        value="English",
+        evidence_refs=[guest_source],
+    )
+    guest_memory = sample["store"].confirm_preference(
+        guest_identity, guest_context, pending["id"], pending["content_digest"]
+    )
+
+    assert (
+        sample["store"].resolve_slot(
+            sample["backend"].identity,
+            sample["context"],
+            memory_kind="confirmed_preference",
+            subject="response_language",
+        )["content"]["value"]
+        == legacy["content"]["value"]
+    )
+    assert (
+        sample["store"].resolve_slot(
+            guest_identity,
+            guest_context,
+            memory_kind="confirmed_preference",
+            subject="response_language",
+        )["content"]["value"]
+        == "English"
+    )
+    with pytest.raises(AccessError, match="workspace"):
+        sample["store"].candidates(
+            guest_identity,
+            replace(guest_context, workspace_id=str(sample["backend"].identity.workspace_id)),
+        )
+    with pytest.raises(AccessError, match="unavailable"):
+        sample["store"].revoke(
+            sample["backend"].browser,
+            guest_memory["id"],
+            guest_memory["content_digest"],
+            "Cannot revoke another workspace memory",
+        )
+
+
+def test_owner_cannot_publish_guest_memory_rule_from_legacy_receipt(database, sample):
+    source = receipt(sample)
+    guest_identity, _, _, _ = guest_employee(
+        database, sample["scope"], login="guest-memory-rule-source"
+    )
+    guest_context = sample["store"].context(
+        guest_identity,
+        sample["scope"]["id"],
+        question_fingerprint="b" * 64,
+        plan_fingerprint="c" * 64,
+    )
+    with pytest.raises(AccessError, match="evidence"):
+        sample["store"].publish_experience_rule(
+            sample["owner"],
+            guest_context,
+            rule_id="guest-only-rule",
+            rule_version="1",
+            command="create",
+            lesson="只引用同空间已核验的成功回执。",
+            validation_refs=[source],
+            valid_until=sample["clock"][0] + timedelta(days=1),
+        )
+
+
+def test_published_memory_rules_and_workflow_slots_are_workspace_local(database, sample):
+    legacy_source = receipt(sample)
+    legacy_rule = rule(sample, legacy_source)
+    guest_identity, _, _, guest_mcp = guest_employee(
+        database, sample["scope"], login="guest-memory-experience"
+    )
+    guest_context = sample["store"].context(
+        guest_identity,
+        sample["scope"]["id"],
+        question_fingerprint="b" * 64,
+        plan_fingerprint="c" * 64,
+    )
+    guest_source = guest_receipt(
+        database,
+        guest_mcp,
+        guest_identity,
+        workspace_id=guest_identity.workspace_id,
+    )
+    guest_rule = sample["store"].publish_experience_rule(
+        sample["owner"],
+        guest_context,
+        rule_id="verified-create",
+        rule_version="1",
+        command="create",
+        lesson="访客工作流必须基于本空间回执。",
+        validation_refs=[guest_source],
+        valid_until=sample["clock"][0] + timedelta(days=30),
+    )
+    assert legacy_rule["rule_id"] == guest_rule["rule_id"]
+    assert legacy_rule["rule_version"] == guest_rule["rule_version"]
+    assert legacy_rule["workspace_id"] != guest_rule["workspace_id"]
+
+    legacy_memory = experience(sample, legacy_source)
+    guest_memory = sample["store"].record_experience(
+        guest_identity,
+        guest_context,
+        rule_id="verified-create",
+        rule_version="1",
+        receipt_ref=guest_source,
+    )
+    assert "workspace_id" not in guest_memory
+    with database.connect() as conn:
+        assert (
+            conn.execute(
+                "SELECT workspace_id FROM app.business_memories WHERE id=%s", (guest_memory["id"],)
+            ).fetchone()["workspace_id"]
+            == guest_identity.workspace_id
+        )
+    assert (
+        sample["store"].resolve_slot(
+            sample["backend"].identity,
+            sample["context"],
+            memory_kind="verified_workflow_experience",
+            subject="workflow:create",
+        )["content"]["lesson"]
+        == legacy_memory["content"]["lesson"]
+    )
+    assert (
+        sample["store"].resolve_slot(
+            guest_identity,
+            guest_context,
+            memory_kind="verified_workflow_experience",
+            subject="workflow:create",
+        )["content"]["lesson"]
+        == "访客工作流必须基于本空间回执。"
+    )
 
 
 def test_deduplication_does_not_extend_active_memory_ttl(sample):
@@ -329,7 +589,9 @@ def test_experience_requires_published_rule_and_real_verified_receipt(sample):
         "lesson": "创建工单以服务端成功回执为依据。",
     }
     assert experience(sample, source)["id"] == active["id"]
-    sample["store"].revoke_experience_rule(sample["owner"], "verified-create", "1", "Rule retired")
+    sample["store"].revoke_experience_rule(
+        sample["owner"], sample["context"], "verified-create", "1", "Rule retired"
+    )
     assert sample["store"].candidates(sample["backend"].identity, sample["context"]) == []
 
 

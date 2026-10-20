@@ -18,7 +18,7 @@ Non-Goals：真实公司 API、付费订阅、注册邮箱/GitHub 绑定、跨�
 
 数据库迁移 020 已建立 `business.workspaces`，legacy workspace 固定为 `00000000-0000-0000-0000-000000000001`；历史业务数据及现有 repository tasks 一次性归属到该空间。对员工、目录/工单、任务派生数据、操作/审批/回执、记忆、工作流与计划记录增加 workspace ID 及延迟复合外键。BusinessScope 插件目录保持全局共享，workspace 不能由插件 scope 推导。迁移在隔离 PostgreSQL 验证可从旧 schema 升级、重复 migrate 安全、既有员工/任务/审批/记忆/operation/receipt 与 LangGraph checkpoint 原标识和状态不变，并拒绝跨空间工单分类引用。备份还原识别并替换空库初始化时自动生成的 legacy workspace 行。内部 `workspace_id` 不进入业务 MCP 对外返回对象。兼容默认值只服务旧调用路径；游客入口仍关闭，后续身份和数据访问实现必须显式使用认证解析出的 workspace。
 
-使用 workspace-aware 数据访问方法统一注入归属条件，复合数据库约束阻止跨空间关联；全局清理/调度仅供内部服务使用。员工 login/person ID 由服务端空间命名避免全局 seed 碰撞。company_scope 从固定字符串改为可信 workspace；稳定记忆槽仍按当前员工和已发布流程解析。共享发布模板只能含无个人数据的参数槽和版本，不共享任务实例或员工记忆。
+使用 workspace-aware 数据访问方法统一注入归属条件，复合数据库约束阻止跨空间关联；全局清理/调度仅供内部服务使用。员工 login/person ID 由服务端空间命名避免全局 seed 碰撞。迁移 022 从员工、证据来源与回执恢复可信归属后删除固定 `company_scope`；`MemoryContext` 从认证身份取得 workspace，写入、证据验证、候选与撤销均同时校验 workspace 和员工。经验规则的键改为 `(rule_id, rule_version, workspace_id)`，相同发布版本可在不同公司独立校验；跨空间来源不能发布。旧记忆保持内容、期限与状态，运行时以新 workspace context 恢复原员工稳定槽，重复提议按结构化来源/版本兼容去重。稳定记忆槽仍按当前员工和已发布流程解析，API 返回不暴露 workspace ID。共享发布模板只能含无个人数据的参数槽和版本，不共享任务实例或员工记忆。
 
 任务子记录的写入边界再由 PostgreSQL 保护：事件、操作、审批、执行尝试、用量、计划、决策干预和工作流记录在插入时，从可信父任务或父操作派生 workspace；调用方遗漏旧默认值或传入不一致值，都不能改变归属。业务 API、Worker 恢复和 trace/export 仍显式按员工、任务及 workspace 授权/过滤；数据库触发器不替代入口授权。
 

@@ -198,7 +198,7 @@ flowchart TB
 
 不把 Jev “建议分派”记录成“已分派”。每条观察标注 verified/inferred/user_confirmed 与 source_event/receipt。工具结果、Skill 附加文本与记忆内容当作不可信数据渲染，不能变成系统指令。凭据、环境密钥与完整认证 token 不进入模型或一般 trace。
 
-业务记忆独立表至少有 company_scope（本机单公司）、employee_id、kind、subject、content、evidence_refs、scope_revision、contract/question/plan fingerprints、status、created/verified/expires timestamps、supersedes 和 content_digest。默认偏好有效期 30 天，流程经验 7 天；授权撤销、证据撤回、契约变化或过期立即失效。活动工单状态、当前人员权限和审批许可不得长期当事实缓存。
+业务记忆独立表使用可信 `workspace_id`、`employee_id`、kind、subject、content、evidence_refs、scope_revision、contract/question/plan fingerprints、status、created/verified/expires timestamps、supersedes 和 content_digest。workspace 从认证身份解析；候选、来源、规则与撤销均在该空间内校验，稳定槽仍由已发布工作流声明 `memory_kind + subject` 并按当前员工解析。默认偏好有效期 30 天，流程经验 7 天；授权撤销、证据撤回、契约变化或过期立即失效。活动工单状态、当前人员权限和审批许可不得长期当事实缓存。
 
 写入：显式偏好经当前员工确认；流程经验需真实完成证据和已发布的提炼规则，自动整理不能捏造因果经验。Jev 可用已评测模板筛选是否值得提出写入，拒绝时不写；它的“是”不能替代来源证据、本人确认、去重或 ACL。读取不做通用语义搜索，也不调用 Jev 决定是否读取：工作流只有显式引用一个稳定槽时才读取。每次节点分派前，执行器在数据库中按当前员工、公司范围、业务 scope/account revision、记忆类型和 subject 精确解析唯一的活动有效记录，并复核来源、版本与有效期。无匹配或多条匹配时暂停该依赖并请求修正/澄清；不任意挑选，不调用主模型或 Jev 猜测记忆。工作流未发布或任务不属于已发布工作流时，记忆绑定不可执行。
 

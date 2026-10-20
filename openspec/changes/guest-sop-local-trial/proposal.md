@@ -31,7 +31,7 @@
 
 ## 当前实施状态
 
-- **已完成：** tasks 1.1–1.4（4/28）：legacy/workspace 迁移与身份解析、目录/工单/任务/操作 ACL、任务子记录归属、审批/trace/export 与 Worker/MCP 恢复隔离。Schema migration 020 建立空间及同空间外键，021 由可信父任务/操作派生子记录 workspace。
-- **验证状态：** 2026-10-21 隔离 PostgreSQL 的核心员工、操作、工单 ACL、MCP 与 Gateway 组合 81 项通过；扩展运行时/恢复/记忆/计划组合初次为 190 passed、2 failed，失败来自历史 schema fixture 使用新 workspace 字段。将该 fixture 改为按旧表结构造数后，计划/记忆/迁移相关整组 34 项通过。Ruff 通过；OpenSpec strict 为 6 passed、0 failed。测试不包含真实游客生命周期或付费模型调用。
-- **仍待实施：** tasks 1.5–6.2（24 项）：记忆空间隔离、迁移说明、游客 session/角色/清理/UI、试用账本与队列、SOP Compose、私有 CD 和最终端到端验收。游客入口保持关闭；公开 release 不负责调度本机 Runner，正式私有 CD 仍待建置与演练。
+- **已完成：** tasks 1.1–1.5（5/28）：legacy/workspace 迁移与身份解析、目录/工单/任务/操作 ACL、任务子记录归属、审批/trace/export 与 Worker/MCP 恢复隔离、workspace 记忆与稳定槽隔离。迁移 020 建立空间及同空间外键，021 从可信父任务/操作派生子记录 workspace，022 删除固定 `company_scope` 并将记忆规则与证据改为 workspace 范围。
+- **验证状态：** 2026-10-21 隔离 PostgreSQL 的核心员工、操作、工单 ACL、MCP 与 Gateway 组合 81 项通过；记忆、记忆 Gateway/写入评估、稳定槽/计划、workspace 迁移相关组合 163 项通过；Ruff 通过。严格 OpenSpec 校验将在本次 spec 更新后重跑。测试不包含真实游客生命周期或付费模型调用。
+- **仍待实施：** tasks 1.6–6.2（23 项）：迁移说明、游客 session/角色/清理/UI、试用账本与队列、SOP Compose、私有 CD 和最终端到端验收。游客入口保持关闭；公开 release 不负责调度本机 Runner，正式私有 CD 仍待建置与演练。
 - **评测边界：** 之前的公开首波路线保持终态，不重放；本 change 不据此宣称模型质量或 Jev 收益。

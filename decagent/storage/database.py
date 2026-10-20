@@ -36,6 +36,7 @@ MIGRATIONS = (
     "019_model_provider_status_and_output_caps.sql",
     "020_business_workspaces.sql",
     "021_task_child_workspace.sql",
+    "022_business_memory_workspace.sql",
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 
