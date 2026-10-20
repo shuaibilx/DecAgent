@@ -26,7 +26,7 @@ def _json(value):
     if isinstance(value, datetime):
         return value.isoformat()
     if isinstance(value, dict):
-        return {key: _json(item) for key, item in value.items()}
+        return {key: _json(item) for key, item in value.items() if key != "workspace_id"}
     if isinstance(value, list):
         return [_json(item) for item in value]
     return value

@@ -16,6 +16,8 @@ Non-Goals：真实公司 API、付费订阅、注册邮箱/GitHub 绑定、跨�
 
 共享 PostgreSQL/Worker/MCP，不为每个游客创建容器或数据库。追加迁移引入 workspace，旧记录统一归属固定 legacy workspace。为员工、目录/工单、任务、操作/审批/回执、记忆等追加可信归属和必要复合关联约束，所有资源入口、列表、候选、trace/export、Worker claim 和 MCP 凭证重新验证归属；不能只在 UI 或任务列表过滤。BusinessScope 继续表示插件注册，不能冒充租户。旧任务/节点/operation/request_key 不变，迁移前后旧恢复回归必须通过。
 
+数据库迁移 020 已建立 `business.workspaces`，legacy workspace 固定为 `00000000-0000-0000-0000-000000000001`；历史业务数据及现有 repository tasks 一次性归属到该空间。对员工、目录/工单、任务派生数据、操作/审批/回执、记忆、工作流与计划记录增加 workspace ID 及延迟复合外键。BusinessScope 插件目录保持全局共享，workspace 不能由插件 scope 推导。迁移在隔离 PostgreSQL 验证可从旧 schema 升级、重复 migrate 安全、既有员工/任务/审批/记忆/operation/receipt 与 LangGraph checkpoint 原标识和状态不变，并拒绝跨空间工单分类引用。备份还原识别并替换空库初始化时自动生成的 legacy workspace 行。内部 `workspace_id` 不进入业务 MCP 对外返回对象。兼容默认值只服务旧调用路径；游客入口仍关闭，后续身份和数据访问实现必须显式使用认证解析出的 workspace。
+
 使用 workspace-aware 数据访问方法统一注入归属条件，复合数据库约束阻止跨空间关联；全局清理/调度仅供内部服务使用。员工 login/person ID 由服务端空间命名避免全局 seed 碰撞。company_scope 从固定字符串改为可信 workspace；稳定记忆槽仍按当前员工和已发布流程解析。共享发布模板只能含无个人数据的参数槽和版本，不共享任务实例或员工记忆。
 
 ### 2. 游客会话、角色与空间生命周期

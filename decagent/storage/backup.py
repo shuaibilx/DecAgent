@@ -140,6 +140,7 @@ def restore_backup(database, source: Path, evidence_destination: Path):
         incoming_names = {(t["schema"], t["table"]) for t in snapshot["tables"]}
         if allowed != incoming_names or len(incoming_names) != len(snapshot["tables"]):
             raise ValueError("Backup schema differs from this application")
+        seeded_legacy_workspace = False
         for schema, table in allowed:
             rows = conn.execute(
                 sql.SQL("SELECT * FROM {}.{}").format(
@@ -154,8 +155,24 @@ def restore_backup(database, source: Path, evidence_destination: Path):
                 actual = [{k: _encode(v) for k, v in row.items()} for row in rows]
                 if actual != exported["rows"]:
                     raise ValueError("Backup migration versions are incompatible")
+            elif (schema, table) == ("business", "workspaces") and len(rows) == 1:
+                row = rows[0]
+                if (
+                    str(row["id"]) == "00000000-0000-0000-0000-000000000001"
+                    and row["slug"] == "legacy"
+                    and row["kind"] == "legacy"
+                    and row["active"] is True
+                ):
+                    seeded_legacy_workspace = True
+                else:
+                    raise ValueError("Restore database must contain only the migration baseline")
             elif rows:
                 raise ValueError("Restore database must be empty; existing data is preserved")
+        if seeded_legacy_workspace:
+            conn.execute(
+                "DELETE FROM business.workspaces WHERE id=%s",
+                (UUID("00000000-0000-0000-0000-000000000001"),),
+            )
         destination = EvidenceStore(target, redact=lambda text: text)
         for ref in refs:
             destination.write(incoming.read(ref), ref.source)

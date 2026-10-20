@@ -1,10 +1,10 @@
 # Tasks
 
-本 change 承接已批准游客与本机交付计划。先处理 `jev-conditional-workflows` 10.7 和 9.6；真实评测受阻时可继续本 change 的离线实现。入口默认关闭，公开域名/隧道不在本轮开通。
+本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；当前继续已完成的 workspace 迁移和独立离线实现。游客入口默认关闭，公开域名/隧道不在本轮开通。
 
 ## 1. Workspace 数据与身份边界
 
-- [ ] 1.1 追加 workspace/legacy 归属迁移及必要唯一/关联约束；隔离 PostgreSQL 验证旧员工、任务、审批、记忆、操作和 checkpoint 原身份不变，迁移重复执行安全。
+- [x] 1.1 追加 workspace/legacy 归属迁移及必要唯一/关联约束；隔离 PostgreSQL 验证旧员工、任务、审批、记忆、操作和 checkpoint 原身份不变，迁移重复执行安全。证据：`020_business_workspaces.sql` 为既有业务表添加 legacy workspace 和同空间复合外键；集成测试验证旧标识、receipt 与 checkpoint 不变、重复迁移可重跑、MCP 响应不泄漏内部 workspace 字段、跨空间工单分类引用被拒绝；另通过身份升级、备份还原、记忆、计划、服务和 MCP 回归 65 项。
 - [ ] 1.2 扩展可信员工身份与凭证的 workspace 解析，统一 workspace-aware 数据访问；测试拒绝客户端覆盖空间和跨空间关联，并保留旧员工登录/MCP 协议回归。
 - [ ] 1.3 隔离目录、工单与分派候选，限制 supervisor 为本空间；两空间集成测试覆盖读取/列表/写入/候选和原子版本冲突。
 - [ ] 1.4 隔离任务、审批、操作、回执、trace/export 与 Worker/MCP 分派；两空间猜 ID、重放确认、切换员工和恢复测试全部拒绝越权。

@@ -28,3 +28,9 @@
 ## Impact
 
 影响 gateway 会话与工作台、business 身份/ACL/MCP/任务和记忆、追加 SQL 迁移、模型记账、Worker 准入与清理、Compose、Actions 与运维脚本。公共接口增加游客会话、当前空间、空间清空与模拟角色切换，不开放任意 workspace 参数。依赖 `jev-conditional-workflows` 的有效计划/执行器与现有治理边界；模型未就绪时仍可完成隔离、配额和部署测试，不能以脚本模拟当真实模型验收。
+
+## 当前实施状态
+
+- **已完成：** workspace/legacy 迁移（task 1.1）、追加 schema migration 020、同空间关联约束、备份还原兼容，以及隔离 PostgreSQL 迁移和回归测试。
+- **仍待实施：** 可信 workspace 解析（1.2 起）、游客生命周期与界面、试用准入、SOP Compose、私有 CD 和最终端到端验收。服务端隔离与资源门禁完成前，游客入口保持关闭。
+- **评测边界：** 之前的公开首波路线保持终态，不重放；本 change 不据此宣称模型质量或 Jev 收益。
