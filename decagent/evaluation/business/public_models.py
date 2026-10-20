@@ -8,7 +8,7 @@ from copy import deepcopy
 
 from decagent.business.codec import strict_json
 from decagent.business.contracts import validate_schema
-from decagent.business.plans.compiler import compile_plan
+from decagent.business.plans.compiler import compile_plan, default_input_schema
 from decagent.business.plans.planner import (
     ConditionalPlanner,
     plan_tool_definitions,
@@ -27,6 +27,8 @@ from decagent.models.primary import (
     PrimaryResponseRejected,
     ToolProposal,
 )
+
+MAX_TAU_MODEL_TOOL_SCHEMAS = 32
 
 
 class PublicPlannerCallback:
@@ -463,7 +465,7 @@ def public_planner_callback_factory(
         return PublicPlannerCallback(
             primary,
             session.spec,
-            input_schema=session.input_schema,
+            input_schema=getattr(session, "input_schema", None) or default_input_schema(),
             profile=profile,
         )
 
@@ -713,7 +715,7 @@ class PublicTauModelCallback:
         if type(messages) is not list or not 1 <= len(messages) <= 2048:
             raise ValueError("τ model messages are outside the frozen request bound")
         tools = request.get("tools") or []
-        if type(tools) is not list or len(tools) > 8:
+        if type(tools) is not list or len(tools) > MAX_TAU_MODEL_TOOL_SCHEMAS:
             raise ValueError("τ model tool schemas exceed the frozen request bound")
         definitions, schemas = [], {}
         for item in tools:

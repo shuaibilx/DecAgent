@@ -26,6 +26,10 @@ EnterpriseOps-Gym CSM/ITSM MUST 作为主要端到端工作流 benchmark；τ-Be
 - **WHEN** τ 官方用户模拟器在一个回复中发出多个用户侧工具调用
 - **THEN** 评测器 MUST 在同一权威环境中执行整批调用，将全部原始结果按调用顺序作为一个 `MultiToolMessage` 交回用户模拟器；所有结果返回前 MUST NOT 再调用用户模拟器，且完整顺序与 requestor 身份 MUST 保留在评分轨迹中
 
+#### Scenario: Tau simulator receives the pinned telecom user-tool catalog
+- **WHEN** 固定 τ telecom 官方用户模拟器向 evaluator 请求包含 30 个 user-tool schema 的模型输入
+- **THEN** callback MUST 在不超过 32 个工具 schema 的有界请求契约内接受目录，并继续执行冻结输入 Token 上限；模型返回的单批 user-tool calls 仍受独立 8 项调用上限约束。超出 schema 上限时必须在 provider dispatch 前拒绝并保留可审计的未派发状态
+
 #### Scenario: Smoke cases stay visible in the final report
 - **WHEN** EnterpriseOps 冒烟或开发阶段的任务进入后续正式评测
 - **THEN** 它们仍计入 206 条总体覆盖清单，同时和未暴露任务分组报告；不得在看到结果后删除、替换或重新归类任务
@@ -368,6 +372,10 @@ callback、官方 scorer、清理逻辑和资源门禁接通前 MUST 被拒绝�
 #### Scenario: First-wave live scheduler resumes only pending routes
 - **WHEN** 所有 live 门禁已通过，首波 phase 新建或恢复执行
 - **THEN** 调度器按冻结的 CSM、ITSM、τ retail、τ telecom 顺序和 ReAct、Plan 路线顺序遍历 8 个槽位；只派发状态为 pending 的路线，跳过 completed/failed/unknown/scoring_error 等终态，任何非终态的旧路线都必须先通过规范 ledger 恢复流程处理；当前路线 Qwen 用量 unknown 后不得重放该路线，但可继续其他 pending 路线；持久批次停止原因存在时不得继续派发
+
+#### Scenario: First-wave report separates selected results from the cohort denominator
+- **WHEN** 固定首波运行结束或因已记录的停止条件停止
+- **THEN** 报告 MUST 同时给出所选 4 个任务/8 条路线及完整 smoke cohort 的 24/48 分母，并逐路线保留 failed、unknown、score 与 cleanup 状态；主模型、用户模拟器和裁判的实际用量、unknown 预留及费用完整性 MUST 分开报告，unknown 费用不得计作零，未执行路线不得算作失败或成功，也不得据子集结果声称全量分数或 Jev 收益
 
 ### Requirement: Public evaluation budgets are durable and route-scoped
 

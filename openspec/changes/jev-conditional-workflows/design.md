@@ -1,5 +1,11 @@
 # Design
 
+## 最新公开评测实测（2026-10-21）
+
+基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的远端 CI 全绿后，首次经受监督 runner 实际派发冻结首波 4 个任务/8 条 ReAct 与 Plan 路线。结果为 5 failed、3 unknown、0 completed；仅 1 条 EnterpriseOps 路线获得官方 `0.0` 分数，8 条 cleanup 均 verified。Qwen 请求用量部分 unknown、所有费用来源 unknown；Jev 未调用。离线复现发现 planner factory 将空 session schema 传入 validator，以及 τ telecom 的 30 个官方用户工具 schema 超过 adapter 原 8 项上限；两处已有最小修复和先失败后通过的回归。本机 deterministic `1933 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过；新修复尚未进入 CI，端到端集成仍未验收，不改变预算、unknown 不重放、Jev 仅比较自然适用语义节点等设计决定。
+
+具体指标、错误阶段、固定任务 ID、离线复现与跳过项见 [首波公开评测报告](../../../generated/261021/0545_首波公开评测报告.md) 与机器证据 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json`。本机完整 deterministic、Ruff 与 OpenSpec strict 已通过；修复版同 SHA CI 尚待完成。其余 smoke/full 仍需依据账单和可确认实耗另行估算并冻结资源。
+
 ## Context
 
 动机与范围见 [proposal.md](proposal.md)。本设计以 2026-10-15 的源码为依据；源码路径均相对 DecAgent 项目根目录，OpenSpec 也位于该项目的 openspec/。

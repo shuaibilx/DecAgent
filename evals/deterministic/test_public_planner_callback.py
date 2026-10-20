@@ -99,6 +99,27 @@ def test_public_planner_callback_builds_scoped_prompt_and_compiles_one_response(
         assert "Use only the original benchmark tools." in messages[1]["content"]
 
 
+def test_public_planner_factory_uses_default_input_schema_when_session_has_none():
+    from decagent.evaluation.business.public_models import public_planner_callback_factory
+
+    with _catalog() as catalog:
+        profile = _profile()
+        primary = ScriptedPrimary(None)
+        factory = public_planner_callback_factory(
+            profile,
+            api_key="offline-test-key",
+            primary_factory=lambda _profile, **_kwargs: primary,
+        )
+        session = SimpleNamespace(spec=catalog, input_schema=None)
+
+        callback = factory(session, None, Route.PLAN_MCP)
+        messages = callback._messages(_request())
+
+        assert len(messages) == 2
+        assert "Look up case C-17" in messages[1]["content"]
+        assert primary.calls == []
+
+
 def test_public_planner_callback_rejects_invalid_plan_without_hidden_retry():
     from decagent.evaluation.business.public_models import PublicPlannerCallback
 
@@ -235,6 +256,54 @@ def test_public_tau_simulator_callback_binds_official_user_tool_schema_and_usage
     assert definitions[0][1]["tool_definitions"] == request["tools"]
     callback.close()
     assert primary.closed
+
+
+def test_public_tau_simulator_accepts_frozen_telecom_catalog_of_thirty_tools():
+    from decagent.evaluation.business.public_models import public_tau_model_callback_factory
+
+    profile = load_public_run_plan(
+        ROOT, mode="smoke", check_images=False, check_runtime=False, check_source_files=False
+    ).profiles.user_simulator
+    primary = ScriptedPrimary(None)
+    callback = public_tau_model_callback_factory(
+        profile,
+        role="user_simulator",
+        api_key="offline-test-key",
+        primary_factory=lambda _profile, **_kwargs: primary,
+    )(SimpleNamespace(), None, None)
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": f"telecom_tool_{index}",
+                "description": "A bounded frozen telecom simulator tool.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+        for index in range(30)
+    ]
+    request = {
+        "model": profile.model,
+        "messages": [{"role": "system", "content": "Simulate the customer."}],
+        "tools": tools,
+    }
+
+    assert callback.input_token_upper_bound(request) <= profile.max_input_tokens
+    assert primary.calls == []
+    request["tools"].extend(
+        {
+            "type": "function",
+            "function": {
+                "name": f"telecom_tool_{index}",
+                "description": "A bounded frozen telecom simulator tool.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+        for index in range(30, 33)
+    )
+    with pytest.raises(ValueError, match="frozen request bound"):
+        callback.input_token_upper_bound(request)
+    assert primary.calls == []
 
 
 def test_public_tau_judge_requires_text_and_rejects_tool_calls():

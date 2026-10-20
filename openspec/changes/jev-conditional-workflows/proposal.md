@@ -1,7 +1,19 @@
 # Proposal
-## 当前实施状态（2026-10-21）
+## 当前实施状态（2026-10-21，首波实测后）
 
-主 change 为 **66/79，13 项待完成**；公开基准仍为 0/286 有官方评分任务。候选隔离 ledger 已提交并推送，历史 unknown 的有效 ledger 复读测试也已加入。候选 `fd74d6ae0c95d57db82fa975cd5e6dad1123c24a` 的 CI run `39495920749` 在 Ruff 阶段因该新增断言超出 100 列失败，Python 3.13 同样在 Ruff 失败后被取消；deterministic 和 integration 尚未开始，build/Compose 与 Workbench 通过。本地多行断言修复已完成，后续精确 SHA 的重跑尚待提交。全量 deterministic `1931 passed, 18 skipped`，OpenSpec strict 通过；全仓 Ruff 需在修复后复验。历史首波 4 failed、4 unknown、8 cleanup verified、0 official score 保持不变且禁止重放。完整 route worker、通用同步工具强制取消、新 cohort 与四域 live 评分闭环尚未完成；本轮没有新增 provider、Jev、业务工具或官方评分请求。
+主 change 当前为 **66/79，13 项待完成**；`guest-sop-local-trial` 为 6/28。基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的 GitHub CI run [39497828524](https://github.com/shuaibilx/DecAgent/actions/runs/39497828524) 全部通过：Python 3.11/3.13 各 `1931 passed, 18 skipped` deterministic、`605 passed, 30 skipped` PostgreSQL integration，Ruff、Workbench、wheel/MCP、镜像构建和 Compose 冒烟均成功。首波离线诊断后，planner schema fallback 与 τ telecom 30-tool schema 修复已进入工作树；修复版全量本机 deterministic 为 `1933 passed, 18 skipped (216.43s)`，Ruff 和 OpenSpec strict 通过，但修复版的新候选 SHA 及远端 CI 尚待生成/运行，因此 11.1 仍待验，不能把基线 CI 当作修复版 CI。
+
+同一候选的首波 live runner 已尝试冻结四域 4 个任务、8 条 ReAct/Plan 路线：5 failed、3 unknown、0 completed；仅 ITSM/ReAct 到达原始评分器并得到 `0.0`，其余 7 条未评分；8/8 环境清理验证成功。Qwen 4 次请求中，两次主模型响应合计 18,738 个实际 Token；两次 τ 用户模拟器请求 usage unknown，保留 53,508 个 Token 预留。账本 Token 计数为 72,246（实际加预留），工具 attempt 1，约 58.36 秒。Qwen 费用与代金券/实付拆分未核实，保持 unknown；Jev 和裁判均为 0 次请求。`find_user` 被评测目录标记为 write，MCP 返回 unknown，不能声称其无业务副作用。报告见 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json` 和 `generated/261021/0545_首波公开评测报告.md`。
+
+本次运行只说明账本、路线派发和清理可被审计；执行闭环未通过，完整公开基准成功任务仍为 0/286，单个 `0.0` route score 不能作为 benchmark 总分。Jev 未使用，不能作收益判断。所有 unknown 不重放，首波后续 smoke 与全量评测暂停；离线缺陷已修复并通过本机全量 deterministic/Ruff/OpenSpec，现等待新候选 SHA 的完整远端 CI。Qwen 账单仍须核实，之后另行估算并冻结下一批预算。95% 自动正确率和每类至少 100 个自动样本的资格条件不变。
+
+固定候选离线复现已定位 EnterpriseOps Plan 的 `AttributeError` 为 callback 使用空 session schema，以及 τ telecom `TauBridgeError` 为 callback 8 项工具 schema 上限低于官方 user simulator 的 30 项目录。两项修复均新增定向回归；planner/τ callback 文件 `10 passed`，完整 deterministic `1933 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过；锁定 τ worker 的实际 telecom schema 脚本预检通过，模型请求和业务工具请求均为 0。τ retail unknown、ITSM/ReAct 原始响应细节和 CSM `find_user` 写入结果无法由安全账本恢复，保持不重放。修复版新候选 SHA 的远端 CI 尚待完成。
+
+## 历史实施状态快照（2026-10-21，候选 Ruff 修复前）
+
+以下记录当时的候选 `fd74d6ae0c95d57db82fa975cd5e6dad1123c24a` CI Ruff 失败状态，已由上方同 SHA 成功复验取代；保留供追溯。
+
+主 change 当时为 **66/79，13 项待完成**；候选 `fd74d6ae0c95d57db82fa975cd5e6dad1123c24a` 的 CI run `39495920749` 在 Ruff 阶段因新增断言超出 100 列失败，build/Compose 与 Workbench 通过。全量 deterministic `1931 passed, 18 skipped`，Ruff 修复后的远端复验尚待提交。该快照不代表当前 CI 状态。
 
 ## 历史执行快照（2026-10-20，首波 live 执行前）
 
