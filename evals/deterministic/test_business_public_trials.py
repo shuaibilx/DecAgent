@@ -263,10 +263,40 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
     plan_root = replace(plan(), root=project_root)
     legacy_path = canonical_public_trial_ledger_path(project_root)
     legacy_path.parent.mkdir(parents=True, exist_ok=True)
-    legacy_path.write_bytes(b"preserved legacy cohort ledger")
-    GlobalJevLedger(
+    legacy_global_jev = GlobalJevLedger(
         project_root / ".decagent" / "business-eval" / "global-jev-ledger.json"
-    ).initialize()
+    )
+    legacy_global_jev.initialize()
+    legacy_ledger = PublicTrialLedger.create(
+        legacy_path, plan_root, global_jev_ledger=legacy_global_jev
+    )
+    historical_trial = plan_root.trials[0]
+    historical_route = plan_root.routes[0]
+    legacy_ledger.start_route(historical_trial["trial_id"], historical_route)
+    historical_attempt = legacy_ledger.reserve_tool_call(
+        trial_id=historical_trial["trial_id"],
+        route=historical_route,
+        command="set_priority",
+        effect="write",
+        arguments_digest="a" * 64,
+    )
+    legacy_ledger.mark_tool_dispatched(historical_attempt)
+    legacy_ledger.mark_tool_unknown(
+        historical_attempt,
+        error_category="transport_timeout",
+        failure_stage="tool_gateway",
+        exception_type="TimeoutError",
+        http_status=504,
+    )
+    legacy_ledger.finish_route(
+        historical_trial["trial_id"],
+        historical_route,
+        status="unknown",
+        score_status="not_attempted",
+        cleanup_verified=True,
+        cleanup_evidence_digest="b" * 64,
+    )
+    legacy_ledger.close()
 
     with pytest.raises(ValueError, match="held public-evaluation supervisor lock"):
         open_first_wave_public_trial_ledger(
@@ -339,7 +369,12 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
         assert next_candidate.candidate_sha == "b" * 40
         assert next_candidate.route_status(trial["trial_id"], route) == "pending"
         next_candidate.close()
-    assert legacy_path.read_bytes() == b"preserved legacy cohort ledger"
+    preserved_legacy = PublicTrialLedger.resume(
+        legacy_path, plan_root, global_jev_ledger=legacy_global_jev
+    )
+    assert preserved_legacy.route_status(historical_trial["trial_id"], historical_route) == "unknown"
+    assert preserved_legacy.tool_attempt_status(historical_attempt) == "unknown"
+    preserved_legacy.close()
 
     with pytest.raises(ValueError, match="canonical cohort ledger"):
         validate_public_trial_ledger_path(project_root, tmp_path / "alternate.sqlite3")
