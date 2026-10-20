@@ -180,7 +180,9 @@ def validate_public_trial_ledger_path(root, candidate):
     return canonical
 
 
-def open_first_wave_public_trial_ledger(root, plan, *, supervisor, lease_seconds=60):
+def open_first_wave_public_trial_ledger(
+    root, plan, *, supervisor, candidate_sha, lease_seconds=60
+):
     """Open the sole first-wave ledger while holding the process-lifetime lock."""
     from .ledger import open_existing_global_jev_ledger
     from .public_supervisor import PublicSupervisor
@@ -190,6 +192,11 @@ def open_first_wave_public_trial_ledger(root, plan, *, supervisor, lease_seconds
         raise ValueError("Only the frozen smoke cohort can enter the first-wave phase")
     if Path(plan.root).resolve() != project_root:
         raise ValueError("Public run plan root does not match the canonical ledger root")
+    if (
+        type(candidate_sha) is not str
+        or re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", candidate_sha) is None
+    ):
+        raise ValueError("A verified immutable candidate SHA is required")
     if not isinstance(supervisor, PublicSupervisor) or not supervisor.held:
         raise ValueError("A held public-evaluation supervisor lock is required")
     if supervisor.path.resolve(strict=False) != canonical_public_supervisor_lock_path(
@@ -201,18 +208,25 @@ def open_first_wave_public_trial_ledger(root, plan, *, supervisor, lease_seconds
     )
     global_jev_ledger = open_existing_global_jev_ledger(project_root)
     if path.exists():
-        return PublicTrialLedger.resume(
+        ledger = PublicTrialLedger.resume(
             path,
             plan,
             global_jev_ledger=global_jev_ledger,
             lease_seconds=lease_seconds,
         )
-    return PublicTrialLedger.create(
-        path,
-        plan,
-        global_jev_ledger=global_jev_ledger,
-        lease_seconds=lease_seconds,
-    )
+    else:
+        ledger = PublicTrialLedger.create(
+            path,
+            plan,
+            global_jev_ledger=global_jev_ledger,
+            lease_seconds=lease_seconds,
+        )
+    try:
+        ledger.bind_candidate_sha(candidate_sha)
+    except BaseException:
+        ledger.close()
+        raise
+    return ledger
 
 
 def _read_json(path):
@@ -734,10 +748,20 @@ class PublicTrialLedger:
         connection = sqlite3.connect(target, timeout=30, isolation_level=None)
         connection.row_factory = sqlite3.Row
         try:
-            metadata = {
-                row["key"]: json.loads(row["value"])
-                for row in connection.execute("SELECT key,value FROM metadata")
-            }
+            try:
+                metadata = {
+                    row["key"]: json.loads(row["value"])
+                    for row in connection.execute("SELECT key,value FROM metadata")
+                }
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise ValueError("Existing public ledger metadata is malformed") from exc
+            if "candidate_sha" in metadata and (
+                type(metadata["candidate_sha"]) is not str
+                or re.fullmatch(
+                    r"(?:[a-f0-9]{40}|[a-f0-9]{64})", metadata["candidate_sha"]
+                ) is None
+            ):
+                raise ValueError("Public ledger candidate SHA metadata is malformed")
             if (
                 metadata.get("schema_version") != _LEDGER_SCHEMA
                 or metadata.get("cohort_digest") != plan.cohort_digest
@@ -1087,6 +1111,80 @@ class PublicTrialLedger:
             self._connection.execute("ROLLBACK")
             self._fenced = True
             raise ValueError("Public evaluation execution lease was lost")
+
+    @property
+    def candidate_sha(self):
+        """Return the immutable code candidate attached to this live cohort."""
+        self._active()
+        row = self._connection.execute(
+            "SELECT value FROM metadata WHERE key='candidate_sha'"
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            value = json.loads(row["value"])
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise ValueError("Public ledger candidate SHA metadata is malformed") from exc
+        if (
+            type(value) is not str
+            or re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", value) is None
+        ):
+            raise ValueError("Public ledger candidate SHA metadata is malformed")
+        return value
+
+    def bind_candidate_sha(self, candidate_sha):
+        """Bind an empty live ledger to one immutable, CI-verified source commit."""
+        if (
+            type(candidate_sha) is not str
+            or re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", candidate_sha) is None
+        ):
+            raise ValueError("A valid immutable candidate SHA is required")
+        self._transaction()
+        try:
+            row = self._connection.execute(
+                "SELECT value FROM metadata WHERE key='candidate_sha'"
+            ).fetchone()
+            if row is not None:
+                try:
+                    existing = json.loads(row["value"])
+                except (TypeError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        "Public ledger candidate SHA metadata is malformed"
+                    ) from exc
+                if (
+                    type(existing) is not str
+                    or re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", existing)
+                    is None
+                ):
+                    raise ValueError("Public ledger candidate SHA metadata is malformed")
+                if existing != candidate_sha:
+                    raise ValueError(
+                        "Public ledger candidate SHA differs from the requested candidate"
+                    )
+                self._connection.execute("COMMIT")
+                return existing
+
+            historical_activity = self._connection.execute(
+                "SELECT EXISTS(SELECT 1 FROM route_trials WHERE status!='pending') "
+                "OR EXISTS(SELECT 1 FROM model_attempts) "
+                "OR EXISTS(SELECT 1 FROM tool_attempts) "
+                "OR EXISTS(SELECT 1 FROM tau_step_attempts) "
+                "OR EXISTS(SELECT 1 FROM machine_time_attempts)"
+            ).fetchone()[0]
+            if historical_activity:
+                raise ValueError(
+                    "A public ledger with historical attempts cannot bind a new candidate SHA"
+                )
+            self._connection.execute(
+                "INSERT INTO metadata(key,value) VALUES('candidate_sha',?)",
+                (json.dumps(candidate_sha),),
+            )
+            self._connection.execute("COMMIT")
+            return candidate_sha
+        except BaseException:
+            if self._connection.in_transaction:
+                self._connection.execute("ROLLBACK")
+            raise
 
     def start_route(self, trial_id, route):
         self._active()

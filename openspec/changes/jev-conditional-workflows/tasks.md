@@ -17,6 +17,14 @@ OpenSpec 任务为 **67/79 已完成，12 项未完成**：9.6.D–G、10.3–10
 安全诊断增强已在本地提交 `8ddc70e feat: persist safe public evaluation diagnostics`：模型/工具 attempt 与 route receipt 仅记录白名单失败阶段、安全异常类型和有效 HTTP 状态；异常消息、prompt/response、工具参数/返回和凭证不入库。该改进没有修复首波结果，也没有重新派发模型请求。全量确定性套件 `1911 passed, 18 skipped`；相关公开评测回归 `167 passed`，Ruff 与严格 OpenSpec 校验通过。客观版本/预算和未知项以公开首波账本与证据报告为准；不得把工程验收等同 Agent 质量结论。
 
 `guest-sop-local-trial` 独立 change 已开始实施，workspace legacy 迁移 task 1.1 通过隔离 PostgreSQL 和 65 个业务集成回归；该进度不计入本 change 的 67/79，也不改变尚未完成的公开评测任务。
+
+### 2026-10-21 首波候选身份保护（不重放历史路线）
+
+首波真实试次已在 2026-10-20 运行；不能再描述为“尚未创建账本”或“公开成绩为零因为还未启动”。规范 v7 账本有 4 条 Qwen attempt，路线状态为 4 `failed`、4 `unknown`、40 `pending`；8 条首波路线都已终结，清理为 verified，官方评分未运行。账本缺少 `candidate_sha` 元数据。该缺口意味着现有试次不能被安全归属到后续代码候选，因此不从当前 HEAD、CI、报告或外部日志推断并补写 SHA，也不重放这 8 条路线。
+
+本次离线修复要求 first-wave ledger 在 route claim 前绑定精确的 CI 候选 SHA；同一账本只能恢复相同 SHA，dispatcher 和 live report 都核对该绑定。已有任何路线/模型/工具/τ step/machine-time 活动但没有 SHA 的历史账本拒绝绑定；JSON 损坏或不合法的 SHA 元数据也 fail closed。主入口继续通过同一候选的 GitHub CI gate 取得 SHA。相关公开账本、路由、runner 与 supervisor 定向测试 `86 passed`，修改文件 Ruff 通过、OpenSpec strict `6 passed, 0 failed`，`git diff --check` 通过。未派发 Qwen、Jev、工具或官方裁判请求，未改旧 v1 报告及 canonical ledger；公开 benchmark 仍 `0/286`。这不是 9.6.G 或 10.10.D/E 的完成证据。
+
+重新开展真实比较需要一个与新候选 SHA 绑定的新 cohort、单独冻结的预算和明确的评测批次授权；在此之前只推进不触发真实请求的离线实现与文档。
 ## 1. 基线留存与兼容准备
 
 - [x] 1.1 留存当前 business-2 MCP 运行契约、基线入口、相关测试与版本指纹，确认没有依赖已退役 CLI 的基线；交付基线 manifest，并验证同一固定任务可由留存入口执行。

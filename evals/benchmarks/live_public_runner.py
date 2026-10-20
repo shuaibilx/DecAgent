@@ -434,6 +434,8 @@ class FirstWaveRuntime:
 def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_dirty):
     if not isinstance(plan, PublicRunPlan) or phase.phase != "first-wave":
         raise ValueError("A first-wave phase receipt is required for reporting")
+    if getattr(ledger, "candidate_sha", None) != candidate_sha:
+        raise ValueError("Live report candidate SHA differs from the canonical ledger")
     receipts = {
         (receipt.trial_id, receipt.route): asdict(receipt)
         for receipt in phase.executed_routes
@@ -552,7 +554,7 @@ def execute_live_first_wave(
         raise ValueError("All four fixed first-wave environments must preflight successfully")
     with PublicSupervisor(canonical_public_supervisor_lock_path(plan.root)) as supervisor:
         ledger = open_first_wave_public_trial_ledger(
-            plan.root, plan, supervisor=supervisor
+            plan.root, plan, supervisor=supervisor, candidate_sha=candidate_sha
         )
         try:
             model_adapter_factory = public_first_wave_model_adapter_factory(

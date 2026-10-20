@@ -31,6 +31,7 @@ def _paused_dispatched_route(root, selected, ledger_path, lock_path, global_jev_
             global_jev_ledger=GlobalJevLedger(global_jev_path),
             lease_seconds=2,
         )
+        ledger.bind_candidate_sha("a" * 40)
         trial, route = selected.trials[0], selected.routes[0]
         ledger.start_route(trial["trial_id"], route)
         attempt = ledger.reserve_model_attempt(
@@ -201,7 +202,11 @@ def test_expired_ledger_lease_cannot_transfer_dispatch_while_old_process_holds_l
 
     with PublicSupervisor(lock_path) as supervisor:
         resumed = open_first_wave_public_trial_ledger(
-            project_root, selected, supervisor=supervisor, lease_seconds=2
+            project_root,
+            selected,
+            supervisor=supervisor,
+            candidate_sha="a" * 40,
+            lease_seconds=2,
         )
         trial, route = selected.trials[0], selected.routes[0]
         assert resumed.route_status(trial["trial_id"], route) == "unknown"

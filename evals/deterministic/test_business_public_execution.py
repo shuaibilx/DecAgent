@@ -79,6 +79,7 @@ def bound_trial(
 
 class FakeLedger:
     def __init__(self, root):
+        self.candidate_sha = "a" * 40
         self.status = "pending"
         self.events = []
         self.statuses = {}
@@ -321,6 +322,27 @@ def test_public_route_dispatch_reserves_times_and_persists_official_result(tmp_p
         "forbidden_side_effects": 0,
     }
     assert terminal["cleanup_verified"] is True
+
+
+def test_public_route_rejects_unbound_candidate_before_claim(tmp_path):
+    ledger = FakeLedger(tmp_path)
+    ledger.candidate_sha = None
+    controlled = FakeControlledRoutes(execution_result())
+
+    with pytest.raises(ValueError, match="candidate SHA must be bound"):
+        run_public_route(
+            root=tmp_path,
+            ledger=ledger,
+            controlled_routes=controlled,
+            trial_id=TRIAL_ID,
+            route="plan_mcp",
+            trial=bound_trial(TRIAL_ID),
+            max_machine_seconds=1_800,
+            route_kwargs=route_kwargs_for(ledger, TRIAL_ID, "plan_mcp"),
+        )
+
+    assert ledger.events == []
+    assert controlled.events == []
 
 
 def test_public_route_persists_failure_stage_and_type_without_exception_message(tmp_path):
@@ -769,6 +791,7 @@ def test_first_wave_scheduler_resumes_real_sqlite_ledger_without_replay(tmp_path
     )
     ledger_path = canonical_public_trial_ledger_path(tmp_path)
     ledger = PublicTrialLedger.create(ledger_path, plan, lease_seconds=30)
+    ledger.bind_candidate_sha("a" * 40)
     controlled = PhaseControlledRoutes(ledger)
     common = {
         "root": tmp_path,

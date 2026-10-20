@@ -267,26 +267,39 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
 
     with pytest.raises(ValueError, match="held public-evaluation supervisor lock"):
         open_first_wave_public_trial_ledger(
-            project_root, plan_root, supervisor=PublicSupervisor(tmp_path / "wrong.lock")
+            project_root,
+            plan_root,
+            supervisor=PublicSupervisor(tmp_path / "wrong.lock"),
+            candidate_sha="a" * 40,
         )
 
     with PublicSupervisor(tmp_path / "wrong-held.lock") as wrong_supervisor:
         with pytest.raises(ValueError, match="canonical supervisor lock"):
             open_first_wave_public_trial_ledger(
-                project_root, plan_root, supervisor=wrong_supervisor
+                project_root,
+                plan_root,
+                supervisor=wrong_supervisor,
+                candidate_sha="a" * 40,
             )
 
     canonical_lock = canonical_public_supervisor_lock_path(project_root)
     with PublicSupervisor(canonical_lock) as supervisor:
         with pytest.raises(ValueError, match="plan root"):
             open_first_wave_public_trial_ledger(
-                project_root, plan(), supervisor=supervisor
+                project_root,
+                plan(),
+                supervisor=supervisor,
+                candidate_sha="a" * 40,
             )
 
     with PublicSupervisor(canonical_lock) as supervisor:
         ledger = open_first_wave_public_trial_ledger(
-            project_root, plan_root, supervisor=supervisor
+            project_root,
+            plan_root,
+            supervisor=supervisor,
+            candidate_sha="a" * 40,
         )
+        assert ledger.candidate_sha == "a" * 40
         trial, route = plan_root.trials[0], plan_root.routes[0]
         ledger.start_route(trial["trial_id"], route)
         ledger.finish_route(
@@ -301,17 +314,33 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
 
     with PublicSupervisor(canonical_lock) as supervisor:
         resumed = open_first_wave_public_trial_ledger(
-            project_root, plan_root, supervisor=supervisor
+            project_root,
+            plan_root,
+            supervisor=supervisor,
+            candidate_sha="a" * 40,
         )
         assert resumed.route_status(trial["trial_id"], route) == "completed"
+        assert resumed.candidate_sha == "a" * 40
         resumed.close()
+
+    with PublicSupervisor(canonical_lock) as supervisor:
+        with pytest.raises(ValueError, match="candidate SHA differs"):
+            open_first_wave_public_trial_ledger(
+                project_root,
+                plan_root,
+                supervisor=supervisor,
+                candidate_sha="b" * 40,
+            )
 
     with pytest.raises(ValueError, match="canonical cohort ledger"):
         validate_public_trial_ledger_path(project_root, tmp_path / "alternate.sqlite3")
     with PublicSupervisor(canonical_lock) as supervisor:
         with pytest.raises(ValueError, match="Only the frozen smoke cohort"):
             open_first_wave_public_trial_ledger(
-                project_root, replace(plan_root, mode="full"), supervisor=supervisor
+                project_root,
+                replace(plan_root, mode="full"),
+                supervisor=supervisor,
+                candidate_sha="a" * 40,
             )
 
 
@@ -331,7 +360,10 @@ def test_first_wave_ledger_never_initializes_a_missing_global_jev_ledger(tmp_pat
     with PublicSupervisor(lock_path) as supervisor:
         with pytest.raises(FileNotFoundError, match="Existing project Jev ledger"):
             open_first_wave_public_trial_ledger(
-                project_root, selected, supervisor=supervisor
+                project_root,
+                selected,
+                supervisor=supervisor,
+                candidate_sha="a" * 40,
             )
     assert not canonical_public_trial_ledger_path(project_root).exists()
 
@@ -1787,6 +1819,26 @@ def test_existing_public_ledger_adds_billing_columns_without_resetting_cohort(tm
     selected = plan()
     path = tmp_path / "trials.sqlite3"
     original = PublicTrialLedger.create(path, selected, lease_seconds=30)
+    trial = selected.trials[0]
+    route = selected.routes[0]
+    original.start_route(trial["trial_id"], route)
+    attempt_id = original.reserve_model_attempt(
+        trial_id=trial["trial_id"],
+        route=route,
+        role="primary",
+        estimated_input_tokens=100,
+        max_output_tokens=50,
+        reserved_cost_usd=None,
+        profile_digest=selected.profiles.primary.fingerprint,
+    )
+    original.mark_model_dispatched(attempt_id)
+    original.mark_model_unknown(
+        attempt_id,
+        error_category="model_dispatch_error",
+        failure_stage="model_callback",
+        exception_type="TimeoutError",
+    )
+    before_migration = original.batch_snapshot()
     original.close()
 
     billing_columns = (
@@ -1828,5 +1880,79 @@ def test_existing_public_ledger_adds_billing_columns_without_resetting_cohort(tm
     assert {"failure_stage", "exception_type", "http_status"} <= tool_columns
     assert {"failure_stage", "exception_type"} <= columns
     assert resumed.plan.cohort_digest == selected.cohort_digest
-    assert resumed.route_status(selected.trials[0]["trial_id"], selected.routes[0]) == "pending"
+    assert resumed.route_status(trial["trial_id"], route) == "unknown"
+    assert resumed.attempt_status(attempt_id) == "unknown"
+    assert resumed.model_attempt_snapshot(attempt_id)["failure_stage"] is None
+    assert resumed.model_attempt_snapshot(attempt_id)["exception_type"] is None
+    after_migration = resumed.batch_snapshot()
+    assert after_migration["qwen_requests"] == before_migration["qwen_requests"] == 1
+    assert after_migration["qwen_tokens"] == before_migration["qwen_tokens"]
+    assert after_migration["qwen_reserved_tokens"] == before_migration["qwen_reserved_tokens"]
     resumed.close()
+
+
+def test_public_trial_ledger_binds_candidate_sha_immutably(tmp_path):
+    selected = plan()
+    path = tmp_path / "candidate-bound.sqlite3"
+    ledger = PublicTrialLedger.create(path, selected, lease_seconds=30)
+
+    assert ledger.bind_candidate_sha("a" * 40) == "a" * 40
+    assert ledger.candidate_sha == "a" * 40
+    ledger.close()
+
+    resumed = PublicTrialLedger.resume(path, selected, lease_seconds=30)
+    assert resumed.candidate_sha == "a" * 40
+    assert resumed.bind_candidate_sha("a" * 40) == "a" * 40
+    with pytest.raises(ValueError, match="candidate SHA differs"):
+        resumed.bind_candidate_sha("b" * 40)
+    resumed.close()
+
+
+def test_legacy_public_ledger_with_attempts_cannot_be_bound_to_a_new_candidate(tmp_path):
+    selected = plan()
+    path = tmp_path / "legacy-attempts.sqlite3"
+    ledger = PublicTrialLedger.create(path, selected, lease_seconds=30)
+    trial = selected.trials[0]
+    route = selected.routes[0]
+    ledger.start_route(trial["trial_id"], route)
+    attempt_id = ledger.reserve_model_attempt(
+        trial_id=trial["trial_id"],
+        route=route,
+        role="primary",
+        estimated_input_tokens=100,
+        max_output_tokens=50,
+        reserved_cost_usd=None,
+        profile_digest=selected.profiles.primary.fingerprint,
+    )
+    ledger.mark_model_dispatched(attempt_id)
+    ledger.mark_model_unknown(
+        attempt_id,
+        error_category="model_dispatch_error",
+        failure_stage="model_callback",
+        exception_type="TimeoutError",
+    )
+
+    with pytest.raises(ValueError, match="historical attempts"):
+        ledger.bind_candidate_sha("c" * 40)
+    assert ledger.route_status(trial["trial_id"], route) == "unknown"
+    assert ledger.attempt_status(attempt_id) == "unknown"
+    assert ledger.batch_snapshot()["qwen_requests"] == 1
+    ledger.close()
+
+
+def test_malformed_candidate_sha_metadata_fails_closed(tmp_path):
+    import sqlite3
+
+    selected = plan()
+    path = tmp_path / "malformed-candidate.sqlite3"
+    ledger = PublicTrialLedger.create(path, selected, lease_seconds=30)
+    ledger.close()
+
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "INSERT INTO metadata(key,value) VALUES('candidate_sha',?)",
+            ("not-json",),
+        )
+
+    with pytest.raises(ValueError, match="metadata is malformed"):
+        PublicTrialLedger.resume(path, selected, lease_seconds=30)

@@ -510,6 +510,10 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** 首波 live runner 打开或恢复受控执行账本
 - **THEN** 当前监督进程必须持有项目规范 OS 生命周期锁，并使用规范首波 route ledger 与现有累计 Jev ledger；替代 state path、缺失 Jev ledger、未持锁或非 smoke cohort 均在任何 dispatch 前失败关闭，且不得初始化或复制额度
 
+#### Scenario: First-wave ledger is bound to one verified candidate
+- **WHEN** live runner 创建或恢复首波 cohort ledger
+- **THEN** 它必须在任何 route claim 前持久记录精确通过同一 SHA GitHub CI 的 candidate SHA；恢复必须使用完全相同的 SHA，route dispatcher 和 report builder 都必须核对该绑定。已有 route/model/tool attempt 但缺少 candidate SHA 的历史 ledger 必须拒绝绑定和继续执行，不得从新进程、外部报告或当前 HEAD 推断或补写其历史候选身份
+
 #### Scenario: Route dispatch requires ledger-bound model and tool adapters
 - **WHEN** 首波 ReAct 或 Plan route 被监督执行器领取
 - **THEN** 执行入口必须验证规范 supervisor 锁、规范 smoke ledger、route 仍为 pending，且 model adapter 与 tool gateway 均绑定同一 ledger、trial ID 和 route；直接传入 planner/ReAct 等未计量 callback 必须在领取 route 前拒绝

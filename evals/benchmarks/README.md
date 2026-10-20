@@ -449,3 +449,23 @@ Environment-only preflight evidence for the four fixed first-wave tasks is in
 [`evidence/public-first-wave-environment-preflight-20261020.json`](evidence/public-first-wave-environment-preflight-20261020.json).
 It confirms source-pinned initialization and verified cleanup only; it contains
 no route execution, official score, business tool dispatch, or provider request.
+
+### First live cohort status and candidate binding (2026-10-21)
+
+The first live attempt did run on candidate
+`9bc3ee6654e46630c9ae8238a28eb6e34a088698` after GitHub CI run `39442012550`
+passed. It covered the fixed four tasks and eight ReAct/Plan routes: four routes
+ended `failed`, four ended `unknown`, all eight cleanups were verified, and no
+official scorer ran. The canonical v7 ledger has four Qwen attempts and does
+not contain candidate-SHA metadata. These are terminal historical attempts;
+they must not be replayed or retroactively attributed to a candidate using the
+current checkout, a later report, or a CI run.
+
+The live ledger now binds a new, empty cohort to one exact CI-verified SHA
+before any route claim. Resume, dispatch, and report generation verify the same
+binding; an active historical ledger without this metadata is rejected, and
+malformed metadata fails closed. As a result, the existing v7 cohort cannot be
+used for another candidate. A new real batch requires a new cohort, a separately
+frozen budget, and same-SHA CI evidence. Current official benchmark result
+remains 0/286 scored tasks; this engineering attempt does not establish model
+quality or a Jev advantage.

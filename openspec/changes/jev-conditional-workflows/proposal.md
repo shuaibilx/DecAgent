@@ -170,3 +170,7 @@ machine-time ledger 增加 nullable `agent_started_at_utc`，兼容迁移不改�
 
 评测专用 `csm_knowledge_article@1.0.0-csm-knowledge-1` 现已从离线构造器接入隔离评测 registry、Plan 编译器、`ControlledRoutes` 与生产 `PlanRuntime`；只接受同一 `retrieve_knowledge` 节点实际返回的已发布文章。受限只读 schema override 仅作用于匹配 pinned EnterpriseOps 工具契约的隔离目录，不扩展生产注册路径。真实容器工具目录验证无业务/模型调用，scripted route 和 registry/编译器单测通过；真实 Jev/Qwen 同状态配对、公开任务分数与模型收益尚未测量，9.6.D 仍待完成，公开基准仍 `0/286`。
 
+### 2026-10-21 当前 apply 状态更正
+
+此前首波 live 入口在候选 `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 的 CI `39442012550` 通过后确实运行了 4 个任务、8 条路线；结果为 4 failed、4 unknown、0 个已评分成功路线，全部 cleanup verified，官方评分未调用。v7 ledger 没有 candidate SHA 元数据，不能安全把该批结果归到后续候选。本地已加不可变候选绑定，并拒绝为含历史 attempt 的旧 ledger 补写 SHA；因此不能用它重跑或追加任务。公开 benchmark 的可报告成绩仍为 `0/286`。任何新真实批次必须先有新 cohort、明确预算和同 SHA CI 证明；历史 unknown 不会重放。
+

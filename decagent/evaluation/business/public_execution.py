@@ -202,6 +202,12 @@ def execute_public_route(
         if route_kwargs is not None:
             raise TypeError("Route dependencies must be provided as a mapping")
         route_kwargs = {}
+    candidate_sha = getattr(ledger, "candidate_sha", None)
+    if (
+        type(candidate_sha) is not str
+        or re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", candidate_sha) is None
+    ):
+        raise ValueError("A candidate SHA must be bound before route dispatch")
     if {"on_agent_start", "on_tau_step", "deadline_provider"} & set(route_kwargs):
         raise ValueError("Route lifecycle hooks are runner-owned and cannot be overridden")
     if (

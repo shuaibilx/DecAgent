@@ -352,6 +352,8 @@ def test_live_report_contains_only_whitelisted_attempt_diagnostics():
     route = plan.routes[0]
 
     class Ledger:
+        candidate_sha = "a" * 40
+
         def route_lifecycle(self, _trial_id, _route):
             return {
                 "status": "unknown",
@@ -403,3 +405,12 @@ def test_live_report_contains_only_whitelisted_attempt_diagnostics():
     assert route_record["model_attempts"][0]["exception_type"] == "TimeoutError"
     assert route_record["tool_attempts"] == []
     assert "PRIVATE RESPONSE BODY" not in repr(report)
+
+    with pytest.raises(ValueError, match="candidate SHA differs"):
+        live_first_wave_report(
+            plan,
+            SimpleNamespace(phase="first-wave", executed_routes=(), skipped_routes=()),
+            Ledger(),
+            candidate_sha="b" * 40,
+            working_tree_dirty=False,
+        )
