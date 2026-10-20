@@ -348,6 +348,17 @@ def build_inventory() -> dict[str, Any]:
         }
         for domain in selected_tau
     }
+    tau_smoke_subsets = {
+        f"tau2-bench/{domain['domain']}": {
+            "official_split": "train",
+            "selection_rule": "first two task IDs in the pinned official train split",
+            "task_ids": domain["splits"]["train"][:2],
+        }
+        for domain in selected_tau
+        if len(domain["splits"].get("train", [])) >= 2
+    }
+    if len(tau_smoke_subsets) != len(selected_tau):
+        raise ValueError("Required τ-Bench train smoke split is missing or too small")
 
     inventory = {
         "schema_version": 2,
@@ -385,6 +396,13 @@ def build_inventory() -> dict[str, Any]:
                 "selection_rule": "all task IDs in the official test split for retail and telecom",
                 "execution_status": "not_run",
                 "domains": tau_test_subsets,
+            },
+            "tau2_bench_smoke": {
+                "selection_rule": (
+                    "first two task IDs in each official train split; fixed smoke only"
+                ),
+                "execution_status": "not_run",
+                "domains": tau_smoke_subsets,
             },
         },
         "agent_input_boundary": {

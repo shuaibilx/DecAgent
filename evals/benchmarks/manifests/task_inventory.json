@@ -161677,6 +161677,28 @@
           ]
         }
       }
+    },
+    "tau2_bench_smoke": {
+      "selection_rule": "first two task IDs in each official train split; fixed smoke only",
+      "execution_status": "not_run",
+      "domains": {
+        "tau2-bench/retail": {
+          "official_split": "train",
+          "selection_rule": "first two task IDs in the pinned official train split",
+          "task_ids": [
+            "0",
+            "1"
+          ]
+        },
+        "tau2-bench/telecom": {
+          "official_split": "train",
+          "selection_rule": "first two task IDs in the pinned official train split",
+          "task_ids": [
+            "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Hard]",
+            "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_on[PERSONA:Hard]"
+          ]
+        }
+      }
     }
   },
   "agent_input_boundary": {

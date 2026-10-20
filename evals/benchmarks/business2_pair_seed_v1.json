@@ -1,0 +1,30 @@
+{
+  "schema_version": "business2-semantic-seed-v1",
+  "namespace_uuid": "2fb6c147-0c0a-4c46-aaf2-5ea71f7c2e85",
+  "people": [
+    {"name": "Zhang Wei", "team": "IT Support"},
+    {"name": "Zhang Wei", "team": "Facilities"},
+    {"name": "张伟", "team": "IT Support"},
+    {"name": "张伟", "team": "Facilities"},
+    {"name": "Chen Li", "team": "Network"},
+    {"name": "王芳", "team": "Access Management"}
+  ],
+  "categories": ["IT Access", "Network", "Facilities", "Hardware", "Software"],
+  "accounts": [
+    {"login": "employee-it", "name": "张伟", "team": "IT Support", "role": "employee"},
+    {"login": "employee-facilities", "name": "张伟", "team": "Facilities", "role": "employee"},
+    {"login": "handler-it", "name": "Zhang Wei", "team": "IT Support", "role": "handler"},
+    {"login": "handler-facilities", "name": "Zhang Wei", "team": "Facilities", "role": "handler"},
+    {"login": "handler-access", "name": "王芳", "team": "Access Management", "role": "handler"},
+    {"login": "supervisor", "name": "Chen Li", "team": "Network", "role": "supervisor"}
+  ],
+  "case": {
+    "case_id": "business2-pair-create-v1",
+    "command": "create",
+    "title": "VPN access request for IT Support",
+    "description": "Create the same synthetic VPN access ticket on both routes.",
+    "category": "IT Access",
+    "requester": {"name": "张伟", "team": "IT Support"},
+    "priority": "normal"
+  }
+}

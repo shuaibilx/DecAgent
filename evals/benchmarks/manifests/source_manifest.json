@@ -342,7 +342,7 @@
   },
   "task_inventory": {
     "path": "evals/benchmarks/manifests/task_inventory.json",
-    "sha256": "63d3dd8a9fcda47f77d5efb64102400ab35f0fe6dfb75a225e738d3ea18d4ffe",
+    "sha256": "ca3075e0e1a2557e0948abbb4ce12594bbc058a7f0e94f4e902d73fee429c769",
     "generator": "evals/benchmarks/build_task_inventory.py",
     "optional_generator_requirement": "evals/benchmarks/requirements.txt",
     "scope_note": "Contains complete task-ID and official split inventories; it omits prompts, verifiers, reference actions, tool results, and database content."

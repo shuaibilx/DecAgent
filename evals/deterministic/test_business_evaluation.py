@@ -177,6 +177,23 @@ def test_global_ledger_never_restarts_historical_spend_and_cap(tmp_path):
     assert cls(path).reserve(Decimal("0.01"), {}) is None
 
 
+def test_public_evaluation_uses_only_the_existing_project_jev_ledger(tmp_path):
+    ledger_module = module("ledger")
+    root = tmp_path / "project"
+    ledger_path = ledger_module.canonical_global_jev_ledger_path(root)
+    assert ledger_path == root.resolve() / ".decagent/business-eval/global-jev-ledger.json"
+
+    with pytest.raises(FileNotFoundError):
+        ledger_module.open_existing_global_jev_ledger(root)
+
+    ledger_path.parent.mkdir(parents=True)
+    ledger = ledger_module.GlobalJevLedger(ledger_path)
+    ledger.initialize()
+    assert ledger_module.open_existing_global_jev_ledger(root).path == ledger_path
+    with pytest.raises(ValueError, match="canonical"):
+        ledger_module.validate_global_jev_ledger_path(root, tmp_path / "other.json")
+
+
 def test_over_reserved_usage_blocks_future_calls_and_settles_local_ledger(tmp_path):
     from types import SimpleNamespace
 
@@ -280,6 +297,9 @@ def test_live_cli_is_opt_in_and_defaults_are_offline(tmp_path, capsys):
                 "0",
             ]
         )
+    with pytest.raises(ValueError, match="canonical project Jev ledger path"):
+        cli.main(["ledger-init", "--ledger", str(tmp_path / "replacement.json")])
+    assert not (tmp_path / "replacement.json").exists()
 
 
 def test_recomputed_checksum_cannot_rewrite_frozen_version(tmp_path):
