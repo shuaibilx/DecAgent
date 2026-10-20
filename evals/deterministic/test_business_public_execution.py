@@ -254,7 +254,8 @@ class FakeControlledRoutes:
 
 def execution_result(
     *, score=True, cleanup=True, status="complete", failure_kind=None,
-    machine_seconds=12.5, tau_steps=0
+    machine_seconds=12.5, tau_steps=0, failure_stage=None, exception_type=None,
+    error=None,
 ):
     benchmark_score = 1.0 if score else 0.0
     score_value = SimpleNamespace(
@@ -271,6 +272,9 @@ def execution_result(
             agent_started=True, agent_wall_seconds=machine_seconds
         ),
         failure_kind=failure_kind,
+        failure_stage=failure_stage,
+        exception_type=exception_type,
+        error=error,
         tau_steps=tau_steps,
         cleanup_verified=cleanup,
         cleanup_evidence={
@@ -317,6 +321,37 @@ def test_public_route_dispatch_reserves_times_and_persists_official_result(tmp_p
         "forbidden_side_effects": 0,
     }
     assert terminal["cleanup_verified"] is True
+
+
+def test_public_route_persists_failure_stage_and_type_without_exception_message(tmp_path):
+    ledger = FakeLedger(tmp_path)
+    controlled = FakeControlledRoutes(
+        execution_result(
+            score=False,
+            status="failed",
+            failure_kind="agent_failure",
+            failure_stage="agent_execution",
+            exception_type="ValueError",
+            error="PRIVATE_RESPONSE_BODY",
+        )
+    )
+
+    receipt = run_public_route(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        trial_id=TRIAL_ID,
+        route="plan_mcp",
+        trial=bound_trial(TRIAL_ID),
+        max_machine_seconds=1_800,
+        route_kwargs=route_kwargs_for(ledger, TRIAL_ID, "plan_mcp"),
+    )
+
+    terminal = ledger.events[-1][3]
+    assert receipt.status == "failed"
+    assert terminal["failure_stage"] == receipt.failure_stage == "agent_execution"
+    assert terminal["exception_type"] == receipt.exception_type == "ValueError"
+    assert "PRIVATE_RESPONSE_BODY" not in repr(terminal)
 
 
 def test_unknown_route_is_not_rewritten_and_only_cleanup_is_recorded(tmp_path):

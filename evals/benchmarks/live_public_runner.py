@@ -439,6 +439,8 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
         for receipt in phase.executed_routes
     }
     route_metrics = {}
+    model_attempts = getattr(ledger, "model_attempts_snapshot", None)
+    tool_attempts = getattr(ledger, "tool_attempts_snapshot", None)
     for selected in plan.initial_smoke_wave:
         trial_id = selected["trial_id"]
         for route in plan.routes:
@@ -451,12 +453,18 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
                 "usage": ledger.usage_snapshot(trial_id, route),
                 "resources": ledger.resource_snapshot(trial_id, route),
                 "billing": ledger.billing_snapshot(trial_id, route),
+                "model_attempts": (
+                    model_attempts(trial_id, route) if callable(model_attempts) else []
+                ),
+                "tool_attempts": (
+                    tool_attempts(trial_id, route) if callable(tool_attempts) else []
+                ),
             }
     completed = sum(
         item["lifecycle"]["status"] == "completed" for item in route_metrics.values()
     )
     return {
-        "schema_version": "public-evaluation-live-first-wave-v1",
+        "schema_version": "public-evaluation-live-first-wave-v2",
         "dry_run": False,
         "phase": "first-wave",
         "candidate_sha": candidate_sha,

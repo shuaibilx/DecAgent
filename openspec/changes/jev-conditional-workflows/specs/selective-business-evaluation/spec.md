@@ -602,3 +602,23 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** 路线已用尽冻结 `tau_steps` 上限并准备下一次 Agent/User/Environment handoff
 - **THEN** 账本拒绝新 step attempt，并在对应模型模拟器或业务工具 dispatch 前终止 τ 模拟；允许的官方 judge 仍使用独立请求/token 预算，step 计数在账本重新打开后不清零
 
+### Requirement: Public failure diagnostics are allowlisted and immutable
+
+公开评测账本 MUST 对已派发的模型与工具 attempt 记录有限诊断字段：白名单 `failure_stage`、仅由异常类名组成的 `exception_type`，以及实际可取得且处于 100–599 范围内的 HTTP 状态码。route 终态可镜像原 attempt 的 `failure_stage` 与 `exception_type`，不得合并或伪造 attempt 级 HTTP 状态。诊断 MUST NOT 持久化异常消息、请求/响应正文、工具参数/返回值或凭证。导出的 attempt 快照和 live report MUST 只包含审核后的诊断元数据及既有安全账本字段。数据库升级 MUST 以 nullable 列追加字段，不得重置 cohort、尝试、预算或旧 unknown；历史诊断缺失时保持 null。unknown 路线可幂等补录评分以外允许的清理证据，但 MUST 保留原 error category 与诊断且不得改写业务终态或重放。
+
+#### Scenario: Model callback fails after dispatch
+- **WHEN** 已派发模型请求后遇到超时或传输异常，且服务端 usage 无法核实
+- **THEN** attempt 与 route 进入 unknown，记录 `model_callback`、安全异常类名及可获得的 HTTP 状态码；异常消息和模型输入/输出正文不进入账本或报告
+
+#### Scenario: Tool gateway loses a response
+- **WHEN** 已派发的工具调用返回无法确认上游结果的异常
+- **THEN** 工具 attempt 与 route 进入 unknown，记录允许的工具阶段及安全异常类名；参数和返回正文不进入诊断快照，后续工具、模型及评分均停止
+
+#### Scenario: Unknown-route cleanup amendment preserves the failure evidence
+- **WHEN** unknown route 后续只补录经过核验的清理结果
+- **THEN** route 仍为 unknown，原失败类别/阶段/异常类型不变，且该路线不能重放
+
+#### Scenario: Existing ledger is upgraded without inventing diagnostics
+- **WHEN** 使用旧版公开账本恢复评测
+- **THEN** schema 以 nullable 列追加诊断字段，既有记录保持 null，原 cohort、账单与 unknown 预留保持不变
+

@@ -814,7 +814,13 @@ def test_tool_call_cap_is_persisted_and_unknown_tool_is_never_replayed(tmp_path)
         arguments_digest="a" * 64,
     )
     ledger.mark_tool_dispatched(attempt)
-    ledger.mark_tool_unknown(attempt, error_category="transport_timeout")
+    ledger.mark_tool_unknown(
+        attempt,
+        error_category="transport_timeout",
+        failure_stage="tool_gateway",
+        exception_type="TimeoutError",
+        http_status=504,
+    )
 
     assert ledger.tool_attempt_status(attempt) == "unknown"
     with pytest.raises(ValueError, match="cannot be replayed"):
@@ -981,7 +987,13 @@ def test_unknown_route_records_cleanup_without_becoming_success(tmp_path):
         arguments_digest="a" * 64,
     )
     ledger.mark_tool_dispatched(attempt)
-    ledger.mark_tool_unknown(attempt, error_category="transport_timeout")
+    ledger.mark_tool_unknown(
+        attempt,
+        error_category="transport_timeout",
+        failure_stage="tool_gateway",
+        exception_type="TimeoutError",
+        http_status=504,
+    )
     cleanup_digest = "b" * 64
 
     ledger.finish_route(
@@ -1004,12 +1016,27 @@ def test_unknown_route_records_cleanup_without_becoming_success(tmp_path):
     lifecycle = ledger.route_lifecycle(trial["trial_id"], route)
     assert lifecycle == {
         "status": "unknown",
+        "error_category": "transport_timeout",
+        "failure_stage": "tool_gateway",
+        "exception_type": "TimeoutError",
         "score_status": "not_attempted",
         "score_digest": None,
         "score_evidence": None,
         "cleanup_status": "verified",
         "cleanup_evidence_digest": cleanup_digest,
     }
+    with pytest.raises(ValueError, match="diagnostics cannot be rewritten"):
+        ledger.finish_route(
+            trial["trial_id"],
+            route,
+            status="unknown",
+            error_category="route_deadline",
+            failure_stage="route_deadline",
+            exception_type="TimeoutError",
+            score_status="not_attempted",
+            cleanup_verified=True,
+            cleanup_evidence_digest=cleanup_digest,
+        )
     with pytest.raises(ValueError, match="cannot be rewritten"):
         ledger.finish_route(
             trial["trial_id"],
@@ -1105,6 +1132,14 @@ def test_ledgered_tool_gateway_marks_transport_failure_unknown_and_blocks_replay
     snapshot = ledger.resource_snapshot(trial["trial_id"], route)
     assert snapshot["tool_calls"] == snapshot["unknown_tool_calls"] == 1
     assert ledger.route_status(trial["trial_id"], route) == "unknown"
+    attempt = ledger.tool_attempts_snapshot(trial["trial_id"], route)[0]
+    assert attempt["failure_stage"] == "tool_gateway"
+    assert attempt["exception_type"] == "TimeoutError"
+    assert attempt["http_status"] is None
+    assert "transport lost after remote dispatch" not in repr(attempt)
+    lifecycle = ledger.route_lifecycle(trial["trial_id"], route)
+    assert lifecycle["failure_stage"] == "tool_gateway"
+    assert lifecycle["exception_type"] == "TimeoutError"
     assert upstream.calls == 1
     with pytest.raises(ValueError, match="cannot be replayed"):
         ledger.start_route(trial["trial_id"], route)
@@ -1329,8 +1364,8 @@ def test_ledgered_tool_gateway_rechecks_deadline_after_dispatch_mark_before_tran
         def settle_tool_call(self, *_args, **_kwargs):
             raise AssertionError("Expired deadline cannot settle a remote result")
 
-        def mark_tool_unknown(self, _attempt_id, *, error_category):
-            self.events.append(("unknown", error_category))
+        def mark_tool_unknown(self, _attempt_id, *, error_category, **diagnostic):
+            self.events.append(("unknown", error_category, diagnostic))
 
     class Upstream:
         calls = 0
@@ -1352,7 +1387,19 @@ def test_ledgered_tool_gateway_rechecks_deadline_after_dispatch_mark_before_tran
         gateway.call("lookup_ticket", {})
 
     assert upstream.calls == 0
-    assert ledger.events == ["reserve", "dispatch", ("unknown", "tool_dispatch_error")]
+    assert ledger.events == [
+        "reserve",
+        "dispatch",
+        (
+            "unknown",
+            "tool_deadline_error",
+            {
+                "failure_stage": "route_deadline",
+                "exception_type": "ValueError",
+                "http_status": None,
+            },
+        ),
+    ]
 
 
 def test_machine_time_is_reserved_before_work_and_unknown_is_retained(tmp_path):
@@ -1754,6 +1801,13 @@ def test_existing_public_ledger_adds_billing_columns_without_resetting_cohort(tm
         for name in billing_columns:
             connection.execute(f"ALTER TABLE model_attempts DROP COLUMN {name}")
         connection.execute("ALTER TABLE route_trials DROP COLUMN score_evidence_json")
+        connection.execute("ALTER TABLE model_attempts DROP COLUMN failure_stage")
+        connection.execute("ALTER TABLE model_attempts DROP COLUMN exception_type")
+        connection.execute("ALTER TABLE tool_attempts DROP COLUMN failure_stage")
+        connection.execute("ALTER TABLE tool_attempts DROP COLUMN exception_type")
+        connection.execute("ALTER TABLE tool_attempts DROP COLUMN http_status")
+        connection.execute("ALTER TABLE route_trials DROP COLUMN failure_stage")
+        connection.execute("ALTER TABLE route_trials DROP COLUMN exception_type")
         connection.execute(
             "UPDATE execution_lease SET expires_at_utc='2000-01-01T00:00:00+00:00'"
         )
@@ -1767,6 +1821,12 @@ def test_existing_public_ledger_adds_billing_columns_without_resetting_cohort(tm
         row[1] for row in resumed._connection.execute("PRAGMA table_info(route_trials)")
     }
     assert "score_evidence_json" in route_columns
+    assert {"failure_stage", "exception_type"} <= route_columns
+    tool_columns = {
+        row[1] for row in resumed._connection.execute("PRAGMA table_info(tool_attempts)")
+    }
+    assert {"failure_stage", "exception_type", "http_status"} <= tool_columns
+    assert {"failure_stage", "exception_type"} <= columns
     assert resumed.plan.cohort_digest == selected.cohort_digest
     assert resumed.route_status(selected.trials[0]["trial_id"], selected.routes[0]) == "pending"
     resumed.close()

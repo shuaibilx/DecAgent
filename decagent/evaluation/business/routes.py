@@ -52,6 +52,7 @@ from decagent.evaluation.business.public_resources import (
 from .comparison import ComparisonTrial, Route, RouteRun, TauStepLimitReached
 from .final_response import DEFAULT_RESPONSE_POLICY, FinalResponsePolicy, accept_summary
 from .model_profiles import ModelProfile
+from .public_diagnostics import safe_exception_type
 
 
 def _money(value):
@@ -590,6 +591,8 @@ class ExecutionResult:
     cleanup_verified: bool = False
     cleanup_evidence: dict | None = None
     tau_steps: int = 0
+    failure_stage: str | None = None
+    exception_type: str | None = None
 
 
 class _ObservedGateway:
@@ -670,6 +673,7 @@ class ControlledRoutes:
         usage, calls, decisions = ObservedUsage(), [], []
         status, error, terminal = "failed", None, {}
         failure_kind = None
+        failure_stage, exception_type = None, None
         plan, score, preparation, reused = None, None, 0.0, False
         managed_adapters = None
         tau_step_count = 0
@@ -947,11 +951,15 @@ class ControlledRoutes:
                     status = "unknown"
                     terminal = {"status": "unknown", "unknown": True}
                     failure_kind = "model_usage_unknown"
+                    failure_stage = "model_callback"
+                    exception_type = safe_exception_type(exc)
                 except PublicModelProfileDrift as exc:
                     error = type(exc).__name__ + ": " + str(exc)
                     status = "failed"
                     terminal = {"status": "failed", "reason": "model_profile_drift"}
                     failure_kind = "model_profile_drift"
+                    failure_stage = "model_response_validation"
+                    exception_type = safe_exception_type(exc)
                     skip_scoring = True
                 except TauStepLimitReached as exc:
                     error = type(exc).__name__ + ": " + str(exc)
@@ -961,12 +969,18 @@ class ControlledRoutes:
                         "reason": "τ official conversation-step limit exhausted",
                     }
                     failure_kind = "tau_step_limit"
+                    failure_stage = "agent_execution"
+                    exception_type = safe_exception_type(exc)
                 except Exception as exc:
                     error = type(exc).__name__ + ": " + str(exc)
                     status = "failed"
                     failure_kind = (
                         "environment_failure" if agent_started is None else "agent_failure"
                     )
+                    failure_stage = (
+                        "environment_setup" if agent_started is None else "agent_execution"
+                    )
+                    exception_type = safe_exception_type(exc)
                 finally:
                     execution_finished = perf_counter()
                     if agent_started is not None:
@@ -993,6 +1007,8 @@ class ControlledRoutes:
                             )
                             status, scoring_complete = "failed", False
                             failure_kind = "scoring_failure"
+                            failure_stage = "official_scoring"
+                            exception_type = safe_exception_type(exc)
                         finally:
                             scoring_seconds = perf_counter() - scoring_started
                             scoring_usage = getattr(session, "scoring_model_usage", None)
@@ -1009,6 +1025,8 @@ class ControlledRoutes:
                                     )
                                     status, scoring_complete, score = "failed", False, None
                                     failure_kind = "scoring_failure"
+                                    failure_stage = "official_scoring"
+                                    exception_type = safe_exception_type(exc)
                     close_adapters = getattr(managed_adapters, "close", None)
                     if callable(close_adapters):
                         try:
@@ -1021,6 +1039,8 @@ class ControlledRoutes:
                             )
                             status = "failed"
                             failure_kind = "cleanup_failure"
+                            failure_stage = "model_resource_cleanup"
+                            exception_type = safe_exception_type(exc)
             session_context_exited = True
             cleanup_report = getattr(session, "cleanup_evidence", None)
             if callable(cleanup_report):
@@ -1042,12 +1062,15 @@ class ControlledRoutes:
                 except Exception as exc:
                     status = "failed"
                     failure_kind = "cleanup_failure"
+                    failure_stage = "environment_cleanup"
+                    exception_type = safe_exception_type(exc)
                     error = (error + "; " if error else "") + (
                         "Environment cleanup verification failed: " + type(exc).__name__
                     )
             if cleanup_evidence is not None and not cleanup_verified and status == "complete":
                 status = "failed"
                 failure_kind = "cleanup_failure"
+                failure_stage = "environment_cleanup"
                 error = "Environment cleanup was not verified"
         except Exception as exc:
             error, status = type(exc).__name__ + ": " + str(exc), "failed"
@@ -1056,6 +1079,12 @@ class ControlledRoutes:
                 if session_entered and not session_context_exited
                 else "environment_failure"
             )
+            failure_stage = (
+                "environment_cleanup"
+                if session_entered and not session_context_exited
+                else "environment_setup"
+            )
+            exception_type = safe_exception_type(exc)
         total_seconds = perf_counter() - started
         if setup_seconds is None:
             setup_seconds = total_seconds
@@ -1141,6 +1170,8 @@ class ControlledRoutes:
             cleanup_verified,
             cleanup_evidence,
             tau_step_count,
+            failure_stage,
+            exception_type,
         )
 
     def _react(self, session, trial, public, gateway, usage, callback, response_policy):

@@ -17,6 +17,7 @@ from time import perf_counter
 from decagent.decisions.contracts import digest
 
 from .comparison import PublicComparisonTrial
+from .public_diagnostics import safe_exception_type
 from .public_resources import LedgeredModelAdapterFactory, LedgeredToolGateway
 from .public_supervisor import PublicSupervisor, canonical_public_supervisor_lock_path
 from .public_trials import PublicRunPlan, canonical_public_trial_ledger_path
@@ -65,6 +66,8 @@ class PublicRouteReceipt:
     machine_seconds: float
     error_category: str | None
     tau_steps: int = 0
+    failure_stage: str | None = None
+    exception_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -135,6 +138,33 @@ def _route_tau_steps(ledger, trial_id, route):
     if type(value) is not int or value < 0:
         raise ValueError("Public ledger returned invalid τ-step evidence")
     return value
+
+
+def _route_diagnostic_snapshot(ledger, trial_id, route):
+    read = getattr(ledger, "route_lifecycle", None)
+    if not callable(read):
+        return None, None
+    lifecycle = read(trial_id, route)
+    if type(lifecycle) is not dict:
+        return None, None
+    return lifecycle.get("failure_stage"), lifecycle.get("exception_type")
+
+
+def _failure_diagnostics(result, failure):
+    stages = {
+        "environment_failure": "environment_setup",
+        "agent_failure": "agent_execution",
+        "tau_step_limit": "agent_execution",
+        "model_profile_drift": "model_response_validation",
+        "scoring_failure": "official_scoring",
+        "cleanup_failure": "environment_cleanup",
+        "resource_overrun": "route_deadline",
+    }
+    stage = getattr(result, "failure_stage", None) if result is not None else None
+    exception_type = getattr(result, "exception_type", None) if result is not None else None
+    if stage is None:
+        stage = stages.get(failure)
+    return stage, exception_type
 
 
 def execute_public_route(
@@ -303,6 +333,10 @@ def execute_public_route(
         if status != "unknown":
             status = "failed"
             error_category = "resource_overrun" if within_limit is False else "route_exception"
+            failure_stage = (
+                "route_deadline" if within_limit is False else "route_supervisor"
+            )
+            exception_type = safe_exception_type(exc)
             result_hash = digest(
                 {
                     "trial_id": trial_id,
@@ -320,10 +354,15 @@ def execute_public_route(
                 error_category=error_category,
                 cleanup_verified=False,
                 score_status="not_attempted",
+                failure_stage=failure_stage,
+                exception_type=exception_type,
             )
         else:
             error_category = None
             result_hash = None
+            failure_stage, exception_type = _route_diagnostic_snapshot(
+                ledger, trial_id, route_name
+            )
             ledger.finish_route(
                 trial_id,
                 route_name,
@@ -343,6 +382,8 @@ def execute_public_route(
             machine_seconds,
             error_category,
             _route_tau_steps(ledger, trial_id, route_name),
+            failure_stage,
+            exception_type,
         )
 
     timing = getattr(result, "timing", None)
@@ -374,10 +415,15 @@ def execute_public_route(
                 cleanup_verified=False,
                 score_status="not_attempted",
             )
+            failure_stage, exception_type = _route_diagnostic_snapshot(
+                ledger, trial_id, route_name
+            )
             return PublicRouteReceipt(
                 trial_id, route_name, "unknown", "not_attempted", False,
             None, None, machine_seconds, None,
             _route_tau_steps(ledger, trial_id, route_name),
+            failure_stage,
+            exception_type,
             )
         result = None
         failure = "invalid_route_timing"
@@ -413,10 +459,15 @@ def execute_public_route(
             cleanup_evidence_digest=cleanup_digest,
             score_status="not_attempted",
         )
+        failure_stage, exception_type = _route_diagnostic_snapshot(
+            ledger, trial_id, route_name
+        )
         return PublicRouteReceipt(
             trial_id, route_name, "unknown", "not_attempted", cleanup_verified,
             None, None, machine_seconds, None,
             _route_tau_steps(ledger, trial_id, route_name),
+            failure_stage,
+            exception_type,
         )
 
     tau_steps = _route_tau_steps(ledger, trial_id, route_name)
@@ -438,6 +489,9 @@ def execute_public_route(
     )
     if overrun:
         failure = "resource_overrun"
+    failure_stage, exception_type = _failure_diagnostics(result, failure)
+    if overrun:
+        failure_stage = "route_deadline"
     score_hash = digest(score_evidence) if score_evidence is not None else None
     result_hash = digest(
         {
@@ -464,6 +518,8 @@ def execute_public_route(
         score_status=score_status,
         score_digest=score_hash,
         score_evidence=score_evidence,
+        failure_stage=None if status == "completed" else failure_stage,
+        exception_type=None if status == "completed" else exception_type,
     )
     return PublicRouteReceipt(
         trial_id,
@@ -476,6 +532,8 @@ def execute_public_route(
         machine_seconds,
         None if status == "completed" else failure,
         tau_steps,
+        None if status == "completed" else failure_stage,
+        None if status == "completed" else exception_type,
     )
 
 

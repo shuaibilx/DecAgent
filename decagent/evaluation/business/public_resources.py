@@ -11,6 +11,8 @@ from time import perf_counter
 from decagent.decisions.contracts import digest
 from decagent.models.primary import PrimaryRequestNotDispatched
 
+from .public_diagnostics import safe_exception_type, safe_http_status
+
 
 class PublicToolOutcomeUnknown(RuntimeError):
     """A public tool was sent but its upstream result could not be confirmed."""
@@ -179,12 +181,30 @@ class LedgeredToolGateway:
         started = perf_counter()
         try:
             timeout_seconds = self._deadline_timeout()
+        except Exception as exc:
+            self.ledger.mark_tool_unknown(
+                attempt,
+                error_category="tool_deadline_error",
+                failure_stage="route_deadline",
+                exception_type=safe_exception_type(exc),
+                http_status=safe_http_status(exc),
+            )
+            raise PublicToolOutcomeUnknown(
+                "Public tool outcome is unknown; automatic replay is disabled"
+            ) from exc
+        try:
             result = self.gateway.call(
                 command, deepcopy(params), timeout_seconds=timeout_seconds
             )
             result_digest = digest(result)
         except Exception as exc:
-            self.ledger.mark_tool_unknown(attempt, error_category="tool_dispatch_error")
+            self.ledger.mark_tool_unknown(
+                attempt,
+                error_category="tool_dispatch_error",
+                failure_stage="tool_gateway",
+                exception_type=safe_exception_type(exc),
+                http_status=safe_http_status(exc),
+            )
             raise PublicToolOutcomeUnknown(
                 "Public tool outcome is unknown; automatic replay is disabled"
             ) from exc
@@ -351,6 +371,9 @@ class LedgeredModelCallback:
                     attempt_id,
                     error_category="model_dispatch_error",
                     attempt_seconds=perf_counter() - started,
+                    failure_stage="model_callback",
+                    exception_type=safe_exception_type(exc),
+                    http_status=safe_http_status(exc),
                 )
                 raise PublicModelOutcomeUnknown(
                     "Model request was dispatched but usage cannot be confirmed"
@@ -362,6 +385,7 @@ class LedgeredModelCallback:
                 attempt_id,
                 error_category="invalid_measured_response",
                 attempt_seconds=perf_counter() - started,
+                failure_stage="model_response_validation",
             )
             raise PublicModelOutcomeUnknown(
                 "Model request returned no complete measured usage record"
@@ -395,6 +419,12 @@ class LedgeredModelCallback:
                 attempt_id,
                 error_category="model_usage_unknown",
                 attempt_seconds=perf_counter() - started,
+                failure_stage="model_response_validation",
+                http_status=(
+                    reply.http_status
+                    if type(reply.http_status) is int and 100 <= reply.http_status <= 599
+                    else None
+                ),
             )
             raise PublicModelOutcomeUnknown(
                 "Dispatched model usage or frozen profile identity is unknown"
@@ -431,6 +461,12 @@ class LedgeredModelCallback:
                 attempt_id,
                 error_category="model_cost_unknown",
                 attempt_seconds=perf_counter() - started,
+                failure_stage="model_response_validation",
+                http_status=(
+                    reply.http_status
+                    if type(reply.http_status) is int and 100 <= reply.http_status <= 599
+                    else None
+                ),
             )
             raise PublicModelOutcomeUnknown(
                 "Model usage is known but cost evidence is unavailable"

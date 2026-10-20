@@ -18,6 +18,7 @@ from decagent.decisions.contracts import digest
 from .ledger import GlobalJevLedger
 from .manifest_hashing import source_manifest_sha256, task_inventory_sha256
 from .model_profiles import EvaluationModelProfiles
+from .public_diagnostics import validate_diagnostic
 from .public_limits import FIRST_WAVE_BATCH_LIMITS
 from .public_supervisor import canonical_public_supervisor_lock_path
 
@@ -577,6 +578,7 @@ class PublicTrialLedger:
                     status TEXT NOT NULL CHECK(status IN (
                         'pending','running','completed','failed','unknown','scoring_error','not_applicable'
                     )), result_digest TEXT, error_category TEXT,
+                    failure_stage TEXT, exception_type TEXT,
                     score_status TEXT NOT NULL DEFAULT 'not_attempted' CHECK(score_status IN (
                         'not_attempted','scored','failed','unknown','not_applicable'
                     )), score_digest TEXT,
@@ -623,7 +625,8 @@ class PublicTrialLedger:
                     profile_digest TEXT NOT NULL, provider_request_id TEXT, generation_id TEXT,
                     global_jev_reservation_id TEXT,
                     actual_provider TEXT, actual_model TEXT,
-                    error_category TEXT, http_status INTEGER, attempt_seconds REAL,
+                    error_category TEXT, http_status INTEGER,
+                    failure_stage TEXT, exception_type TEXT, attempt_seconds REAL,
                     created_at_utc TEXT NOT NULL, dispatched_at_utc TEXT, settled_at_utc TEXT,
                     FOREIGN KEY(trial_id,route) REFERENCES route_trials(trial_id,route)
                 );
@@ -636,7 +639,8 @@ class PublicTrialLedger:
                         'reserved','dispatched','settled','unknown','not_sent','settled_overrun'
                     )),
                     duration_seconds REAL, result_digest TEXT,
-                    error_category TEXT, created_at_utc TEXT NOT NULL,
+                    error_category TEXT, failure_stage TEXT, exception_type TEXT,
+                    http_status INTEGER, created_at_utc TEXT NOT NULL,
                     FOREIGN KEY(trial_id,route) REFERENCES route_trials(trial_id,route)
                 );
                 CREATE TABLE machine_time_attempts(
@@ -774,6 +778,14 @@ class PublicTrialLedger:
                     connection.execute(
                         f"ALTER TABLE model_attempts ADD COLUMN {name} {sql_type}"
                     )
+            for name, sql_type in {
+                "failure_stage": "TEXT",
+                "exception_type": "TEXT",
+            }.items():
+                if name not in model_columns:
+                    connection.execute(
+                        f"ALTER TABLE model_attempts ADD COLUMN {name} {sql_type}"
+                    )
             route_columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(route_trials)")
             }
@@ -781,6 +793,23 @@ class PublicTrialLedger:
                 connection.execute(
                     "ALTER TABLE route_trials ADD COLUMN score_evidence_json TEXT"
                 )
+            for name in ("failure_stage", "exception_type"):
+                if name not in route_columns:
+                    connection.execute(
+                        f"ALTER TABLE route_trials ADD COLUMN {name} TEXT"
+                    )
+            tool_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(tool_attempts)")
+            }
+            for name, sql_type in {
+                "failure_stage": "TEXT",
+                "exception_type": "TEXT",
+                "http_status": "INTEGER",
+            }.items():
+                if name not in tool_columns:
+                    connection.execute(
+                        f"ALTER TABLE tool_attempts ADD COLUMN {name} {sql_type}"
+                    )
             machine_columns = {
                 row[1] for row in connection.execute(
                     "PRAGMA table_info(machine_time_attempts)"
@@ -1144,6 +1173,7 @@ class PublicTrialLedger:
         self, trial_id, route, *, status, result_digest=None, error_category=None,
         cleanup_verified, score_status="not_attempted", score_digest=None,
         cleanup_evidence_digest=None, score_evidence=None,
+        failure_stage=None, exception_type=None,
     ):
         self._active()
         if status not in _TERMINAL:
@@ -1200,10 +1230,15 @@ class PublicTrialLedger:
             type(error_category) is not str or not _ERROR.fullmatch(error_category)
         ):
             raise ValueError("Route error category must be sanitized")
+        validate_diagnostic(
+            failure_stage=failure_stage,
+            exception_type=exception_type,
+        )
         self._transaction()
         try:
             existing = self._connection.execute(
-                "SELECT status,result_digest,error_category,score_status,score_digest,"
+                "SELECT status,result_digest,error_category,failure_stage,exception_type,"
+                "score_status,score_digest,"
                 "score_evidence_json,"
                 "cleanup_status,cleanup_evidence_digest FROM route_trials "
                 "WHERE trial_id=? AND route=?",
@@ -1211,6 +1246,27 @@ class PublicTrialLedger:
             ).fetchone()
             if existing is None:
                 raise ValueError("Route is outside the frozen public task denominator")
+            if existing["status"] == "unknown" and status == "unknown":
+                failure_stage = (
+                    existing["failure_stage"] if failure_stage is None else failure_stage
+                )
+                exception_type = (
+                    existing["exception_type"] if exception_type is None else exception_type
+                )
+                error_category = (
+                    existing["error_category"] if error_category is None else error_category
+                )
+                if (
+                    existing["failure_stage"] is not None
+                    and failure_stage != existing["failure_stage"]
+                ) or (
+                    existing["exception_type"] is not None
+                    and exception_type != existing["exception_type"]
+                ) or (
+                    existing["error_category"] is not None
+                    and error_category != existing["error_category"]
+                ):
+                    raise ValueError("Unknown-route diagnostics cannot be rewritten")
             if score_evidence is not None:
                 trial = self._connection.execute(
                     "SELECT dataset FROM route_trials WHERE trial_id=? AND route=?",
@@ -1228,6 +1284,8 @@ class PublicTrialLedger:
                 status,
                 result_digest,
                 error_category,
+                failure_stage,
+                exception_type,
                 score_status,
                 score_digest,
                 score_evidence_json,
@@ -1235,7 +1293,8 @@ class PublicTrialLedger:
                 cleanup_evidence_digest,
             )
             current = tuple(existing[key] for key in (
-                "status", "result_digest", "error_category", "score_status", "score_digest",
+                "status", "result_digest", "error_category", "failure_stage", "exception_type",
+                "score_status", "score_digest",
                 "score_evidence_json",
                 "cleanup_status", "cleanup_evidence_digest",
             ))
@@ -1291,12 +1350,14 @@ class PublicTrialLedger:
                 raise ValueError("Unresolved or unknown model usage blocks route finalization")
             cursor = self._connection.execute(
                 "UPDATE route_trials SET status=?,result_digest=?,error_category=?,"
+                "failure_stage=?,exception_type=?,"
                 "score_status=?,score_digest=?,score_evidence_json=?,cleanup_status=?,"
                 "cleanup_evidence_digest=?,"
                 "updated_at_utc=? "
                 "WHERE trial_id=? AND route=? AND status='running'",
                 (
-                    status, result_digest, error_category, score_status, score_digest,
+                    status, result_digest, error_category, failure_stage, exception_type,
+                    score_status, score_digest,
                     score_evidence_json,
                     cleanup_status, cleanup_evidence_digest, _now(), trial_id, route,
                 ),
@@ -1312,7 +1373,8 @@ class PublicTrialLedger:
     def route_lifecycle(self, trial_id, route):
         self._active()
         row = self._connection.execute(
-            "SELECT status,score_status,score_digest,score_evidence_json,cleanup_status,"
+            "SELECT status,error_category,failure_stage,exception_type,score_status,"
+            "score_digest,score_evidence_json,cleanup_status,"
             "cleanup_evidence_digest "
             "FROM route_trials WHERE trial_id=? AND route=?",
             (trial_id, route),
@@ -1731,7 +1793,8 @@ class PublicTrialLedger:
             ) from global_error
 
     def mark_model_unknown(
-        self, attempt_id, *, error_category, http_status=None, attempt_seconds=None
+        self, attempt_id, *, error_category, http_status=None, attempt_seconds=None,
+        failure_stage=None, exception_type=None,
     ):
         self._active()
         if (
@@ -1750,6 +1813,11 @@ class PublicTrialLedger:
             )
         ):
             raise ValueError("Unknown model failure category must be sanitized")
+        validate_diagnostic(
+            failure_stage=failure_stage,
+            exception_type=exception_type,
+            http_status=http_status,
+        )
         self._transaction()
         try:
             reservation = self._connection.execute(
@@ -1767,10 +1835,11 @@ class PublicTrialLedger:
                 )
             cursor = self._connection.execute(
                 "UPDATE model_attempts SET status='unknown',error_category=?,http_status=?,"
+                "failure_stage=?,exception_type=?,"
                 "attempt_seconds=?,settled_at_utc=? "
                 "WHERE attempt_id=? AND status IN ('reserved','dispatched')",
                 (
-                    error_category, http_status,
+                    error_category, http_status, failure_stage, exception_type,
                     float(attempt_seconds) if attempt_seconds is not None else None,
                     _now(), attempt_id,
                 ),
@@ -1781,14 +1850,31 @@ class PublicTrialLedger:
                 "SELECT trial_id,route FROM model_attempts WHERE attempt_id=?", (attempt_id,)
             ).fetchone()
             self._connection.execute(
-                "UPDATE route_trials SET status='unknown',error_category=?,updated_at_utc=? "
+                "UPDATE route_trials SET status='unknown',error_category=?,failure_stage=?,"
+                "exception_type=?,updated_at_utc=? "
                 "WHERE trial_id=? AND route=? AND status='running'",
-                (error_category, _now(), row["trial_id"], row["route"]),
+                (
+                    error_category, failure_stage, exception_type, _now(),
+                    row["trial_id"], row["route"],
+                ),
             )
             self._connection.execute("COMMIT")
         except BaseException:
             self._connection.execute("ROLLBACK")
             raise
+
+    def model_attempts_snapshot(self, trial_id, route):
+        """Return whitelisted per-request facts without prompts or response content."""
+        self._active()
+        rows = self._connection.execute(
+            "SELECT attempt_id,role,status,provider,model,actual_provider,actual_model,"
+            "actual_input_tokens,actual_output_tokens,actual_cost_usd,actual_cost_source,"
+            "provider_request_id,generation_id,error_category,http_status,failure_stage,"
+            "exception_type,attempt_seconds FROM model_attempts "
+            "WHERE trial_id=? AND route=? ORDER BY created_at_utc,attempt_number",
+            (trial_id, route),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def model_attempt_snapshot(self, attempt_id):
         self._active()
@@ -1800,7 +1886,8 @@ class PublicTrialLedger:
             "billing_gross_amount,billing_currency,billing_voucher_credit_amount,"
             "billing_cash_paid_amount,billing_source,billing_record_id,"
                 "provider_request_id,generation_id,global_jev_reservation_id,actual_provider,"
-                "actual_model,http_status,attempt_seconds,error_category,"
+                "actual_model,http_status,attempt_seconds,error_category,failure_stage,"
+                "exception_type,"
             "created_at_utc,dispatched_at_utc,settled_at_utc FROM model_attempts "
             "WHERE attempt_id=?",
             (attempt_id,),
@@ -2138,10 +2225,18 @@ class PublicTrialLedger:
             self._connection.execute("ROLLBACK")
             raise
 
-    def mark_tool_unknown(self, attempt_id, *, error_category):
+    def mark_tool_unknown(
+        self, attempt_id, *, error_category, failure_stage=None,
+        exception_type=None, http_status=None,
+    ):
         self._active()
         if type(error_category) is not str or not _ERROR.fullmatch(error_category):
             raise ValueError("Unknown tool failure category must be sanitized")
+        validate_diagnostic(
+            failure_stage=failure_stage,
+            exception_type=exception_type,
+            http_status=http_status,
+        )
         self._transaction()
         try:
             row = self._connection.execute(
@@ -2152,19 +2247,35 @@ class PublicTrialLedger:
             if row is None:
                 raise ValueError("Only an unresolved tool attempt can become unknown")
             self._connection.execute(
-                "UPDATE tool_attempts SET status='unknown',error_category=? "
+                "UPDATE tool_attempts SET status='unknown',error_category=?,failure_stage=?,"
+                "exception_type=?,http_status=? "
                 "WHERE tool_attempt_id=?",
-                (error_category, attempt_id),
+                (error_category, failure_stage, exception_type, http_status, attempt_id),
             )
             self._connection.execute(
-                "UPDATE route_trials SET status='unknown',error_category=?,updated_at_utc=? "
+                "UPDATE route_trials SET status='unknown',error_category=?,failure_stage=?,"
+                "exception_type=?,updated_at_utc=? "
                 "WHERE trial_id=? AND route=? AND status='running'",
-                (error_category, _now(), row["trial_id"], row["route"]),
+                (
+                    error_category, failure_stage, exception_type, _now(),
+                    row["trial_id"], row["route"],
+                ),
             )
             self._connection.execute("COMMIT")
         except BaseException:
             self._connection.execute("ROLLBACK")
             raise
+
+    def tool_attempts_snapshot(self, trial_id, route):
+        """Return safe tool-call metadata without arguments or tool results."""
+        self._active()
+        rows = self._connection.execute(
+            "SELECT tool_attempt_id,command,effect,status,duration_seconds,result_digest,"
+            "error_category,failure_stage,exception_type,http_status "
+            "FROM tool_attempts WHERE trial_id=? AND route=? ORDER BY created_at_utc",
+            (trial_id, route),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def mark_tool_not_sent(self, attempt_id, *, reason, verified_not_sent):
         self._active()

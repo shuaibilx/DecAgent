@@ -411,6 +411,14 @@ def test_unknown_dispatched_model_outcome_blocks_route_and_cannot_replay(tmp_pat
     assert calls == ["sent"]
     assert ledger.route_status(trial_id, route.value) == "unknown"
     assert ledger.batch_snapshot()["qwen_requests"] == 1
+    attempt = ledger.model_attempts_snapshot(trial_id, route.value)[0]
+    assert attempt["failure_stage"] == "model_callback"
+    assert attempt["exception_type"] == "TimeoutError"
+    assert attempt["http_status"] is None
+    assert "response was lost" not in repr(attempt)
+    lifecycle = ledger.route_lifecycle(trial_id, route.value)
+    assert lifecycle["failure_stage"] == "model_callback"
+    assert lifecycle["exception_type"] == "TimeoutError"
     with pytest.raises(ValueError, match="unknown model usage"):
         measured({"messages": []})
     assert calls == ["sent"]

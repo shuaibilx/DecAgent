@@ -336,3 +336,70 @@ def test_live_runner_preflights_all_four_environments_before_opening_ledger(monk
     assert [event[0] for event in events[4:]] == [
         "lock", "ledger", "execute", "close-ledger", "unlock"
     ]
+
+
+def test_live_report_contains_only_whitelisted_attempt_diagnostics():
+    from evals.benchmarks.live_public_runner import live_first_wave_report
+
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    trial_id = plan.initial_smoke_wave[0]["trial_id"]
+    route = plan.routes[0]
+
+    class Ledger:
+        def route_lifecycle(self, _trial_id, _route):
+            return {
+                "status": "unknown",
+                "error_category": "model_dispatch_error",
+                "failure_stage": "model_callback",
+                "exception_type": "TimeoutError",
+                "score_status": "not_attempted",
+                "cleanup_status": "verified",
+            }
+
+        def usage_snapshot(self, *_args):
+            return {}
+
+        def resource_snapshot(self, *_args):
+            return {}
+
+        def billing_snapshot(self, *_args):
+            return []
+
+        def model_attempts_snapshot(self, current_trial, current_route):
+            if (current_trial, current_route) != (trial_id, route):
+                return []
+            return [{
+                "status": "unknown",
+                "failure_stage": "model_callback",
+                "exception_type": "TimeoutError",
+                "http_status": None,
+                "error_category": "model_dispatch_error",
+            }]
+
+        def tool_attempts_snapshot(self, *_args):
+            return []
+
+        def batch_snapshot(self):
+            return {}
+
+        def status_snapshot(self):
+            return {}
+
+    report = live_first_wave_report(
+        plan,
+        SimpleNamespace(phase="first-wave", executed_routes=(), skipped_routes=()),
+        Ledger(),
+        candidate_sha="a" * 40,
+        working_tree_dirty=False,
+    )
+    route_record = report["routes"][trial_id + ":" + route]
+    assert report["schema_version"] == "public-evaluation-live-first-wave-v2"
+    assert route_record["model_attempts"][0]["exception_type"] == "TimeoutError"
+    assert route_record["tool_attempts"] == []
+    assert "PRIVATE RESPONSE BODY" not in repr(report)
