@@ -22,7 +22,7 @@ OpenSpec 任务为 **67/79 已完成，12 项未完成**：9.6.D–G、10.3–10
 
 首波真实试次已在 2026-10-20 运行；不能再描述为“尚未创建账本”或“公开成绩为零因为还未启动”。规范 v7 账本有 4 条 Qwen attempt，路线状态为 4 `failed`、4 `unknown`、40 `pending`；8 条首波路线都已终结，清理为 verified，官方评分未运行。账本缺少 `candidate_sha` 元数据。该缺口意味着现有试次不能被安全归属到后续代码候选，因此不从当前 HEAD、CI、报告或外部日志推断并补写 SHA，也不重放这 8 条路线。
 
-本次离线修复要求 first-wave ledger 在 route claim 前绑定精确的 CI 候选 SHA；同一账本只能恢复相同 SHA，dispatcher 和 live report 都核对该绑定。已有任何路线/模型/工具/τ step/machine-time 活动但没有 SHA 的历史账本拒绝绑定；JSON 损坏或不合法的 SHA 元数据也 fail closed。主入口继续通过同一候选的 GitHub CI gate 取得 SHA。相关公开账本、路由、runner 与 supervisor 定向测试 `86 passed`，修改文件 Ruff 通过、OpenSpec strict `6 passed, 0 failed`，`git diff --check` 通过。未派发 Qwen、Jev、工具或官方裁判请求，未改旧 v1 报告及 canonical ledger；公开 benchmark 仍 `0/286`。这不是 9.6.G 或 10.10.D/E 的完成证据。
+本次离线修复要求 first-wave ledger 在 route claim 前绑定精确的 CI 候选 SHA；同一账本只能恢复相同 SHA，dispatcher 和 live report 都核对该绑定。已有任何路线/模型/工具/τ step/machine-time 活动但没有 SHA 的历史账本拒绝绑定；JSON 损坏或不合法的 SHA 元数据也 fail closed。主入口继续通过同一候选的 GitHub CI gate 取得 SHA。相关公开账本、路由、runner 与 supervisor 定向测试 `86 passed`，修改文件 Ruff 通过、OpenSpec strict `6 passed, 0 failed`，`git diff --check` 通过。全量 deterministic `1915 passed, 18 skipped`；配置本机锁定 τ Python 3.12 runtime 后，τ process/tools 定向套件 `52 passed, 1 skipped`，其中 14 项此前的 runtime skip 实际通过，剩余 1 项因隔离 runtime 未安装可选 `tau2` 包而跳过。未派发 Qwen、Jev、工具或官方裁判请求，未改旧 v1 报告及 canonical ledger；公开 benchmark 仍 `0/286`。这不是 9.6.G 或 10.10.D/E 的完成证据。
 
 重新开展真实比较需要一个与新候选 SHA 绑定的新 cohort、单独冻结的预算和明确的评测批次授权；在此之前只推进不触发真实请求的离线实现与文档。
 ## 1. 基线留存与兼容准备

@@ -147,7 +147,7 @@ def test_user_tool_batch_is_validated_and_forwarded_as_one_simulator_input():
     result = environment.user_turn(
         batch,
         model="qwen-test",
-        on_model_call=lambda _event: {"content": "unused"},
+        on_model_call=lambda _event, *, timeout_seconds: {"content": "unused"},
     )
 
     assert result["message"]["content"] == "Done."
@@ -209,7 +209,7 @@ def test_invalid_user_tool_batch_is_rejected_before_process_dispatch(batch):
         environment.user_turn(
             batch,
             model="qwen-test",
-            on_model_call=lambda _event: {"content": "unused"},
+            on_model_call=lambda _event, *, timeout_seconds: {"content": "unused"},
         )
     assert channel.requests == 0
 
@@ -486,7 +486,7 @@ def test_tau_user_and_judge_callbacks_receive_enclosing_deadline():
     environment.user_turn(
         {"role": "assistant", "content": "Hello"},
         model="qwen-test",
-        on_model_call=lambda _event: {"content": "unused"},
+        on_model_call=lambda _event, *, timeout_seconds: {"content": "unused"},
         timeout_seconds=2.25,
     )
     environment.score_simulation(
@@ -494,7 +494,7 @@ def test_tau_user_and_judge_callbacks_receive_enclosing_deadline():
         termination_reason="agent_stop",
         duration=0.1,
         judge_model="qwen-test",
-        on_model_call=lambda _event: {"content": "unused"},
+        on_model_call=lambda _event, *, timeout_seconds: {"content": "unused"},
         timeout_seconds=1.5,
     )
 
@@ -632,7 +632,7 @@ def test_pinned_tau_user_simulator_receives_multi_tool_results_in_one_turn():
         result = environment.user_turn(
             batch,
             model="qwen3.8-flash",
-            on_model_call=lambda event: callbacks.append(event)
+            on_model_call=lambda event, *, timeout_seconds: callbacks.append(event)
             or {
                 "content": "Thanks, I received both results.",
                 "tool_calls": [],
@@ -682,7 +682,7 @@ def test_real_pinned_tau_process_crosses_mcp_and_preserves_errors():
             user_turn = client.user_turn(
                 {"role": "assistant", "content": "Hi! How can I help you today?"},
                 model="qwen3.8-flash",
-                on_model_call=lambda _event: {
+                on_model_call=lambda _event, *, timeout_seconds: {
                     "content": "I need help with my order.",
                     "tool_calls": [],
                     "tau_usage": {"prompt_tokens": 5, "completion_tokens": 3},
@@ -702,7 +702,9 @@ def test_real_pinned_tau_process_crosses_mcp_and_preserves_errors():
                 termination_reason="agent_stop",
                 duration=0.1,
                 judge_model="qwen3.8-flash",
-                on_model_call=lambda _event: {"content": "{\"results\": []}"},
+                on_model_call=lambda _event, *, timeout_seconds: {
+                    "content": "{\"results\": []}"
+                },
             )
             assert scored["scored"] is True
             assert scored["scorer"] == "tau2-bench-original-evaluate-simulation"
@@ -753,7 +755,7 @@ def test_real_pinned_tau_user_simulator_uses_parent_model_callback_without_netwo
         result = environment.user_turn(
             "Hello, how can I help?",
             model="qwen3.8-flash",
-            on_model_call=lambda event: calls.append(event)
+            on_model_call=lambda event, *, timeout_seconds: calls.append(event)
             or {
                 "content": "I need help with my order.",
                 "tool_calls": [],
@@ -792,7 +794,7 @@ def test_real_pinned_tau_train_smoke_initializes_official_user_simulator():
         result = environment.user_turn(
             "Hi! How can I help you today?",
             model="qwen3.8-flash",
-            on_model_call=lambda _event: {
+            on_model_call=lambda _event, *, timeout_seconds: {
                 "content": "I need help with a recent order.",
                 "tool_calls": [],
                 "tau_usage": {"prompt_tokens": 13, "completion_tokens": 5},
@@ -825,7 +827,7 @@ def test_real_pinned_tau_official_scorer_keeps_task_labels_in_worker():
             termination_reason="agent_stop",
             duration=1.25,
             judge_model="qwen3.8-flash",
-            on_model_call=lambda event: calls.append(event)
+            on_model_call=lambda event, *, timeout_seconds: calls.append(event)
             or {
                 "content": "{\"results\": []}",
                 "tau_usage": {"prompt_tokens": 10, "completion_tokens": 2},
@@ -845,7 +847,7 @@ def test_real_pinned_tau_official_scorer_keeps_task_labels_in_worker():
                 termination_reason="not-an-upstream-termination",
                 duration=0,
                 judge_model="qwen3.8-flash",
-                on_model_call=lambda _event: {"content": "{}"},
+                on_model_call=lambda _event, *, timeout_seconds: {"content": "{}"},
             )
         assert process.poll() is not None, "Invalid scorer input must retire its worker"
     finally:
