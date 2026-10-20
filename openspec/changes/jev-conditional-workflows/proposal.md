@@ -1,13 +1,13 @@
 # Proposal
 ## 当前实施状态（2026-10-21，首波实测后）
 
-主 change 当前为 **66/79，13 项待完成**；`guest-sop-local-trial` 为 6/28。基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的 GitHub CI run [39497828524](https://github.com/shuaibilx/DecAgent/actions/runs/39497828524) 全部通过：Python 3.11/3.13 各 `1931 passed, 18 skipped` deterministic、`605 passed, 30 skipped` PostgreSQL integration，Ruff、Workbench、wheel/MCP、镜像构建和 Compose 冒烟均成功。首波离线诊断后，planner schema fallback 与 τ telecom 30-tool schema 修复已进入工作树；修复版全量本机 deterministic 为 `1933 passed, 18 skipped (216.43s)`，Ruff 和 OpenSpec strict 通过，但修复版的新候选 SHA 及远端 CI 尚待生成/运行，因此 11.1 仍待验，不能把基线 CI 当作修复版 CI。
+主 change 当前为 **66/79，13 项待完成**；`guest-sop-local-trial` 为 6/28。基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的 GitHub CI run [39497828524](https://github.com/shuaibilx/DecAgent/actions/runs/39497828524) 全部通过：Python 3.11/3.13 各 `1931 passed, 18 skipped` deterministic、`605 passed, 30 skipped` PostgreSQL integration，Ruff、Workbench、wheel/MCP、镜像构建和 Compose 冒烟均成功。首波后两个执行前缺陷已修复，后续进程树竞态也已修复；当前本机 full deterministic `1934 passed, 18 skipped`，Ruff/OpenSpec strict 通过。中间候选 `777ca4e` 的 CI run `39506416272` 在 Python 3.13 deterministic 暴露 POSIX 后代进程终止竞态，导致 run failure；3.11 因 fail-fast 取消，Workbench 与 package/image/Compose job 通过。修正后 Linux Python 3.13 容器对进程树回收场景连续 20 次通过。该最新修复尚未进入新 SHA 的完整远端 CI，因此 11.1 仍待验。
 
 同一候选的首波 live runner 已尝试冻结四域 4 个任务、8 条 ReAct/Plan 路线：5 failed、3 unknown、0 completed；仅 ITSM/ReAct 到达原始评分器并得到 `0.0`，其余 7 条未评分；8/8 环境清理验证成功。Qwen 4 次请求中，两次主模型响应合计 18,738 个实际 Token；两次 τ 用户模拟器请求 usage unknown，保留 53,508 个 Token 预留。账本 Token 计数为 72,246（实际加预留），工具 attempt 1，约 58.36 秒。Qwen 费用与代金券/实付拆分未核实，保持 unknown；Jev 和裁判均为 0 次请求。`find_user` 被评测目录标记为 write，MCP 返回 unknown，不能声称其无业务副作用。报告见 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json` 和 `generated/261021/0545_首波公开评测报告.md`。
 
-本次运行只说明账本、路线派发和清理可被审计；执行闭环未通过，完整公开基准成功任务仍为 0/286，单个 `0.0` route score 不能作为 benchmark 总分。Jev 未使用，不能作收益判断。所有 unknown 不重放，首波后续 smoke 与全量评测暂停；离线缺陷已修复并通过本机全量 deterministic/Ruff/OpenSpec，现等待新候选 SHA 的完整远端 CI。Qwen 账单仍须核实，之后另行估算并冻结下一批预算。95% 自动正确率和每类至少 100 个自动样本的资格条件不变。
+本次运行只说明账本、路线派发和清理可被审计；执行闭环未通过，完整公开基准成功任务仍为 0/286，单个 `0.0` route score 不能作为 benchmark 总分。Jev 未使用，不能作收益判断。所有 unknown 不重放，首波后续 smoke 与全量评测暂停；两个业务适配缺陷和 CI 暴露的 POSIX 进程树终止竞态已修复并通过本机/容器回归，当前等待最新修复 SHA 的完整远端 CI。Qwen 账单仍须核实，之后另行估算并冻结下一批预算。95% 自动正确率和每类至少 100 个自动样本的资格条件不变。
 
-固定候选离线复现已定位 EnterpriseOps Plan 的 `AttributeError` 为 callback 使用空 session schema，以及 τ telecom `TauBridgeError` 为 callback 8 项工具 schema 上限低于官方 user simulator 的 30 项目录。两项修复均新增定向回归；planner/τ callback 文件 `10 passed`，完整 deterministic `1933 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过；锁定 τ worker 的实际 telecom schema 脚本预检通过，模型请求和业务工具请求均为 0。τ retail unknown、ITSM/ReAct 原始响应细节和 CSM `find_user` 写入结果无法由安全账本恢复，保持不重放。修复版新候选 SHA 的远端 CI 尚待完成。
+固定候选离线复现已定位 EnterpriseOps Plan 的 `AttributeError` 为 callback 使用空 session schema，以及 τ telecom `TauBridgeError` 为 callback 8 项工具 schema 上限低于官方 user simulator 的 30 项目录。两项修复均新增定向回归；callback 定向文件 `10 passed`，完整 deterministic `1934 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过；Linux Python 3.13 进程树 race 回归容器循环 `20/20` 通过。τ retail unknown、ITSM/ReAct 原始响应细节和 CSM `find_user` 写入结果无法由安全账本恢复，保持不重放。新候选 SHA 的远端 CI 尚待完成。
 
 ## 历史实施状态快照（2026-10-21，候选 Ruff 修复前）
 

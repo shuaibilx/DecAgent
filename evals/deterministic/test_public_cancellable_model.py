@@ -137,6 +137,51 @@ def test_cancellable_process_deadline_reaps_worker_and_descendant():
         descendants.join_thread()
 
 
+def test_posix_process_tree_termination_sweeps_descendant_started_during_shutdown(
+    monkeypatch,
+):
+    from types import SimpleNamespace
+
+    from decagent.evaluation.business import cancellable_model
+
+    descendant_alive = True
+    kill_attempts = []
+
+    def kill_group(group_id, signum):
+        nonlocal descendant_alive
+        kill_attempts.append((group_id, signum))
+        if len(kill_attempts) > 1:
+            descendant_alive = False
+
+    class Process:
+        pid = 12345
+
+        def __init__(self):
+            self.alive = True
+
+        def is_alive(self):
+            return self.alive
+
+        def join(self, timeout):
+            assert timeout == 2
+            self.alive = False
+
+        def kill(self):
+            self.alive = False
+
+    monkeypatch.setattr(
+        cancellable_model,
+        "os",
+        SimpleNamespace(name="posix", killpg=kill_group),
+    )
+    monkeypatch.setattr(cancellable_model, "signal", SimpleNamespace(SIGKILL=9))
+
+    cancellable_model._terminate_process_tree(Process())
+
+    assert kill_attempts == [(12345, cancellable_model.signal.SIGKILL)] * 2
+    assert not descendant_alive
+
+
 def test_active_one_shot_worker_blocks_supervisor_takeover_after_owner_lock_release(
     tmp_path,
 ):

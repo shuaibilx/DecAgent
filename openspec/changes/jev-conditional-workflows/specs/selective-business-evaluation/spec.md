@@ -566,6 +566,10 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** provider 请求超过 route/model/batch 计算出的有效 deadline
 - **THEN** supervisor 终止 worker 及其子进程树，model attempt 和 route 保留 unknown，后续调用不被重放
 
+#### Scenario: POSIX termination catches descendants racing worker shutdown
+- **WHEN** POSIX worker deadline 终止其进程组，同时 worker 正在创建一个后代进程
+- **THEN** supervisor 在有界等待 worker exit sentinel 后、reap worker 前再次终止该进程组，确认 worker 退出且后代不再运行；该操作不重新派发模型请求，已派发 attempt/route 仍保留 unknown
+
 ### Requirement: Frozen profiles capture actual request behavior
 
 公开模型 profile MUST 为每个角色记录模型请求中实际采用的采样参数、输出/工具选择契约、超时及 provider routing。每个参数 MUST 标为固定值或明确不支持；客户端 MUST 对支持的固定参数显式发送值，对不支持参数不得发送；不得依赖未记录的 SDK/provider 默认值。每次 attempt MUST 保存 requested profile 与可取得的 resolved provider/model/server identity。无法取得的 resolved 值显式记录为空；profile、routing 或 resolved model 在组内发生变化时 MUST 停止拼接成绩并启动独立实验组。

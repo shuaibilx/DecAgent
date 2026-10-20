@@ -193,15 +193,35 @@ def _terminate_process_tree(process):
             except (OSError, subprocess.TimeoutExpired):
                 pass
     else:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        except OSError:
-            pass
+        def kill_group():
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except OSError:
+                pass
+
+        kill_group()
+        # A descendant may fork concurrently with the first group signal. Wait
+        # briefly for the worker's sentinel without joining/reaping it, then
+        # sweep the still-reserved process group once more before PID reuse is
+        # possible.
+        sentinel = getattr(process, "sentinel", None)
+        if sentinel is not None:
+            from multiprocessing.connection import wait
+
+            wait([sentinel], timeout=0.1)
+        kill_group()
     process.join(timeout=2)
     if process.is_alive():
         process.kill()
+        if os.name != "nt":
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except OSError:
+                pass
         process.join(timeout=2)
 
 

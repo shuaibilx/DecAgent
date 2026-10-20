@@ -2,17 +2,17 @@
 
 本文件是 apply 的执行清单，已完成项以勾选及对应验证证据为准。源码与 OpenSpec 根均为 DecAgent 项目根目录，以下源码路径相对该目录。一般说明文档放入 DecAgent/generated/YYMMDD/HHmm_主题.md，更新既有文档时保留原路径。不得用运行中的业务数据库做测试。
 
-## 最新执行状态（2026-10-21，首波离线修复后，本机全量回归通过）
+## 最新执行状态（2026-10-21，首波后修复与 CI 竞态修复中）
 
-主 change 当前为 **66/79，13 项未完成**：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E、11.1。`guest-sop-local-trial` 为 6/28。首波基线候选 CI 已通过，但随后发现并修复两处执行前缺陷。修复版本机 deterministic 为 `1933 passed, 18 skipped (216.43s)`，Ruff 和 OpenSpec strict 通过；11.1 仍须在修复后的同一新候选 SHA 上通过远端 CI 后才能勾选。以下较早的按日进度段落是历史快照；本节和任务复选框反映当前事实。
+主 change 当前为 **66/79，13 项未完成**：9.6.D–G、10.3–10.6、10.8.D、10.10.B、10.10.D–E、11.1。`guest-sop-local-trial` 为 6/28。首波两个执行前缺陷已修复；第一修复候选 `777ca4e` 的远端 CI 发现 POSIX 进程树终止竞态，现已增加二次 group sweep。修复版本机 deterministic 为 `1934 passed, 18 skipped (214.75s)`，Ruff/OpenSpec strict 通过，Linux Python 3.13 进程树回归循环 `20/20` 通过。新修复 SHA 的远端 CI 待运行，因此 11.1 保持未勾选。以下较早的按日进度段落是历史快照；本节和任务复选框反映当前事实。
 
-候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的 GitHub CI run [39497828524](https://github.com/shuaibilx/DecAgent/actions/runs/39497828524) 全部通过：Python 3.11 与 3.13 各为 Ruff 通过、确定性 `1931 passed, 18 skipped`、PostgreSQL 集成 `605 passed, 30 skipped`；Workbench 浏览器逻辑、wheel/MCP、镜像构建与 Compose 冒烟也通过。skip 均为明确的可选 Docker/τ、Windows ACL/junction 或 mcp-cli 条件，不是数据库缺失导致的集成 skip。11.1 已按同一 SHA 的远端证据完成。
+基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的 GitHub CI run [39497828524](https://github.com/shuaibilx/DecAgent/actions/runs/39497828524) 全部通过：Python 3.11 与 3.13 各为 Ruff 通过、确定性 `1931 passed, 18 skipped`、PostgreSQL 集成 `605 passed, 30 skipped`；Workbench 浏览器逻辑、wheel/MCP、镜像构建与 Compose 冒烟也通过。skip 均为明确的可选 Docker/τ、Windows ACL/junction 或 mcp-cli 条件，不是数据库缺失导致的集成 skip。该历史 CI 通过不能验证之后的修复，因此 11.1 现重新待验。
 
 同一候选已实际执行冻结首波 4/24 个 smoke 任务、8/48 个 smoke 路线槽位。结果：5 failed、3 unknown、0 completed；1 条 ITSM/ReAct 路线得到原始 EnterpriseOps 分数 `0.0`，其余 7 条未评分；8/8 隔离环境清理有验证证据。Qwen 共 4 次派发：主模型两次合计 18,738 个实际 Token，τ 用户模拟器两次用量 unknown 并保留 53,508 个 Token 预留；批次预算计数 72,246 Token、1 次工具 attempt、约 58.36 秒，均未触及停止线。Qwen 抵扣前 API 费用、代金券抵扣和实付均未核实，费用保持 unknown；Jev/裁判请求为 0。唯一工具 attempt `find_user` 被目录归类为写操作且结果 unknown，清理成功不证明业务副作用已回滚。旧 unknown 不重放；不启动剩余 smoke 或全量测试。
 
-机器证据为 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json`，可读报告为 `generated/261021/0545_首波公开评测报告.md`。该首波不构成完整公开基准、ReAct/Plan 性能比较或 Jev 收益证据。离线已复现并修复两个执行前缺陷（Plan 默认 schema、τ telecom 30 个工具 schema），unknown 路线保持终态且不重放；Qwen 费用仍待账单核实。本机全量 deterministic、Ruff 与 OpenSpec strict 已通过；下一步是提交并推送修复切片，以新候选 SHA 通过远端 CI。新 SHA CI 完成前不得补跑 live 路线。随后依据可确认的实际消耗与账单另行估算并冻结后续批次资源。
+机器证据为 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json`，可读报告为 `generated/261021/0545_首波公开评测报告.md`。该首波不构成完整公开基准、ReAct/Plan 性能比较或 Jev 收益证据。Plan 默认 schema 与 τ telecom 30-tool schema 两个执行前缺陷已修复；首个修复候选 CI 暴露的 POSIX 后代进程终止竞态也已修复并通过 Linux Python 3.13 容器 20 次循环回归。unknown 路线保持终态且不重放，Qwen 费用仍待账单核实。本机完整 deterministic、Ruff 与 OpenSpec strict 已通过；下一步提交进程树修复，并以最新候选 SHA 完成远端 CI。新 SHA CI 完成前不得补跑 live 路线。随后依据可确认的实际消耗与账单另行估算并冻结后续批次资源。
 
-离线诊断确定两个未派发错误：EnterpriseOps Plan callback 将 `None` schema 传入 JSON Schema validator；固定 τ telecom 用户模拟器含 30 个工具 schema，而 callback 上限为 8。planner factory 已回退到默认 input schema，τ simulator schema 上限调整为 32（输出调用数仍独立限制 8）；新增回归在旧实现下失败，修复后 `test_public_planner_callback.py` 为 `10 passed`，固定 τ worker 对真实 30-schema payload 的脚本预检通过，0 模型/业务工具请求。全量 deterministic、Ruff、OpenSpec strict 已在修复工作树通过。τ retail 的两条已派发 unknown、ITSM/ReAct 的具体响应形状和 CSM `find_user` 写副作用无法从现有安全账本还原；均不重放。上述修复尚不属于 `3844760`，新候选 SHA 的完整远端 CI 待验。
+离线诊断确定两个未派发错误：EnterpriseOps Plan callback 将 `None` schema 传入 JSON Schema validator；固定 τ telecom 用户模拟器含 30 个工具 schema，而 callback 上限为 8。planner factory 已回退到默认 input schema，τ simulator schema 上限调整为 32（输出调用数仍独立限制 8）；新增回归在旧实现下失败，修复后 `test_public_planner_callback.py` 为 `10 passed`，固定 τ worker 对真实 30-schema payload 的脚本预检通过，0 模型/业务工具请求。首个修复候选 `777ca4e` 的 CI run `39506416272` 在 Python 3.13 deterministic 因后代进程可能与首轮 `killpg` 并发创建而漏杀失败；Python 3.11 因 fail-fast 取消，Workbench/build/wheel/MCP/Compose job 通过。现已添加 bounded sentinel wait 与二次进程组 sweep，回归先失败后通过，Linux Python 3.13 容器循环 `20/20`，全量本机 deterministic `1934 passed, 18 skipped (214.75s)`，Ruff 和 OpenSpec strict 通过。τ retail 的两条已派发 unknown、ITSM/ReAct 的具体响应形状和 CSM `find_user` 写副作用无法从现有安全账本还原；均不重放。该修复尚未进入新 SHA 的完整远端 CI，11.1 不勾选。
 
 默认执行顺序：1 → 2 → 3 → 4 → 5 → 6/7 → 8 → 10 → 11。第 9 组的数据冻结与工具实现可在第 2 组完成后并行开展，第 10 组依赖 5–9。每个编号均包含完成证据；性能任务只在条件满足时勾选。
 
@@ -204,7 +204,7 @@ OpenSpec 任务为 **66/79 已完成，13 项未完成**：9.6.D–G、10.3–10
 
 ## 11. 整体回归与本机交付
 
-- [ ] 11.1 在隔离数据库运行确定性与集成套件，包括旧 repair/business-2 和 MCP 现代/兼容协议、取消/租约/确认/未知回执；运行项目 ruff 检查并保存摘要，缺数据库造成 skip 不能当集成通过。基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的 CI run `39497828524` 曾同 SHA 全部通过（Python 3.11/3.13 各确定性 `1931 passed, 18 skipped`、PostgreSQL `605 passed, 30 skipped`、Workbench、wheel/MCP、镜像及 Compose）；但首波后新增的 planner 默认 schema 与 τ 30-tool schema 修复不在该 SHA 中。修复版全量本机 deterministic `1933 passed, 18 skipped (216.43s)`，Ruff 与 strict OpenSpec 通过；仍须在新候选 SHA 同版本通过隔离 PostgreSQL、Python 3.11/3.13、Workbench、wheel/MCP、镜像与 Compose 远端 CI。远端验收前 11.1 保持未勾选。
+- [ ] 11.1 在隔离数据库运行确定性与集成套件，包括旧 repair/business-2 和 MCP 现代/兼容协议、取消/租约/确认/未知回执；运行项目 ruff 检查并保存摘要，缺数据库造成 skip 不能当集成通过。历史基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的 CI run `39497828524` 全部通过，但不含首波后的 callback/schema 修复。首个修复候选 `777ca4ea01c49140c8c632d82953431be2d3a4b9` 的 CI run `39506416272` 因 Python 3.13 deterministic 中的 POSIX 后代进程竞态失败，Python 3.11 被 fail-fast 取消；Workbench、package/wheel/MCP、镜像和 Compose job 通过。该竞态现由 bounded sentinel wait + reap 前二次 group sweep 修复；修复版全量本机 deterministic `1934 passed, 18 skipped (214.75s)`、Ruff/OpenSpec strict 通过，Linux Python 3.13 真实进程树测试循环 `20/20`。仍须在最新候选 SHA 同版本通过隔离 PostgreSQL、Python 3.11/3.13、Workbench、wheel/MCP、镜像与 Compose 远端 CI；远端验收前 11.1 保持未勾选。
 
 11.1 最新复验补充（2026-10-20）：在 MCP 503 传输错误分类修复后，`uv run --extra dev pytest evals/deterministic -q` 为 `1811 passed, 14 skipped`；完整 PostgreSQL 集成为 `604 passed, 24 skipped`，两 worker 用时 `1309.91s`（21:49）。前一次串行集成为 `603 passed, 24 skipped, 1 failed`；唯一失败由 pinned MCP SDK 将 HTTP 503 编码为 `INTERNAL_ERROR` 导致分类错误，现已修复，实际 503 HTTP fixture 和整个 `evals/integration/test_business_mcp_client.py`（`6 passed`）复验通过。全仓 Ruff 与 OpenSpec strict（6 changes）通过。临时 PostgreSQL 容器已清理。两 worker 在 Windows 需要 `PYTHONUTF8=1` 与 `PYTHONIOENCODING=utf-8`，否则 xdist worker 启动时可能因本地路径编码失败；这是测试启动环境约束，不改变测试分母。上述仅完成工程回归，不构成任何真实公开基准模型分数或 Jev 收益证据。
 
