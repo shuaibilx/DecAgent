@@ -14,6 +14,8 @@ FAILURE_STAGES = frozenset(
     {
         "model_callback",
         "model_response_validation",
+        "model_worker_target",
+        "model_worker_response",
         "tool_gateway",
         "environment_setup",
         "agent_execution",
@@ -29,8 +31,26 @@ FAILURE_STAGES = frozenset(
 def safe_exception_type(error: BaseException | None) -> str | None:
     if error is None:
         return None
-    name = type(error).__name__
+    try:
+        name = getattr(error, "diagnostic_exception_type", None)
+    except Exception:
+        name = None
+    if type(name) is not str or _EXCEPTION_TYPE.fullmatch(name) is None:
+        name = type(error).__name__
     return name if _EXCEPTION_TYPE.fullmatch(name) is not None else "UnknownException"
+
+
+def safe_failure_stage(error: BaseException | None, *, default="model_callback") -> str:
+    """Keep an explicitly attached stage only when it belongs to the allowlist."""
+    if type(default) is not str or default not in FAILURE_STAGES:
+        default = "model_callback"
+    if error is None:
+        return default
+    try:
+        stage = getattr(error, "failure_stage", None)
+    except Exception:
+        return default
+    return stage if type(stage) is str and stage in FAILURE_STAGES else default
 
 
 def safe_http_status(error: BaseException | None) -> int | None:

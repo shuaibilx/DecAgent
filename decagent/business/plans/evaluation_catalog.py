@@ -23,7 +23,15 @@ _NEVER_IN_AGENT_INPUT = frozenset(
     {"endpoint", "endpoint_ref", "url", "base_url", "headers", "authorization", "token"}
 )
 _UNSET = object()
+# The pinned CSM image's `find_user` handler was audited in its bytecode and
+# executes a parameterized SELECT only. This exact MCP tool schema digest keeps
+# the read classification scoped to that image and schema version.
 _REVIEWED_ENTERPRISE_READ_TOOL_DIGESTS = {
+    (
+        "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm"
+        "@sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189",
+        "find_user",
+    ): "7515a3367bce8c157fa4c8738ea55b24e6983c0fd9787415abeaad8a252242d9",
     (
         "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm"
         "@sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189",

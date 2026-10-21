@@ -11,7 +11,7 @@ from time import perf_counter
 from decagent.decisions.contracts import digest, jev_model_matches
 from decagent.models.primary import PrimaryRequestNotDispatched
 
-from .public_diagnostics import safe_exception_type, safe_http_status
+from .public_diagnostics import safe_exception_type, safe_failure_stage, safe_http_status
 
 
 class PublicToolOutcomeUnknown(RuntimeError):
@@ -372,7 +372,7 @@ class LedgeredModelCallback:
                     attempt_id,
                     error_category="model_dispatch_error",
                     attempt_seconds=perf_counter() - started,
-                    failure_stage="model_callback",
+                    failure_stage=safe_failure_stage(exc),
                     exception_type=safe_exception_type(exc),
                     http_status=safe_http_status(exc),
                 )

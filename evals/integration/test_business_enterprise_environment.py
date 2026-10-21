@@ -211,6 +211,48 @@ def test_pinned_container_snapshot_mcp_and_original_sql_verifier(domain, read_to
         target.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
 
 
+def test_pinned_csm_find_user_read_tool_preserves_database_state():
+    from decagent.business.plans.evaluation_catalog import EvaluationCatalog, EvaluationScope
+
+    parquet = pytest.importorskip("pyarrow.parquet")
+    manifest = json.loads((ROOT / "evals/benchmarks/manifests/source_manifest.json").read_text())
+    task_id = "task_20260106_161859_265_00364ece_0e836ce8"
+    source = manifest["enterpriseops_gym"]
+    data_record = next(
+        record
+        for record in source["task_dataset"]["parquet_sha256"]
+        if record["path"].endswith("oracle/csm-00000-of-00001.parquet")
+    )
+    data_path = ROOT / data_record["path"]
+    assert sha256(data_path.read_bytes()).hexdigest() == data_record["sha256"]
+    row = next(
+        row for row in parquet.read_table(data_path).to_pylist() if row["task_id"] == task_id
+    )
+    row["domain"] = "csm"
+    spec = spec_from_pinned_row(ROOT, row, manifest)
+
+    with EnterpriseEnvironment(spec) as trial:
+        public = trial.model_input()
+        tool = next(item for item in public["tools"] if item["name"] == "find_user")
+        with EvaluationScope("enterpriseops-gym", spec.image, spec.task_id) as scope:
+            catalog = EvaluationCatalog.from_mcp_tools(
+                scope,
+                [tool],
+                benchmark_version=spec.image,
+                result_contract_version="enterprise-mcp-observation-v1",
+            )
+            assert catalog.commands["find_user"].effect == "read"
+
+        before = trial.state_fingerprint()
+        response = trial.call_tool("find_user", {"name": "__decagent_read_audit_missing__"})
+        after = trial.state_fingerprint()
+        assert response.get("isError", False) is False
+        assert response.get("content")
+        assert after == before
+
+    assert trial.cleanup_verified is True
+
+
 @pytest.mark.parametrize(
     "domain,read_tool,arguments",
     [

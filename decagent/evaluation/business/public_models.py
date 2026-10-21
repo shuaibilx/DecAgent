@@ -44,6 +44,22 @@ _JEV_OPENROUTER_MODEL = re.compile(
 )
 
 
+class ModelWorkerOutcomeUnknown(RuntimeError):
+    """A worker failed after dispatch; expose only safe stage and exception type."""
+
+    _FAILURE_STAGES = {
+        "target": "model_worker_target",
+        "response": "model_worker_response",
+    }
+
+    def __init__(self, *, worker_stage, exception_type):
+        self.failure_stage = self._FAILURE_STAGES.get(
+            worker_stage, "model_worker_response"
+        )
+        self.diagnostic_exception_type = exception_type
+        super().__init__("One-shot provider response is unresolved")
+
+
 class PublicPlannerCallback:
     """Make exactly one counted provider request and compile its returned plan."""
 
@@ -341,7 +357,10 @@ class OneShotPrimaryModel:
         except CancellableProcessError as exc:
             if exc.stage == "isolation_setup":
                 raise PrimaryRequestNotDispatched(reason="input_invalid") from None
-            raise RuntimeError("One-shot provider response is unresolved") from None
+            raise ModelWorkerOutcomeUnknown(
+                worker_stage=exc.stage,
+                exception_type=exc.exception_type,
+            ) from None
         if type(frame) is not dict:
             raise RuntimeError("One-shot provider response is unresolved")
         kind = frame.get("kind")

@@ -161,6 +161,81 @@ def test_reviewed_enterprise_read_tool_is_enabled_only_for_its_pinned_schema(
         assert changed.commands["find_product"].effect == "write"
 
 
+def test_pinned_csm_find_user_read_classification_requires_exact_image_and_schema():
+    EvaluationCatalog, EvaluationScope = api()
+    image = (
+        "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm"
+        "@sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189"
+    )
+    tool = {
+        "name": "find_user",
+        "description": (
+            "Look up a user (portal customer, portal user or internal agent) by full name."
+        ),
+        "inputSchema": {
+            "properties": {
+                "name": {
+                    "description": "Full name of user, e.g., 'Harry Middleton'.",
+                    "type": "string",
+                }
+            },
+            "required": ["name"],
+            "type": "object",
+        },
+        "outputSchema": {
+            "properties": {
+                "active": {"description": "Whether the user account is active.", "type": "boolean"},
+                "email": {"description": "Unique email address of the user.", "type": "string"},
+                "first_name": {"description": "User's first name.", "type": "string"},
+                "last_name": {"description": "User's last name.", "type": "string"},
+                "location_id": {
+                    "description": (
+                        "Unique identifier of the location associated with this record. "
+                        "This value references the primary key of the location in the "
+                        "location table."
+                    ),
+                    "type": "integer",
+                },
+                "role": {
+                    "description": "User role assigned from the predefined list.",
+                    "enum": ["admin", "agent", "manager", "customer"],
+                    "type": "string",
+                },
+                "user_id": {"description": "Unique identifier of the user.", "type": "integer"},
+            },
+            "type": "object",
+        },
+    }
+    assert digest(tool) == "7515a3367bce8c157fa4c8738ea55b24e6983c0fd9787415abeaad8a252242d9"
+
+    with EvaluationScope("enterpriseops-gym", "csm-v1", "case-1") as scope:
+        catalog = EvaluationCatalog.from_mcp_tools(
+            scope,
+            [tool],
+            benchmark_version=image,
+            result_contract_version="enterprise-mcp-observation-v1",
+        )
+        assert catalog.commands["find_user"].effect == "read"
+
+        drifted = deepcopy(tool)
+        drifted["description"] += " Changed schema."
+        changed = EvaluationCatalog.from_mcp_tools(
+            scope,
+            [drifted],
+            benchmark_version=image,
+            result_contract_version="enterprise-mcp-observation-v1",
+        )
+        assert changed.commands["find_user"].effect == "write"
+
+        changed_image = EvaluationCatalog.from_mcp_tools(
+            scope,
+            [tool],
+            benchmark_version="docker.io/example/other-csm@sha256:" + "c" * 64,
+            result_contract_version="enterprise-mcp-observation-v1",
+        )
+        assert changed_image.commands["find_user"].effect == "write"
+
+
 def test_reviewed_enterprise_read_tool_does_not_override_an_explicit_write_hint(
     monkeypatch,
 ):

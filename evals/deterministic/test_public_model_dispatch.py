@@ -688,6 +688,39 @@ def test_unknown_dispatched_model_outcome_blocks_route_and_cannot_replay(tmp_pat
     ledger.close()
 
 
+def test_unknown_worker_attempt_persists_sanitized_worker_diagnostics(tmp_path):
+    plan = _plan_with_known_primary_prices()
+    ledger, trial_id, route = _started_ledger(tmp_path, plan)
+    profile = plan.profiles.primary
+
+    class WorkerFailure(RuntimeError):
+        failure_stage = "model_worker_response"
+        diagnostic_exception_type = "InvalidEnvelope"
+
+    def callback(_request, *, timeout_seconds):
+        assert timeout_seconds > 0
+        raise WorkerFailure("private response body and credential")
+
+    measured = LedgeredModelCallback(
+        callback,
+        ledger,
+        profile=profile,
+        trial_id=trial_id,
+        route=route,
+        input_token_upper_bound=lambda value: max(1, len(json.dumps(value).encode("utf-8"))),
+        route_remaining_seconds=lambda: ledger.route_remaining_seconds(trial_id, route.value),
+    )
+    with pytest.raises(PublicModelOutcomeUnknown):
+        measured({"messages": []})
+
+    attempt = ledger.model_attempts_snapshot(trial_id, route.value)[0]
+    assert attempt["failure_stage"] == "model_worker_response"
+    assert attempt["exception_type"] == "InvalidEnvelope"
+    assert "private response body" not in repr(attempt)
+    assert "credential" not in repr(attempt)
+    ledger.close()
+
+
 def test_unknown_qwen_cost_keeps_bounded_dispatch_and_never_records_zero(tmp_path):
     plan = _legacy_plan()
     ledger, trial_id, route = _started_ledger(tmp_path, plan)

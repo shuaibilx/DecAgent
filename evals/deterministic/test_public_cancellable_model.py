@@ -366,6 +366,51 @@ def test_public_primary_response_is_decoded_from_a_one_shot_child(monkeypatch):
     model.close()
 
 
+@pytest.mark.parametrize(
+    ("worker_stage", "expected_stage"),
+    [("target", "model_worker_target"), ("response", "model_worker_response")],
+)
+def test_public_primary_exposes_only_allowlisted_worker_diagnostics(
+    monkeypatch, worker_stage, expected_stage
+):
+    from decagent.business.plans.planner import plan_tool_definitions
+    from decagent.evaluation.business import cancellable_model
+    from decagent.evaluation.business.public_models import (
+        ModelWorkerOutcomeUnknown,
+        OneShotPrimaryModel,
+    )
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    profile = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    ).profiles.primary
+    model = OneShotPrimaryModel(
+        profile,
+        api_key="test-secret",
+        tool_definitions=plan_tool_definitions(),
+    )
+
+    def dispatch(*_args, **_kwargs):
+        raise cancellable_model.CancellableProcessError(
+            stage=worker_stage, exception_type="ConnectTimeout"
+        )
+
+    monkeypatch.setattr(cancellable_model, "run_cancellable_process", dispatch)
+    with pytest.raises(ModelWorkerOutcomeUnknown) as raised:
+        model.respond([{"role": "user", "content": "safe test"}])
+
+    assert raised.value.failure_stage == expected_stage
+    assert raised.value.diagnostic_exception_type == "ConnectTimeout"
+    assert "test-secret" not in str(raised.value)
+    assert "ConnectTimeout" not in str(raised.value)
+    model.close()
+
+
 def test_tau_public_model_uses_one_shot_primary_factory_by_default():
     from decagent.evaluation.business.public_models import (
         PublicTauModelCallback,
