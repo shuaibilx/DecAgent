@@ -1,7 +1,9 @@
 # Proposal
-## 当前状态（2026-10-21，Qwen 费率 profile v4、同 SHA CI 完成）
+## 当前状态（2026-10-21，v8 首波已执行但门槛未通过）
 
-主 change 为 **71/79，8 项待完成**；guest change 为 10/28。10.8.D 已完成：Qwen profile v4 与公开评测 manifest v8 已冻结用户提供的标准人民币费率，并分开记录 provider-billed gross/voucher/cash 与冻结费率计算成本。主模型走千问兼容端点，备用 DeepSeek 走独立的 OpenRouter 端点；千问 CNY 费率不套用于 OpenRouter USD 线路。10.10.B/D/E 已完成持久预算与 Jev 账本、runner 接线及四域受控工程闭环。当前候选复验中 EnterpriseOps CSM/ITSM、τ retail/telecom 的实际隔离工具、原始评分与清理，以及账本/supervisor/unknown/清理失败/取消回归共 176 项通过；无 provider 模型请求，非正式公开成绩。证据见[四域工程闭环记录](../../../evals/benchmarks/evidence/public-four-domain-engineering-closure-20261021-3a7938fd.json)。旧候选 `3a7938fd1b3e7a564de6310fc171d1be8f8adfdc` 的 GitHub CI run [39592249617](https://github.com/shuaibilx/DecAgent/actions/runs/39592249617) 全部通过，但该 run 不包含新增的 EnterpriseOps route integration test 和本轮文档，当前工作树仍需提交并为新 SHA 重跑 CI。v8 保持 206+80 任务范围和固定 4 个首波案例，正式新首波尚未执行；历史首波 5 failed/3 unknown 不重放，公开评分基准仍为 0/286。此轮未发出新模型请求。
+主 change 为 **71/79，8 项待完成**；guest change 为 10/28。Qwen profile v4 与 manifest v8 已冻结用户确认的 CNY 费率；主模型走千问兼容端点，备用 DeepSeek 走独立 OpenRouter `deepseek/deepseek-v4.1-flash`。候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a` 的 GitHub Actions run [39600167554](https://github.com/shuaibilx/DecAgent/actions/runs/39600167554) 全部通过。四域受控工程闭环有 176 个测试通过；该结果只证明工程路径，不证明模型质量。
+
+v8 首波真实执行了 CSM、ITSM、τ retail、τ telecom 各一个任务的 ReAct/Plan 路线。结果为 2 failed、6 unknown、0 成功；两条经原官方评分器评分的路线均为 `0.0`，6 条未评分，清理 8/8 verified。26 次 Qwen 主模型和用户模拟器请求中 5 次 usage unknown。账本记载 182,591 个实际 Token、252,369 个 unknown 预留；已知 frozen-rate 上界 ¥0.1583867，unknown 预留约 ¥0.2797192，provider invoice/voucher/cash 证据缺失。用户确认 v8 批次上限为 500 次请求、5,000,000 Token、1,600 次工具调用、4 小时；按冻结 profile 最高费率推导的抵扣前费用上界约 ¥13.50，不是供应商账单。完整公开比较仍为 0/286。详见[首波报告](../../../generated/261021/2110_公开评测首波报告_v8.md)与[机器证据](../../../evals/benchmarks/evidence/public-first-wave-live-20261021-v8-5a21ded.json)。不得重放 v8 unknown，也不推进剩余 smoke 或 206+80 全量；先做离线故障定位，修复后另行冻结并授权新批次。
 
 旧 v2/v3 profile 与 v5/v6/v7 manifest 保持原样；Jev 的 USD 价格和累计 `$1` 账本不变。费率来源和 profile 映射见 [模型计费核验](../../../generated/261021/模型计费/1441_千问平台费率核验.md)。
 

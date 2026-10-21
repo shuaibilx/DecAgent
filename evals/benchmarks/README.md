@@ -207,9 +207,9 @@ recovery/reporting: scorer source, score in `[0, 1]`, success flag and measured
 forbidden-side-effect count. Its digest is checked against the frozen benchmark
 for new scored routes. The summary contains no verifier SQL, gold state or task
 labels and is not added to agent context. Older ledgers migrate with a nullable
-column; absent historical score detail stays absent. This persistence contract
-does not mean the public runner has produced any official score; the live runner
-is still disabled and the benchmark score denominator remains 0/286.
+column; absent historical score detail stays absent. The v8 live run recorded
+two official scores, both 0.0. The complete paired benchmark result remains
+0/286; see the [v8 first-wave report](../../generated/261021/2110_公开评测首波报告_v8.md).
 
 `manifests/comparison_trial_manifest_v8.json` pre-registers the 206 EnterpriseOps
 oracle tasks and 80 τ-Bench official test tasks, plus separate 20-task
@@ -220,9 +220,11 @@ simulator and judge, first-wave aggregate ceilings, trial isolation rules,
 route pairs, and scoring boundaries.
 The manifest also freezes the first wave: one fixed case each for EnterpriseOps
 CSM/ITSM and τ retail/telecom, paired as ReAct and Plan for 8 route slots. Its
-current status is `pre_registered_not_run`;
-the engineering protocol smokes below do not change that status or count as
-public task attempts.
+immutable registration status is `pre_registered_not_run`; runtime route states
+live in the candidate-scoped SQLite ledger and report. Do not edit the manifest
+to record route outcomes. The v8 execution produced 2 failed, 6 unknown and 0
+successful routes; it did not change the full benchmark denominator or count
+engineering protocol smokes as task attempts.
 
 Frozen input SHA-256 values are newline-stable: the source manifest is hashed
 as UTF-8 text with LF line endings, while the task inventory retains its
@@ -247,7 +249,11 @@ and 4 hours, with separate Agent (300 / 3,000,000), user-simulator (160 /
 1,600,000), and judge (40 / 400,000) request/token caps. A persisted batch
 ledger carries these limits and its deadline across resume; a stop line keeps
 unfinished trials untouched. This is an admission guard, not a hard cancel for
-an already-running network request, so the live runner remains gated.
+an already-running network request, so the live runner remains gated. The
+user-approved v8 token envelope implies an estimated pre-voucher CNY upper
+bound of about ¥13.50 at the highest frozen Qwen rate (5,000,000 × ¥2.7/M).
+This is a profile-derived guardrail, not an expected charge or provider invoice;
+voucher credits only change cash paid, not gross API cost.
 
 The command uses exclusive file creation, so choose a new output path. Earlier
 profile and manifest versions remain as historical evidence; they are not overwritten.
@@ -448,12 +454,15 @@ python evals/benchmarks/run_public_trials.py `
   --report evals/benchmarks/evidence/public-evaluation-live-first-wave-unique.json
 ```
 
-The current worktree is not eligible while it contains local changes. No real
-provider dispatch is implied by a dry-run, readiness record, callback unit test,
-or image check. The first live report is an eight-route engineering smoke; it
-does not by itself establish Jev performance or a benchmark-wide result. Any
-unknown route remains terminal and is never replayed. Jev remains outside this
-first-wave comparison unless a separate approved pairing is scheduled.
+The v8 run used candidate
+`5a21ded64061ce5576b33c58dcec3266615e2a1a` after its exact SHA passed CI
+run `39600167554`. This checkout now contains report and OpenSpec changes and
+is not eligible for another live run until a new clean candidate passes CI. A
+dry-run, readiness record, callback unit test, or image check does not imply
+real provider dispatch. The v8 report is an eight-route first-wave experiment,
+not a successful benchmark or evidence of Jev performance. Any unknown route
+remains terminal and is never replayed. Jev remains outside this first-wave
+comparison unless a separate approved pairing is scheduled.
 
 Environment-only preflight evidence for the four fixed first-wave tasks is in
 [`evidence/public-first-wave-environment-preflight-20261020.json`](evidence/public-first-wave-environment-preflight-20261020.json).
@@ -479,3 +488,16 @@ used for another candidate. A new real batch requires a new cohort, a separately
 frozen budget, and same-SHA CI evidence. Current official benchmark result
 remains 0/286 scored tasks; this engineering attempt does not establish model
 quality or a Jev advantage.
+
+### v8 first-wave result (2026-10-21)
+
+The next candidate-scoped cohort is v8 and is bound to SHA
+`5a21ded64061ce5576b33c58dcec3266615e2a1a`; GitHub Actions CI run
+`39600167554` passed all jobs. Its four fixed tasks and eight ReAct/Plan route
+slots all reached terminal states: two failed, six unknown, zero succeeded.
+Both routes that reached the original scorers received 0.0; all eight
+environment cleanups were verified. Five of 26 Qwen primary/simulator requests
+had unknown usage and retain their reservations. These attempts are not
+replayed, and the result does not pass the per-domain score gate. Read the
+[human report](../../generated/261021/2110_公开评测首波报告_v8.md) and the
+[immutable machine report](evidence/public-first-wave-live-20261021-v8-5a21ded.json).
