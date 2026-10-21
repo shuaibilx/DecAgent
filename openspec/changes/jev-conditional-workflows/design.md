@@ -496,7 +496,9 @@ EnterpriseOps 的 response-check judge 现在也接受“请求数、token 和�
 
 用户确认的四域首波上限已冻结进 `comparison_trial_manifest_v7.json` 和 cohort digest：总计最多 500 次 Qwen 请求、5,000,000 Qwen tokens、1,600 次工具调用和 14,400 秒；Agent、用户模拟器、裁判分别最多 300/3,000,000、160/1,600,000、40/400,000。Jev 继续使用原累计 `$1` 账本，不在本批次中启用跨模型降级。v5/v6 manifest 与 v6 dry-run evidence 保留原样。
 
-公开 ledger schema v5 持久保存原批次开始时间、四小时截止时间、冻结限额摘要和首个 stop reason；请求/Token/工具统计从全部 attempt（含 reservation、unknown）恢复计算，unknown reservation 不释放。开始 route、模型/工具/机器时间 reservation 及 dispatch 前检查剩余批次额度。响应结算发现实际 Qwen token 超过总量或角色额度时，立即持久停止批次。该控制是 dispatch admission gate；当前没有已接入的真实 runner，也不能中止正在进行的外部网络请求，因此 `--execute` 仍 fail closed，10.10.B/D/E 仍未完成。
+2026-10-21，用户为后续独立 Qwen 批次选择了同一组硬停止线：最多 500 次请求、5,000,000 个输入与输出 token、1,600 次工具调用和 14,400 秒；Agent/用户模拟器/裁判分别不超过 300/160/40 次请求及 3,000,000/1,600,000/400,000 token。按冻结费率最高 ¥2.7/M 乘以全部 token 上限，¥13.50 是抵扣前费率推导上界，不是供应商账单或预计消耗。该上限属于新的批次身份，不能挪用 v8 的已用量/unknown 预留，也不允许重放 v8 路线。新批次尚未冻结 cohort 或创建账本；样本暴露审阅与新 manifest 的所有放行门槛通过前不得派发。Jev 继续独立使用原累计 `$1` 账本。
+
+公开 ledger schema v5 持久保存原批次开始时间、四小时截止时间、冻结限额摘要和首个 stop reason；请求/Token/工具统计从全部 attempt（含 reservation、unknown）恢复计算，unknown reservation 不释放。开始 route、模型/工具/机器时间 reservation 及 dispatch 前检查剩余批次额度。响应结算发现实际 Qwen token 超过总量或角色额度时，立即持久停止批次。早期版本只有 dispatch admission gate，尚无统一监督器与可取消执行，故当时 `--execute` 保持 fail closed；随后 10.10.B/D/E 已完成持久账本、监督派发、可取消 runner 与四域工程闭环。该工程验收不代表公开模型质量通过：v8 仍有失败和 unknown，10.3 仍未完成。
 
 v7 离线 smoke dry-run 报告为 `evals/benchmarks/evidence/public-evaluation-dry-run-smoke-v7-20261020.json`：24 个任务、48 个路线槽位、首波 4 个任务/8 个路线槽位，模型/MCP 调用 0，未创建 ledger。它验证上限随冻结 cohort 传递，不是模型调用或业务流程测试。
 

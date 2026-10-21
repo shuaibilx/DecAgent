@@ -138,6 +138,8 @@
 
   首波实测（2026-10-21，候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a`）：8 条路线全部终态，2 条失败且经官方评分为 `0.0`，6 条 unknown，成功 0，清理 8/8 verified。CSM 与 τ retail 未获官方分数；Qwen/模拟器 26 次请求中 5 次用量 unknown（252,369 Token 预留），不重放。主模型/模拟器共 182,591 已知 Token；按冻结 profile 的已知成本上界 ¥0.1583867，unknown 预留约 ¥0.2797192，invoice/voucher/cash 不完整。用户确认的批次费率推导抵扣前上界约 ¥13.50（5,000,000 Token × 最高冻结费率 ¥2.7/M，不是供应商账单）。实际批次消费 434,960/5,000,000 预算 Token、26/500 请求、9/1,600 工具调用、约 449 秒/4 小时。详见[首波报告](../../../generated/261021/2110_公开评测首波报告_v8.md)。
 
+  后续独立 Qwen 批次的用户选择上限同为 500 次请求、5,000,000 Token、1,600 次工具调用和 4 小时；角色上限为 Agent/模拟器/裁判 300/160/40 次请求、3,000,000/1,600,000/400,000 Token。¥13.50 是按冻结最高费率计算的抵扣前上界，不是账单。该预算尚未写入新 manifest 或批次账本；不改变 v8 的消费/unknown 记录，不重放 v8，也不代表样本暴露审阅已完成。须先确定新 cohort 暴露标记并通过其余门禁，才可派发新路线。
+
   首波后离线取证（2026-10-21）：固定 CSM 镜像中 `find_user` 的字节码实现为参数化 `SELECT`；实际隔离容器调用前后数据库指纹相同，清理通过。由于上游 schema 没有 `readOnlyHint`，原路线时评测目录按默认策略将它分类为写操作；现新增仅对精确镜像和 schema digest 生效的评测只读覆盖，漂移仍默认为写。原路线缺少工具回执，仍为 `unknown`、未评分且不重放；不能据此次审计补造回执或改变 v8 终态。容器集成文件 `5 passed`，离线完成，不含模型调用。
 
   修复候选预检（2026-10-21，HEAD `36c664944d378b5deee26e9feac8b87280ce4739`）：对冻结 v8 first-wave 运行 `run_public_trials.py --mode smoke --phase first-wave --check-images`，选中原固定 4 任务/8 路线槽位，manifest/profile/source/inventory 摘要匹配，镜像存在；`ledger_created=false`、模型调用 0、MCP 调用 0。证据 [`public-evaluation-first-wave-preflight-20261021-36c6649.json`](../../../evals/benchmarks/evidence/public-evaluation-first-wave-preflight-20261021-36c6649.json)。这是离线预检，不是新 cohort、路线尝试或评分；v8 unknown 未重放。候选同 SHA GitHub Actions [CI 39611406922](https://github.com/shuaibilx/DecAgent/actions/runs/39611406922) 已全部通过，耗时约 27 分钟。当前工作树有后续未提交文档改动，不能直接作为 live candidate；新批次仍需冻结干净候选并单独授权。
