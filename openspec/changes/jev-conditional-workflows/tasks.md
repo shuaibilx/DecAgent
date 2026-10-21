@@ -127,7 +127,7 @@
 
 - [ ] 9.6.F 接通真实模型与工具 callback、三路线调度、官方用户模拟器/裁判、最终回复、评分错误分类、未知状态处理和环境清理；Qwen unknown 终结当前 route，Jev unknown 暂停全局新增 Jev 请求。
 
-  2026-10-22 离线诊断补充：τ 子进程桥现只传递固定白名单阶段码与安全异常类名，并将 parent callback / worker 阶段保留到 route diagnostics；异常正文和业务 payload 不作为阶段诊断跨进程传递。callback deadline 也归入相应模型回调阶段。相关定向回归 `107 passed, 14 skipped`，Ruff 通过，OpenSpec strict `6 passed, 0 failed`。本项仍未完成：这只是离线错误归因改进，不代表真实模型、工具、用户模拟器或官方裁判闭环通过。
+  2026-10-22 离线诊断补充：τ 子进程桥现只传递固定白名单阶段码与安全异常类名，并将 parent callback / worker 阶段保留到 route diagnostics；异常正文和业务 payload 不作为阶段诊断跨进程传递。callback deadline 也归入相应模型回调阶段。相关定向回归 `107 passed, 14 skipped`；完整本机 Python 3.13 deterministic 为 `1,993 passed, 18 skipped (219.72s)`；Ruff 通过，OpenSpec strict `6 passed, 0 failed`。18 项跳过包含未配置锁定 τ runtime 和本机符号链接权限限制。本项仍未完成：这只是离线错误归因改进，不代表真实模型、工具、用户模拟器或官方裁判闭环通过，也不能替代 Python 双版本/PostgreSQL/远端 CI。
 
 - [ ] 9.6.G 完成四域首批 8 个 ReAct/Plan 路线试次及每域官方评分/清理闭环，再补齐固定 24 例 smoke；只有自然适用且已审核的语义节点可增加 Jev 配对。
 - [x] 9.7 实现累计 Jev 1 美元账本预留、读取和未知费用停止机制，并保留主模型请求/token；测试历史费用不可重置、零额/超额/未知预留/中途停止后不能继续及恢复前置检查。
