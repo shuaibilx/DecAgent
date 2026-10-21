@@ -100,6 +100,10 @@ DecAgent 自有 synthetic reference 集 MUST 仅用于辅助回归与契约诊�
 - **WHEN** benchmark 包含 expected actions、目标数据库状态或评分器私有字段
 - **THEN** 模型只接收允许的原始输入与合法选项，评分器单独读取隐藏标签
 
+#### Scenario: Exposure groups remain evaluation metadata
+- **WHEN** 使用经过案例级审阅的公开评测 manifest 生成 dry-run 和 Agent 请求
+- **THEN** 暴露组只用于评测配对与结果分组，不进入 Agent 请求或 dry-run 报告；目标状态、reference actions 与私有评分字段继续只由独立评分边界读取
+
 ### Requirement: Distinguish semantic and workflow performance
 
 EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用于其覆盖的客户服务对话和用户澄清补充分析。流程评测 MUST 使用固定初始状态、身份、目标、工具和可验证结果。自有中文模拟流程、公开 benchmark 与语义决策子集 MUST 分别标识，任何节点准确率 MUST NOT 被称为完整任务成功率。

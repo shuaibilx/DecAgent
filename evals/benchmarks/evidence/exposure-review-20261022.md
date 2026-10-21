@@ -19,6 +19,10 @@ The user has not viewed the other EnterpriseOps task prompts, target states, ref
 - Do not propagate exposure based on the unreviewed `prompt-surface-heuristics-1` workflow-family mapping.
 - Keep every official task in the benchmark denominator. `not_exposed` records project task-level exposure only; it does not establish an independent holdout or rule out model pretraining contamination.
 
-## Historical boundary and status
+## Status at initial review
 
-This review does not rewrite the frozen v8 manifest or its trial ledger. v8 remains `unreviewed_unassigned` as originally recorded. The reviewed assignment applies to a future manifest, which has not yet been frozen; no new live evaluation batch was started by this review.
+The review did not rewrite the frozen v8 manifest or its trial ledger. At that point, the reviewed assignment had not yet been frozen in a new manifest. No live evaluation batch was started by the review.
+
+## Frozen cohort update (2026-10-22)
+
+The reviewed assignment is now frozen in `comparison_trial_manifest_v9.json` with digest `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`. The v9 cohort preserves all 286 full and 24 smoke cases, marks only the two confirmed EnterpriseOps cases as `development_exposed`, assigns the other EnterpriseOps and τ official test cases `not_exposed`, and marks τ train smoke cases as development data. This is a pre-registration only: no trial ledger, model call, tool call, or official score was created. v8 and its unknown route states remain unchanged and cannot be dispatched by the live runner.

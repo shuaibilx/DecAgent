@@ -104,6 +104,195 @@ def test_manifest_v8_freezes_cny_pricing_without_changing_trial_scope():
         trial["model_profile_digest"] == cny_profiles.primary.fingerprint
         for trial in built["full_trials"]
     )
+    assert built == json.loads(
+        (INVENTORY_PATH.parent / "comparison_trial_manifest_v8.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+
+def test_manifest_v9_uses_reviewed_case_level_exposure_without_family_expansion():
+    root = Path(__file__).resolve().parents[2]
+    profile_path = INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json"
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(profile_path.read_text(encoding="utf-8"))
+    )
+
+    built = build_trial_manifest(root, model_profiles=profiles, manifest_version=9)
+
+    exposed_enterpriseops_ids = {
+        trial["case_id"]
+        for trial in built["full_trials"]
+        if trial["benchmark"] == "enterpriseops-gym"
+        and trial["exposure_group"] == "development_exposed"
+    }
+    assert exposed_enterpriseops_ids == {
+        "task_20260106_161859_265_00364ece_0e836ce8",
+        "task_20260115_201951_323_391f1eff_659b9dae",
+    }
+    assert all(
+        trial["exposure_group"] == "not_exposed"
+        for trial in built["full_trials"]
+        if trial["benchmark"] == "tau-bench"
+    )
+    assert all(
+        trial["exposure_group"] == "development_exposed"
+        for trial in built["smoke_trials"]
+        if trial["benchmark"] == "tau-bench"
+    )
+    enterprise_smoke = [
+        trial for trial in built["smoke_trials"]
+        if trial["benchmark"] == "enterpriseops-gym"
+    ]
+    assert sum(trial["exposure_group"] == "development_exposed" for trial in enterprise_smoke) == 2
+    assert all(
+        trial["exposure_group"] in {"development_exposed", "not_exposed"}
+        for trial in built["full_trials"] + built["smoke_trials"]
+    )
+    assert built["exposure_assignment"]["status"] == "reviewed_case_level"
+    assert built["exposure_assignment"]["review_evidence"] == (
+        "evals/benchmarks/evidence/exposure-review-20261022.md"
+    )
+    assert built["counts"] == {
+        "full_trials": 286,
+        "smoke_trials": 24,
+        "initial_smoke_wave": 4,
+    }
+    assert built == json.loads(
+        (INVENTORY_PATH.parent / "comparison_trial_manifest_v9.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+
+def test_public_trial_loader_accepts_reviewed_v9_exposure_manifest(tmp_path):
+    from decagent.decisions.contracts import digest
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    manifest = json.loads(
+        (INVENTORY_PATH.parent / "comparison_trial_manifest_v8.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest["schema_version"] = "business-comparison-trial-manifest-9"
+    manifest["manifest_id"] = "decagent-public-workflow-comparison-v9"
+    manifest["exposure_assignment"] = {
+        "status": "reviewed_case_level",
+        "default_group": "not_exposed",
+        "planned_groups": ["development_exposed", "not_exposed"],
+        "reviewed_at": "2026-10-22",
+        "review_evidence": "evals/benchmarks/evidence/exposure-review-20261022.md",
+        "development_exposed_enterpriseops_case_ids": [
+            "task_20260106_161859_265_00364ece_0e836ce8",
+            "task_20260115_201951_323_391f1eff_659b9dae",
+        ],
+        "assignment_note": "Exact-case assignment; no workflow-family expansion.",
+    }
+    exposed_ids = {
+        "task_20260106_161859_265_00364ece_0e836ce8",
+        "task_20260115_201951_323_391f1eff_659b9dae",
+    }
+    for trial in manifest["full_trials"] + manifest["smoke_trials"]:
+        if trial["benchmark"] == "enterpriseops-gym":
+            trial["exposure_group"] = (
+                "development_exposed" if trial["case_id"] in exposed_ids else "not_exposed"
+            )
+        else:
+            trial["exposure_group"] = (
+                "development_exposed" if trial["split"] == "train" else "not_exposed"
+            )
+    manifest.pop("manifest_digest")
+    manifest["manifest_digest"] = digest(manifest)
+    manifest_path = tmp_path / "comparison_trial_manifest_v9.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    plan = load_public_run_plan(
+        root,
+        mode="smoke",
+        manifest_path=manifest_path,
+        profiles_path=INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+
+    assert plan.manifest_digest == manifest["manifest_digest"]
+    assert all(trial["exposure_group"] != "unassigned" for trial in plan.trials)
+
+    invalid = json.loads(json.dumps(manifest))
+    exposed = next(
+        trial for trial in invalid["full_trials"]
+        if trial["benchmark"] == "enterpriseops-gym"
+        and trial["case_id"] == "task_20260106_161859_265_00364ece_0e836ce8"
+    )
+    exposed["exposure_group"] = "not_exposed"
+    invalid.pop("manifest_digest")
+    invalid["manifest_digest"] = digest(invalid)
+    invalid_path = tmp_path / "misclassified-v9.json"
+    invalid_path.write_text(json.dumps(invalid), encoding="utf-8")
+    with pytest.raises(ValueError, match="exposure assignment differs"):
+        load_public_run_plan(
+            root,
+            mode="full",
+            manifest_path=invalid_path,
+            profiles_path=INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json",
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        )
+
+
+def test_historical_v8_manifest_cannot_be_loaded_for_live_dispatch():
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+
+    with pytest.raises(ValueError, match="historical v8 cohort cannot be dispatched"):
+        load_public_run_plan(
+            root,
+            mode="smoke",
+            manifest_path=INVENTORY_PATH.parent / "comparison_trial_manifest_v8.json",
+            check_images=True,
+            check_runtime=True,
+            check_source_files=True,
+        )
+
+
+def test_default_public_trial_plan_uses_the_current_v9_cohort():
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+    expected = build_trial_manifest(root, model_profiles=profiles, manifest_version=9)
+
+    plan = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+
+    assert plan.manifest_digest == expected["manifest_digest"]
+    assert all(trial["exposure_group"] != "unassigned" for trial in plan.trials)
+    from decagent.evaluation.business.public_trials import build_dry_run_report
+
+    dry_run = build_dry_run_report(plan, phase="first-wave")
+    serialized = json.dumps(dry_run)
+    assert "exposure_group" not in serialized
+    assert "development_exposed" not in serialized
+    assert "target_state" not in serialized
+    assert "reference_actions" not in serialized
 
 
 def test_resource_subset_is_stable_across_source_order_and_bounded():

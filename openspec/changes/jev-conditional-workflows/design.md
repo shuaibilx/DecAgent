@@ -362,7 +362,9 @@ DecAgent 自有的业务契约专用集保留为针对性补充，至少 40 个�
 
 EnterpriseOps 固定 CSM/ITSM 206 条始终保留在总分母；暴露分组按审核过的精确 case 证据，不按未审核任务族启发式扩散。报告全体、暴露组和未暴露组的准确分子分母；未暴露组只能称为未暴露子集，不能宣称为官方或独立 holdout。τ-Bench 每个域从官方 train 按固定 ID 顺序取前 2 条冒烟，后续调试只使用 train；官方 test 80 条只有在计划、模板、模型和环境配置冻结后才运行，不在查看 test 结果后调参。
 
-2026-10-22 暴露审阅将上面的历史任务族启发式收窄为精确 case 规则，供下一 manifest 使用：用户确认仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 进入项目实测；其余 204 个 EnterpriseOps case 的内容未在项目外查看，仓库记录中仅有任务 ID。用户也确认未在项目外查看 τ-Bench 官方 test 80 条，项目开发使用 train。新 cohort 将两个已测 EnterpriseOps case 标记为 `development_exposed`，剩余 204 条与 τ 官方 test 80 条标记为 `not_exposed`；不向相似任务族传播启发式标签。τ train 仍仅用于开发/冒烟。`not_exposed` 表示没有项目任务级暴露，不等价于独立 holdout；所有 official denominator 保持不变。依据见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)。v8 不回写。
+2026-10-22 暴露审阅将历史任务族启发式收窄为精确 case 规则并冻结进 manifest v9：用户确认仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 进入项目实测；其余 204 个 EnterpriseOps case 的内容未在项目外查看，仓库记录中仅有任务 ID。用户也确认未在项目外查看 τ-Bench 官方 test 80 条，项目开发使用 train。v9 将两个已测 EnterpriseOps case 标记为 `development_exposed`，剩余 204 条与 τ 官方 test 80 条标记为 `not_exposed`；不向相似任务族传播启发式标签。τ train 仍仅用于开发/冒烟。`not_exposed` 表示没有项目任务级暴露，不等价于独立 holdout；所有 official denominator 保持不变。依据见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)。v8 不回写。
+
+v9 的 manifest digest 为 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`，保留 286 个 full、24 个 smoke、4 个首波案例，并固定 v4 角色 profile、逐路线/全批资源、冷/热流程复用及员工绑定记忆消融。默认 dry-run 选出首波 4 个任务/8 条路线，未创建 ledger，未派发模型或 MCP。运行时拒绝以历史 v7/v8 manifest 进行 live dispatch，避免旧 unknown 路线被重放。v9 当前只注册，尚未真实执行。
 
 ### 10a. 隔离评测工具注册（2026-10-18 用户已确认）
 

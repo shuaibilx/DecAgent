@@ -31,6 +31,13 @@ PUBLIC_COHORT_LEDGER_DIRECTORY = Path(
 )
 _LEASE_NAME = "public-evaluation"
 _RUN_ROUTES = ("react_skill_mcp", "plan_mcp")
+DEVELOPMENT_EXPOSED_ENTERPRISEOPS_CASES = frozenset(
+    {
+        "task_20260106_161859_265_00364ece_0e836ce8",
+        "task_20260115_201951_323_391f1eff_659b9dae",
+    }
+)
+EXPOSURE_REVIEW_EVIDENCE = "evals/benchmarks/evidence/exposure-review-20261022.md"
 _SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}\Z")
 _MODEL_ID = re.compile(r"[A-Za-z0-9~][A-Za-z0-9._:/~-]{0,255}\Z")
 _PROVIDER_ID = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
@@ -282,6 +289,21 @@ def _read_json(path):
         raise ValueError("Frozen public evaluation input is unreadable") from exc
 
 
+def reviewed_exposure_group(trial):
+    if trial.get("benchmark") == "enterpriseops-gym" and trial.get("split") == "oracle":
+        return (
+            "development_exposed"
+            if trial.get("case_id") in DEVELOPMENT_EXPOSED_ENTERPRISEOPS_CASES
+            else "not_exposed"
+        )
+    if trial.get("benchmark") == "tau-bench":
+        if trial.get("split") == "train":
+            return "development_exposed"
+        if trial.get("split") == "test":
+            return "not_exposed"
+    raise ValueError("Reviewed exposure assignment contains an unsupported benchmark case")
+
+
 def _verified_manifest_digest(manifest):
     recorded = manifest.get("manifest_digest")
     payload = {key: value for key, value in manifest.items() if key != "manifest_digest"}
@@ -340,7 +362,7 @@ def load_public_run_plan(
     if mode not in {"smoke", "full"}:
         raise ValueError("Public evaluation mode must be smoke or full")
     manifest_path = Path(manifest_path) if manifest_path else (
-        root / "evals/benchmarks/manifests/comparison_trial_manifest_v8.json"
+        root / "evals/benchmarks/manifests/comparison_trial_manifest_v9.json"
     )
     source_manifest_path = Path(source_manifest_path) if source_manifest_path else (
         root / "evals/benchmarks/manifests/source_manifest.json"
@@ -349,6 +371,7 @@ def load_public_run_plan(
     manifest_version = {
         "business-comparison-trial-manifest-7": 7,
         "business-comparison-trial-manifest-8": 8,
+        "business-comparison-trial-manifest-9": 9,
     }.get(manifest.get("schema_version"))
     if manifest_version is None:
         raise ValueError("Public comparison manifest version is unsupported")
@@ -397,6 +420,33 @@ def load_public_run_plan(
     full, smoke = manifest.get("full_trials"), manifest.get("smoke_trials")
     if type(full) is not list or type(smoke) is not list or len(full) != 286 or len(smoke) != 24:
         raise ValueError("Frozen public task lists do not match their exact denominators")
+    if manifest_version == 9:
+        assignment = manifest.get("exposure_assignment")
+        expected_case_ids = sorted(DEVELOPMENT_EXPOSED_ENTERPRISEOPS_CASES)
+        if (
+            type(assignment) is not dict
+            or assignment.get("status") != "reviewed_case_level"
+            or assignment.get("default_group") != "not_exposed"
+            or assignment.get("planned_groups") != ["development_exposed", "not_exposed"]
+            or assignment.get("reviewed_at") != "2026-10-22"
+            or assignment.get("review_evidence") != EXPOSURE_REVIEW_EVIDENCE
+            or assignment.get("development_exposed_enterpriseops_case_ids") != expected_case_ids
+        ):
+            raise ValueError("Public manifest lacks the reviewed case-level exposure assignment")
+        evidence_path = (root / EXPOSURE_REVIEW_EVIDENCE).resolve()
+        if (
+            not evidence_path.is_relative_to(root)
+            or evidence_path.is_symlink()
+            or not evidence_path.is_file()
+        ):
+            raise ValueError("Reviewed exposure evidence is unavailable")
+        for trial in full + smoke:
+            try:
+                expected_group = reviewed_exposure_group(trial)
+            except ValueError as exc:
+                raise ValueError("Public manifest contains an unsupported exposure case") from exc
+            if trial.get("exposure_group") != expected_group:
+                raise ValueError("Public trial exposure assignment differs from audited policy")
     initial_wave = manifest.get("initial_smoke_wave")
     if type(initial_wave) is not list or len(initial_wave) != len(_INITIAL_SMOKE_CASES):
         raise ValueError("Frozen public manifest must contain the four approved first-wave cases")
@@ -420,6 +470,11 @@ def load_public_run_plan(
         )
     if initial_wave != expected_wave:
         raise ValueError("Frozen first-wave task identities or order changed")
+    if check_runtime and manifest_version < 9:
+        raise ValueError(
+            f"historical v{manifest_version} cohort cannot be dispatched; "
+            "use a reviewed v9 manifest"
+        )
     if manifest.get("execution_policy", {}).get("initial_wave_routes") != list(_RUN_ROUTES):
         raise ValueError("Frozen first-wave route order differs from the approved ReAct/Plan pair")
     selected = full if mode == "full" else smoke

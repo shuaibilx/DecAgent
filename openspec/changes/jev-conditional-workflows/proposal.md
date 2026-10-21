@@ -1,13 +1,13 @@
 # Proposal
-## 当前状态（2026-10-21，v8 首波已执行但门槛未通过）
+## 当前状态（2026-10-22，v8 首波未通过；v9 暴露分组已冻结）
 
-主 change 为 **71/79，8 项待完成**；guest change 为 10/28。Qwen profile v4 与 manifest v8 已冻结用户确认的 CNY 费率；主模型走千问兼容端点，备用 DeepSeek 走独立 OpenRouter `deepseek/deepseek-v4.1-flash`。候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a` 的 GitHub Actions run [39600167554](https://github.com/shuaibilx/DecAgent/actions/runs/39600167554) 全部通过。四域受控工程闭环有 176 个测试通过；该结果只证明工程路径，不证明模型质量。
+主 change 为 **72/79，7 项待完成**；guest change 为 10/28。Qwen profile v4 与当前 manifest v9 使用用户确认的 CNY 费率；主模型走千问兼容端点，备用 DeepSeek 走独立 OpenRouter `deepseek/deepseek-v4.1-flash`。候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a` 的 GitHub Actions run [39600167554](https://github.com/shuaibilx/DecAgent/actions/runs/39600167554) 全部通过。四域受控工程闭环有 176 个测试通过；该结果只证明工程路径，不证明模型质量。
 
 v8 首波真实执行了 CSM、ITSM、τ retail、τ telecom 各一个任务的 ReAct/Plan 路线。结果为 2 failed、6 unknown、0 成功；两条经原官方评分器评分的路线均为 `0.0`，6 条未评分，清理 8/8 verified。26 次 Qwen 主模型和用户模拟器请求中 5 次 usage unknown。账本记载 182,591 个实际 Token、252,369 个 unknown 预留；已知 frozen-rate 上界 ¥0.1583867，unknown 预留约 ¥0.2797192，provider invoice/voucher/cash 证据缺失。用户确认 v8 批次上限为 500 次请求、5,000,000 Token、1,600 次工具调用、4 小时；按冻结 profile 最高费率推导的抵扣前费用上界约 ¥13.50，不是供应商账单。完整公开比较仍为 0/286。详见[首波报告](../../../generated/261021/2110_公开评测首波报告_v8.md)与[机器证据](../../../evals/benchmarks/evidence/public-first-wave-live-20261021-v8-5a21ded.json)。不得重放 v8 unknown，也不推进剩余 smoke 或 206+80 全量；先做离线故障定位，修复后另行冻结并授权新批次。
 
 执行状态补充（2026-10-21）：v8 后的离线诊断修复已提交；用户已为下一独立 Qwen 批次选择 500 次请求、5,000,000 Token、1,600 次工具调用、4 小时的硬上限，¥13.50 为抵扣前冻结费率推导上界。该预算不修改 v8 记录且不重放其终态路线。样本暴露范围仍待确认，新 cohort 和 manifest 未冻结，故新批次尚未启动。本段更新了上文“先做离线故障定位”这一历史状态说明。
 
-暴露审阅补充（2026-10-22）：用户确认仅固定 CSM/ITSM 两个 EnterpriseOps case 进入项目实测；其他 EnterpriseOps 任务内容以及 τ-Bench 官方 test 80 条均未在项目外查看，项目内 τ 调试使用 train。下一 cohort 的新 manifest 将只把两个精确 EnterpriseOps case 标为 `development_exposed`，其余 EnterpriseOps 与官方 τ test 标为 `not_exposed`，不使用未审核的任务族启发式。`not_exposed` 不代表独立 holdout。v8 manifest 保持原样，新 manifest 尚未冻结、真实批次尚未启动；审计依据见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)。
+暴露审阅与 v9 冻结（2026-10-22）：用户确认仅固定 CSM/ITSM 两个 EnterpriseOps case 进入项目实测；其他 204 个 EnterpriseOps 任务与 τ-Bench 官方 test 80 条未在项目外查看，项目内 τ 调试使用 train。v9 manifest 精确标记两个已测 EnterpriseOps case 为 `development_exposed`，其他 EnterpriseOps 与官方 τ test 为 `not_exposed`，不使用未审核的任务族启发式；digest 为 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`。`not_exposed` 不代表独立 holdout，也不排除预训练污染。v8 manifest 与 ledger 保持原样；v9 仅预注册，first-wave dry-run 通过，尚无新 ledger、模型、MCP 或评分请求。当前工作树的 83 项定向测试与完整 deterministic 1,978 passed / 18 skipped、Ruff、OpenSpec strict 均通过；同 SHA CI 尚待执行。审计依据见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)。
 
 2026-10-21 离线对照接线进展：公开评测新增受信的 primary-model semantic Choice callback，并让账本工厂在 `plan_primary_semantic_mcp` 与 `plan_jev_semantic_mcp` 路线分别绑定 Qwen/primary 与 Jev profile。两者使用同一个冻结 registry、问题、真实候选状态和权限摘要；primary 通过一次 function call 返回完整选项分布，再由统一 Choice 规范化器验证。合并 adapter factory 可按 route 选择对应 callback，默认仍关闭，不改变 v8 manifest/首波路线。定向回归 37 passed、Ruff 通过。该实现只证明离线接线；没有发出新模型请求、创建试次或配对评分，故 9.6.D 仍未完成，公开基准仍为 0/286。
 

@@ -176,9 +176,9 @@ must stop the run and leave the score unreported.
 ## Frozen model profiles and public comparison manifest
 
 `manifests/evaluation_model_profiles.json`, v2, and comparison manifests
-through v7 are preserved as historical inputs. The current cohort uses
+through v8 are preserved as historical inputs. The current pre-registered cohort uses
 `manifests/evaluation_model_profiles_v4.json` with
-`manifests/comparison_trial_manifest_v8.json`.
+`manifests/comparison_trial_manifest_v9.json`.
 It freezes secret-free identities for planning, τ-Bench simulation, judging and
 Jev, including endpoint, price provenance, retry/output limits, timeout,
 provider routing, sampling-parameter support/omission, response mode and tool
@@ -207,11 +207,11 @@ recovery/reporting: scorer source, score in `[0, 1]`, success flag and measured
 forbidden-side-effect count. Its digest is checked against the frozen benchmark
 for new scored routes. The summary contains no verifier SQL, gold state or task
 labels and is not added to agent context. Older ledgers migrate with a nullable
-column; absent historical score detail stays absent. The v8 live run recorded
+column; absent historical score detail stays absent. The historical v8 live run recorded
 two official scores, both 0.0. The complete paired benchmark result remains
 0/286; see the [v8 first-wave report](../../generated/261021/2110_公开评测首波报告_v8.md).
 
-`manifests/comparison_trial_manifest_v8.json` pre-registers the 206 EnterpriseOps
+`manifests/comparison_trial_manifest_v8.json` pre-registered the 206 EnterpriseOps
 oracle tasks and 80 τ-Bench official test tasks, plus separate 20-task
 EnterpriseOps and 4-task τ-Bench smoke sets. It pins the source-manifest and
 task-inventory hashes, all role-specific model-profile fingerprints,
@@ -234,25 +234,35 @@ original UTF-8 CRLF canonical digest. The verifier normalizes checkout line
 endings before hashing, so Git's Windows/Linux checkout settings do not look
 like benchmark-data drift; all non-newline content remains covered by SHA-256.
 
-Exposure groups remain `unassigned` because task-family mappings still need
-independent review. The manifest does not copy prompts, simulator scenarios,
-verifiers, expected actions, or database contents. Rebuild it deterministically
-from the frozen local inventory with the v4 pricing profile and v8 cohort using:
+The v8 cohort remains historically `unassigned`; do not edit or dispatch it.
+The reviewed exposure policy is frozen separately in v9. The manifest does not
+copy prompts, simulator scenarios, verifiers, expected actions, or database
+contents. It assigns only the two EnterpriseOps cases confirmed as tested to
+`development_exposed`; the other 204 EnterpriseOps cases and all 80 τ official
+test cases are `not_exposed`. The τ train smoke cases are development data.
+This is project-level exposure tracking, not an independent holdout and not a
+claim about model pretraining. Do not expand exposure labels using the
+unreviewed task-family heuristic.
+
+Rebuild v9 deterministically from the frozen local inventory and v4 profiles.
+Use a new output path because the builder refuses to overwrite evidence:
 
 ```powershell
-.venv\Scripts\python.exe evals/benchmarks/build_trial_manifest.py --manifest-version 8 --model-profiles evals/benchmarks/manifests/evaluation_model_profiles_v4.json --output .decagent/evaluation-closeout/new-comparison-trial-manifest.json
+.venv\Scripts\python.exe evals/benchmarks/build_trial_manifest.py --manifest-version 9 --model-profiles evals/benchmarks/manifests/evaluation_model_profiles_v4.json --output .decagent/evaluation-closeout/rebuilt-v9.json
 ```
 
-For the current cohort, use `evaluation_model_profiles_v4.json` and explicitly
-select manifest version 8. The builder's default remains v5 for compatibility.
-Earlier files remain unchanged for historical traceability. The v8
+The committed v9 digest is
+`f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604` and
+contains 286 full tasks, 24 smoke tasks, and 4 first-wave tasks. The default
+manifest version remains v5 for compatibility. Live dispatch rejects v7/v8;
+v9 is only pre-registered and has not started a ledger or real trial. The v9
 batch ceilings are 500 Qwen requests / 5,000,000 Qwen tokens / 1,600 tool calls
 and 4 hours, with separate Agent (300 / 3,000,000), user-simulator (160 /
 1,600,000), and judge (40 / 400,000) request/token caps. A persisted batch
 ledger carries these limits and its deadline across resume; a stop line keeps
 unfinished trials untouched. This is an admission guard, not a hard cancel for
 an already-running network request, so the live runner remains gated. The
-user-approved v8 token envelope implies an estimated pre-voucher CNY upper
+user-approved token envelope implies an estimated pre-voucher CNY upper
 bound of about ¥13.50 at the highest frozen Qwen rate (5,000,000 × ¥2.7/M).
 This is a profile-derived guardrail, not an expected charge or provider invoice;
 voucher credits only change cash paid, not gross API cost.

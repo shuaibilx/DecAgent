@@ -2,15 +2,16 @@
 
 本文件只保存执行任务、验收要求、短状态与证据入口。源码和 OpenSpec 根均为 DecAgent；源码路径相对项目根目录。测试必须使用隔离数据库，不得读取、重置或迁移正在运行的业务库。
 
-## 当前状态（2026-10-21 更新）
+## 当前状态（2026-10-22 更新）
 
-- 本 change 为 **71/79，8 项待完成**；10.10.B、10.10.D、10.10.E 与 11.1 已完成，保留全部任务编号及先前历史证据。其他 change 状态见各自清单。
+- 本 change 为 **72/79，7 项待完成**；9.6.E、10.10.B、10.10.D、10.10.E 与 11.1 已完成，保留全部任务编号及先前历史证据。其他 change 状态见各自清单。
 - 历史 v7 首波为 5 failed、3 unknown；保留原账本且不重放。当前 v8 首波已在候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a` 执行 4 个任务/8 条路线：2 failed、6 unknown、0 成功；两条已评分路线均为 0.0，8/8 清理 verified。结果见[首波报告](../../../generated/261021/2110_公开评测首波报告_v8.md)与[机器证据](../../../evals/benchmarks/evidence/public-first-wave-live-20261021-v8-5a21ded.json)。完整有效公开比较仍为 0/286，不能表述成从未尝试。
 - Qwen routed readiness 已通过；旧 $0 不是供应商账单。[平台费率来源与实施说明](../../../generated/261021/模型计费/1441_千问平台费率核验.md)现已绑定到 profile v4 / manifest v8；CNY 费率计算与逐请求 provider bill/voucher/cash 保持分开。账户逐请求 invoice 及 CNY/USD 汇率仍未核实，因此没有可用的跨币种成本优势结论。
 - 旧 unknown 不重放、不释放原预留。新 cohort、候选与额度须按现有门禁冻结；正式对照关闭跨模型降级。Jev 仍使用原累计 $1 账本。
 - 候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a` 的同 SHA CI run [39600167554](https://github.com/shuaibilx/DecAgent/actions/runs/39600167554) 全部通过，包含 Python 3.11/3.13、PostgreSQL、Workbench、隔离 Docker 边界、wheel/MCP 与 Compose。受控四域工程闭环仍为 176 项通过；真实 v8 首波现已执行，但质量门槛未通过。旧 unknown 不重放。
+- 2026-10-22 暴露范围复核已冻结新 manifest v9，SHA-256 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`：只有两个已实测 EnterpriseOps case 标为 `development_exposed`；其他 204 个 EnterpriseOps 与 τ 官方 test 80 个为 `not_exposed`，τ train smoke 属开发数据。该标签不代表独立 holdout，也不能排除预训练污染。v9 first-wave dry-run 通过，4 个固定任务/8 个路线槽位，未创建 ledger、模型或 MCP 调用。v8 及其 unknown 路线保持不变且不能 live dispatch。本轮改动已在本地提交；远端推送与同 SHA CI 因 GitHub HTTPS 连接失败尚未完成，公开真实评测仍未启动。
 
-执行顺序：四域受控工程闭环与候选 CI 已完成 → v8 首波已执行但门槛未通过 → 离线定位 Qwen/τ 模拟器 callback、CSM MCP 未知写入和格式失败 → 先补故障回归并提交新候选 → 重新评审资源并授权后才建立新批次；v8 unknown 不重放。剩余 smoke、自然 Jev 配对和全量暂停，游客与本机交付在独立 change 推进。
+执行顺序：四域受控工程闭环与候选 CI 已完成 → v8 首波已执行但门槛未通过 → v9 精确案例暴露分组、角色 profile/资源/消融冻结及 dry-run 已完成 → 完成其余本地隔离与恢复门禁并提交新候选 → 同 SHA CI 通过后，再按已批准停止线执行新的受控首波；v8 unknown 不重放。剩余 smoke、自然 Jev 配对和全量暂停，游客与本机交付在独立 change 推进。
 
 [后续规划](../../../generated/261021/计划/1157_后续规划索引.md) · [历史与验收证据导航](../../../generated/261021/任务整理/1434_任务整理索引.md) · [整理前完整原文](../../../generated/261021/任务整理/1434_jev任务原文快照.md)
 
@@ -120,10 +121,11 @@
 - [ ] 9.6.D 依据公开政策与工具契约审核并冻结自然适用 Jev 模板，配对相同状态下 Jev 与固定通用模型语义判断；结构化条件走规则，无适用场景标 N/A。
 
   阶段证据：CSM `csm_knowledge_article` 的 Choice 模板已依据 pinned MCP schema 审核并冻结；只在一次 `retrieve_knowledge` 的实际返回数组中选择已发布文章，保留 `no_match`，不授予写权限。它已接入隔离 Evaluation PlanRuntime。当前代码同时提供 opt-in 的 `PublicJevSemanticCallback` 与 `PublicPrimarySemanticCallback`：两者从同一个 `QuestionRegistry` 重建同一模板、版本、候选状态与权限摘要；Qwen 使用单次结构化 function call 返回完整选项分布和选择，仍由相同规范化器校验。`LedgeredModelAdapterFactory` 会按比较路线绑定 Jev 或 primary profile；合并工厂可按 route 分派两种 callback。离线 callback/路由定向测试 37 passed，Ruff 通过；没有模型请求、公开 trial 或业务工具调用。真实同状态配对尚未执行，样本暴露范围与新 cohort 仍待冻结，因此本项保持未完成；不得把历史 v8 unknown route 当作可重放样本。
-- [ ] 9.6.E 固定公开试次 manifest、暴露组、角色/模型 profile、每试次与全批资源、冷/热复用、显式记忆消融和计时；检查标签与私有评分材料不进入 Agent 输入。
+- [x] 9.6.E 固定公开试次 manifest、暴露组、角色/模型 profile、每试次与全批资源、冷/热复用、显式记忆消融和计时；检查标签与私有评分材料不进入 Agent 输入。v9 manifest SHA-256 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604` 保留 286 full / 24 smoke / 4 first-wave 案例，绑定 profile/resource/response digests、200 请求/工具、1M token、30 分钟单路线及 500 请求/5M token/1,600 工具/4 小时批次限制，并冻结 cold/hot reuse、employee-bound verified-memory 消融。逐案例暴露映射与用户确认见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)；v8 未改写。入口对 v7/v8 live dispatch fail closed；v9 first-wave dry-run 精确显示 4 任务/8 路线，ledger/model/MCP 均为 0。现有 Agent 输入边界测试验证公开 prompt/tools 投影不含目标标签和 private scorer；dry-run 不输出 exposure label。定向测试 83 passed，完整 deterministic `1,978 passed, 18 skipped`，全仓 Ruff 与 OpenSpec strict 通过；同 SHA CI 尚待执行。本项完成表示评测设计冻结和输入边界验收，不代表真实评测完成。
 
-  现状：冻结 manifest v8 的 `exposure_assignment.status` 是 `unreviewed_unassigned`，286 个 full trial 和 24 个 smoke trial 全部默认 `exposure_group=unassigned`；inventory 的 workflow family 注释是 `prompt-surface-heuristics-1` 且 `review_status=heuristic_unreviewed`，不能直接拿来划分 exposed/not-exposed。仓库审计确认仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 两个 EnterpriseOps task ID 进入真实模型试次；其余 204 条在执行/证据记录中仅以 ID 出现在 inventory、manifest 或 dry-run，虽有本地 pinned 原始公开数据，但无证据表明已被送入 Agent。两条已试任务均被现有启发式标为 `case_ticket_lifecycle`，但尚未人工审过 family 规则。另，Agent 输入投影与 inventory 避免把 reference/gold 字段传入 Agent 的定向测试 `13 passed`；这验证边界，不代表 exposure 映射完成。不得修改 v8；确认项目外人工审阅范围后，审阅历史开发暴露证据，再为新 manifest 冻结分组来源、profile/资源摘要及消融安排。
-  暴露审阅更新（2026-10-22）：上方“需确认项目外人工审阅范围”是审阅前状态，现已由用户确认：仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 进入项目实测；其余 204 个 EnterpriseOps case 仅以 ID 出现在 inventory/manifest/dry-run，且用户未在项目外查看任务内容。τ 官方 test 80 条也未在项目外查看，项目内调试使用 train。下一 cohort 按精确 case 分组：上述两条为 `development_exposed`，其余 EnterpriseOps 和官方 τ test 为 `not_exposed`；不按未经审核的 workflow-family 启发式扩散分组。`not_exposed` 不代表独立 holdout。审计依据见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)。历史 v8 manifest 保持原样，仍未分组；9.6.E 仍待把规则写入新 manifest 并完成其余冻结与输入隔离检查。
+  历史说明（保留）：v8 创建时所有 case 均为 `unassigned`，workflow-family 注释使用未审核启发式，不能用于暴露组。该事实仅描述 v8，不适用于新冻结的 v9。
+
+  暴露审阅与 v9 冻结（2026-10-22）：用户确认仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 进入项目实测；其余 204 个 EnterpriseOps case 仅以 ID 出现在 inventory/manifest/dry-run，用户未在项目外查看任务内容。τ 官方 test 80 条也未在项目外查看，项目内调试使用 train。v9 按精确 case 分组且不按未经审核的 workflow-family 启发式扩散。`not_exposed` 不代表独立 holdout。审计依据、digest 与“不启动实测”边界见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)；历史 v8 manifest 和 trial ledger 不变。
 
 - [ ] 9.6.F 接通真实模型与工具 callback、三路线调度、官方用户模拟器/裁判、最终回复、评分错误分类、未知状态处理和环境清理；Qwen unknown 终结当前 route，Jev unknown 暂停全局新增 Jev 请求。
 - [ ] 9.6.G 完成四域首批 8 个 ReAct/Plan 路线试次及每域官方评分/清理闭环，再补齐固定 24 例 smoke；只有自然适用且已审核的语义节点可增加 Jev 配对。
