@@ -8,6 +8,7 @@ import inspect
 import json
 import os
 import queue
+import re
 import signal
 import subprocess
 import threading
@@ -21,12 +22,59 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from .manifest_hashing import task_inventory_sha256
+from .public_diagnostics import safe_exception_type, safe_failure_stage
 
 MAX_FRAME = 4 * 1024 * 1024
+TAU_WORKER_FAILURE_STAGES = frozenset(
+    {
+        "tau_worker_runtime_initialize",
+        "tau_worker_tool_execution",
+        "tau_worker_user_input_parse",
+        "tau_worker_user_model_callback",
+        "tau_worker_user_response_parse",
+        "tau_worker_user_simulator_step",
+        "tau_worker_user_result_encode",
+        "tau_worker_score_input_parse",
+        "tau_worker_official_judge_callback",
+        "tau_worker_score_execution",
+        "tau_worker_score_result_encode",
+        "tau_worker_state_read",
+        "tau_worker_protocol",
+    }
+)
+_METHOD_FAILURE_STAGES = {
+    "initialize": "tau_worker_runtime_initialize",
+    "call": "tau_worker_tool_execution",
+    "user_turn": "tau_worker_user_input_parse",
+    "simulate_user_turn": "tau_worker_user_input_parse",
+    "score_simulation": "tau_worker_score_input_parse",
+    "state": "tau_worker_state_read",
+}
+_CALLBACK_FAILURE_STAGES = {
+    "user_simulator": "tau_worker_user_model_callback",
+    "tau_user_simulator": "tau_worker_user_model_callback",
+    "official_nl_judge": "tau_worker_official_judge_callback",
+    "tau_official_nl_judge": "tau_worker_official_judge_callback",
+}
+_SAFE_EXCEPTION_TYPE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}\Z")
 
 
 class TauBridgeError(RuntimeError):
     """The trial transport is unusable; a dispatched write may be unknown."""
+
+    def __init__(self, message, *, failure_stage=None, diagnostic_exception_type=None):
+        super().__init__(message)
+        self.failure_stage = (
+            failure_stage
+            if type(failure_stage) is str and failure_stage in TAU_WORKER_FAILURE_STAGES
+            else None
+        )
+        self.diagnostic_exception_type = (
+            diagnostic_exception_type
+            if type(diagnostic_exception_type) is str
+            and _SAFE_EXCEPTION_TYPE.fullmatch(diagnostic_exception_type)
+            else None
+        )
 
 
 def _worker_environment(source):
@@ -104,8 +152,12 @@ class _StdioChannel:
                 raise ValueError(f"A positive bounded τ {name} is required")
         with self._lock:
             if self._closed:
-                raise TauBridgeError("tau bridge is closed")
+                raise TauBridgeError(
+                    "tau bridge is closed",
+                    failure_stage=_METHOD_FAILURE_STAGES.get(method, "tau_worker_protocol"),
+                )
             self._sequence += 1
+            current_stage = _METHOD_FAILURE_STAGES.get(method, "tau_worker_protocol")
             try:
                 timeout_limits = [self.timeout]
                 if timeout_seconds is not None:
@@ -169,6 +221,10 @@ class _StdioChannel:
                             or on_callback is None
                         ):
                             raise TauBridgeError("tau worker callback protocol failure")
+                        callback_stage = _CALLBACK_FAILURE_STAGES.get(
+                            result["name"], current_stage
+                        )
+                        current_stage = callback_stage
                         callback_count += 1
                         if callback_count > 16:
                             raise TauBridgeError("tau worker callback limit exceeded")
@@ -193,9 +249,17 @@ class _StdioChannel:
                             raise TauBridgeError(
                                 "tau callback must accept timeout_seconds for its deadline"
                             )
-                        callback_result = on_callback(
-                            result, timeout_seconds=callback_timeout
-                        )
+                        try:
+                            callback_result = on_callback(
+                                result, timeout_seconds=callback_timeout
+                            )
+                        except Exception as exc:
+                            exception_type = safe_exception_type(exc)
+                            raise TauBridgeError(
+                                f"tau evaluator callback failed ({exception_type})",
+                                failure_stage=callback_stage,
+                                diagnostic_exception_type=exception_type,
+                            ) from exc
                         if time.monotonic() >= deadline:
                             raise TauBridgeError("tau worker callback timed out")
                         send(
@@ -212,9 +276,22 @@ class _StdioChannel:
                         and result.get("id") == self._sequence
                     ):
                         error_type = result.get("error_type", "UnknownError")
-                        if not isinstance(error_type, str) or not error_type.isidentifier():
+                        if (
+                            type(error_type) is not str
+                            or _SAFE_EXCEPTION_TYPE.fullmatch(error_type) is None
+                        ):
                             error_type = "UnknownError"
-                        raise TauBridgeError("tau worker rejected request: " + error_type)
+                        error_stage = result.get("error_stage")
+                        if (
+                            type(error_stage) is not str
+                            or error_stage not in TAU_WORKER_FAILURE_STAGES
+                        ):
+                            error_stage = current_stage
+                        raise TauBridgeError(
+                            "tau worker rejected request: " + error_type,
+                            failure_stage=error_stage,
+                            diagnostic_exception_type=error_type,
+                        )
                     if (
                         not isinstance(result, dict)
                         or type(result.get("id")) is not int
@@ -226,8 +303,12 @@ class _StdioChannel:
                     return result["result"]
             except Exception as exc:
                 self.close()
+                error_type = safe_exception_type(exc)
+                error_stage = safe_failure_stage(exc, default=current_stage)
                 raise TauBridgeError(
-                    f"tau {method} failed ({type(exc).__name__}); no automatic replay"
+                    f"tau {method} failed ({error_type}); no automatic replay",
+                    failure_stage=error_stage,
+                    diagnostic_exception_type=error_type,
                 ) from exc
 
     def close(self):

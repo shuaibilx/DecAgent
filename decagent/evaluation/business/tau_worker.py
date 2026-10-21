@@ -18,6 +18,30 @@ from hashlib import sha256
 from pathlib import Path, PurePosixPath
 
 MAX_FRAME = 4 * 1024 * 1024
+_FAILURE_STAGES = frozenset(
+    {
+        "tau_worker_runtime_initialize",
+        "tau_worker_tool_execution",
+        "tau_worker_user_input_parse",
+        "tau_worker_user_model_callback",
+        "tau_worker_user_response_parse",
+        "tau_worker_user_simulator_step",
+        "tau_worker_user_result_encode",
+        "tau_worker_score_input_parse",
+        "tau_worker_official_judge_callback",
+        "tau_worker_score_execution",
+        "tau_worker_score_result_encode",
+        "tau_worker_state_read",
+        "tau_worker_protocol",
+    }
+)
+_METHOD_STAGES = {
+    "initialize": "tau_worker_runtime_initialize",
+    "call": "tau_worker_tool_execution",
+    "user_turn": "tau_worker_user_input_parse",
+    "score_simulation": "tau_worker_score_input_parse",
+    "state": "tau_worker_state_read",
+}
 
 
 def verify_source(params):
@@ -114,8 +138,24 @@ def _task_digest(task):
     return sha256(payload).hexdigest()
 
 
-def dispatch(environment, simulator, user_state, task, method, params, parent_call=None):
+def dispatch(
+    environment,
+    simulator,
+    user_state,
+    task,
+    method,
+    params,
+    parent_call=None,
+    on_stage=None,
+):
+    def set_stage(name):
+        if name not in _FAILURE_STAGES:
+            raise ValueError("Unknown evaluator diagnostic stage")
+        if callable(on_stage):
+            on_stage(name)
+
     if method == "initialize":
+        set_stage("tau_worker_runtime_initialize")
         if environment is not None:
             raise ValueError("One fresh environment per process")
         environment, simulator, user_state, task = initialize(params)
@@ -132,6 +172,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
     if environment is None:
         raise ValueError("tau environment is not initialized")
     if method == "call":
+        set_stage("tau_worker_tool_execution")
         from tau2.data_model.message import ToolCall
 
         response = environment.get_response(
@@ -150,6 +191,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
             "error": response.error,
         }
     if method == "user_turn":
+        set_stage("tau_worker_user_input_parse")
         if simulator is None or user_state is None or parent_call is None:
             raise ValueError("Official user simulator callback is unavailable")
         from tau2.data_model.message import (
@@ -187,6 +229,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
         callback_usage = []
 
         def callback_generate(*, model, messages, tools=None, call_name=None, **_kwargs):
+            set_stage("tau_worker_user_model_callback")
             payload = {
                 "model": params["model"],
                 "call_name": call_name,
@@ -196,6 +239,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
                 "tools": [tool.openai_schema for tool in (tools or [])],
             }
             response = parent_call("tau_user_simulator", payload)
+            set_stage("tau_worker_user_response_parse")
             if not isinstance(response, dict) or not isinstance(
                 response.get("content"), (str, type(None))
             ):
@@ -259,9 +303,11 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
 
         user_module.generate = callback_generate
         try:
+            set_stage("tau_worker_user_simulator_step")
             user_message, user_state = simulator.generate_next_message(message, user_state)
         finally:
             user_module.generate = original_generate
+        set_stage("tau_worker_user_result_encode")
         known_input = [item["input_tokens"] for item in callback_usage]
         known_output = [item["output_tokens"] for item in callback_usage]
         known_cost = [item["cost_usd"] for item in callback_usage]
@@ -281,6 +327,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
             "usage": usage,
         }
     if method == "score_simulation":
+        set_stage("tau_worker_score_input_parse")
         if task is None or parent_call is None:
             raise ValueError("Official tau task scorer is unavailable")
         from tau2.data_model.simulation import SimulationRun, TerminationReason
@@ -331,6 +378,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
         judge_usage = []
 
         def callback_judge(*, model, messages, tools=None, call_name=None, **_kwargs):
+            set_stage("tau_worker_official_judge_callback")
             payload = {
                 "model": params["judge_model"],
                 "call_name": call_name,
@@ -340,6 +388,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
                 "tools": [tool.openai_schema for tool in (tools or [])],
             }
             response = parent_call("tau_official_nl_judge", payload)
+            set_stage("tau_worker_score_execution")
             if not isinstance(response, dict) or not isinstance(
                 response.get("content"), str
             ):
@@ -391,6 +440,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
 
         nl_module.generate = callback_judge
         try:
+            set_stage("tau_worker_score_execution")
             reward_info = evaluate_simulation(
                 simulation=simulation,
                 task=task,
@@ -403,6 +453,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
         finally:
             nl_module.generate = original_generate
 
+        set_stage("tau_worker_score_result_encode")
         input_counts = [item["input_tokens"] for item in judge_usage]
         output_counts = [item["output_tokens"] for item in judge_usage]
         costs = [item["cost_usd"] for item in judge_usage]
@@ -425,6 +476,7 @@ def dispatch(environment, simulator, user_state, task, method, params, parent_ca
             },
         }
     if method == "state":
+        set_stage("tau_worker_state_read")
         return environment, simulator, user_state, task, {
             "agent": environment.get_db_hash(),
             "user": environment.get_user_db_hash(),
@@ -480,10 +532,17 @@ def main():
         if len(line) > MAX_FRAME or not line.endswith(b"\n"):
             return 2
         request = {}
+        stage = "tau_worker_protocol"
         try:
             request = json.loads(line)
             if type(request["id"]) is not int or not isinstance(request["params"], dict):
                 raise ValueError("Invalid request envelope")
+            stage = _METHOD_STAGES.get(request.get("method"), "tau_worker_protocol")
+
+            def record_stage(name):
+                nonlocal stage
+                stage = name if name in _FAILURE_STAGES else "tau_worker_protocol"
+
             with contextlib.redirect_stdout(sys.stderr):
                 def callback(name, payload, request_id=request["id"]):
                     return request_parent(request_id, name, payload)
@@ -496,10 +555,16 @@ def main():
                     request["method"],
                     request["params"],
                     parent_call=callback,
+                    on_stage=record_stage,
                 )
             response = {"id": request["id"], "ok": True, "result": result}
         except Exception as exc:
-            response = {"id": request.get("id"), "ok": False, "error_type": type(exc).__name__}
+            response = {
+                "id": request.get("id"),
+                "ok": False,
+                "error_type": type(exc).__name__,
+                "error_stage": stage,
+            }
         encoded = json.dumps(response, ensure_ascii=False, allow_nan=False).encode("utf-8") + b"\n"
         if len(encoded) > MAX_FRAME:
             return 2

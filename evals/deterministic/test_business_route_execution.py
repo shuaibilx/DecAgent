@@ -1829,6 +1829,26 @@ def test_environment_entry_failure_has_no_reportable_or_fabricated_verifier_resu
     assert result.usage.primary_requests == result.usage.jev_requests == 0
 
 
+def test_route_preserves_allowlisted_worker_stage_for_model_callback_failure():
+    session = Session()
+    route_trial = trial(session)
+
+    class TauCallbackFailure(RuntimeError):
+        failure_stage = "tau_worker_user_model_callback"
+        diagnostic_exception_type = "ValueError"
+
+    def fail(_request):
+        raise TauCallbackFailure("private simulator context")
+
+    result = api().ControlledRoutes(factory(session)).run(
+        Route.PLAN_MCP, route_trial, planner=fail
+    )
+
+    assert result.status == "failed"
+    assert result.failure_stage == "tau_worker_user_model_callback"
+    assert result.exception_type == "ValueError"
+
+
 @pytest.mark.parametrize("invalid", ["raises", "not_a_score"])
 def test_failed_or_invalid_verifier_cannot_create_reportable_cost_or_side_effects(invalid):
     session = Session()

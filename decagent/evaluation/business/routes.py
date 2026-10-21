@@ -52,7 +52,7 @@ from decagent.evaluation.business.public_resources import (
 from .comparison import ComparisonTrial, Route, RouteRun, TauStepLimitReached
 from .final_response import DEFAULT_RESPONSE_POLICY, FinalResponsePolicy, accept_summary
 from .model_profiles import ModelProfile
-from .public_diagnostics import safe_exception_type
+from .public_diagnostics import safe_exception_type, safe_failure_stage
 
 
 def _money(value):
@@ -1037,8 +1037,11 @@ class ControlledRoutes:
                     failure_kind = (
                         "environment_failure" if agent_started is None else "agent_failure"
                     )
-                    failure_stage = (
-                        "environment_setup" if agent_started is None else "agent_execution"
+                    failure_stage = safe_failure_stage(
+                        exc,
+                        default=(
+                            "environment_setup" if agent_started is None else "agent_execution"
+                        ),
                     )
                     exception_type = safe_exception_type(exc)
                 finally:
@@ -1067,7 +1070,9 @@ class ControlledRoutes:
                             )
                             status, scoring_complete = "failed", False
                             failure_kind = "scoring_failure"
-                            failure_stage = "official_scoring"
+                            failure_stage = safe_failure_stage(
+                                exc, default="official_scoring"
+                            )
                             exception_type = safe_exception_type(exc)
                         finally:
                             scoring_seconds = perf_counter() - scoring_started
@@ -1085,7 +1090,9 @@ class ControlledRoutes:
                                     )
                                     status, scoring_complete, score = "failed", False, None
                                     failure_kind = "scoring_failure"
-                                    failure_stage = "official_scoring"
+                                    failure_stage = safe_failure_stage(
+                                        exc, default="official_scoring"
+                                    )
                                     exception_type = safe_exception_type(exc)
                     close_adapters = getattr(managed_adapters, "close", None)
                     if callable(close_adapters):
@@ -1099,7 +1106,9 @@ class ControlledRoutes:
                             )
                             status = "failed"
                             failure_kind = "cleanup_failure"
-                            failure_stage = "model_resource_cleanup"
+                            failure_stage = safe_failure_stage(
+                                exc, default="model_resource_cleanup"
+                            )
                             exception_type = safe_exception_type(exc)
             session_context_exited = True
             cleanup_report = getattr(session, "cleanup_evidence", None)
@@ -1122,7 +1131,9 @@ class ControlledRoutes:
                 except Exception as exc:
                     status = "failed"
                     failure_kind = "cleanup_failure"
-                    failure_stage = "environment_cleanup"
+                    failure_stage = safe_failure_stage(
+                        exc, default="environment_cleanup"
+                    )
                     exception_type = safe_exception_type(exc)
                     error = (error + "; " if error else "") + (
                         "Environment cleanup verification failed: " + type(exc).__name__
@@ -1139,10 +1150,13 @@ class ControlledRoutes:
                 if session_entered and not session_context_exited
                 else "environment_failure"
             )
-            failure_stage = (
-                "environment_cleanup"
-                if session_entered and not session_context_exited
-                else "environment_setup"
+            failure_stage = safe_failure_stage(
+                exc,
+                default=(
+                    "environment_cleanup"
+                    if session_entered and not session_context_exited
+                    else "environment_setup"
+                ),
             )
             exception_type = safe_exception_type(exc)
         total_seconds = perf_counter() - started

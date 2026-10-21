@@ -27,6 +27,19 @@ FAILURE_STAGES = frozenset(
         "environment_cleanup",
         "route_supervisor",
         "route_deadline",
+        "tau_worker_runtime_initialize",
+        "tau_worker_tool_execution",
+        "tau_worker_user_input_parse",
+        "tau_worker_user_model_callback",
+        "tau_worker_user_response_parse",
+        "tau_worker_user_simulator_step",
+        "tau_worker_user_result_encode",
+        "tau_worker_score_input_parse",
+        "tau_worker_official_judge_callback",
+        "tau_worker_score_execution",
+        "tau_worker_score_result_encode",
+        "tau_worker_state_read",
+        "tau_worker_protocol",
     }
 )
 

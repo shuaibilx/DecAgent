@@ -126,6 +126,9 @@
   暴露审阅与 v9 冻结（2026-10-22）：用户确认仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 进入项目实测；其余 204 个 EnterpriseOps case 仅以 ID 出现在 inventory/manifest/dry-run，用户未在项目外查看任务内容。τ 官方 test 80 条也未在项目外查看，项目内调试使用 train。v9 按精确 case 分组且不按未经审核的 workflow-family 启发式扩散。`not_exposed` 不代表独立 holdout。审计依据、digest 与“不启动实测”边界见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)；历史 v8 manifest 和 trial ledger 不变。
 
 - [ ] 9.6.F 接通真实模型与工具 callback、三路线调度、官方用户模拟器/裁判、最终回复、评分错误分类、未知状态处理和环境清理；Qwen unknown 终结当前 route，Jev unknown 暂停全局新增 Jev 请求。
+
+  2026-10-22 离线诊断补充：τ 子进程桥现只传递固定白名单阶段码与安全异常类名，并将 parent callback / worker 阶段保留到 route diagnostics；异常正文和业务 payload 不作为阶段诊断跨进程传递。callback deadline 也归入相应模型回调阶段。相关定向回归 `107 passed, 14 skipped`，Ruff 通过，OpenSpec strict `6 passed, 0 failed`。本项仍未完成：这只是离线错误归因改进，不代表真实模型、工具、用户模拟器或官方裁判闭环通过。
+
 - [ ] 9.6.G 完成四域首批 8 个 ReAct/Plan 路线试次及每域官方评分/清理闭环，再补齐固定 24 例 smoke；只有自然适用且已审核的语义节点可增加 Jev 配对。
 - [x] 9.7 实现累计 Jev 1 美元账本预留、读取和未知费用停止机制，并保留主模型请求/token；测试历史费用不可重置、零额/超额/未知预留/中途停止后不能继续及恢复前置检查。
 - [x] 9.8 为公开计划路线实现实际工具证据的确定性最终回复与一次受控 Qwen 总结回调，冻结并核对输出策略摘要；测试无总结的零调用、真实来源引用、超过输出/输入限制、未知写入拒绝、错误/未知总结用量停止、与 ReAct 的公平配置和官方评分隔离。总结计入 Agent primary 与执行时间，不伪造 goal.description，不删除 response_check 任务；真实模型门禁通过前仅使用离线回调验证。

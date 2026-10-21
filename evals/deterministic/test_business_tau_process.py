@@ -24,6 +24,21 @@ def bridge():
     return tau_process
 
 
+def test_tau_failure_stage_allowlists_match_worker_and_public_diagnostics():
+    module = bridge()
+    worker_path = Path(module.__file__).with_name("tau_worker.py")
+    spec = importlib.util.spec_from_file_location("_tau_worker_stage_contract", worker_path)
+    assert spec is not None and spec.loader is not None
+    worker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(worker)
+
+    from decagent.evaluation.business.public_diagnostics import FAILURE_STAGES
+
+    assert module.TAU_WORKER_FAILURE_STAGES == worker._FAILURE_STAGES
+    assert worker._FAILURE_STAGES <= FAILURE_STAGES
+    assert module.TauBridgeError("invalid stage", failure_stage=[]).failure_stage is None
+
+
 def test_tau_mcp_environment_uses_official_environment_policy_when_unspecified():
     from decagent.evaluation.business.tau_tools import TauMCPEnvironment
 
@@ -303,6 +318,66 @@ def test_transport_failure_identifies_method_and_cause_type_without_payload(tmp_
     assert "simulate_user_turn" in str(failure.value)
     assert "ValueError" in str(failure.value)
     assert "private context" not in str(failure.value)
+    assert failure.value.failure_stage == "tau_worker_user_model_callback"
+    assert failure.value.diagnostic_exception_type == "ValueError"
+
+
+def test_parent_callback_deadline_is_attributed_to_model_callback(tmp_path):
+    module = bridge()
+    script = tmp_path / "slow_callback_worker.py"
+    script.write_text(
+        "import json, sys\n"
+        "request=json.loads(sys.stdin.buffer.readline())\n"
+        "print(json.dumps({'event':'parent_call','request_id':request['id'],"
+        "'name':'user_simulator','payload':{}}), flush=True)\n"
+        "sys.stdin.buffer.readline()\n",
+        encoding="utf-8",
+    )
+
+    def delayed(_event, *, timeout_seconds):
+        time.sleep(0.25)
+        return {}
+
+    with channel(script) as client:
+        with pytest.raises(module.TauBridgeError) as failure:
+            client.request(
+                "simulate_user_turn",
+                {},
+                on_callback=delayed,
+                timeout_seconds=0.1,
+            )
+
+    assert failure.value.failure_stage == "tau_worker_user_model_callback"
+    assert failure.value.diagnostic_exception_type == "TauBridgeError"
+
+
+def test_worker_error_reports_allowlisted_stage_without_exception_message(tmp_path):
+    module = bridge()
+    worker_path = Path(module.__file__).with_name("tau_worker.py")
+    script = tmp_path / "worker_failure_stage_fixture.py"
+    script.write_text(
+        "import runpy\n"
+        + "worker = runpy.run_path("
+        + repr(str(worker_path))
+        + ")\n"
+        + "def fail(*args, on_stage=None, **kwargs):\n"
+        + "    on_stage('tau_worker_user_input_parse')\n"
+        + "    raise ValueError('private prompt and task content')\n"
+        + "worker['main'].__globals__['dispatch'] = fail\nworker['main']()\n",
+        encoding="utf-8",
+    )
+
+    with module._StdioChannel(
+        [sys.executable, "-I", str(script)],
+        cwd=tmp_path,
+        environment=module._worker_environment(tmp_path),
+    ) as client:
+        with pytest.raises(module.TauBridgeError) as failure:
+            client.request("user_turn", {})
+
+    assert failure.value.failure_stage == "tau_worker_user_input_parse"
+    assert failure.value.diagnostic_exception_type == "ValueError"
+    assert "private prompt" not in str(failure.value)
 
 
 def test_process_channel_rejects_unbounded_synchronous_callback(tmp_path):
