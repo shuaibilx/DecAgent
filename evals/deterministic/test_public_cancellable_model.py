@@ -6,6 +6,7 @@ import os
 import sys
 import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -653,6 +654,79 @@ def test_one_shot_primary_decodes_received_http_response_diagnostics(monkeypatch
     )
     assert "test-secret" not in str(raised.value)
     model.close()
+
+
+def test_one_shot_primary_records_local_provider_response_without_leaking_content():
+    from dataclasses import replace
+
+    from decagent.evaluation.business.public_diagnostics import validate_diagnostic
+    from decagent.evaluation.business.public_models import (
+        ModelWorkerOutcomeUnknown,
+        OneShotPrimaryModel,
+    )
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    class MalformedResponseHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            # Return an invalid response body without reading or retaining the
+            # request body. This test must never expose prompt data or a secret.
+            body = b"{malformed"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+            self.close_connection = True
+
+        def log_message(self, *_args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), MalformedResponseHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    model = None
+    try:
+        root = Path(__file__).resolve().parents[2]
+        profile = load_public_run_plan(
+            root,
+            mode="smoke",
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ).profiles.primary
+        # ModelProfile correctly rejects non-HTTPS provider endpoints. The
+        # post-validation override is confined to this test's localhost server.
+        profile = replace(profile)
+        object.__setattr__(
+            profile,
+            "endpoint",
+            f"http://127.0.0.1:{server.server_port}/v1",
+        )
+        model = OneShotPrimaryModel(profile, api_key="test-secret")
+
+        with pytest.raises(ModelWorkerOutcomeUnknown) as raised:
+            model.respond(
+                [{"role": "user", "content": "offline diagnostic fixture"}],
+                timeout_seconds=3,
+            )
+
+        error = raised.value
+        assert error.failure_stage == "model_worker_provider_response"
+        assert error.status_code == 200
+        validate_diagnostic(
+            failure_stage=error.failure_stage,
+            exception_type=error.diagnostic_exception_type,
+            http_status=error.status_code,
+        )
+        assert "test-secret" not in str(error)
+        assert "offline diagnostic fixture" not in str(error)
+    finally:
+        if model is not None:
+            model.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_tau_public_model_uses_one_shot_primary_factory_by_default():
