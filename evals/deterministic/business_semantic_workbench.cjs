@@ -94,10 +94,97 @@ assert.equal(pending.length, 1, 'a fast repeated click sends only one reply');
 assert.ok(buttons.every(button => button.disabled), 'all reply choices are locked in flight');
 
 pending[0].resolve({ok: true, json: async () => ({status: 'stale'})});
-setImmediate(async () => {
+(async () => {
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(context.refreshedTask, task.id, 'stale evidence refreshes the durable task');
   const message = elements.get('notice').textContent;
   assert.match(message, /候选|目录|已变化|过期/, 'the employee sees why the suggestion was not accepted');
   assert.doesNotMatch(message, /判断已保存/, 'stale evidence is never reported as accepted');
-  console.log('stale-choice prompt and duplicate-click checks passed');
+
+  const combinedText = node => node.textContent + node.children.map(combinedText).join('');
+  const submitDecision = async ({id, type, criteria, action, value, text}) => {
+    const approvalId = `approval-${id}`;
+    const decisionTask = {
+      id, state: 'awaiting_input',
+      waiting: {payload: {
+        kind: 'decision', approval_id: approvalId, digest: 'c'.repeat(64), plan_revision: 7,
+        question: {id: `question-${type}`, type, instructions: '依据当前合成业务信息判断', criteria},
+        suggestion: {selected: 'suggested-candidate', confidence: 0.88},
+        raw_model_answer: {primitive: type, selected: 'suggested-candidate'},
+      }},
+    };
+    const decisionApproval = {id: approvalId, kind: 'decision', status: 'pending', digest: 'c'.repeat(64)};
+    elements.get('approvals').replaceChildren();
+    vm.runInContext('state.task = task; renderTaskApproval(task, approval);',
+      Object.assign(context, {task: decisionTask, approval: decisionApproval}));
+    const card = elements.get('approvals').children[0];
+    const controls = card.children[card.children.length - 1];
+    assert.match(combinedText(card), /Jev 建议：/, 'the received Jev suggestion is visible to the employee');
+    assert.doesNotMatch(combinedText(card), /批准当前冻结参数|确认具体业务操作/,
+      'semantic decision card contains no business write approval control');
+
+    const selector = controls.children.find(item => item.tag === 'select');
+    const textarea = controls.children.find(item => item.tag === 'textarea');
+    if (value !== undefined) selector.value = String(value);
+    if (text !== undefined) textarea.value = text;
+    const button = controls.querySelectorAll('button').find(item => item.textContent === action);
+    assert.ok(button, `${type} exposes ${action}`);
+    const oldPendingCount = pending.length;
+    button.click();
+    assert.equal(pending.length, oldPendingCount + 1, `${action} sends one semantic reply`);
+    const request = pending.pop();
+    assert.match(request.url, /\/decisions\//, 'semantic input uses the decision endpoint');
+    assert.doesNotMatch(request.url, /\/operations\//, 'semantic input cannot submit a business write');
+    const body = JSON.parse(request.options.body);
+    assert.equal(body.expected_digest, 'c'.repeat(64));
+    assert.equal(body.expected_plan_revision, 7);
+    request.resolve({ok: true, json: async () => ({status: 'accepted'})});
+    await new Promise(resolve => setImmediate(resolve));
+    assert.match(elements.get('notice').textContent, /该判断不会批准任何业务写操作/,
+      'the reply explains that semantic selection does not approve a write');
+    return body;
+  };
+
+  const choice = await submitDecision({
+    id: 'guest-choice', type: 'choice',
+    criteria: {candidate: '当前候选', no_match: '都不符合'},
+    action: '采用所选判断', value: 'candidate',
+  });
+  assert.equal(choice.decision, 'select');
+  assert.equal(choice.value, 'candidate');
+
+  const noul = await submitDecision({
+    id: 'guest-noul', type: 'noul', criteria: {true: '需要人工介入', false: '可自动处理'},
+    action: '采用所选判断', value: 'false',
+  });
+  assert.equal(noul.value, false, 'Noul sends a boolean, not a string');
+
+  const score = await submitDecision({
+    id: 'guest-score', type: 'score', criteria: ['低优先级', '普通优先级', '紧急'],
+    action: '采用所选判断', value: '2',
+  });
+  assert.equal(score.value, 2, 'Score sends a numeric scale value');
+
+  const noMatch = await submitDecision({
+    id: 'guest-no-match', type: 'choice', criteria: {candidate: '当前候选', no_match: '都不符合'},
+    action: '都不符合',
+  });
+  assert.equal(noMatch.decision, 'no_match');
+  assert.equal('value' in noMatch, false);
+
+  const supplement = await submitDecision({
+    id: 'guest-supplement', type: 'noul', criteria: {true: '是', false: '否'},
+    action: '补充事实后重判', text: '员工已确认无法在当前地点办公',
+  });
+  assert.equal(supplement.decision, 'supplement');
+  assert.equal(supplement.text, '员工已确认无法在当前地点办公');
+
+  const reject = await submitDecision({
+    id: 'guest-reject', type: 'score', criteria: ['低', '中', '高'], action: '拒绝当前判断',
+  });
+  assert.equal(reject.decision, 'reject');
+  console.log('guest Choice/Noul/Score, no-match, supplement, reject and write-separation checks passed');
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
 });
