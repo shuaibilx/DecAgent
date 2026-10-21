@@ -123,6 +123,8 @@
 - [ ] 9.6.E 固定公开试次 manifest、暴露组、角色/模型 profile、每试次与全批资源、冷/热复用、显式记忆消融和计时；检查标签与私有评分材料不进入 Agent 输入。
 
   现状：冻结 manifest v8 的 `exposure_assignment.status` 是 `unreviewed_unassigned`，286 个 full trial 和 24 个 smoke trial 全部默认 `exposure_group=unassigned`；inventory 的 workflow family 注释是 `prompt-surface-heuristics-1` 且 `review_status=heuristic_unreviewed`，不能直接拿来划分 exposed/not-exposed。仓库审计确认仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 两个 EnterpriseOps task ID 进入真实模型试次；其余 204 条在执行/证据记录中仅以 ID 出现在 inventory、manifest 或 dry-run，虽有本地 pinned 原始公开数据，但无证据表明已被送入 Agent。两条已试任务均被现有启发式标为 `case_ticket_lifecycle`，但尚未人工审过 family 规则。另，Agent 输入投影与 inventory 避免把 reference/gold 字段传入 Agent 的定向测试 `13 passed`；这验证边界，不代表 exposure 映射完成。不得修改 v8；确认项目外人工审阅范围后，审阅历史开发暴露证据，再为新 manifest 冻结分组来源、profile/资源摘要及消融安排。
+  暴露审阅更新（2026-10-22）：上方“需确认项目外人工审阅范围”是审阅前状态，现已由用户确认：仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 进入项目实测；其余 204 个 EnterpriseOps case 仅以 ID 出现在 inventory/manifest/dry-run，且用户未在项目外查看任务内容。τ 官方 test 80 条也未在项目外查看，项目内调试使用 train。下一 cohort 按精确 case 分组：上述两条为 `development_exposed`，其余 EnterpriseOps 和官方 τ test 为 `not_exposed`；不按未经审核的 workflow-family 启发式扩散分组。`not_exposed` 不代表独立 holdout。审计依据见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)。历史 v8 manifest 保持原样，仍未分组；9.6.E 仍待把规则写入新 manifest 并完成其余冻结与输入隔离检查。
+
 - [ ] 9.6.F 接通真实模型与工具 callback、三路线调度、官方用户模拟器/裁判、最终回复、评分错误分类、未知状态处理和环境清理；Qwen unknown 终结当前 route，Jev unknown 暂停全局新增 Jev 请求。
 - [ ] 9.6.G 完成四域首批 8 个 ReAct/Plan 路线试次及每域官方评分/清理闭环，再补齐固定 24 例 smoke；只有自然适用且已审核的语义节点可增加 Jev 配对。
 - [x] 9.7 实现累计 Jev 1 美元账本预留、读取和未知费用停止机制，并保留主模型请求/token；测试历史费用不可重置、零额/超额/未知预留/中途停止后不能继续及恢复前置检查。

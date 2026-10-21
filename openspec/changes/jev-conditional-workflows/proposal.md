@@ -7,6 +7,8 @@ v8 首波真实执行了 CSM、ITSM、τ retail、τ telecom 各一个任务的 
 
 执行状态补充（2026-10-21）：v8 后的离线诊断修复已提交；用户已为下一独立 Qwen 批次选择 500 次请求、5,000,000 Token、1,600 次工具调用、4 小时的硬上限，¥13.50 为抵扣前冻结费率推导上界。该预算不修改 v8 记录且不重放其终态路线。样本暴露范围仍待确认，新 cohort 和 manifest 未冻结，故新批次尚未启动。本段更新了上文“先做离线故障定位”这一历史状态说明。
 
+暴露审阅补充（2026-10-22）：用户确认仅固定 CSM/ITSM 两个 EnterpriseOps case 进入项目实测；其他 EnterpriseOps 任务内容以及 τ-Bench 官方 test 80 条均未在项目外查看，项目内 τ 调试使用 train。下一 cohort 的新 manifest 将只把两个精确 EnterpriseOps case 标为 `development_exposed`，其余 EnterpriseOps 与官方 τ test 标为 `not_exposed`，不使用未审核的任务族启发式。`not_exposed` 不代表独立 holdout。v8 manifest 保持原样，新 manifest 尚未冻结、真实批次尚未启动；审计依据见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)。
+
 2026-10-21 离线对照接线进展：公开评测新增受信的 primary-model semantic Choice callback，并让账本工厂在 `plan_primary_semantic_mcp` 与 `plan_jev_semantic_mcp` 路线分别绑定 Qwen/primary 与 Jev profile。两者使用同一个冻结 registry、问题、真实候选状态和权限摘要；primary 通过一次 function call 返回完整选项分布，再由统一 Choice 规范化器验证。合并 adapter factory 可按 route 选择对应 callback，默认仍关闭，不改变 v8 manifest/首波路线。定向回归 37 passed、Ruff 通过。该实现只证明离线接线；没有发出新模型请求、创建试次或配对评分，故 9.6.D 仍未完成，公开基准仍为 0/286。
 
 旧 v2/v3 profile 与 v5/v6/v7 manifest 保持原样；Jev 的 USD 价格和累计 `$1` 账本不变。费率来源和 profile 映射见 [模型计费核验](../../../generated/261021/模型计费/1441_千问平台费率核验.md)。

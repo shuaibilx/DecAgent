@@ -50,6 +50,14 @@ EnterpriseOps-Gym CSM/ITSM MUST 作为主要端到端工作流 benchmark；τ-Be
 - **WHEN** 选择 τ-Bench 冒烟任务
 - **THEN** 从每个域固定官方 train 顺序选择前 2 条；官方 test 80 条保持未触碰，直到任务、模板和报告配置冻结
 
+### Requirement: Exposure labels use case-level evidence
+
+公开评测 MUST 基于精确任务级证据分配 `development_exposed` 与 `not_exposed`；未经审核的任务族启发式 MUST NOT 扩大开发暴露范围。当前审计确认仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 两个 EnterpriseOps case 进入项目实测，其余 EnterpriseOps 204 个 case 以及 τ-Bench 官方 test 80 个 case 属于项目级 `not_exposed` 子集。该分类 MUST NOT 改写历史 manifest，也 MUST NOT 被表述为独立 holdout；官方任务仍须保留在分母。τ-Bench train 只用于开发和冒烟，官方 test MUST 在计划、模板、模型和环境配置冻结后执行。
+
+#### Scenario: Reviewed exposure assignment is retained without family expansion
+- **WHEN** 冻结新的公开评测 manifest
+- **THEN** 将两个已实测 EnterpriseOps case 标记为 `development_exposed`，其余 204 个 EnterpriseOps case 与 80 个 τ-Bench official test case 标记为 `not_exposed`；不根据未审核的 workflow-family 启发式传播标签，且不修改历史 manifest 或官方任务分母
+
 ### Requirement: Isolated public tool registration reuses the production interpreter
 
 公开基准 MUST 使用可信评测代码构造的活动作用域目录，复用生产编译器、绑定器和 PlanRuntime。此目录 MUST NOT 能通过生产 PluginSpec/HTTP 任务参数注册。原工具名称、schema、参数与响应 MUST 保留；没有适用的可信 Jev 模板时 MUST 拒绝决定节点，不临时生成问题。隔离日志和副作用 MUST 仅属于当前试验；完成信号 MUST 区分 execution_finished 与官方 verifier 证明的业务成功。
