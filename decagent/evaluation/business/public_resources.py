@@ -8,7 +8,7 @@ from decimal import Decimal
 from math import isfinite
 from time import perf_counter
 
-from decagent.decisions.contracts import digest
+from decagent.decisions.contracts import digest, jev_model_matches
 from decagent.models.primary import PrimaryRequestNotDispatched
 
 from .public_diagnostics import safe_exception_type, safe_http_status
@@ -392,10 +392,16 @@ class LedgeredModelCallback:
             )
 
         self._settle(attempt_id, reply, started)
+        model_drift = False
+        if reply.model is not None:
+            if profile.role == "jev":
+                model_drift = not jev_model_matches(profile.model, reply.model)
+            else:
+                model_drift = reply.model != profile.model
         profile_drift = (
             reply.profile is None
             or reply.profile.fingerprint != profile.fingerprint
-            or (reply.model is not None and reply.model != profile.model)
+            or model_drift
             or (reply.provider is not None and reply.provider != profile.provider)
         )
         if profile_drift:
@@ -505,6 +511,15 @@ class LedgeredModelCallback:
                 else None
             ),
         )
+        if profile.role == "jev":
+            resolved_models = getattr(self.ledger, "resolved_model_identities", None)
+            if callable(resolved_models) and len(resolved_models("jev")) > 1:
+                stop_batch = getattr(self.ledger, "stop_for_model_profile_drift", None)
+                if callable(stop_batch):
+                    stop_batch()
+                raise PublicModelProfileDrift(
+                    "The resolved Jev model version changed within the frozen cohort"
+                )
         if cost_mismatch:
             raise PublicModelProfileDrift(
                 "Callback fee differs from the frozen token-rate calculation"

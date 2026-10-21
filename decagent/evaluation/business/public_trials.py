@@ -2014,6 +2014,19 @@ class PublicTrialLedger:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def resolved_model_identities(self, role):
+        """Return distinct upstream model names already measured for this cohort role."""
+        self._active()
+        if role not in {"primary", "jev", "user_simulator", "judge"}:
+            raise ValueError("Unknown public evaluation model role")
+        rows = self._connection.execute(
+            "SELECT DISTINCT actual_model FROM model_attempts "
+            "WHERE role=? AND actual_model IS NOT NULL "
+            "AND status IN ('settled','settled_overrun') ORDER BY actual_model",
+            (role,),
+        ).fetchall()
+        return tuple(row["actual_model"] for row in rows)
+
     def model_attempt_snapshot(self, attempt_id):
         self._active()
         row = self._connection.execute(

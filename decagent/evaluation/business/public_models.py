@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
+from decimal import Decimal, InvalidOperation
 
 from decagent.business.codec import strict_json
 from decagent.business.contracts import validate_schema
@@ -14,7 +15,15 @@ from decagent.business.plans.planner import (
     plan_tool_definitions,
     validate_plan_tool,
 )
-from decagent.decisions.contracts import digest
+from decagent.business.plans.templates import QuestionRegistry
+from decagent.decisions.contracts import (
+    DecisionContext,
+    DecisionRequest,
+    QuestionSpec,
+    digest,
+    parse_usage,
+    validate_response,
+)
 from decagent.evaluation.business.model_profiles import ModelProfile
 from decagent.evaluation.business.public_resources import LedgeredModelAdapterFactory
 from decagent.evaluation.business.routes import ModelCallError, ModelReply
@@ -29,6 +38,10 @@ from decagent.models.primary import (
 )
 
 MAX_TAU_MODEL_TOOL_SCHEMAS = 32
+_JEV_OPENROUTER_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
+_JEV_OPENROUTER_MODEL = re.compile(
+    r"(?:~typesafe/jev-latest|typesafe/jev-\d+\.\d+(?:-\d{8})?)\Z"
+)
 
 
 class PublicPlannerCallback:
@@ -626,6 +639,338 @@ class PublicReactCallback:
         )
 
 
+def _new_jev_http_client():
+    import httpx
+
+    return httpx.Client(follow_redirects=False)
+
+
+def _bounded_identity(value):
+    if type(value) is str and value.strip() and len(value) <= 256:
+        return value.strip()
+    return None
+
+
+def _jev_provider_dispatch(profile, api_key, wire_request, timeout_seconds):
+    """Send one OpenRouter Decisions request and return a bounded evidence frame."""
+    client = _new_jev_http_client()
+    response = None
+    try:
+        response = client.post(
+            profile.endpoint,
+            json=wire_request,
+            headers={"Authorization": "Bearer " + api_key},
+            timeout=timeout_seconds,
+            follow_redirects=False,
+        )
+        status = response.status_code
+        if len(response.content) > 1_000_000:
+            return {"status": status, "response_too_large": True}
+        try:
+            payload = strict_json(response.text)
+        except (ValueError, UnicodeError):
+            payload = None
+        if type(payload) is not dict:
+            return {
+                "status": status,
+                "provider_request_id": _bounded_identity(
+                    response.headers.get("x-typesafe-request-id")
+                    or response.headers.get("x-request-id")
+                ),
+            }
+
+        usage = parse_usage(payload)
+        question_id = next(iter(wire_request["questions"]))
+        answers = payload.get("answers")
+        answer = answers.get(question_id) if type(answers) is dict else None
+        answer_bytes = len(
+            json.dumps(answer, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ) if answer is not None else 0
+        if answer_bytes > 64_000:
+            answer = None
+
+        reported_cost = None
+        usage_payload = payload.get("usage")
+        raw_cost = usage_payload.get("cost") if type(usage_payload) is dict else None
+        if type(raw_cost) in {int, float, str}:
+            try:
+                candidate_cost = Decimal(str(raw_cost))
+            except (InvalidOperation, ValueError):
+                candidate_cost = None
+            if candidate_cost is not None and candidate_cost.is_finite() and candidate_cost >= 0:
+                reported_cost = str(candidate_cost)
+
+        return {
+            "status": status,
+            "model": _bounded_identity(payload.get("model")),
+            "answer": answer,
+            "usage": (
+                {"input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens}
+                if usage is not None
+                else None
+            ),
+            "reported_cost_usd": reported_cost,
+            "provider_request_id": _bounded_identity(
+                response.headers.get("x-typesafe-request-id")
+                or response.headers.get("x-request-id")
+            ),
+            "generation_id": _bounded_identity(
+                payload.get("id") or payload.get("generation_id")
+            ),
+        }
+    finally:
+        if response is not None:
+            response.close()
+        client.close()
+
+
+def _jev_one_shot_dispatch(profile, api_key, wire_request, timeout_seconds):
+    return _jev_provider_dispatch(profile, api_key, wire_request, timeout_seconds)
+
+
+def _run_jev_cancellable_worker(profile, api_key, wire_request, timeout_seconds, guard_path):
+    from .cancellable_model import run_cancellable_process
+
+    return run_cancellable_process(
+        _jev_one_shot_dispatch,
+        (profile, api_key, wire_request, float(timeout_seconds)),
+        timeout_seconds=float(timeout_seconds),
+        worker_guard_path=guard_path,
+    )
+
+
+class PublicJevSemanticCallback:
+    """One trusted, bounded TypeSafe Choice per ledgered Jev semantic call."""
+
+    _REQUEST_FIELDS = frozenset(
+        {
+            "node_id",
+            "question_id",
+            "question_version",
+            "question",
+            "state",
+            "actor_profile_digest",
+            "permission_digest",
+        }
+    )
+
+    def __init__(self, profile, *, api_key, registry, trial, worker_guard_path=None):
+        if not isinstance(profile, ModelProfile) or profile.role != "jev":
+            raise ValueError("A frozen Jev Decisions profile is required")
+        if (
+            profile.provider != "openrouter"
+            or profile.endpoint != _JEV_OPENROUTER_ENDPOINT
+            or profile.provider_routing != "openrouter_model_alias"
+            or _JEV_OPENROUTER_MODEL.fullmatch(profile.model) is None
+            or type(api_key) is not str
+            or not api_key.strip()
+        ):
+            raise ValueError("A server-side OpenRouter Jev credential is required")
+        if not callable(getattr(registry, "render", None)) or not callable(
+            getattr(registry, "get", None)
+        ):
+            raise TypeError("A trusted benchmark question registry is required")
+        self.profile = profile
+        self.api_key = api_key
+        self.registry = registry
+        self.trial = trial
+        self.worker_guard_path = worker_guard_path
+
+    def _decision_request(self, request):
+        if type(request) is not dict or set(request) != self._REQUEST_FIELDS:
+            raise ValueError("Jev semantic request does not match the frozen route contract")
+        node_id = request.get("node_id")
+        question_id = request.get("question_id")
+        version = request.get("question_version")
+        state = request.get("state")
+        question = request.get("question")
+        if (
+            type(node_id) is not str
+            or not node_id.strip()
+            or type(question_id) is not str
+            or type(version) is not str
+            or type(state) is not dict
+            or type(question) is not dict
+            or set(question) != {"type", "instructions", "criteria"}
+        ):
+            raise ValueError("Jev semantic request is incomplete")
+        if (
+            request.get("actor_profile_digest") != self.trial.actor_profile_digest
+            or request.get("permission_digest") != self.trial.permission_digest
+        ):
+            raise ValueError("Jev semantic request differs from the trial permission identity")
+
+        self.registry.get(question_id, version)
+        trusted = self.registry.render(question_id, state, node_id=node_id, version=version)
+        if not isinstance(trusted, QuestionSpec) or trusted.to_wire() != question:
+            raise ValueError("Jev semantic request differs from the trusted question registry")
+        if question["type"] == "score":
+            criteria = tuple(question["criteria"])
+        elif type(question["criteria"]) is dict:
+            criteria = dict(question["criteria"])
+        else:
+            raise ValueError("Jev question criteria are malformed")
+        answer_question = QuestionSpec(
+            question_id,
+            version,
+            question["type"],
+            question["instructions"],
+            criteria,
+            tuple(state),
+        )
+        context = DecisionContext(
+            task_id=node_id,
+            project_id=self.trial.dataset,
+            code_version=self.trial.tool_adapter_digest,
+            evidence_version=digest({"question": question, "state": state}),
+            policy_version=question_id + "@" + version,
+            authorization_version=self.trial.permission_digest,
+            dataset_version=self.trial.dataset_version,
+        )
+        return DecisionRequest(context, (answer_question,), state)
+
+    def _wire_request(self, request):
+        decision_request = self._decision_request(request)
+        wire = decision_request.to_wire(self.profile.model)
+        encoded = json.dumps(wire, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        if len(encoded) > self.profile.max_question_tokens:
+            raise ValueError("Jev semantic context exceeds its frozen question-size bound")
+        return decision_request, wire, max(1, len(encoded))
+
+    def input_token_upper_bound(self, request):
+        _decision_request, _wire, upper_bound = self._wire_request(request)
+        return upper_bound
+
+    def __call__(self, request, *, timeout_seconds):
+        if (
+            type(timeout_seconds) not in {int, float}
+            or timeout_seconds <= 0
+            or timeout_seconds > self.profile.timeout_seconds
+        ):
+            raise ValueError("Jev dispatch timeout is outside its frozen profile bound")
+        decision_request, wire, _upper_bound = self._wire_request(request)
+        try:
+            frame = _run_jev_cancellable_worker(
+                self.profile,
+                self.api_key,
+                wire,
+                timeout_seconds,
+                self.worker_guard_path,
+            )
+        except Exception:
+            # A transport exception may follow a billed dispatch; the ledger must retain unknown.
+            raise RuntimeError("Jev provider result is unresolved") from None
+        if type(frame) is not dict:
+            raise RuntimeError("Jev provider result is unresolved")
+
+        raw_usage = frame.get("usage")
+        if (
+            type(raw_usage) is not dict
+            or type(raw_usage.get("input_tokens")) is not int
+            or type(raw_usage.get("output_tokens")) is not int
+            or raw_usage["input_tokens"] < 0
+            or raw_usage["output_tokens"] < 0
+        ):
+            raise RuntimeError("Jev usage is unknown")
+        input_tokens = raw_usage["input_tokens"]
+        output_tokens = raw_usage["output_tokens"]
+        raw_cost = frame.get("reported_cost_usd")
+        cost = None
+        if type(raw_cost) is str:
+            try:
+                candidate_cost = Decimal(raw_cost)
+            except InvalidOperation:
+                candidate_cost = None
+            if candidate_cost is not None and candidate_cost.is_finite() and candidate_cost >= 0:
+                cost = candidate_cost
+        reply = ModelReply(
+            frame.get("answer"),
+            tokens=input_tokens + output_tokens,
+            cost_usd=cost,
+            model=frame.get("model"),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            profile=self.profile,
+            cost_source="provider_billed" if cost is not None else "unknown",
+            # The OpenRouter endpoint is the requested router, not a verified
+            # identity for the upstream inference provider.
+            provider=None,
+            provider_request_id=frame.get("provider_request_id"),
+            generation_id=frame.get("generation_id"),
+            http_status=frame.get("status"),
+        )
+        if frame.get("status") != 200:
+            raise ModelCallError("Jev provider returned an unsuccessful response", reply=reply)
+        try:
+            payload = {
+                "model": reply.model,
+                "answers": {decision_request.questions[0].id: reply.value},
+                "usage": {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                },
+            }
+            _actual_model, _answers, _usage = validate_response(
+                payload, decision_request, self.profile.model
+            )
+        except (TypeError, ValueError, KeyError):
+            raise ModelCallError(
+                "Jev response did not satisfy the frozen decision contract", reply=reply
+            ) from None
+        return ModelReply(
+            reply.value,
+            tokens=reply.tokens,
+            cost_usd=reply.cost_usd,
+            model=reply.model,
+            input_tokens=reply.input_tokens,
+            output_tokens=reply.output_tokens,
+            profile=reply.profile,
+            cost_source=reply.cost_source,
+            provider=reply.provider,
+            provider_request_id=reply.provider_request_id,
+            generation_id=reply.generation_id,
+            http_status=reply.http_status,
+        )
+
+    def close(self):
+        return None
+
+
+def public_jev_semantic_callback_factory(
+    profile,
+    *,
+    api_key,
+    worker_guard_path=None,
+):
+    """Create a Jev semantic callback; each call remains a separately ledgered attempt."""
+    if not isinstance(profile, ModelProfile) or profile.role != "jev":
+        raise ValueError("A frozen Jev Decisions profile is required")
+    if (
+        profile.provider != "openrouter"
+        or profile.endpoint != _JEV_OPENROUTER_ENDPOINT
+        or profile.provider_routing != "openrouter_model_alias"
+        or _JEV_OPENROUTER_MODEL.fullmatch(profile.model) is None
+        or type(api_key) is not str
+        or not api_key.strip()
+    ):
+        raise ValueError("A server-side OpenRouter Jev credential is required")
+
+    def create(session, trial, route):
+        route_name = getattr(route, "value", route)
+        if route_name != "plan_jev_semantic_mcp":
+            raise ValueError("Jev semantic callback is restricted to the Jev comparison route")
+        registry = QuestionRegistry.from_spec(session.spec)
+        return PublicJevSemanticCallback(
+            profile,
+            api_key=api_key,
+            registry=registry,
+            trial=trial,
+            worker_guard_path=worker_guard_path,
+        )
+
+    return create
+
+
 def public_react_callback_factory(
     profile,
     *,
@@ -900,12 +1245,15 @@ def public_first_wave_model_adapter_factory(
     *,
     trial_id_for,
     primary_factory=None,
+    include_jev_semantic_callback=False,
 ):
     """Create the complete ledgered first-wave model role map.
 
     The frozen first-wave cohort uses one direct primary profile for Agent
     routes and separate Qwen profiles for the τ simulator and official judge.
-    Cross-model fallback is deliberately not wired into this factory.
+    Cross-model fallback is deliberately not wired into this factory. The
+    optional Jev callback is for separately frozen Jev-comparison routes; it
+    does not change the first-wave route manifest.
     """
     api_key = getattr(settings, "main_api_key", None)
     if type(api_key) is not str or not api_key.strip():
@@ -954,6 +1302,15 @@ def public_first_wave_model_adapter_factory(
             worker_guard_path=worker_guard_path,
         ),
     }
+    if include_jev_semantic_callback:
+        jev_key = getattr(settings, "jev_api_key", None)
+        if profiles.jev is None or type(jev_key) is not str or not jev_key.strip():
+            raise ValueError("A frozen Jev profile and server-side key are required")
+        callback_factories["semantic"] = public_jev_semantic_callback_factory(
+            profiles.jev,
+            api_key=jev_key,
+            worker_guard_path=worker_guard_path,
+        )
     return LedgeredModelAdapterFactory(
         callback_factories,
         {name: None for name in callback_factories},
