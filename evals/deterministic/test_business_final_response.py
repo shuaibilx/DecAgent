@@ -112,7 +112,7 @@ def test_unresolved_tool_outcome_cannot_be_rendered_or_summarized(status):
         )
 
 
-def run_plan(tmp_path, *, policy=None, summarizer=None, drift=False):
+def run_plan(tmp_path, *, policy=None, summarizer=None, drift=False, deadline_provider=None):
     from decagent.evaluation.business.comparison import Route
     from decagent.evaluation.business.public_session import EvaluationPlanSession
     from decagent.evaluation.business.routes import ControlledRoutes
@@ -156,6 +156,7 @@ def run_plan(tmp_path, *, policy=None, summarizer=None, drift=False):
             frozen_plan=catalog_plan(catalog),
             summarizer=summarizer,
             response_policy=module.FinalResponsePolicy() if drift else policy,
+            deadline_provider=deadline_provider,
         )
         return result, records, engine
     finally:
@@ -179,9 +180,11 @@ def test_narrative_summary_is_called_once_and_counted_as_primary(tmp_path):
     from decagent.evaluation.business.routes import ModelReply
 
     requests = []
+    deadlines = []
 
-    def summarize(request):
+    def summarize(request, *, timeout_seconds=None):
         requests.append(request)
+        deadlines.append(timeout_seconds)
         assert "verifier" not in repr(request) and "expected_value" not in repr(request)
         return ModelReply(
             {
@@ -199,11 +202,13 @@ def test_narrative_summary_is_called_once_and_counted_as_primary(tmp_path):
         tmp_path,
         policy=api().FinalResponsePolicy(mode="narrative"),
         summarizer=summarize,
+        deadline_provider=lambda: 30.0,
     )
     assert result.status == "complete", result.error
     assert len(requests) == result.usage.primary_requests == result.run.primary_requests == 1
     assert result.run.primary_tokens == 12 and result.run.primary_cost_usd == Decimal("0.003")
     assert engine.calls[0][1]["content"] == "The case was found."
+    assert deadlines == [30.0]
 
 
 def test_unknown_summary_usage_stops_without_retry_or_complete_report(tmp_path):

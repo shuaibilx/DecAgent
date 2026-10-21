@@ -356,8 +356,10 @@ class ObservedUsage:
                 observed["seconds"], None if observed["complete"] else "usage_unknown",
             ))
 
-    def call(self, role, callback, request):
-        return self.call_reply(role, callback, request).value
+    def call(self, role, callback, request, *, timeout_seconds=None):
+        return self.call_reply(
+            role, callback, request, timeout_seconds=timeout_seconds
+        ).value
 
     def call_reply(self, role, callback, request, *, timeout_seconds=None):
         if callback is None:
@@ -697,6 +699,10 @@ class ControlledRoutes:
                 raise TypeError("τ-step callback must be callable")
             if deadline_provider is not None and not callable(deadline_provider):
                 raise TypeError("Route deadline provider must be callable")
+
+            def current_timeout():
+                return deadline_provider() if deadline_provider is not None else None
+
             response_policy = (
                 DEFAULT_RESPONSE_POLICY if response_policy is None else response_policy
             )
@@ -872,7 +878,16 @@ class ControlledRoutes:
                         terminal = {"status": "stopped", "reason": "τ-Bench user stopped"}
                     elif route == Route.REACT_SKILL_MCP:
                         terminal = self._react(
-                            session, trial, public, gateway, usage, react, response_policy
+                            session,
+                            trial,
+                            public,
+                            gateway,
+                            usage,
+                            react,
+                            response_policy,
+                            timeout_provider=(
+                                current_timeout if deadline_provider is not None else None
+                            ),
                         )
                     else:
                         preparing = perf_counter()
@@ -881,7 +896,10 @@ class ControlledRoutes:
                         elif trial.workflow_mode == "hot":
                             plan = session.load_workflow()
                         else:
-                            plan = usage.call("primary", planner, public)
+                            plan = usage.call(
+                                "primary", planner, public,
+                                timeout_seconds=current_timeout(),
+                            )
                         plan = plan if isinstance(plan, Plan) else Plan.from_mapping(plan)
                         if trial.workflow_mode == "hot":
                             if session.validate_workflow(plan) is not True:
@@ -919,6 +937,7 @@ class ControlledRoutes:
                                 semantic,
                                 decisions,
                                 repository,
+                                current_timeout if deadline_provider is not None else None,
                             ),
                             task_input=task_input,
                             memories=memories if reused else {},
@@ -949,7 +968,12 @@ class ControlledRoutes:
                                     raise ValueError(
                                         "Final response requires a measured Qwen summary"
                                     )
-                                reply = usage.call_reply("primary", summarizer, final["request"])
+                                reply = usage.call_reply(
+                                    "primary",
+                                    summarizer,
+                                    final["request"],
+                                    timeout_seconds=current_timeout(),
+                                )
                                 if (
                                     reply.model is not None
                                     and reply.model != response_policy.summary_model
@@ -1193,7 +1217,10 @@ class ControlledRoutes:
             exception_type,
         )
 
-    def _react(self, session, trial, public, gateway, usage, callback, response_policy):
+    def _react(
+        self, session, trial, public, gateway, usage, callback, response_policy,
+        *, timeout_provider=None,
+    ):
         observations = []
         for _ in range(self.max_react_turns):
             session.boundary().check(trial, initial=False)
@@ -1202,7 +1229,10 @@ class ControlledRoutes:
                 request["conversation"] = session.conversation
             _record_tau_step(session, "agent")
             action = usage.call(
-                "primary", callback, request
+                "primary",
+                callback,
+                request,
+                timeout_seconds=(timeout_provider() if timeout_provider else None),
             )
             if (
                 isinstance(action, dict)
@@ -1274,7 +1304,10 @@ class ControlledRoutes:
             observations.append({"tool": command, "arguments": deepcopy(params), "data": data})
         return {"status": "stopped", "reason": "ReAct turn bound exhausted"}
 
-    def _handler(self, session, trial, gateway, usage, route, semantic, decisions, repository):
+    def _handler(
+        self, session, trial, gateway, usage, route, semantic, decisions, repository,
+        timeout_provider=None,
+    ):
         registry = QuestionRegistry.from_spec(session.spec)
 
         def execute(node, inputs, context, saved):
@@ -1355,9 +1388,16 @@ class ControlledRoutes:
                 "permission_digest": trial.permission_digest,
             }
             decisions.append(deepcopy(request))
-            value = usage.call(
-                "jev" if route == Route.PLAN_JEV_SEMANTIC else "primary", semantic, request
-            )
+            role = "jev" if route == Route.PLAN_JEV_SEMANTIC else "primary"
+            if timeout_provider is None:
+                value = usage.call(role, semantic, request)
+            else:
+                value = usage.call(
+                    role,
+                    semantic,
+                    request,
+                    timeout_seconds=timeout_provider(),
+                )
             try:
                 normalized = normalize_answer(question, value)
                 value = {

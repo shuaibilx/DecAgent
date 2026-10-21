@@ -365,7 +365,8 @@ def test_controlled_plan_route_sends_same_verified_candidates_and_accepts_only_r
         )
         plan = semantic_plan(spec, QuestionRegistry.from_spec(spec))
 
-    def semantic(request):
+    def semantic(request, *, timeout_seconds):
+        observed.setdefault("semantic_deadlines", []).append(timeout_seconds)
         observed["requests"].append(deepcopy(request))
         probabilities = {key: 0.01 for key in request["question"]["criteria"]}
         probabilities["article:7"] = 0.99
@@ -386,11 +387,13 @@ def test_controlled_plan_route_sends_same_verified_candidates_and_accepts_only_r
         trial,
         frozen_plan=plan,
         semantic=semantic,
+        deadline_provider=lambda: 2.5,
     )
 
     assert result.status == "complete", result.error
     assert result.cleanup_verified is True
     assert result.usage.jev_requests == 1
+    assert observed["semantic_deadlines"] == [2.5]
     assert result.terminal["final_response"]["mode"] == "deterministic"
     assert observed["sessions"][0].environment.calls == [
         ("retrieve_knowledge", retrieval_args)

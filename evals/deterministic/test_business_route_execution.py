@@ -113,6 +113,7 @@ class Session:
         self.gateway = self
         self.memory_fixture = {}
         self.closed = False
+        self.deadline_provider = None
 
     def boundary(self):
         self.observations += 1
@@ -149,6 +150,9 @@ class Session:
 
     def verified_memories(self):
         return self.memory_fixture
+
+    def bind_deadline_provider(self, provider):
+        self.deadline_provider = provider
 
     def handle_node(self, node, inputs, context, saved, gateway):
         raise NodePending({"kind": "action", "reason": "Authenticated approval required"})
@@ -252,6 +256,46 @@ def test_once_plan_executes_production_runtime_and_keeps_simulator_cost_separate
     assert result.run.user_simulator_cost_usd == Decimal("0.03")
     assert result.tool_calls[0].command == "directory"
     assert session.closed
+
+
+def test_plan_callback_receives_the_current_route_deadline():
+    session = Session()
+    route_trial = trial(session)
+    observed = []
+
+    def bounded_planner(_request, *, timeout_seconds):
+        observed.append(timeout_seconds)
+        return reply(session.plan)
+
+    result = api().ControlledRoutes(factory(session)).run(
+        Route.PLAN_MCP,
+        route_trial,
+        planner=bounded_planner,
+        deadline_provider=lambda: 4.25,
+    )
+
+    assert result.status == "complete", result.error
+    assert observed == [4.25]
+
+
+def test_react_callback_receives_the_current_route_deadline():
+    session = Session()
+    route_trial = trial(session)
+    observed = []
+
+    def bounded_react(_request, *, timeout_seconds):
+        observed.append(timeout_seconds)
+        return reply({"finish": True})
+
+    result = api().ControlledRoutes(factory(session)).run(
+        Route.REACT_SKILL_MCP,
+        route_trial,
+        react=bounded_react,
+        deadline_provider=lambda: 3.5,
+    )
+
+    assert result.status == "complete", result.error
+    assert observed == [3.5]
 
 
 def test_route_factories_bind_session_specific_model_and_budgeted_tool_adapters():
@@ -378,6 +422,7 @@ def test_agent_deadline_hook_runs_after_environment_setup_before_route_callback(
 def test_controlled_route_binds_deadline_provider_before_agent_execution():
     session = Session()
     seen = []
+    callback_timeouts = []
 
     def bind_deadline(provider):
         seen.append(provider)
@@ -386,14 +431,19 @@ def test_controlled_route_binds_deadline_provider_before_agent_execution():
     def provider():
         return 2.5
 
+    def react(_request, *, timeout_seconds):
+        callback_timeouts.append(timeout_seconds)
+        return reply({"finish": True})
+
     result = api().ControlledRoutes(factory(session)).run(
         Route.REACT_SKILL_MCP,
         trial(session),
-        react=lambda _request: reply({"finish": True}),
+        react=react,
         deadline_provider=provider,
     )
 
     assert result.status == "complete"
+    assert callback_timeouts == [2.5]
     assert seen == [provider]
     assert seen[0]() == 2.5
 

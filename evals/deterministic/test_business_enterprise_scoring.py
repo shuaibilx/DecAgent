@@ -312,7 +312,8 @@ def enterprise_session_fixture(tmp_path, *, changed_state=False):
     }
     environment.calls = []
 
-    def call_tool(name, arguments):
+    def call_tool(name, arguments, *, timeout_seconds=None):
+        assert timeout_seconds is None or timeout_seconds > 0
         environment.calls.append((name, deepcopy(arguments)))
         return {
             "content": [{"type": "text", "text": "case found"}],
