@@ -18,6 +18,7 @@ from decagent.evaluation.business.public_resources import (
 )
 from decagent.evaluation.business.public_trials import PublicTrialLedger, load_public_run_plan
 from decagent.evaluation.business.routes import (
+    ModelCallError,
     ModelReply,
     ObservedUsage,
     ProviderBillingEvidence,
@@ -144,6 +145,51 @@ def test_model_callback_reserves_then_settles_with_frozen_rate_provenance(tmp_pa
     assert snapshot["actual_model"] == profile.model
     assert Decimal(snapshot["actual_cost_usd"]) == Decimal("0.0000161")
     assert snapshot["actual_cost_source"] == "frozen_profile"
+    ledger.close()
+
+
+def test_measured_model_response_error_persists_safe_failure_diagnostics(tmp_path):
+    plan = _plan_with_known_primary_prices()
+    ledger, trial_id, route = _started_ledger(tmp_path, plan)
+    profile = plan.profiles.primary
+
+    def callback(_request, *, timeout_seconds):
+        assert timeout_seconds > 0
+        reply = ModelReply(
+            None,
+            tokens=3,
+            cost_usd=None,
+            model=profile.model,
+            input_tokens=2,
+            output_tokens=1,
+            profile=profile,
+        )
+        raise ModelCallError("private_response_must_not_be_persisted", reply=reply)
+
+    measured = LedgeredModelCallback(
+        callback,
+        ledger,
+        profile=profile,
+        trial_id=trial_id,
+        route=route,
+        input_token_upper_bound=lambda _value: 10,
+        route_remaining_seconds=lambda: ledger.route_remaining_seconds(
+            trial_id, route.value
+        ),
+    )
+
+    with pytest.raises(ModelCallError):
+        measured({"messages": []})
+
+    attempt = ledger._connection.execute(
+        "SELECT attempt_id,status FROM model_attempts"
+    ).fetchone()
+    snapshot = ledger.model_attempt_snapshot(attempt["attempt_id"])
+    assert attempt["status"] == "settled"
+    assert snapshot["error_category"] == "model_response_error"
+    assert snapshot["failure_stage"] == "model_response_validation"
+    assert snapshot["exception_type"] == "ModelCallError"
+    assert "private_response_must_not_be_persisted" not in json.dumps(snapshot)
     ledger.close()
 
 

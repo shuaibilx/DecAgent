@@ -366,7 +366,13 @@ class LedgeredModelCallback:
         except BaseException as exc:
             measured = getattr(exc, "reply", None)
             if _is_measured_model_reply(measured):
-                self._settle(attempt_id, measured, started, error_category="model_response_error")
+                self._settle(
+                    attempt_id,
+                    measured,
+                    started,
+                    error_category="model_response_error",
+                    failure=exc,
+                )
             else:
                 self.ledger.mark_model_unknown(
                     attempt_id,
@@ -414,7 +420,7 @@ class LedgeredModelCallback:
             )
         return reply
 
-    def _settle(self, attempt_id, reply, started, *, error_category=None):
+    def _settle(self, attempt_id, reply, started, *, error_category=None, failure=None):
         profile = self.profile
         if (
             reply.input_tokens is None
@@ -503,6 +509,12 @@ class LedgeredModelCallback:
             http_status=reply.http_status,
             attempt_seconds=perf_counter() - started,
             error_category=error_category,
+            failure_stage=(
+                safe_failure_stage(failure, default="model_response_validation")
+                if failure is not None
+                else None
+            ),
+            exception_type=safe_exception_type(failure),
             actual_provider=reply.provider,
             actual_model=reply.model,
             actual_cost_source=cost_source,

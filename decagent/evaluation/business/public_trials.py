@@ -1895,7 +1895,8 @@ class PublicTrialLedger:
         provider_request_id=None, generation_id=None, http_status=None, attempt_seconds=None,
         error_category=None, actual_provider=None, actual_model=None, actual_cost_source=None,
         billing_evidence=None, actual_cost_amount=None, actual_cost_currency=None,
-        actual_cost_basis=None, cached_input_tokens=None,
+        actual_cost_basis=None, cached_input_tokens=None, failure_stage=None,
+        exception_type=None,
     ):
         self._active()
         if actual_cost_amount is None and actual_cost_usd is not None:
@@ -1999,6 +2000,11 @@ class PublicTrialLedger:
             )
         ):
             raise ValueError("Settled model usage must be complete and nonnegative")
+        validate_diagnostic(
+            failure_stage=failure_stage,
+            exception_type=exception_type,
+            http_status=http_status,
+        )
         for identifier in (provider_request_id, generation_id):
             if identifier is not None and (
                 type(identifier) is not str or not _SAFE_ID.fullmatch(identifier)
@@ -2067,7 +2073,8 @@ class PublicTrialLedger:
                 "actual_provider=?,actual_model=?,billing_gross_amount=?,billing_currency=?,"
                 "billing_voucher_credit_amount=?,billing_cash_paid_amount=?,billing_source=?,"
                 "billing_record_id=?,"
-                "error_category=?,http_status=?,attempt_seconds=?,settled_at_utc=? "
+                "error_category=?,http_status=?,failure_stage=?,exception_type=?,"
+                "attempt_seconds=?,settled_at_utc=? "
                 "WHERE attempt_id=?",
                 (
                     status, actual_input_tokens, actual_output_tokens, cached_input_tokens,
@@ -2083,6 +2090,7 @@ class PublicTrialLedger:
                     normalized_billing["source"] if normalized_billing else None,
                     normalized_billing["record_id"] if normalized_billing else None,
                     "resource_overrun" if overrun else error_category, http_status,
+                    failure_stage, exception_type,
                     float(attempt_seconds) if attempt_seconds is not None else None,
                     _now(), attempt_id,
                 ),

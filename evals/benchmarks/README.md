@@ -226,6 +226,8 @@ to record route outcomes. The v8 execution produced 2 failed, 6 unknown and 0
 successful routes; it did not change the full benchmark denominator or count
 engineering protocol smokes as task attempts.
 
+After offline diagnostic fixes, a first-wave dry-run at candidate `36c664944d378b5deee26e9feac8b87280ce4739` reselected the same four tasks and eight route slots, confirmed the pinned local images, and created no ledger or model/MCP calls. Its evidence is `evidence/public-evaluation-first-wave-preflight-20261021-36c6649.json`. The same-SHA [GitHub Actions run 39611406922](https://github.com/shuaibilx/DecAgent/actions/runs/39611406922) subsequently passed all jobs, including Python 3.11/3.13, PostgreSQL integration, Workbench, isolated Docker/SQL, wheel/MCP, and Compose. This remains a preflight only: it does not replay v8 unknown routes, change their terminal states, or authorize a new live batch. A live run still requires a clean frozen candidate and separate batch authorization.
+
 Frozen input SHA-256 values are newline-stable: the source manifest is hashed
 as UTF-8 text with LF line endings, while the task inventory retains its
 original UTF-8 CRLF canonical digest. The verifier normalizes checkout line

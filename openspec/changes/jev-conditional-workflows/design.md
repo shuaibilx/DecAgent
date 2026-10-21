@@ -681,6 +681,12 @@ First-wave report v1 and the canonical ledger were not rewritten, and no unknown
 
 Verification: focused model dispatch, public ledger, public route, live runner, and diagnostic suites pass (`167 passed`). The full deterministic suite passes (`1911 passed, 18 skipped`); Ruff and strict OpenSpec validation pass. The regression specifically checks that a timeout stores `TimeoutError` and the stage without the exception message, tool writes stay unknown and non-replayable, prior unknown diagnostics survive cleanup amendment, old ledger migration adds nullable columns without changing the cohort, and the report contains only whitelisted attempt metadata. This improves diagnosis for a future separately authorized cohort; it does not repair or retry the 2026-10-20 attempts, and it does not open the live gate.
 
+### 2026-10-21 Diagnostics for settled response-contract failures
+
+`LedgeredModelCallback` now also persists the allowlisted `model_response_validation` stage and sanitized exception class when a provider response includes complete usage but the caller rejects its plan/action contract. The cost and token usage still settle normally; exception text, prompt, and response content remain excluded. Existing ledger rows are not backfilled or rewritten.
+
+Verification: the new real-SQLite regression first failed because the settled attempt had no failure stage, then passed after the ledger adapter and `settle_model_attempt()` persisted the existing nullable diagnostic columns. Focused public model dispatch and ledger suites pass (`84 passed`); full deterministic suite passes (`1970 passed, 18 skipped`); Ruff passes. No provider requests were made. This records future response failures more precisely without changing historical v8 route outcomes or enabling a live batch.
+
 ### 2026-10-21 评测候选身份与历史 cohort 边界
 
 已运行过的 v7 首波 cohort 没有持久化 candidate SHA，且包含模型 attempt 和终态 route。不得把当前 commit、其 CI 记录或后生成的 report 倒推为历史试次候选。新实现要求空白且合法的 ledger 在任何 route claim 前绑定一个通过同 SHA GitHub CI 的候选；恢复、dispatch 和 report 必须验证同一绑定。已有活动的无 SHA ledger 不可补绑；损坏 metadata 不可绕过校验。此保护只允许将来的新 cohort 正确归因，不修复历史结果，也不重发其 unknown/failed routes。新 cohort、预算和派发批次需要重新冻结后才能开始真实评测。
