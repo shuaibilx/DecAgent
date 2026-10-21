@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-22",
+  "candidate_sha": "f45a707642b19699b55ca26a56984216ecbcdd3e",
+  "environment": {
+    "os": "Windows",
+    "python": "3.13.0",
+    "pytest": "9.1.1",
+    "pinned_tau_subprocess_runtime_configured": false
+  },
+  "command": ".venv\\Scripts\\python.exe -m pytest evals/deterministic/test_public_cancellable_model.py evals/deterministic/test_business_tau_process.py",
+  "exit_code": 0,
+  "result": {
+    "passed": 48,
+    "failed": 0,
+    "skipped": 14,
+    "duration_seconds": 17.77,
+    "skip_reason": "opt-in pinned tau subprocess runtime is not configured"
+  },
+  "specifically_verified": [
+    "A timed-out provider worker and its descendant are reaped.",
+    "An active one-shot model worker prevents supervisor takeover after owner-lock release.",
+    "The Windows tau bridge closes its interpreter process tree, including an owned descendant.",
+    "Tau request-specific deadlines bound a blocked worker.",
+    "Tau callback receives the remaining request deadline, and callbacks without a timeout-aware contract are rejected."
+  ],
+  "external_model_or_benchmark_requests": 0,
+  "interpretation": "Windows cancellation and process cleanup engineering evidence only. No live model call, public benchmark trial, or official tau subprocess runtime test was performed."
+}
