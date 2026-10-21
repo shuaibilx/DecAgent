@@ -39,7 +39,7 @@
 
 - [ ] 5.1 优化公共CI分层、独立job并行与锁定缓存，保留Python3.11/3.13、Ruff、确定性、PostgreSQL、核心E2E、wheel/MCP、Compose；比较各job与总耗时，列出skip原因。
 - [ ] 5.2 实现私有部署仓库的发布验证器和最小输入工作流；离线测试拒绝错误repo/SHA/tag/main/CI/run attempt/digest和任意脚本路径，不在本机执行未验证代码。
-- [ ] 5.3 创建/配置私有 DecAgent-deploy，迁移本机Runner，公共发布仅最小凭证触发固定workflow；验证公共PR/Actions无法调度本机，私有凭证最小且不打印密钥。部分进度（2026-10-21）：公共仓库 Runner 数量 0，公共 workflow 无 self-hosted deployment job，本机 `DecAgentLocalDeployRunner` 计划任务 Disabled，Runner 服务/进程为 0；因此当前公共路径无法调度本机。私有仓库、最小触发凭证、Runner 迁移和验证仍未完成，本项保持未勾选。
+- [ ] 5.3 创建/配置私有 DecAgent-deploy，迁移本机Runner，公共发布仅最小凭证触发固定workflow；验证公共PR/Actions无法调度本机，私有凭证最小且不打印密钥。2026-10-22 复核：GitHub 公共仓库 Runner API 返回 `total_count=0`；默认分支只有 CI 和 release workflow。release 文件的 job 全部运行在 GitHub-hosted `ubuntu-latest` 并只发布 GHCR 镜像，不含 `self-hosted` 或本机 deploy job；已合并 [安全 PR #1](https://github.com/shuaibilx/DecAgent/pull/1)。本机 `DecAgentLocalDeployRunner` 计划任务为 Disabled，Runner 服务/进程为 0。因此当前公共路径不能调度本机；但私有部署仓库、最小触发凭证、Runner 迁移和验证仍未完成，本项保持未勾选。GitHub workflow 列表仍显示旧名称 “Release and local deployment”，与当前 GHCR-only job 不符；建议下次经过受审 PR 修正名称。
 - [ ] 5.4 完成一次可信版本GHCR发布至本机SOP服务的全链路演练及失败演练；保存commit/run/digest/健康/回滚证据，任务串行无互相覆盖。
 - [ ] 5.5 分别更新代码仓库、CI、CD操作指南与导航，提供发布时序/信任边界图；核对真实仓库/命令，不把公网与独立Linux标为完成。
 
