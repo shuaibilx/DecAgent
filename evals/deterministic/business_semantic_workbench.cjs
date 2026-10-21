@@ -45,7 +45,15 @@ const context = vm.createContext({
   crypto: {randomUUID() {return 'semantic-reply-idempotency';}},
   setTimeout, clearTimeout,
   EventSource: function () { this.close = () => {}; this.addEventListener = () => {}; },
-  fetch(url, options) { return new Promise(resolve => pending.push({url, options, resolve})); },
+  fetch(url, options) {
+    if (url === "/api/v3/guest/status") {
+      return Promise.resolve({ok: true, json: async () => ({enabled: false})});
+    }
+    if (url === "/api/v3/guest/session") {
+      return Promise.resolve({ok: false, status: 404, json: async () => ({})});
+    }
+    return new Promise(resolve => pending.push({url, options, resolve}));
+  },
 });
 
 vm.runInContext(fs.readFileSync('decagent/gateway/static/business.js', 'utf8'), context);

@@ -29,12 +29,14 @@ jobs:
           node --check evals/deterministic/business_selection.cjs
           node --check evals/deterministic/business_trace_rendering.cjs
           node --check evals/deterministic/business_semantic_workbench.cjs
+          node --check evals/deterministic/guest_workbench.cjs
 
       - name: Run workbench UI behavior regressions
         run: |
           node evals/deterministic/business_selection.cjs
           node evals/deterministic/business_trace_rendering.cjs
           node evals/deterministic/business_semantic_workbench.cjs
+          node evals/deterministic/guest_workbench.cjs
 
   checks:
     name: Python ${{ matrix.python-version }} checks

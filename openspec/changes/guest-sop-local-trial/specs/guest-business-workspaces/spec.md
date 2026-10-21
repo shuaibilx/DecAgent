@@ -9,10 +9,15 @@
 ### Requirement: Anonymous isolated workspace session
 
 系统 MUST 在游客开始体验时创建独立模拟公司和不可预测的浏览器会话。workspace MUST 由服务端认证解析，不接受客户端任意指定。会话 MUST 使用安全 Cookie、CSRF 和来源校验；本机 HTTP 例外 MUST 仅限 loopback。
+游客入口 MUST 由 `DECAGENT_GUEST_TRIAL_ENABLED` 显式开启，该配置默认 MUST 为关闭；配额、限流和生命周期清理尚未完成时，入口 MUST 保持关闭。
 
 #### Scenario: Two independent visitors
 - **WHEN** 两个浏览器开始游客体验
 - **THEN** 系统建立不同空间和模拟身份；其中一方不能读取另一方的空间数据或重用其操作标识
+
+#### Scenario: Guest trial is disabled by default
+- **WHEN** `DECAGENT_GUEST_TRIAL_ENABLED` 未设置或为 `false`，客户端请求开始游客体验
+- **THEN** 系统拒绝游客会话创建，不创建 workspace、模拟公司数据或额度占用
 
 ### Requirement: Workspace isolation across every business surface
 
@@ -52,10 +57,15 @@
 ### Requirement: Local simulated role switching
 
 游客 MUST 能在本人空间的员工、处理人与主管间切换。切换 MUST 重新建立当前身份权限并清理浏览器旧详情；原任务、人工待办和确认 MUST 继续绑定原执行身份。游客 MUST NOT 获得全局 owner、任意 Shell 或真实公司权限。
+切换响应 MUST 返回固定角色集合中的当前 `role_key`，并轮换 CSRF token；浏览器 MUST 更新当前角色并清空身份相关的任务、操作、审批、工单详情、trace、记忆和事件流。工作台 MUST 只在游客入口显式开启时展示入口。
 
 #### Scenario: Role switch during confirmation
 - **WHEN** 游客切换到另一个模拟员工后提交此前员工的确认
 - **THEN** 确认被拒绝；切回原身份后仍需按原操作、资源版本和独立确认规则处理
+
+#### Scenario: Switch roles in the browser
+- **WHEN** 游客切换角色或刷新带有效游客会话的页面
+- **THEN** 工作台显示服务端确认的当前角色；切换前的身份详情从页面和事件流状态中清除，刷新后只恢复当前角色。
 
 ### Requirement: Inactivity expiry and controlled cleanup
 
@@ -64,6 +74,27 @@
 #### Scenario: Expiry with in-flight work
 - **WHEN** 空间过期或清空时仍存在执行中或结果未知任务
 - **THEN** 系统撤销新准入，保留受限恢复材料直至任务安全终结；后台清理不让任务复活或重复提交
+
+#### Scenario: Clear while a Worker is writing a checkpoint
+- **WHEN** Worker 已领取游客任务并持有任务锁，游客同时清空空间
+- **THEN** 新 Worker 不得领取该空间任务，清理保持 pending；在途 Worker 释放锁后，清理删除任务和其最终 checkpoint，任务不得因租约或恢复再次执行
+
+#### Scenario: Ambiguous operation evidence blocks deletion
+- **WHEN** 游客空间中的操作收据历史不完整、与操作状态不匹配，或成功操作缺少已验证收据
+- **THEN** 清理保留业务数据和恢复材料并返回 pending；不得通过重放操作来“核实”结果
+
+#### Scenario: Verified receipt allows safe terminal cleanup
+- **WHEN** Worker/操作已退出临界区，租约已结束，且操作的提交结果可由一致 receipt 验证
+- **THEN** 清理可以终结并删除空间任务、操作和 checkpoint；重复运行清理器不创建新操作或改变其业务结果
+
+#### Scenario: Background polling does not extend guest activity
+- **WHEN** 游客超过 7 天没有发起有效用户请求，但浏览器持续恢复 session、读取 status 或订阅任务事件
+- **THEN** 被动请求不更新 `last_activity_at`；游客 session、员工会话回退、MCP token 认证和 Worker 凭证解析均拒绝过期身份
+
+#### Scenario: Clear revokes workspace credentials and permits safe retry
+- **WHEN** 游客使用当前 CSRF token 和精确 Origin 清空自己的空间，或在清空成功但响应丢失后重试相同 DELETE
+- **THEN** workspace 停用、浏览器和 MCP 凭证立即失效、模拟员工账号禁用；相同请求只返回已清空且不重复改变状态，错误 Origin 或 CSRF 不得执行清空
+- **AND** 物理清理后只保留验证同一 token/CSRF/Origin 重试所需的哈希 tombstone，不恢复 workspace 访问或原始业务记录
 
 ### Requirement: Uncalibrated decisions require human selection
 

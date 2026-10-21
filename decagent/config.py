@@ -18,6 +18,7 @@ class Settings:
     fallback_base_url: str = "https://openrouter.ai/api/v1"
     fallback_api_key: str = field(default="", repr=False)
     fallback_enabled: bool = False
+    guest_trial_enabled: bool = False
     jev_model: str = "jev-1.13.0"
     jev_provider: str = "typesafe"
     jev_api_key: str = field(default="", repr=False)
@@ -29,6 +30,8 @@ class Settings:
             raise ValueError("DECAGENT_JEV_PROVIDER must be typesafe or openrouter")
         if type(self.fallback_enabled) is not bool:
             raise ValueError("DECAGENT_MAIN_FALLBACK_ENABLED must be a boolean")
+        if type(self.guest_trial_enabled) is not bool:
+            raise ValueError("DECAGENT_GUEST_TRIAL_ENABLED must be a boolean")
         if self.fallback_enabled and not self.resolved_fallback_api_key:
             raise ValueError("OpenRouter fallback requires an API key")
         fallback = urlsplit(self.fallback_base_url)
@@ -63,6 +66,9 @@ class Settings:
         fallback_enabled = os.getenv("DECAGENT_MAIN_FALLBACK_ENABLED", "false").strip().lower()
         if fallback_enabled not in {"true", "false"}:
             raise ValueError("DECAGENT_MAIN_FALLBACK_ENABLED must be true or false")
+        guest_trial_enabled = os.getenv("DECAGENT_GUEST_TRIAL_ENABLED", "false").strip().lower()
+        if guest_trial_enabled not in {"true", "false"}:
+            raise ValueError("DECAGENT_GUEST_TRIAL_ENABLED must be true or false")
         fallback_key = os.getenv("DECAGENT_MAIN_FALLBACK_API_KEY", "")
         return cls(
             database_url=os.getenv("DECAGENT_DATABASE_URL", ""),
@@ -79,6 +85,7 @@ class Settings:
             ),
             fallback_api_key=fallback_key,
             fallback_enabled=fallback_enabled == "true",
+            guest_trial_enabled=guest_trial_enabled == "true",
             jev_model=os.getenv("DECAGENT_JEV_MODEL", "jev-1.13.0"),
             jev_provider=jev_provider,
             jev_api_key=jev_api_key,

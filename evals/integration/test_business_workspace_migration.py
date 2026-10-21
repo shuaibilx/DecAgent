@@ -26,11 +26,13 @@ def pre_workspace_database(monkeypatch):
     url = os.getenv("DECAGENT_TEST_DATABASE_URL")
     if not url:
         pytest.skip("Set DECAGENT_TEST_DATABASE_URL to a disposable dedicated database")
-    version = storage.SCHEMA_VERSION
+    # Keep this fixture anchored before the memory workspace migration even
+    # when later migrations are appended to the production sequence.
+    version = storage.MIGRATIONS.index("022_business_memory_workspace.sql")
     with temporary_database(url, prefix="case_workspace_") as database:
         with monkeypatch.context() as patch:
-            patch.setattr(storage, "MIGRATIONS", storage.MIGRATIONS[:-1])
-            patch.setattr(storage, "SCHEMA_VERSION", version - 1)
+            patch.setattr(storage, "MIGRATIONS", storage.MIGRATIONS[:version])
+            patch.setattr(storage, "SCHEMA_VERSION", version)
             database.migrate()
         yield database
 

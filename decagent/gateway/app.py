@@ -7,6 +7,7 @@ import re
 from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -23,6 +24,16 @@ from decagent.business import access
 from decagent.business.access import AccessError
 from decagent.business.employee_auth import COOKIE_NAME as EMPLOYEE_COOKIE_NAME
 from decagent.business.employee_auth import EmployeeAuth
+from decagent.business.guest_auth import (
+    COOKIE_NAME as GUEST_COOKIE_NAME,
+)
+from decagent.business.guest_auth import (
+    CSRF_COOKIE_NAME as GUEST_CSRF_COOKIE_NAME,
+)
+from decagent.business.guest_auth import (
+    GuestAuth,
+)
+from decagent.business.guest_cleanup import GuestWorkspaceCleaner
 from decagent.business.mcp_client import MCPToolError
 from decagent.business.operations import OperationService
 from decagent.policy import (
@@ -49,6 +60,7 @@ from .models import (
     DecisionThresholdInput,
     DiagnosticInput,
     EmployeeLoginInput,
+    GuestRoleInput,
     MemoryReviewInput,
     MemoryRevokeInput,
     ProjectInput,
@@ -124,6 +136,8 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     employee_auth = EmployeeAuth(
         database, auth.origin, auth.secure, settings.data_dir / "demo-auth"
     )
+    guest_auth = GuestAuth(database, auth.origin, auth.secure)
+    guest_cleaner = GuestWorkspaceCleaner(database)
     redactor = GatewayRedactor(
         known_secrets=tuple(
             filter(
@@ -141,6 +155,8 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     app = FastAPI(title="DecAgent", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.database, app.state.callbacks, app.state.auth = database, callbacks, auth
     app.state.employee_auth = employee_auth
+    app.state.guest_auth = guest_auth
+    app.state.guest_cleaner = guest_cleaner
 
     def safe(value):
         return redactor.sanitize(jsonable_encoder(value), surface="ui")
@@ -171,6 +187,7 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
 
     @app.middleware("http")
     async def owner_boundary(request: Request, call_next):
+        guest_activity = None
         if request.url.path.startswith("/api/v1"):
             if auth.secure and request.url.scheme != "https":
                 return error(ApiError(403, "https_required", "This instance requires HTTPS"))
@@ -188,6 +205,46 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
                         )
             elif not auth.valid_origin(request):
                 return error(ApiError(403, "origin", "Exact configured Origin required"))
+        elif request.url.path == "/api/v3/guest/status" and request.method == "GET":
+            pass
+        elif request.url.path.startswith("/api/v3/guest"):
+            if not settings.guest_trial_enabled:
+                return error(ApiError(404, "not_found", "Guest trial is not enabled"))
+            start = request.url.path == "/api/v3/guest/session" and request.method == "POST"
+            if auth.secure and request.url.scheme != "https":
+                return error(ApiError(403, "https_required", "This instance requires HTTPS"))
+            if start:
+                if not guest_auth.valid_origin(request):
+                    return error(
+                        ApiError(403, "origin", "Exact configured loopback Origin required")
+                    )
+            else:
+                guest = await asyncio.to_thread(guest_auth.authenticate_browser, request)
+                if guest is None:
+                    clear_replay = (
+                        request.url.path == "/api/v3/guest/workspace"
+                        and request.method == "DELETE"
+                        and await asyncio.to_thread(
+                            guest_auth.valid_clear_replay, request
+                        )
+                    )
+                    if not clear_replay:
+                        return error(
+                            ApiError(401, "unauthenticated", "Guest session required")
+                        )
+                    request.state.guest_clear_replay = True
+                    guest = None
+                if guest is not None:
+                    request.state.guest = guest
+                    guest_activity = guest
+                    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+                        valid = await asyncio.to_thread(
+                            guest_auth.valid_mutation, request, guest
+                        )
+                        if not valid:
+                            return error(
+                                ApiError(403, "csrf_origin", "CSRF or Origin validation failed")
+                            )
         elif request.url.path.startswith("/api/v2/business"):
             if employee_auth.secure and request.url.scheme != "https":
                 return error(ApiError(403, "https_required", "This instance requires HTTPS"))
@@ -199,16 +256,60 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
                     return error(ApiError(403, "origin", "Exact configured Origin required"))
             else:
                 employee = await asyncio.to_thread(employee_auth.authenticate_browser, request)
+                guest_session = False
+                if employee is None:
+                    employee = await asyncio.to_thread(guest_auth.authenticate_browser, request)
+                    guest_session = employee is not None
                 if employee is None:
                     return error(ApiError(401, "unauthenticated", "Employee login required"))
                 request.state.employee = employee
+                if guest_session:
+                    guest_activity = employee
                 if request.method not in {"GET", "HEAD", "OPTIONS"}:
-                    valid = await asyncio.to_thread(employee_auth.valid_mutation, request, employee)
+                    mutation_auth = guest_auth if guest_session else employee_auth
+                    valid = await asyncio.to_thread(
+                        mutation_auth.valid_mutation, request, employee
+                    )
                     if not valid:
                         return error(
                             ApiError(403, "csrf_origin", "CSRF or Origin validation failed")
                         )
         response = await call_next(request)
+        if (
+            guest_activity is not None
+            and response.status_code < 400
+            and not guest_auth.is_passive_activity(request)
+        ):
+            expires_at = await asyncio.to_thread(guest_auth.touch, guest_activity)
+            if expires_at is not None:
+                max_age = max(0, int((expires_at - datetime.now(UTC)).total_seconds()))
+                token = request.cookies.get(GUEST_COOKIE_NAME)
+                csrf_token = request.cookies.get(GUEST_CSRF_COOKIE_NAME)
+                if token:
+                    response.set_cookie(
+                        GUEST_COOKIE_NAME,
+                        token,
+                        max_age=max_age,
+                        httponly=True,
+                        secure=auth.secure,
+                        samesite="strict",
+                        path="/",
+                    )
+                existing_cookies = response.headers.getlist("set-cookie")
+                csrf_cookie_set = any(
+                    cookie.startswith(GUEST_CSRF_COOKIE_NAME + "=")
+                    for cookie in existing_cookies
+                )
+                if csrf_token and not csrf_cookie_set:
+                    response.set_cookie(
+                        GUEST_CSRF_COOKIE_NAME,
+                        csrf_token,
+                        max_age=max_age,
+                        httponly=False,
+                        secure=auth.secure,
+                        samesite="strict",
+                        path="/",
+                    )
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -453,6 +554,10 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     def health():
         return {"status": "ok"}
 
+    @app.get("/api/v3/guest/status")
+    def guest_trial_status():
+        return {"enabled": settings.guest_trial_enabled}
+
     @app.post("/api/v1/auth/session")
     def login(body: SessionInput):
         issued = auth.session(body.token)
@@ -477,6 +582,138 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
         response = JSONResponse({"logged_out": True})
         response.delete_cookie(
             COOKIE_NAME, path="/", secure=auth.secure, httponly=True, samesite="strict"
+        )
+        return response
+
+    @app.post("/api/v3/guest/session")
+    def guest_session_start(request: Request):
+        issued = guest_auth.issue_or_restore(request)
+        response = JSONResponse(
+            {
+                "is_guest": True,
+                "identity": issued.identity.public(),
+                "csrf_token": issued.csrf_token,
+                "expires_at": issued.expires_at.isoformat(),
+                "roles": guest_auth.role_options(),
+                "current_role_key": guest_auth.current_role_key(issued.identity),
+            },
+            status_code=201 if issued.created else 200,
+        )
+        max_age = max(0, int((issued.expires_at - datetime.now(UTC)).total_seconds()))
+        response.set_cookie(
+            GUEST_COOKIE_NAME,
+            issued.token,
+            max_age=max_age,
+            httponly=True,
+            secure=auth.secure,
+            samesite="strict",
+            path="/",
+        )
+        response.set_cookie(
+            GUEST_CSRF_COOKIE_NAME,
+            issued.csrf_token,
+            max_age=max_age,
+            httponly=False,
+            secure=auth.secure,
+            samesite="strict",
+            path="/",
+        )
+        return response
+
+    @app.get("/api/v3/guest/session")
+    def guest_session_restore(request: Request):
+        identity = request.state.guest
+        csrf_token = guest_auth.csrf_for(
+            identity, request.cookies.get(GUEST_CSRF_COOKIE_NAME, "")
+        )
+        with database.connect() as conn:
+            row = conn.execute(
+                "SELECT expires_at FROM business.guest_sessions WHERE token_hash=%s "
+                "AND workspace_id=%s AND employee_id=%s AND revoked_at IS NULL "
+                "AND expires_at>now()",
+                (identity.token_hash, identity.workspace_id, identity.employee_id),
+            ).fetchone()
+        if row is None:
+            raise ApiError(401, "unauthenticated", "Guest session required")
+        return {
+            "is_guest": True,
+            "identity": identity.public(),
+            "csrf_token": csrf_token,
+            "expires_at": row["expires_at"].isoformat(),
+            "roles": guest_auth.role_options(),
+            "current_role_key": guest_auth.current_role_key(identity),
+        }
+
+    @app.delete("/api/v3/guest/session")
+    def guest_session_end(request: Request):
+        guest_auth.revoke(request.state.guest)
+        response = JSONResponse({"logged_out": True})
+        response.delete_cookie(
+            GUEST_COOKIE_NAME,
+            path="/",
+            secure=auth.secure,
+            httponly=True,
+            samesite="strict",
+        )
+        response.delete_cookie(
+            GUEST_CSRF_COOKIE_NAME,
+            path="/",
+            secure=auth.secure,
+            httponly=False,
+            samesite="strict",
+        )
+        return response
+
+    @app.delete("/api/v3/guest/workspace")
+    async def guest_workspace_clear(request: Request):
+        is_clear_replay = getattr(request.state, "guest_clear_replay", False)
+        if not is_clear_replay and not guest_auth.clear_workspace(request.state.guest):
+            raise ApiError(404, "not_found", "Guest workspace is unavailable")
+        if not is_clear_replay:
+            await asyncio.to_thread(
+                guest_cleaner.clean_workspace, request.state.guest.workspace_id
+            )
+        response = JSONResponse({"cleared": True})
+        response.delete_cookie(
+            GUEST_COOKIE_NAME,
+            path="/",
+            secure=auth.secure,
+            httponly=True,
+            samesite="strict",
+        )
+        response.delete_cookie(
+            GUEST_CSRF_COOKIE_NAME,
+            path="/",
+            secure=auth.secure,
+            httponly=False,
+            samesite="strict",
+        )
+        return response
+
+    @app.post("/api/v3/guest/role")
+    def guest_role_switch(body: GuestRoleInput, request: Request):
+        switched = guest_auth.switch_role(request.state.guest, body.role_key)
+        if switched is None:
+            raise ApiError(401, "unauthenticated", "Guest session is unavailable")
+        response = JSONResponse(
+            {
+                "is_guest": True,
+                "identity": switched.identity.public(),
+                "csrf_token": switched.csrf_token,
+                "expires_at": switched.expires_at.isoformat(),
+                "roles": guest_auth.role_options(),
+                "current_role_key": guest_auth.current_role_key(switched.identity),
+            }
+        )
+        max_age = max(0, int((switched.expires_at - datetime.now(UTC)).total_seconds()))
+        response.set_cookie(
+            GUEST_CSRF_COOKIE_NAME,
+            switched.csrf_token,
+            max_age=max_age,
+            httponly=False,
+            secure=auth.secure,
+            samesite="strict",
+            path="/",
         )
         return response
 
@@ -868,6 +1105,8 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
             after = int(last)
             while not await request.is_disconnected():
                 current = await asyncio.to_thread(employee_auth.authenticate_browser, request)
+                if current is None:
+                    current = await asyncio.to_thread(guest_auth.authenticate_browser, request)
                 if (
                     current is None
                     or current.employee_id != request.state.employee.employee_id

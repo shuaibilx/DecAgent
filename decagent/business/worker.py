@@ -1,5 +1,7 @@
 """Lease-fenced business queue consumer using the shared persistent checkpointer."""
 
+import logging
+
 from langgraph.types import Command
 from psycopg.errors import UndefinedTable
 
@@ -40,6 +42,9 @@ class BusinessWorker(Worker):
         self.conditional_graph_factory = conditional_graph_factory or conditional_graph.build_graph
         self.conditional_services_factory = conditional_services_factory
         self._owns_mcp_manager = False
+        from decagent.business.guest_cleanup import GuestWorkspaceCleaner
+
+        self.guest_cleaner = GuestWorkspaceCleaner(database)
         if self.services_factory is None:
             self._ensure_mcp()
 
@@ -97,12 +102,13 @@ class BusinessWorker(Worker):
             if [row["version"] for row in versions] != list(range(1, SCHEMA_VERSION + 1)):
                 raise ValueError("Incompatible database schema; migration/upgrade required")
             return conn.execute(
-                "WITH candidate AS (SELECT id FROM app.tasks WHERE kind='business' "
-                "AND employee_id IS NOT NULL AND credential_ref IS NOT NULL "
-                "AND NOT business_migration_pending "
-                "AND (state='queued' OR (state='running' AND "
-                "(lease_until IS NULL OR lease_until<=clock_timestamp()))) "
-                "ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1) "
+                "WITH candidate AS (SELECT t.id FROM app.tasks t JOIN business.workspaces w "
+                "ON w.id=t.workspace_id AND w.active WHERE t.kind='business' "
+                "AND t.employee_id IS NOT NULL AND t.credential_ref IS NOT NULL "
+                "AND NOT t.business_migration_pending "
+                "AND (t.state='queued' OR (t.state='running' AND "
+                "(t.lease_until IS NULL OR t.lease_until<=clock_timestamp()))) "
+                "ORDER BY t.created_at,t.id FOR UPDATE OF t SKIP LOCKED LIMIT 1) "
                 "UPDATE app.tasks t SET state='running',lease_owner=%s,"
                 "lease_generation=lease_generation+1,"
                 "lease_until=clock_timestamp()+%s*interval '1 second' "
@@ -195,8 +201,26 @@ class BusinessWorker(Worker):
         }
 
     def run_once(self):
+        try:
+            self.guest_cleaner.run_once()
+        except Exception:
+            logging.getLogger(__name__).exception("Guest workspace cleanup pass failed")
         task = self.claim()
         if task is None:
+            return False
+        task_lock = self.database.connect(autocommit=True)
+        if not task_lock.execute(
+            "SELECT pg_try_advisory_lock(hashtextextended(%s,46126)) AS acquired",
+            (str(task["id"]),),
+        ).fetchone()["acquired"]:
+            task_lock.close()
+            with self.database.connect() as conn:
+                conn.execute(
+                    "UPDATE app.tasks SET state='queued',lease_owner=NULL,lease_until=NULL,"
+                    "lease_generation=lease_generation+1 WHERE id=%s AND state='running' "
+                    "AND lease_owner=%s AND lease_generation=%s",
+                    (task["id"], self.owner, task["lease_generation"]),
+                )
             return False
         pulse = _LeasePulse(self, task)
         pulse.start()
@@ -345,8 +369,11 @@ class BusinessWorker(Worker):
                 )
         finally:
             pulse.finish()
-            if services is not None:
-                services.close()
+            try:
+                if services is not None:
+                    services.close()
+            finally:
+                task_lock.close()
         return True
 
     def observe_merges(self):

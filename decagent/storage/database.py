@@ -37,6 +37,9 @@ MIGRATIONS = (
     "020_business_workspaces.sql",
     "021_task_child_workspace.sql",
     "022_business_memory_workspace.sql",
+    "023_guest_sessions.sql",
+    "024_guest_inactivity.sql",
+    "025_guest_cleanup.sql",
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

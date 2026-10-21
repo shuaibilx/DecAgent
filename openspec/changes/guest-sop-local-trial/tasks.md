@@ -1,6 +1,6 @@
 # Tasks
 
-本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；当前继续已完成的 workspace 迁移和独立离线实现。游客入口默认关闭，公开域名/隧道不在本轮开通。
+本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；workspace 隔离、游客会话创建/恢复、角色切换、7 天无活动失效、空间停用与受限物理清理已完成。游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭，公开域名/隧道不在本轮开通。清理遇在途 Worker 或含歧义的操作证据时保持 pending，不删除恢复材料。
 
 ## 1. Workspace 数据与身份边界
 
@@ -13,10 +13,10 @@
 
 ## 2. 游客会话与业务体验
 
-- [ ] 2.1 实现游客 session 创建/恢复、安全 Cookie/CSRF/Origin，原子初始化独立模拟公司；测试并发创建、无效/过期会话和 loopback/HTTPS Cookie 行为。
-- [ ] 2.2 实现本空间角色切换及清理浏览器身份缓存，保留原任务/待办执行身份；E2E 验证切换后不能消费旧员工确认，切回后可继续。
-- [ ] 2.3 实现 7 天无活动失效与清空入口；验证过期即禁访问、后台轮询不续命、删除请求幂等和 CSRF。
-- [ ] 2.4 实现受限生命周期清理：撤销凭证、停止准入、取消/等待租约、核实 unknown 后清理记录和 checkpoint；测试在途写入与进程重启无重复副作用。
+- [x] 2.1 实现游客 session 创建/恢复、安全 Cookie/CSRF/Origin，原子初始化独立模拟公司；测试并发创建、无效/过期会话和 loopback/HTTPS Cookie 行为。证据：迁移 `023_guest_sessions.sql` 将会话 token/CSRF 仅保存为 hash，并以复合外键绑定当前员工与 guest workspace；`GuestAuth` 在单个 PostgreSQL 事务中创建 workspace、6 个人员、5 个类别、6 个无密码模拟角色及会话。`POST/GET /api/v3/guest/session` 使用 HttpOnly/SameSite Strict 会话 Cookie、独立 CSRF Cookie、精确 Origin 校验；HTTP 仅接受 loopback，HTTPS Cookie 带 Secure。`DECAGENT_GUEST_TRIAL_ENABLED` 默认 false，入口尚未开放。6 项 PostgreSQL 集成测试覆盖并发隔离、身份恢复、过期/伪造会话、CSRF/Origin/Host、防止客户端指定 workspace、HTTPS/loopback Cookie 和失败原子回滚；定向 Ruff 与 config 测试通过。
+- [x] 2.2 实现本空间角色切换及清理浏览器身份缓存，保留原任务/待办执行身份；E2E 验证切换后不能消费旧员工确认，切回后可继续。证据：固定角色 key allowlist；角色切换在同一事务更新 guest/employee session 并旋转 CSRF。隔离 PostgreSQL 测试验证旧员工确认在切换后返回 404 且仍为 pending，切回后同一任务和待办仍归属原员工并可读取；游客退出同时撤销两张 session 并清除 Cookie。Playwright CLI 本地浏览器验证游客首次进入、刷新恢复、切换 supervisor、角色刷新恢复；页面状态清除由 `guest_workbench.cjs` 回归覆盖，包含任务/操作/追踪/记忆及 EventSource；启用/禁用入口的 UI 行为均通过。测试未调用模型。
+- [x] 2.3 实现 7 天无活动失效与清空入口；验证过期即禁访问、后台轮询不续命、删除请求幂等和 CSRF。证据：migration 024 增加 `last_activity_at`；仅成功的非被动游客请求滑动续期，session 恢复/status/EventSource 不续期；失效后 `/guest/session`、员工会话回退、MCP token 和 Worker 凭证解析均拒绝。CSRF+Origin 保护的清空会停用 workspace、撤销浏览器/MCP 凭证并禁用该空间账号；`EmployeeAuth` 对浏览器、MCP 与 Worker 凭证解析均要求 workspace active 和有效 guest session。丢失清空响应后，同一原 token+CSRF+Origin 可安全重试并仍返回已清空，错误 Origin/CSRF 不通过；物理记录/检查点清理留给 2.4。游客 PostgreSQL 集成 13 项通过；身份/Workspace/Gateway 与员工账户/操作集成共 78 项通过；deterministic 1937 项通过、18 项因 τ 运行时或 Windows symlink 环境跳过。浏览器实测覆盖开始、切换、刷新、清空；控制台 0 错误/警告。测试无模型调用。
+- [x] 2.4 实现受限生命周期清理：撤销凭证、停止准入、取消/等待租约、核实 unknown 后清理记录和 checkpoint；测试在途写入与进程重启无重复副作用。证据：migration `025_guest_cleanup.sql` 增加清理完成标记和仅保存清空重试哈希的 tombstone，并将 workspace 内循环外键延迟到事务提交检查。`GuestWorkspaceCleaner` 每次限量过期/清理；清空后立即尝试，Worker 周期重试；Worker 只领取 active workspace 任务，并持有跨进程 task advisory lock 覆盖 graph/checkpoint 写入，租约续期也要求 workspace active。清理器获取 workspace/task/operation 锁后复查租约、任务和操作集合；租约/锁仍在途、receipt partial/mismatch 或成功操作无 verified receipt 时保持 pending。安全收尾后 fence/cancel 未终态任务、删除所有 checkpoint 与 workspace 业务行，只留下 workspace 完成标记和 clear tombstone；重复清空可验证 tombstone 并幂等返回，未知操作不会重放。隔离 PostgreSQL 游客生命周期 19 项通过，Worker/操作/workspace migration 联合回归 67 项通过；Ruff 通过。测试覆盖真实 BusinessWorker 在途 checkpoint、独立进程持有锁、租约等待、未知 receipt 歧义/已验证、7 天自动过期及跨 Cleaner 重启幂等；无模型调用。
 - [ ] 2.5 工作台增加开始体验/恢复/清空/角色提示，仅已注册模拟业务；展示真实 Jev 建议并保持语义选择与写入确认分离，覆盖 Choice/Noul/Score/无匹配/补充/拒绝核心 E2E。
 - [ ] 2.6 按游客使用子目录交付指南、会话/过期时序图及权限说明；实际浏览器走通文档，不虚构公网地址或生产准确率。
 
@@ -39,7 +39,7 @@
 
 - [ ] 5.1 优化公共CI分层、独立job并行与锁定缓存，保留Python3.11/3.13、Ruff、确定性、PostgreSQL、核心E2E、wheel/MCP、Compose；比较各job与总耗时，列出skip原因。
 - [ ] 5.2 实现私有部署仓库的发布验证器和最小输入工作流；离线测试拒绝错误repo/SHA/tag/main/CI/run attempt/digest和任意脚本路径，不在本机执行未验证代码。
-- [ ] 5.3 创建/配置私有 DecAgent-deploy，迁移本机Runner，公共发布仅最小凭证触发固定workflow；验证公共PR/Actions无法调度本机，私有凭证最小且不打印密钥。
+- [ ] 5.3 创建/配置私有 DecAgent-deploy，迁移本机Runner，公共发布仅最小凭证触发固定workflow；验证公共PR/Actions无法调度本机，私有凭证最小且不打印密钥。部分进度（2026-10-21）：公共仓库 Runner 数量 0，公共 workflow 无 self-hosted deployment job，本机 `DecAgentLocalDeployRunner` 计划任务 Disabled，Runner 服务/进程为 0；因此当前公共路径无法调度本机。私有仓库、最小触发凭证、Runner 迁移和验证仍未完成，本项保持未勾选。
 - [ ] 5.4 完成一次可信版本GHCR发布至本机SOP服务的全链路演练及失败演练；保存commit/run/digest/健康/回滚证据，任务串行无互相覆盖。
 - [ ] 5.5 分别更新代码仓库、CI、CD操作指南与导航，提供发布时序/信任边界图；核对真实仓库/命令，不把公网与独立Linux标为完成。
 

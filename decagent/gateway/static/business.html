@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DecAgent · 员工业务工作台</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/assets/style.css"><link rel="stylesheet" href="/assets/business.css">
   <script src="/assets/business.js" defer></script>
 </head>
 <body>
   <header><div><strong>DecAgent</strong><span>员工业务工作台 · 合成服务工单</span></div>
-    <div class="row"><span id="current-identity" class="identity" hidden></span><a href="/repair">仓库修复与运维</a><button id="logout" class="quiet" hidden>切换账号</button></div></header>
+    <div class="row"><label id="guest-role-control" class="guest-role-control" hidden>体验身份<select id="guest-role" aria-label="切换模拟员工身份"></select></label><span id="current-identity" class="identity" hidden></span><a href="/repair">仓库修复与运维</a><button id="clear-guest" class="quiet" hidden>清空游客空间</button><button id="logout" class="quiet" hidden>切换账号</button></div></header>
   <main>
     <div id="notice" role="status" aria-live="polite" hidden></div>
     <section id="login-panel" class="card login">
@@ -20,6 +21,11 @@
         <button type="submit">登录</button>
       </form>
       <p class="muted">初始账号由本机管理命令创建。仓库修复与实例运维使用独立的 owner 身份。</p>
+      <section id="guest-entry" class="guest-entry" hidden>
+        <h2>试用模拟业务工作台</h2>
+        <p class="muted">创建仅限当前浏览器的合成公司空间，可切换预设员工身份体验不同权限。</p>
+        <button id="start-guest" type="button">开始游客体验</button>
+      </section>
     </section>
     <div id="workbench" hidden>
       <div class="intro"><p class="eyebrow">CONTRACT → DECISION → VERIFIED ACTION</p>

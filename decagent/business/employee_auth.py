@@ -8,7 +8,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from decagent.business.workspaces import LEGACY_WORKSPACE_ID, parse_workspace_id
+from decagent.business.workspaces import (
+    GUEST_INACTIVITY_SECONDS,
+    LEGACY_WORKSPACE_ID,
+    parse_workspace_id,
+)
 
 COOKIE_NAME = "decagent_employee_session"
 _BROWSER_PREFIX = "dce_"
@@ -81,9 +85,11 @@ class EmployeeAuth:
             row = conn.execute(
                 "INSERT INTO business.employee_sessions"
                 "(token_hash,employee_id,workspace_id,account_revision,csrf_hash,expires_at) "
-                "SELECT %s,id,workspace_id,credential_revision,%s,now()+%s*interval '1 second' "
-                "FROM business.employee_accounts WHERE id=%s AND workspace_id=%s AND active=true "
-                "AND credential_revision=%s RETURNING expires_at",
+                "SELECT %s,a.id,a.workspace_id,a.credential_revision,%s,"
+                "now()+%s*interval '1 second' FROM business.employee_accounts a "
+                "JOIN business.workspaces w ON w.id=a.workspace_id AND w.active "
+                "WHERE a.id=%s AND a.workspace_id=%s AND a.active=true "
+                "AND a.credential_revision=%s RETURNING expires_at",
                 (
                     _hash(token),
                     _hash(csrf),
@@ -108,6 +114,7 @@ class EmployeeAuth:
                 "FROM business.employee_sessions s "
                 "JOIN business.employee_accounts a ON a.id=s.employee_id "
                 "AND a.workspace_id=s.workspace_id "
+                "JOIN business.workspaces w ON w.id=s.workspace_id AND w.active "
                 "WHERE s.token_hash=%s AND s.revoked_at IS NULL AND s.expires_at>now() "
                 "AND a.active=true AND s.account_revision=a.credential_revision",
                 (_hash(token),),
@@ -136,6 +143,7 @@ class EmployeeAuth:
                 "SELECT s.csrf_hash FROM business.employee_sessions s "
                 "JOIN business.employee_accounts a ON a.id=s.employee_id "
                 "AND a.workspace_id=s.workspace_id "
+                "JOIN business.workspaces w ON w.id=s.workspace_id AND w.active "
                 "WHERE s.token_hash=%s AND s.employee_id=%s AND s.account_revision=%s "
                 "AND s.revoked_at IS NULL AND s.expires_at>now() "
                 "AND s.workspace_id=%s AND a.id=%s AND a.active=true "
@@ -177,12 +185,18 @@ class EmployeeAuth:
                     "SELECT s.employee_id FROM business.employee_sessions s "
                     "JOIN business.employee_accounts a ON a.id=s.employee_id "
                     "AND a.workspace_id=s.workspace_id "
+                    "JOIN business.workspaces w ON w.id=s.workspace_id AND w.active "
+                    "AND (w.kind<>'guest' OR EXISTS (SELECT 1 "
+                    "FROM business.guest_sessions gs WHERE gs.workspace_id=s.workspace_id "
+                    "AND gs.revoked_at IS NULL AND gs.expires_at>now() "
+                    "AND gs.last_activity_at>now()-%s*interval '1 second')) "
                     "WHERE s.token_hash=%s AND s.employee_id=%s "
                     "AND s.workspace_id=%s AND s.revoked_at IS NULL "
                     "AND s.expires_at>now() AND a.active "
                     "AND s.account_revision=a.credential_revision "
                     "AND a.credential_revision=%s FOR UPDATE OF s,a",
                     (
+                        GUEST_INACTIVITY_SECONDS,
                         identity.token_hash,
                         identity.employee_id,
                         identity.workspace_id,
@@ -194,10 +208,17 @@ class EmployeeAuth:
                 row = conn.execute(
                     "INSERT INTO business.mcp_credentials"
                     "(id,token_hash,employee_id,workspace_id,account_revision,expires_at) "
-                    "SELECT %s,%s,id,workspace_id,credential_revision,"
+                    "SELECT %s,%s,a.id,a.workspace_id,a.credential_revision,"
                     "now()+%s*interval '1 second' "
-                    "FROM business.employee_accounts WHERE id=%s AND workspace_id=%s "
-                    "AND active=true AND credential_revision=%s RETURNING expires_at",
+                    "FROM business.employee_accounts a "
+                    "JOIN business.workspaces w ON w.id=a.workspace_id AND w.active "
+                    "WHERE a.id=%s AND a.workspace_id=%s "
+                    "AND a.active=true AND a.credential_revision=%s "
+                    "AND (w.kind<>'guest' OR EXISTS (SELECT 1 "
+                    "FROM business.guest_sessions gs WHERE gs.workspace_id=a.workspace_id "
+                    "AND gs.revoked_at IS NULL AND gs.expires_at>now() "
+                    "AND gs.last_activity_at>now()-%s*interval '1 second')) "
+                    "RETURNING expires_at",
                     (
                         credential_ref,
                         _hash(token),
@@ -205,6 +226,7 @@ class EmployeeAuth:
                         identity.employee_id,
                         identity.workspace_id,
                         identity.account_revision,
+                        GUEST_INACTIVITY_SECONDS,
                     ),
                 ).fetchone()
                 if not row:
@@ -237,9 +259,14 @@ class EmployeeAuth:
                 "a.credential_revision FROM business.mcp_credentials c "
                 "JOIN business.employee_accounts a ON a.id=c.employee_id "
                 "AND a.workspace_id=c.workspace_id "
+                "JOIN business.workspaces w ON w.id=c.workspace_id AND w.active "
                 "WHERE c.token_hash=%s AND c.revoked_at IS NULL AND c.expires_at>now() "
+                "AND (w.kind<>'guest' OR EXISTS (SELECT 1 "
+                "FROM business.guest_sessions gs WHERE gs.workspace_id=c.workspace_id "
+                "AND gs.revoked_at IS NULL AND gs.expires_at>now() "
+                "AND gs.last_activity_at>now()-%s*interval '1 second')) "
                 "AND a.active=true AND c.account_revision=a.credential_revision",
-                (_hash(token),),
+                (_hash(token), GUEST_INACTIVITY_SECONDS),
             ).fetchone()
         if not row:
             return None
@@ -278,11 +305,17 @@ class EmployeeAuth:
                 "c.employee_id AS credential_employee_id,c.token_hash,c.account_revision,"
                 "c.workspace_id AS credential_workspace_id,c.expires_at,c.revoked_at,"
                 "a.workspace_id AS employee_workspace_id,a.active,a.credential_revision "
-                "FROM app.tasks t LEFT JOIN business.mcp_credentials c "
+                "FROM app.tasks t "
+                "JOIN business.workspaces w ON w.id=t.workspace_id AND w.active "
+                "LEFT JOIN business.mcp_credentials c "
                 "ON c.id=t.credential_ref AND c.workspace_id=t.workspace_id "
                 "LEFT JOIN business.employee_accounts a ON a.id=c.employee_id "
-                "AND a.workspace_id=c.workspace_id WHERE t.id=%s",
-                (UUID(str(task_id)),),
+                "AND a.workspace_id=c.workspace_id WHERE t.id=%s "
+                "AND (w.kind<>'guest' OR EXISTS (SELECT 1 "
+                "FROM business.guest_sessions gs WHERE gs.workspace_id=t.workspace_id "
+                "AND gs.revoked_at IS NULL AND gs.expires_at>now() "
+                "AND gs.last_activity_at>now()-%s*interval '1 second'))",
+                (UUID(str(task_id)), GUEST_INACTIVITY_SECONDS),
             ).fetchone()
         if (
             not row

@@ -18,6 +18,17 @@ class EmployeeLoginInput(Input):
     password: str = Field(min_length=1, max_length=512, repr=False)
 
 
+class GuestRoleInput(Input):
+    role_key: Literal[
+        "employee-it",
+        "employee-facilities",
+        "handler-it",
+        "handler-facilities",
+        "handler-access",
+        "supervisor",
+    ]
+
+
 class BusinessOperationReplyInput(Input):
     expected_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     decision: Literal["approve", "reject", "edit"]

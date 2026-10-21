@@ -2,7 +2,7 @@
 
 ## Context
 
-动机见 proposal。当前 `EmployeeIdentity` 无 workspace，BusinessScope 是全局插件注册而不是租户；人员/工单等表共享，supervisor 可查询全库，记忆强制 local-company。现有员工 Cookie、CSRF、MCP 员工凭证、prepare/确认/commit 和原子任务预算可复用。当前 Compose 默认 repair Worker；release 在公共仓库调度本机 Runner，失败没有自动回滚，不能直接开放游客。
+动机见 proposal。当前 `EmployeeIdentity` 无 workspace，BusinessScope 是全局插件注册而不是租户；人员/工单等表共享，supervisor 可查询全库，记忆强制 local-company。现有员工 Cookie、CSRF、MCP 员工凭证、prepare/确认/commit 和原子任务预算可复用。当前 Compose 默认 repair Worker；失败没有自动回滚，不能直接开放游客。公共 Runner dispatch 已暂停：远端仓库没有 self-hosted Runner 或部署 job，本机 Runner 计划任务禁用；公共 release 只发布 GHCR。后续 CD 必须先迁入私有部署仓库。
 
 ## Goals / Non-Goals
 
@@ -26,7 +26,9 @@ Non-Goals：真实公司 API、付费订阅、注册邮箱/GitHub 绑定、跨�
 
 新增 `/api/v3/guest/session` POST/GET 创建/恢复游客身份，`POST /api/v3/guest/role` 切换本空间预置员工，`DELETE /api/v3/guest/workspace` 清空并撤销空间。服务端生成高熵会话、只保存 hash，Cookie HttpOnly/SameSite、公开 HTTPS Secure，变更请求 CSRF/Origin；本地 HTTP 仅 loopback。不得从客户端 body 或不可信 header 读取执行 workspace。保留原 owner/员工入口，不把游客映射 owner。
 
-复用业务工作台的任务/操作/人工待办接口；游客入口验证会话、当前角色和空间有效期后进入相同治理链。角色切换撤销旧活动员工会话/凭证，清理 UI 详情，不能改变已有任务的执行员工；切回原身份才能继续其待办。无活动 7 天过期，活动只由本人有效请求更新，不被后台轮询任务永久续期。清空/过期立即封禁新准入并撤销会话，标记任务取消；清理器等待租约退出，结果未知的操作先核实，保留最小受限核实材料直到终结，再级联清理。仅聚合匿名资源统计可保留，不保留旧业务原文。
+当前 session 创建会在同一 PostgreSQL 事务内写入 guest workspace、6 个人员、5 个类别、6 个随机无密码账号、guest session 和配套的 employee session。配套记录让既有工作台 API/operation/MCP 权限继续使用统一的员工会话校验；guest Cookie 独立于员工登录 Cookie，只从 guest session 解析当前身份。migration 023 仅保存 session/CSRF hash，并通过复合外键绑定 workspace 与当前模拟员工。公开只读 `/api/v3/guest/status` 让登录页获知入口开关，不创建会话或 workspace；关闭时隐藏游客入口。session 为 HttpOnly Cookie，CSRF 使用独立同源 Cookie 并由 UI 放入 mutation header；两者为 SameSite Strict。角色切换只接受固定 `role_key`，在同一事务更新两张 session 记录的员工/版本/CSRF hash 并轮换 CSRF；API 返回当前角色 key，UI 丢弃原角色任务、工单、操作、审批、计划、trace、记忆详情和事件流，再按新身份刷新。游客退出会撤销两张 session 并清除 Cookie。既有任务和待办保持原员工归属，切回原角色后仍由原员工继续访问；隔离 PostgreSQL 测试验证旧员工无法提交待办确认且审批保持 pending。`DECAGENT_GUEST_TRIAL_ENABLED` 默认 false，直到配额、生命周期清理、UI 和本机交付验收完成才可显式开启。Migration 024 增加 `last_activity_at`，游客会话采用 7 天无活动窗口；仅成功的、带有效身份的非被动请求续期。session restore、status、HEAD/OPTIONS 和 EventSource 不续期，因此后台轮询不能延长生命周期。过期后游客入口、员工会话回退、MCP token 认证、MCP 凭证签发和 Worker 凭证解析均拒绝该身份。带 CSRF 与精确 Origin 的 workspace DELETE 立刻停用 workspace、撤销游客/员工会话及 MCP 凭证、禁用模拟账号；`EmployeeAuth` 的浏览器、MCP token 与 Worker 凭证解析均要求 workspace active；MCP/Worker 凭证还要求 guest inactivity session 仍有效。若清空响应丢失，同一原 token/CSRF/Origin 对已停用空间的 DELETE 可幂等重试；不会恢复访问或读取数据。Migration 025 增加 `cleanup_completed_at` 与清空重试 tombstone；过期/清空先撤销访问和新准入，再由 Gateway 立即尝试、Worker 有界轮询继续清理。Worker claim 只选择 active workspace，并在完整 graph/checkpoint 执行期间持有 task advisory lock；心跳续租同时验证 workspace 仍 active。Cleaner 持 workspace 锁、逐任务/操作取得共享 advisory lock 后复核租约与记录集合；在途执行返回 pending，避免晚到 checkpoint 被误删后又由 Worker 复活。清理器核对 operation receipt：partial/mismatch 和没有 verified receipt 的成功操作保留数据并等待恢复处理；安全条件满足后 fence/cancel 未终态任务，删除 task checkpoint 和 workspace 所属业务行，事务延迟检查空间内循环外键，只留下 inactive workspace 清理标记与最小 token/CSRF 哈希 tombstone。重复清理/clear 可幂等完成，不执行未知操作。隔离 PostgreSQL 覆盖 Worker 晚到写入、跨进程锁、租约、receipt 歧义/核验、过期和清理重启；无模型调用。
+
+复用业务工作台的任务/操作/人工待办接口；游客入口验证会话、当前角色和空间有效期后进入相同治理链。角色切换撤销旧活动员工会话/凭证，清理 UI 详情，不能改变已有任务的执行员工；切回原身份才能继续其待办。无活动 7 天过期，活动只由本人有效请求更新，不被后台轮询任务永久续期。清空已立即停用 workspace、撤销 session/MCP 凭证并禁用模拟账号；当前过期身份拒绝访问。生命周期清理使用 workspace/task/operation 锁、active-workspace claim 和 lease/receipt 复核；在无法证明安全时保留业务记录与恢复材料、返回 pending，不通过重放操作验证结果。清理完成后删除空间业务数据及检查点，仅保留最小 clear tombstone 支持丢失响应重试，不恢复或重放任何操作。
 
 ### 3. 无校准策略的明确人工消费
 

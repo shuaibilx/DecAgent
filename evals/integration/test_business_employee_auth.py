@@ -333,6 +333,19 @@ def test_authenticated_employee_workspace_is_database_bound_and_request_cannot_o
 
     login = _login(client, directory, "guest-auth-test", password)
     assert login.status_code == 200, login.text
+    with database.connect() as connection:
+        connection.execute(
+            "INSERT INTO business.guest_sessions"
+            "(token_hash,workspace_id,employee_id,account_revision,csrf_hash,expires_at) "
+            "SELECT %s,a.workspace_id,a.id,a.credential_revision,%s,now()+interval '7 days' "
+            "FROM business.employee_accounts a WHERE a.id=%s AND a.workspace_id=%s",
+            (
+                hashlib.sha256(client.cookies["decagent_employee_session"].encode()).hexdigest(),
+                hashlib.sha256(login.json()["csrf_token"].encode()).hexdigest(),
+                employee_id,
+                workspace_id,
+            ),
+        )
     browser_identity = auth.authenticate_browser(
         SimpleNamespace(headers={}, cookies=dict(client.cookies))
     )

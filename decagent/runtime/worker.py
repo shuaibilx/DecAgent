@@ -51,7 +51,9 @@ class _LeasePulse:
                             "lease_until=clock_timestamp()+%s*interval '1 second',"
                             "active_seconds=active_seconds+%s WHERE id=%s AND lease_owner=%s "
                             "AND lease_generation=%s AND state='running' "
-                            "AND lease_until>clock_timestamp() RETURNING id",
+                            "AND lease_until>clock_timestamp() AND (kind<>'business' OR EXISTS ("
+                            "SELECT 1 FROM business.workspaces w WHERE w.id=app.tasks.workspace_id "
+                            "AND w.active)) RETURNING id",
                             (
                                 self.worker.lease_seconds,
                                 now - self.last,

@@ -31,7 +31,8 @@
 
 ## 当前实施状态
 
-- **已完成：** tasks 1.1–1.5（5/28）：legacy/workspace 迁移与身份解析、目录/工单/任务/操作 ACL、任务子记录归属、审批/trace/export 与 Worker/MCP 恢复隔离、workspace 记忆与稳定槽隔离。迁移 020 建立空间及同空间外键，021 从可信父任务/操作派生子记录 workspace，022 删除固定 `company_scope` 并将记忆规则与证据改为 workspace 范围。
-- **验证状态：** 2026-10-21 隔离 PostgreSQL 的核心员工、操作、工单 ACL、MCP 与 Gateway 组合 81 项通过；记忆、记忆 Gateway/写入评估、稳定槽/计划、workspace 迁移相关组合 163 项通过；Ruff 通过。严格 OpenSpec 校验将在本次 spec 更新后重跑。测试不包含真实游客生命周期或付费模型调用。
-- **仍待实施：** tasks 1.6–6.2（23 项）：迁移说明、游客 session/角色/清理/UI、试用账本与队列、SOP Compose、私有 CD 和最终端到端验收。游客入口保持关闭；公开 release 不负责调度本机 Runner，正式私有 CD 仍待建置与演练。
+- **已完成：** tasks 1.1–1.6、2.1–2.4（10/28）：legacy/workspace 迁移与身份解析、目录/工单/任务/操作 ACL、任务子记录归属、审批/trace/export 与 Worker/MCP 恢复隔离、workspace 记忆与稳定槽隔离、迁移说明、游客 session 创建/恢复、模拟公司初始化、角色切换、7 天无活动期限、清空停用和安全物理清理。迁移 020–025 建立 workspace、记忆、游客会话、inactivity 与清理/tombstone 边界。
+- **验证状态（2026-10-21）：** 本轮隔离 PostgreSQL 游客生命周期测试 19 项通过；Worker、操作回执、workspace 迁移与游客清理联合回归 67 项通过；目标 Ruff 检查通过。覆盖在途 Worker 延后写 checkpoint 后再清理、独立进程锁等待、租约保护、清理证据歧义保留、已验证 receipt、跨 Cleaner 重启幂等、自动过期与重复 clear。此前游客浏览器首次进入、角色切换、刷新恢复和清空回登录页的 Playwright CLI 实测通过；Node 工作台回归通过。更早的 deterministic 全集记录为 1937 passed、18 skipped（τ 固定子进程运行时未配置及 Windows symlink 环境限制），不代表本轮新改动已重跑全套 deterministic。无模型调用或付费评测。
+- **仍待实施：** tasks 2.5–6.2（18 项）：游客 UI 的 Jev 人工建议闭环、游客文档、额度账本与队列、SOP Compose、私有 CD 和最终集成验收。游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭；公共 release 不负责调度本机 Runner，正式私有 CD 仍待建置与演练。
+- **部署边界复核（2026-10-21）：** GitHub API 显示公共仓库 self-hosted Runner 数量为 0；现有工作流没有自托管 deployment job，GHCR 仍由 GitHub-hosted runner 发布；本机 `DecAgentLocalDeployRunner` 计划任务为 Disabled，Runner 服务/进程为 0。公共 CI、GHCR 和现有容器未改动。5.3 的私有仓库、可信触发器与私有 Runner 迁移仍未开始，因此该复核不计为 CD 完成。
 - **评测边界：** 之前的公开首波路线保持终态，不重放；本 change 不据此宣称模型质量或 Jev 收益。

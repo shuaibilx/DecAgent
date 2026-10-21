@@ -3,6 +3,8 @@
 const $ = id => document.getElementById(id);
 const state = {
   csrf: sessionStorage.getItem("decagent.employee.csrf") || "",
+  sessionKind: sessionStorage.getItem("decagent.session.kind") || "",
+  guestRoles: [], guestRoleKey: "",
   identity: null, plugins: [], task: null, operation: null,
   planSnapshot: null, trace: null, memories: [], memoryDependencies: null,
   selection: 0, operationSelection: 0, stream: null, cursor: new Map(),
@@ -55,6 +57,8 @@ function resetWorkspace(clearHash = true) {
   $("budget-form").hidden = true; $("waiting").hidden = true;
   $("revoke-credential").hidden = true; $("current-identity").hidden = true;
   $("current-identity").textContent = "";
+  $("guest-role-control").hidden = true; $("guest-role").replaceChildren();
+  $("clear-guest").hidden = true;
   $("workbench").hidden = true; $("logout").hidden = true; $("login-panel").hidden = false;
   if (clearHash && location.hash.startsWith("#operation=")) {
     history.replaceState(null, "", location.pathname);
@@ -75,7 +79,9 @@ async function api(path, {method = "GET", body, key} = {}) {
   if (!response.ok) {
     if (response.status === 401) {
       sessionStorage.removeItem("decagent.employee.csrf");
+      sessionStorage.removeItem("decagent.session.kind");
       state.csrf = ""; resetWorkspace();
+      state.sessionKind = ""; state.guestRoleKey = ""; state.guestRoles = [];
     }
     throw new Error(`${result.code || "request_failed"}: ${result.message || "请求失败"}`);
   }
@@ -646,6 +652,8 @@ async function enter() {
   $("current-identity").textContent = `${identity.login} · ${identity.role}`;
   $("current-identity").hidden = false;
   $("login-panel").hidden = true; $("workbench").hidden = false; $("logout").hidden = false;
+  $("clear-guest").hidden = state.sessionKind !== "guest";
+  renderGuestRoles();
   const outcomes = await Promise.allSettled([loadPlugins(), loadTasks(), loadTickets(), loadOperations()]);
   const failed = outcomes.filter(item => item.status === "rejected");
   if (failed.length) notice(`${failed.length} 个业务视图暂不可用：${failed[0].reason.message}`);
@@ -662,13 +670,82 @@ bind("login-form", "submit", async () => {
   const result = await response.json();
   if (!response.ok) throw new Error(`${result.code}: ${result.message}`);
   state.csrf = result.csrf_token;
+  state.sessionKind = "employee"; state.guestRoles = []; state.guestRoleKey = "";
   sessionStorage.setItem("decagent.employee.csrf", state.csrf);
+  sessionStorage.setItem("decagent.session.kind", state.sessionKind);
   await enter();
 });
 bind("logout", "click", async () => {
-  await api("/auth/session", {method: "DELETE"});
-  sessionStorage.removeItem("decagent.employee.csrf"); state.csrf = "";
+  if (state.sessionKind === "guest") {
+    const response = await fetch("/api/v3/guest/session", {
+      method: "DELETE", credentials: "same-origin",
+      headers: {"X-CSRF-Token": state.csrf, "Idempotency-Key": crypto.randomUUID()},
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(`${result.code || "guest_logout_failed"}: ${result.message || "退出游客体验失败"}`);
+  } else {
+    await api("/auth/session", {method: "DELETE"});
+  }
+  clearSessionCache();
   resetWorkspace();
+});
+bind("clear-guest", "click", async buttonEvent => {
+  const button = buttonEvent.currentTarget;
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/v3/guest/workspace", {
+      method: "DELETE", credentials: "same-origin",
+      headers: {"X-CSRF-Token": state.csrf, "Idempotency-Key": crypto.randomUUID()},
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(`${result.code || "guest_clear_failed"}: ${result.message || "清空游客空间失败"}`);
+    clearSessionCache(); resetWorkspace();
+    notice("游客空间已停用；后台清理会遵循任务租约和未知操作核实边界。此浏览器无法恢复该空间。" );
+  } finally { button.disabled = false; }
+});
+bind("start-guest", "click", async buttonEvent => {
+  const button = buttonEvent.currentTarget;
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/v3/guest/session", {
+      method: "POST", credentials: "same-origin",
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(`${result.code || "guest_start_failed"}: ${result.message || "游客体验暂不可用"}`);
+    state.csrf = result.csrf_token;
+    state.sessionKind = "guest"; state.guestRoles = result.roles || [];
+    state.guestRoleKey = result.current_role_key || "";
+    sessionStorage.setItem("decagent.employee.csrf", state.csrf);
+    sessionStorage.setItem("decagent.session.kind", state.sessionKind);
+    await enter();
+    notice("已进入独立合成工作区；切换体验身份会清空当前页面的数据视图。" );
+  } finally { button.disabled = false; }
+});
+bind("guest-role", "change", async event => {
+  const roleKey = event.currentTarget.value;
+  if (!roleKey || roleKey === state.guestRoleKey) return;
+  const selector = event.currentTarget;
+  selector.disabled = true;
+  try {
+    const response = await fetch("/api/v3/guest/role", {
+      method: "POST", credentials: "same-origin",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": state.csrf,
+        "Idempotency-Key": crypto.randomUUID()},
+      body: JSON.stringify({role_key: roleKey}),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(`${result.code || "guest_role_switch_failed"}: ${result.message || "切换身份失败"}`);
+    state.csrf = result.csrf_token; state.guestRoles = result.roles || [];
+    state.guestRoleKey = result.current_role_key || roleKey;
+    sessionStorage.setItem("decagent.employee.csrf", state.csrf);
+    sessionStorage.setItem("decagent.session.kind", "guest");
+    resetWorkspace(false);
+    await enter();
+    notice("体验身份已切换，旧身份的工单、任务、审批和追踪视图已清空。" );
+  } catch (error) {
+    selector.value = state.guestRoleKey;
+    throw error;
+  } finally { selector.disabled = false; }
 });
 bind("plugin-select", "change", describePlugin);
 bind("refresh", "click", async () => {
@@ -728,4 +805,60 @@ bind("revoke-credential", "click", async () => {
   state.credentialRef = null; $("credential-info").replaceChildren();
   $("revoke-credential").hidden = true;
 });
-if (state.csrf) enter().catch(error => { resetWorkspace(); notice(error.message); });
+function clearSessionCache() {
+  sessionStorage.removeItem("decagent.employee.csrf");
+  sessionStorage.removeItem("decagent.session.kind");
+  state.csrf = ""; state.sessionKind = ""; state.guestRoles = []; state.guestRoleKey = "";
+}
+function renderGuestRoles() {
+  const control = $("guest-role-control"), selector = $("guest-role");
+  control.hidden = state.sessionKind !== "guest";
+  selector.replaceChildren();
+  for (const role of state.guestRoles) {
+    const option = el("option", `${role.name} · ${role.role} · ${role.team}`);
+    option.value = role.key;
+    selector.append(option);
+  }
+  selector.value = state.guestRoleKey;
+}
+async function restoreGuestSession() {
+  let response = await fetch("/api/v3/guest/session", {credentials: "same-origin"});
+  if (!response.ok) return false;
+  let result = await response.json();
+  if (!result.csrf_token) {
+    response = await fetch("/api/v3/guest/session", {
+      method: "POST", credentials: "same-origin",
+    });
+    if (!response.ok) return false;
+    result = await response.json();
+  }
+  state.csrf = result.csrf_token; state.sessionKind = "guest";
+  state.guestRoles = result.roles || []; state.guestRoleKey = result.current_role_key || "";
+  sessionStorage.setItem("decagent.employee.csrf", state.csrf);
+  sessionStorage.setItem("decagent.session.kind", state.sessionKind);
+  await enter();
+  return true;
+}
+function hasGuestSessionHint() {
+  return document.cookie.split(";").some(cookie =>
+    cookie.trim().startsWith("decagent_guest_csrf="));
+}
+async function initializeWorkbench() {
+  let guestEnabled = false;
+  try {
+    const status = await fetch("/api/v3/guest/status", {credentials: "same-origin"});
+    if (status.ok) guestEnabled = Boolean((await status.json()).enabled);
+  } catch (_) { /* Employee sign-in remains available if trial status cannot be read. */ }
+  $("guest-entry").hidden = !guestEnabled;
+
+  if (state.sessionKind === "guest") {
+    if (guestEnabled && hasGuestSessionHint() && await restoreGuestSession()) return;
+    clearSessionCache(); resetWorkspace();
+  } else if (state.csrf) {
+    state.sessionKind = "employee";
+    await enter();
+    return;
+  }
+  if (guestEnabled && hasGuestSessionHint() && await restoreGuestSession()) return;
+}
+initializeWorkbench().catch(error => { clearSessionCache(); resetWorkspace(); notice(error.message); });
