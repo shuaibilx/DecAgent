@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import subprocess
+from collections import Counter
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import asdict, is_dataclass
@@ -30,6 +31,7 @@ from decagent.evaluation.business.public_supervisor import (
     canonical_public_supervisor_lock_path,
 )
 from decagent.evaluation.business.public_trials import (
+    TERMINAL_ROUTE_STATUSES,
     PublicRunPlan,
     open_first_wave_public_trial_ledger,
 )
@@ -457,11 +459,22 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
                     tool_attempts(trial_id, route) if callable(tool_attempts) else []
                 ),
             }
-    completed = sum(
-        item["lifecycle"]["status"] == "completed" for item in route_metrics.values()
+    statuses = [
+        item["lifecycle"].get("status")
+        for item in route_metrics.values()
+    ]
+    route_status_counts = dict(
+        sorted(
+            Counter(status for status in statuses if isinstance(status, str)).items()
+        )
     )
+    successful_route_count = route_status_counts.get("completed", 0)
+    terminal_route_count = sum(
+        route_status_counts.get(status, 0) for status in TERMINAL_ROUTE_STATUSES
+    )
+    selected_route_slots = len(plan.initial_smoke_wave) * len(plan.routes)
     return {
-        "schema_version": "public-evaluation-live-first-wave-v3",
+        "schema_version": "public-evaluation-live-first-wave-v4",
         "dry_run": False,
         "phase": "first-wave",
         "candidate_sha": candidate_sha,
@@ -472,9 +485,12 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
         "model_profiles_digest": plan.profiles.fingerprint,
         "task_denominator": len(plan.trials),
         "selected_task_count": len(plan.initial_smoke_wave),
-        "selected_route_slots": len(plan.initial_smoke_wave) * len(plan.routes),
-        "completed_route_count": completed,
-        "route_success_rate": completed / (len(plan.initial_smoke_wave) * len(plan.routes)),
+        "selected_route_slots": selected_route_slots,
+        "successful_route_count": successful_route_count,
+        "terminal_route_count": terminal_route_count,
+        "route_status_counts": route_status_counts,
+        "completed_route_count": successful_route_count,
+        "route_success_rate": successful_route_count / selected_route_slots,
         "route_denominator": len(plan.trials) * len(plan.routes),
         "routes": route_metrics,
         "skipped_routes": [list(item) for item in phase.skipped_routes],

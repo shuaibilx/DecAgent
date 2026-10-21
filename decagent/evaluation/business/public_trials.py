@@ -42,7 +42,10 @@ _SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}\Z")
 _MODEL_ID = re.compile(r"[A-Za-z0-9~][A-Za-z0-9._:/~-]{0,255}\Z")
 _PROVIDER_ID = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _ERROR = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
-_TERMINAL = frozenset({"completed", "failed", "unknown", "scoring_error", "not_applicable"})
+TERMINAL_ROUTE_STATUSES = frozenset(
+    {"completed", "failed", "unknown", "scoring_error", "not_applicable"}
+)
+_TERMINAL = TERMINAL_ROUTE_STATUSES
 _ACTIVE_ATTEMPTS = frozenset({"reserved", "dispatched", "unknown"})
 _SCORE_SOURCES = {
     "enterpriseops-gym-original-verifier",

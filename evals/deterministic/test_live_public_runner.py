@@ -354,9 +354,14 @@ def test_live_report_contains_only_whitelisted_attempt_diagnostics():
     class Ledger:
         candidate_sha = "a" * 40
 
-        def route_lifecycle(self, _trial_id, _route):
+        def route_lifecycle(self, current_trial, current_route):
+            status = (
+                "failed"
+                if (current_trial, current_route) == (trial_id, route)
+                else "unknown"
+            )
             return {
-                "status": "unknown",
+                "status": status,
                 "error_category": "model_dispatch_error",
                 "failure_stage": "model_callback",
                 "exception_type": "TimeoutError",
@@ -412,7 +417,11 @@ def test_live_report_contains_only_whitelisted_attempt_diagnostics():
         working_tree_dirty=False,
     )
     route_record = report["routes"][trial_id + ":" + route]
-    assert report["schema_version"] == "public-evaluation-live-first-wave-v3"
+    assert report["schema_version"] == "public-evaluation-live-first-wave-v4"
+    assert report["successful_route_count"] == 0
+    assert report["terminal_route_count"] == 8
+    assert report["route_status_counts"] == {"failed": 1, "unknown": 7}
+    assert report["completed_route_count"] == report["successful_route_count"]
     assert route_record["billing"]["cost_by_currency"]["CNY"]["frozen_rate"] == "0.0000133"
     assert route_record["model_attempts"][0]["exception_type"] == "TimeoutError"
     assert route_record["tool_attempts"] == []

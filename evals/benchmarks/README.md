@@ -275,11 +275,14 @@ comparison is marked not-applicable until the benchmark contains a naturally
 occurring semantic decision with a trusted, reviewed question template. Do not
 manufacture Jev cases or change the official 206+80 denominator.
 
-New live reports use `public-evaluation-live-first-wave-v3` and include
-`cost_by_currency` and `cost_records` from the ledger billing snapshot. The
-v3 report distinguishes provider-billed amounts from rate-based estimates and
-does not convert CNY amounts into USD. Historical v1/v2 live reports remain
-unchanged.
+New live reports use `public-evaluation-live-first-wave-v4` and include
+`successful_route_count`, `terminal_route_count`, and `route_status_counts` so
+failed or unknown terminal routes are distinguishable from successful routes.
+`completed_route_count` remains as a compatibility alias for
+`successful_route_count`. Reports also include `cost_by_currency` and
+`cost_records` from the ledger billing snapshot. They distinguish provider-billed
+amounts from rate-based estimates and do not convert CNY amounts into USD.
+Historical v1-v3 reports remain unchanged. In v3, `completed_route_count` counts only routes whose lifecycle reached successful `completed`; it does not count failed or unknown terminal routes. Use `ledger_status` and each route lifecycle for historical terminal counts.
 
 ## Isolated comparison runtime
 
