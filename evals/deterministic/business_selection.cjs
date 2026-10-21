@@ -10,14 +10,20 @@ async function check(handler, event) {
   const elements = new Map(), pending = [];
   const context = vm.createContext({document: {
     getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
-    createElement: element}, sessionStorage: {getItem() {return '';}, setItem() {}, removeItem() {}},
+    createElement: element, cookie: ''}, sessionStorage: {getItem() {return '';}, setItem() {}, removeItem() {}},
     crypto: {randomUUID() {return 'fixture-key';}}, setTimeout, clearTimeout,
     EventSource: function () {
       this.close = () => {};
       this.addEventListener = () => {};
     },
-    fetch(url, options) {return new Promise(resolve => pending.push({url, options, resolve}));}});
+    fetch(url, options) {
+      if (url === '/api/v3/guest/status') {
+        return Promise.resolve({ok: true, json: async () => ({enabled: false})});
+      }
+      return new Promise(resolve => pending.push({url, options, resolve}));
+    }});
   vm.runInContext(fs.readFileSync('decagent/gateway/static/business.js', 'utf8'), context);
+  await new Promise(resolve => setImmediate(resolve));
   const task = id => ({id, state: 'succeeded', phase: 'finalize', event_seq: 0,
     budget: {}, approvals: [], decisions: [], actions: []});
   context.taskA = task('A'); context.taskB = task('B');
