@@ -13,7 +13,7 @@ dependencies = [
   "langchain>=1.2,<2", "langgraph>=1.2,<2", "langchain-openai>=1.1,<2",
   "langgraph-checkpoint-postgres>=3,<4", "fastapi>=0.120,<1",
   "uvicorn>=0.38,<1", "psycopg[binary,pool]>=3.2,<4",
-  "httpx>=0.28,<1", "python-dotenv>=1.1,<2", "rich>=14,<15",
+  "httpx>=0.28,<1", "httpx2>=2.13,<3", "python-dotenv>=1.1,<2", "rich>=14,<15",
   "jsonschema>=4.23,<5",
   "mcp==2.3.0",
 ]

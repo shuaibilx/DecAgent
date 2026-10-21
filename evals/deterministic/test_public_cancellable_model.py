@@ -463,6 +463,78 @@ def test_one_shot_primary_model_call_error_stays_unknown_with_safe_stage(monkeyp
     assert "test-secret" not in repr(result)
 
 
+@pytest.mark.parametrize(
+    ("response_status", "expected_stage"),
+    [(None, "request_pre_send"), (502, "provider_response")],
+)
+def test_one_shot_primary_records_only_safe_http_boundary_diagnostics(
+    monkeypatch, response_status, expected_stage
+):
+    from decagent.evaluation.business import public_models
+
+    class BrokenClient:
+        closed = False
+
+        def respond(self, *_args, **_kwargs):
+            raise ValueError("private provider body and credential")
+
+        def close(self):
+            self.closed = True
+
+    client = BrokenClient()
+
+    class TestFactory:
+        @staticmethod
+        def from_evaluation_profile(*_args, **kwargs):
+            hooks = kwargs["http_client"].event_hooks
+            hooks["request"][0](object())
+            if response_status is not None:
+                hooks["response"][0](type("Response", (), {"status_code": response_status})())
+            return client
+
+    monkeypatch.setattr(public_models, "PrimaryModel", TestFactory)
+    result = public_models._one_shot_primary_dispatch(
+        None, "test-secret", (), None, [], 1.0
+    )
+
+    expected = {
+        "kind": "worker_outcome_unknown",
+        "worker_stage": expected_stage,
+        "exception_type": "ValueError",
+    }
+    if response_status is not None:
+        expected["http_status"] = response_status
+    assert result == expected
+    assert client.closed
+    assert "private" not in repr(result)
+    assert "test-secret" not in repr(result)
+
+
+def test_primary_transport_observer_uses_httpx_hooks_without_retaining_content():
+    import httpx2
+
+    from decagent.evaluation.business.public_models import _PrimaryTransportObservation
+
+    observation = _PrimaryTransportObservation()
+    client = httpx2.Client(
+        transport=httpx2.MockTransport(lambda _request: httpx2.Response(503)),
+        event_hooks={
+            "request": [observation.on_request],
+            "response": [observation.on_response],
+        },
+    )
+    try:
+        response = client.post("https://provider.invalid/chat", content="private prompt")
+    finally:
+        client.close()
+
+    assert response.status_code == 503
+    assert observation.request_prepared is True
+    assert observation.response_status == 503
+    assert set(vars(observation)) == {"request_prepared", "response_status"}
+    assert "private prompt" not in repr(vars(observation))
+
+
 def test_one_shot_primary_response_framing_error_has_response_stage(monkeypatch):
     from decagent.evaluation.business import public_models
 
@@ -534,6 +606,52 @@ def test_one_shot_primary_decodes_model_call_unknown_stage(monkeypatch):
         failure_stage=raised.value.failure_stage,
         exception_type=raised.value.diagnostic_exception_type,
     )
+    model.close()
+
+
+def test_one_shot_primary_decodes_received_http_response_diagnostics(monkeypatch):
+    from decagent.evaluation.business import cancellable_model
+    from decagent.evaluation.business.public_diagnostics import (
+        safe_failure_stage,
+        safe_http_status,
+        validate_diagnostic,
+    )
+    from decagent.evaluation.business.public_models import (
+        ModelWorkerOutcomeUnknown,
+        OneShotPrimaryModel,
+    )
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    profile = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    ).profiles.primary
+    model = OneShotPrimaryModel(profile, api_key="test-secret")
+
+    def dispatch(*_args, **_kwargs):
+        return {
+            "kind": "worker_outcome_unknown",
+            "worker_stage": "provider_response",
+            "exception_type": "ValueError",
+            "http_status": 502,
+        }
+
+    monkeypatch.setattr(cancellable_model, "run_cancellable_process", dispatch)
+    with pytest.raises(ModelWorkerOutcomeUnknown) as raised:
+        model.respond([{"role": "user", "content": "safe test"}])
+
+    assert safe_failure_stage(raised.value) == "model_worker_provider_response"
+    assert safe_http_status(raised.value) == 502
+    validate_diagnostic(
+        failure_stage=raised.value.failure_stage,
+        exception_type=raised.value.diagnostic_exception_type,
+        http_status=raised.value.status_code,
+    )
+    assert "test-secret" not in str(raised.value)
     model.close()
 
 

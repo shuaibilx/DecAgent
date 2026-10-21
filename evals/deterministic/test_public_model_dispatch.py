@@ -782,6 +782,7 @@ def test_unknown_worker_attempt_persists_sanitized_worker_diagnostics(tmp_path):
     class WorkerFailure(RuntimeError):
         failure_stage = "model_worker_response"
         diagnostic_exception_type = "InvalidEnvelope"
+        status_code = 502
 
     def callback(_request, *, timeout_seconds):
         assert timeout_seconds > 0
@@ -802,6 +803,7 @@ def test_unknown_worker_attempt_persists_sanitized_worker_diagnostics(tmp_path):
     attempt = ledger.model_attempts_snapshot(trial_id, route.value)[0]
     assert attempt["failure_stage"] == "model_worker_response"
     assert attempt["exception_type"] == "InvalidEnvelope"
+    assert attempt["http_status"] == 502
     assert "private response body" not in repr(attempt)
     assert "credential" not in repr(attempt)
     ledger.close()

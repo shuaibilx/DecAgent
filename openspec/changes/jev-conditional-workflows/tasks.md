@@ -173,6 +173,8 @@
 
   2026-10-22 后续诊断切片：客户端构造错误、`respond()` 调用异常和已返回结果的本地封帧异常已分别映射为 `not_dispatched`、`model_worker_model_call` 和 `model_worker_response`；新增模型调用阶段加入诊断白名单。回归先红后绿；完整 deterministic `1,982 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过。此改进只影响未来 cohort，v9 历史 `target/ValueError` 保持原样。未做真实请求、容器集成或新候选 CI，完整公开评测仍关闭。
 
+  2026-10-22 HTTP 边界诊断补充：基于锁定的 `langchain-openai 1.7.2` / `openai 3.33.0`，将安全事件钩子接入 OpenAI SDK 实际使用的 `httpx2.Client`；`model_worker_request_pre_send` 表示仅越过发送前钩子，不声称供应商收到请求，`model_worker_provider_response` 表示已收到响应头并只保留有效状态码。无完整 usage 的 attempt 仍为 unknown，不释放 Token/费用预留、不重放。新增 OpenSpec 场景和离线钩子、SDK 注入、账本持久化回归；完整 deterministic `1,988 passed, 18 skipped`，CI 同范围 `ruff check decagent evals ops` 通过、锁文件同步、OpenSpec strict `6/6` 通过。本切片不发送模型请求、不修改历史账本，也未运行 GitHub Actions；该候选 CI 尚待提交后验证。
+
 ## 11. 整体回归与本机交付
 
 [本组验收记录](../../../generated/261021/任务整理/1434_整体验收证据.md#group-11)

@@ -395,6 +395,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "httpx2" },
     { name = "jsonschema" },
     { name = "langchain" },
     { name = "langchain-openai" },
@@ -421,6 +422,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.120,<1" },
     { name = "hatchling", marker = "extra == 'dev'", specifier = ">=1.27,<2" },
     { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "httpx2", specifier = ">=2.13,<3" },
     { name = "jsonschema", specifier = ">=4.23,<5" },
     { name = "langchain", specifier = ">=1.2,<2" },
     { name = "langchain-openai", specifier = ">=1.1,<2" },

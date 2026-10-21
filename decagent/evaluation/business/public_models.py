@@ -160,20 +160,45 @@ def _validate_primary_semantic_tool(name, arguments):
 
 
 class ModelWorkerOutcomeUnknown(RuntimeError):
-    """A worker failed after dispatch; expose only safe stage and exception type."""
+    """A worker failed after dispatch; expose only allowlisted transport metadata."""
 
     _FAILURE_STAGES = {
         "target": "model_worker_target",
         "model_call": "model_worker_model_call",
+        "request_pre_send": "model_worker_request_pre_send",
+        "provider_response": "model_worker_provider_response",
         "response": "model_worker_response",
     }
 
-    def __init__(self, *, worker_stage, exception_type):
+    def __init__(self, *, worker_stage, exception_type, http_status=None):
         self.failure_stage = self._FAILURE_STAGES.get(
             worker_stage, "model_worker_response"
         )
         self.diagnostic_exception_type = exception_type
+        self.status_code = (
+            http_status
+            if type(http_status) is int and 100 <= http_status <= 599
+            else None
+        )
         super().__init__("One-shot provider response is unresolved")
+
+
+class _PrimaryTransportObservation:
+    """Retain only the pre-send boundary and a received HTTP status code."""
+
+    def __init__(self):
+        self.request_prepared = False
+        self.response_status = None
+
+    def on_request(self, _request):
+        # HTTPX calls this after preparing the request but before sending it.
+        self.request_prepared = True
+
+    def on_response(self, response):
+        # The hook runs after receiving response headers and before reading the body.
+        status = getattr(response, "status_code", None)
+        if type(status) is int and 100 <= status <= 599:
+            self.response_status = status
 
 
 class PublicPlannerCallback:
@@ -348,14 +373,25 @@ def _one_shot_primary_dispatch(
 ):
     """Perform exactly one provider request inside an isolated child process."""
     primary = None
+    http_client = None
+    transport = _PrimaryTransportObservation()
     try:
         try:
+            import httpx2
+
+            http_client = httpx2.Client(
+                event_hooks={
+                    "request": [transport.on_request],
+                    "response": [transport.on_response],
+                }
+            )
             primary = PrimaryModel.from_evaluation_profile(
                 profile,
                 api_key=api_key,
                 known_secrets=known_secrets,
                 tool_definitions=tool_definitions,
                 validator=_schema_only_tool_validator(tool_definitions),
+                http_client=http_client,
             )
         except Exception:
             # Client construction and local tool binding happen before respond()
@@ -393,11 +429,18 @@ def _one_shot_primary_dispatch(
                 "server_request_id": exc.server_request_id,
             }
         except Exception as exc:
-            return {
+            worker_stage = "model_call"
+            frame = {
                 "kind": "worker_outcome_unknown",
-                "worker_stage": "model_call",
                 "exception_type": type(exc).__name__,
             }
+            if transport.response_status is not None:
+                worker_stage = "provider_response"
+                frame["http_status"] = transport.response_status
+            elif transport.request_prepared:
+                worker_stage = "request_pre_send"
+            frame["worker_stage"] = worker_stage
+            return frame
         try:
             return _primary_result_frame(turn)
         except Exception as exc:
@@ -409,6 +452,8 @@ def _one_shot_primary_dispatch(
     finally:
         if primary is not None:
             primary.close()
+        elif http_client is not None:
+            http_client.close()
 
 
 class OneShotPrimaryModel:
@@ -528,6 +573,7 @@ class OneShotPrimaryModel:
             raise ModelWorkerOutcomeUnknown(
                 worker_stage=frame.get("worker_stage"),
                 exception_type=frame.get("exception_type"),
+                http_status=frame.get("http_status"),
             ) from None
         if kind != "turn" or type(frame.get("turn")) is not dict:
             raise RuntimeError("One-shot provider response is unresolved")

@@ -678,6 +678,14 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** 已派发模型请求后遇到超时或传输异常，且服务端 usage 无法核实
 - **THEN** attempt 与 route 进入 unknown，记录 `model_callback`、安全异常类名及可获得的 HTTP 状态码；异常消息和模型输入/输出正文不进入账本或报告
 
+#### Scenario: Worker reaches the HTTP pre-send hook but receives no response
+- **WHEN** 隔离模型 worker 的 HTTPX2 request hook 已触发，但 response hook 未触发且模型 usage 无法核实
+- **THEN** attempt 与 route 保持 unknown，并记录 `model_worker_request_pre_send`；该阶段不得被解释为请求已到达供应商或供应商未计费，不得据此释放预留或重放路线
+
+#### Scenario: Worker receives response headers but cannot measure usage
+- **WHEN** 隔离模型 worker 已收到 HTTP response headers，之后的 SDK/响应解析失败且没有完整模型 usage
+- **THEN** attempt 与 route 保持 unknown，并记录 `model_worker_provider_response` 和有效 HTTP 状态码；响应状态不代表 token 或账单已知，响应正文不得进入诊断，路线不得重放
+
 #### Scenario: Tool gateway loses a response
 - **WHEN** 已派发的工具调用返回无法确认上游结果的异常
 - **THEN** 工具 attempt 与 route 进入 unknown，记录允许的工具阶段及安全异常类名；参数和返回正文不进入诊断快照，后续工具、模型及评分均停止

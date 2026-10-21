@@ -283,6 +283,58 @@ def test_primary_model_factory_applies_the_frozen_profile_to_the_provider_client
     assert captured["tool_choice"] == "none"
 
 
+def test_primary_model_factory_forwards_an_injected_http_client(monkeypatch):
+    from decagent.models import primary as primary_module
+
+    captured = {}
+
+    class FakeClient:
+        def bind_tools(self, _definitions, *, tool_choice):
+            captured["tool_choice"] = tool_choice
+            return self
+
+    monkeypatch.setattr(
+        primary_module,
+        "ChatOpenAI",
+        lambda **kwargs: captured.update(kwargs) or FakeClient(),
+    )
+    selected_http_client = object()
+
+    primary_module.PrimaryModel.from_evaluation_profile(
+        profile(),
+        api_key="test-secret",
+        tool_definitions=[],
+        validator=lambda *_: None,
+        http_client=selected_http_client,
+    )
+
+    assert captured["http_client"] is selected_http_client
+
+
+def test_primary_model_owns_the_injected_httpx2_client_without_sending_requests():
+    import httpx2
+
+    from decagent.business.plans.planner import plan_tool_definitions
+    from decagent.models.primary import PrimaryModel
+
+    injected = httpx2.Client(event_hooks={"request": [], "response": []})
+    primary = PrimaryModel.from_evaluation_profile(
+        profile(),
+        api_key="test-secret",
+        tool_definitions=plan_tool_definitions(),
+        validator=lambda *_: None,
+        http_client=injected,
+    )
+    try:
+        bound_model = primary.client.bound
+        assert bound_model.http_client is injected
+        assert bound_model.root_client._client is injected
+    finally:
+        primary.close()
+
+    assert injected.is_closed
+
+
 def test_primary_model_factory_omits_parameters_the_profile_marks_unsupported(monkeypatch):
     from decagent.models import primary as primary_module
 

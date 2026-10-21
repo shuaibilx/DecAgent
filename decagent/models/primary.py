@@ -359,6 +359,7 @@ class PrimaryModel:
         seed=None,
         timeout=60,
         tool_choice=None,
+        http_client=None,
     ):
         if not api_key:
             raise ValueError("DECAGENT_MAIN_API_KEY is required for model requests")
@@ -381,6 +382,7 @@ class PrimaryModel:
             timeout=timeout,
             max_retries=0,
             include_response_headers=True,
+            http_client=http_client,
             **request_parameters,
             **options,
         )
@@ -403,6 +405,7 @@ class PrimaryModel:
         known_secrets=(),
         tool_definitions=None,
         validator=None,
+        http_client=None,
     ):
         """Build a general-model client whose wire parameters match a frozen cohort."""
         from decagent.evaluation.business.model_profiles import ModelProfile
@@ -427,6 +430,7 @@ class PrimaryModel:
             seed=None if "seed" in parameters else profile.seed,
             timeout=profile.timeout_seconds,
             tool_choice=profile.tool_choice,
+            http_client=http_client,
         )
 
     @contextmanager
