@@ -7,12 +7,15 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+from decagent.business.plans.templates import QuestionRegistry
 from decagent.decisions.contracts import QuestionSpec
 from decagent.evaluation.business.comparison import Route
 from decagent.evaluation.business.public_models import (
     PublicJevSemanticCallback,
+    PublicPrimarySemanticCallback,
     _jev_provider_dispatch,
     public_first_wave_model_adapter_factory,
+    public_primary_semantic_callback_factory,
 )
 from decagent.evaluation.business.public_resources import (
     LedgeredModelCallback,
@@ -20,6 +23,7 @@ from decagent.evaluation.business.public_resources import (
 )
 from decagent.evaluation.business.public_trials import PublicTrialLedger, load_public_run_plan
 from decagent.evaluation.business.routes import ModelCallError, ModelReply
+from decagent.models.primary import ModelTurn, ModelUsage, ToolProposal
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -280,8 +284,8 @@ def test_jev_provider_worker_uses_one_openrouter_decisions_request(monkeypatch):
     assert request.extensions["timeout"]["read"] == 0.4
 
 
-def test_first_wave_factory_keeps_jev_route_opt_in(tmp_path):
-    plan, _profile, _trial = _profile_and_trial()
+def test_first_wave_factory_keeps_semantic_routes_opt_in_and_separate(tmp_path, monkeypatch):
+    plan, _profile, trial = _profile_and_trial()
     ledger = SimpleNamespace(
         plan=SimpleNamespace(root=tmp_path),
         reserve_model_attempt=lambda **_kwargs: "unused",
@@ -306,9 +310,221 @@ def test_first_wave_factory_keeps_jev_route_opt_in(tmp_path):
         trial_id_for=lambda trial: trial.trial_id,
         include_jev_semantic_callback=True,
     )
+    primary_semantic_enabled = public_first_wave_model_adapter_factory(
+        settings,
+        ledger,
+        plan.profiles,
+        trial_id_for=lambda trial: trial.trial_id,
+        include_primary_semantic_callback=True,
+    )
+    both_semantic_models_enabled = public_first_wave_model_adapter_factory(
+        settings,
+        ledger,
+        plan.profiles,
+        trial_id_for=lambda trial: trial.trial_id,
+        include_jev_semantic_callback=True,
+        include_primary_semantic_callback=True,
+    )
 
     assert "semantic" not in baseline.callback_factories
     assert "semantic" in jev_enabled.callback_factories
+    assert "semantic" in primary_semantic_enabled.callback_factories
+    assert "semantic" in both_semantic_models_enabled.callback_factories
+    monkeypatch.setattr(
+        QuestionRegistry,
+        "from_spec",
+        classmethod(lambda _cls, _spec: ReviewedRegistry()),
+    )
+    session = SimpleNamespace(spec=object())
+    primary_callback = both_semantic_models_enabled.callback_factories["semantic"](
+        session, trial, Route.PLAN_PRIMARY_SEMANTIC
+    )
+    jev_callback = both_semantic_models_enabled.callback_factories["semantic"](
+        session, trial, Route.PLAN_JEV_SEMANTIC
+    )
+    assert isinstance(primary_callback, PublicPrimarySemanticCallback)
+    assert isinstance(jev_callback, PublicJevSemanticCallback)
+
+
+def test_primary_semantic_callback_uses_the_same_trusted_state_and_question():
+    plan, _jev_profile, trial = _profile_and_trial()
+    profile = plan.profiles.primary
+    request = _request()
+    captured = {}
+
+    class Primary:
+        schema_bytes = 256
+
+        def respond(self, messages, *, timeout_seconds):
+            captured["messages"] = messages
+            captured["timeout_seconds"] = timeout_seconds
+            return ModelTurn(
+                "",
+                (
+                    ToolProposal(
+                        "call-1",
+                        "decagent_semantic_choice",
+                        {
+                            "choice": "article:7",
+                            "probabilities": {"article:7": 0.99, "no_match": 0.01},
+                        },
+                    ),
+                ),
+                ModelUsage(83, 12, 95),
+                profile.model,
+                "primary-request-123",
+            )
+
+        def close(self):
+            captured["closed"] = True
+
+    callback = PublicPrimarySemanticCallback(
+        Primary(), profile, registry=ReviewedRegistry(), trial=trial
+    )
+    reply = callback(request, timeout_seconds=0.75)
+
+    assert reply.value == {
+        "type": "choice",
+        "choice": "article:7",
+        "confidence": 0.98,
+        "probabilities": {"article:7": 0.99, "no_match": 0.01},
+    }
+    assert reply.profile is profile
+    assert reply.model == profile.model
+    assert reply.input_tokens == 83
+    assert reply.output_tokens == 12
+    assert reply.provider_request_id == "primary-request-123"
+    assert captured["timeout_seconds"] == 0.75
+    body = json.loads(captured["messages"][1]["content"])
+    assert body == {
+        "questions": {"csm_knowledge_article": request["question"]},
+        "state": request["state"],
+    }
+    callback.close()
+    assert captured["closed"] is True
+
+
+def test_primary_semantic_callback_rejects_invalid_candidate_and_unmeasured_usage():
+    plan, _jev_profile, trial = _profile_and_trial()
+
+    class Primary:
+        def __init__(self, proposal, usage):
+            self.proposal = proposal
+            self.usage = usage
+
+        def respond(self, _messages, *, timeout_seconds):
+            tools = ()
+            if self.proposal is not None:
+                tools = (ToolProposal("call-1", "decagent_semantic_choice", self.proposal),)
+            return ModelTurn(
+                "",
+                tools,
+                self.usage,
+                plan.profiles.primary.model,
+            )
+
+        def close(self):
+            pass
+
+    callback = PublicPrimarySemanticCallback(
+        Primary(
+            {
+                "choice": "invented",
+                "probabilities": {"article:7": 0.99, "no_match": 0.01},
+            },
+            ModelUsage(10, 2, 12),
+        ),
+        plan.profiles.primary,
+        registry=ReviewedRegistry(),
+        trial=trial,
+    )
+    with pytest.raises(ModelCallError, match="valid trusted Choice"):
+        callback(_request(), timeout_seconds=0.75)
+
+    callback = PublicPrimarySemanticCallback(
+        Primary(
+            {
+                "choice": "article:7",
+                "probabilities": {"article:7": 0.99, "no_match": 0.01},
+            },
+            None,
+        ),
+        plan.profiles.primary,
+        registry=ReviewedRegistry(),
+        trial=trial,
+    )
+    with pytest.raises(ModelCallError, match="usage is unknown"):
+        callback(_request(), timeout_seconds=0.75)
+
+    callback = PublicPrimarySemanticCallback(
+        Primary(None, ModelUsage(10, 2, 12)),
+        plan.profiles.primary,
+        registry=ReviewedRegistry(),
+        trial=trial,
+    )
+    with pytest.raises(ModelCallError, match="valid trusted Choice") as raised:
+        callback(_request(), timeout_seconds=0.75)
+    assert raised.value.reply.input_tokens == 10
+
+
+def test_primary_semantic_factory_is_opt_in_and_route_restricted(monkeypatch):
+    plan, _jev_profile, trial = _profile_and_trial()
+    profile = plan.profiles.primary
+    created = []
+
+    class Primary:
+        def respond(self, _messages, *, timeout_seconds):
+            raise AssertionError("Factory validation must not dispatch a model")
+
+        def close(self):
+            pass
+
+    def primary_factory(actual_profile, **kwargs):
+        created.append((actual_profile, kwargs))
+        return Primary()
+
+    factory = public_primary_semantic_callback_factory(
+        profile,
+        api_key="primary-test-key",
+        primary_factory=primary_factory,
+    )
+    with pytest.raises(ValueError, match="function-call profile"):
+        public_primary_semantic_callback_factory(
+            replace(profile, response_mode="chat_text", tool_choice="none"),
+            api_key="primary-test-key",
+            primary_factory=primary_factory,
+        )
+    with pytest.raises(ValueError, match="primary semantic comparison route"):
+        factory(SimpleNamespace(spec=object()), trial, Route.PLAN_MCP)
+    assert created == []
+
+    # The registered route constructs a one-shot client with only the Choice tool.
+    from decagent.evaluation.business.public_models import _validate_primary_semantic_tool
+
+    monkeypatch.setattr(
+        QuestionRegistry,
+        "from_spec",
+        classmethod(lambda _cls, _spec: ReviewedRegistry()),
+    )
+    callback = factory(SimpleNamespace(spec=object()), trial, Route.PLAN_PRIMARY_SEMANTIC)
+    assert isinstance(callback, PublicPrimarySemanticCallback)
+    assert created[0][0] is profile
+    assert len(created[0][1]["tool_definitions"]) == 1
+    assert created[0][1]["tool_definitions"][0]["function"]["name"] == (
+        "decagent_semantic_choice"
+    )
+    assert created[0][1]["tool_definitions"][0]["function"]["parameters"]["required"] == [
+        "choice",
+        "probabilities",
+    ]
+    assert _validate_primary_semantic_tool(
+        "decagent_semantic_choice",
+        {
+            "choice": "article:7",
+            "probabilities": {"article:7": 0.99, "no_match": 0.01},
+        },
+    )["choice"] == "article:7"
+
 
 
 def test_jev_alias_response_is_accepted_by_ledger_and_actual_version_is_saved(tmp_path):

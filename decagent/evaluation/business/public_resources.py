@@ -649,8 +649,9 @@ class LedgeredModelAdapterFactory:
             required_names.add("react")
         elif route_name in {"plan_mcp", "plan_primary_semantic_mcp", "plan_jev_semantic_mcp"}:
             required_names.add("planner")
-        if route_name == "plan_jev_semantic_mcp":
+        if route_name in {"plan_primary_semantic_mcp", "plan_jev_semantic_mcp"}:
             required_names.add("semantic")
+        if route_name == "plan_jev_semantic_mcp":
             if "jev" not in profiles:
                 raise ValueError("A frozen Jev profile is required for Jev routes")
         supports_user_simulation = getattr(session, "supports_user_simulation", False)

@@ -459,6 +459,46 @@ def test_role_factory_uses_jev_profile_only_for_semantic_jev_route():
     assert profiles_seen == [plan.profiles.primary, plan.profiles.jev]
 
 
+def test_primary_semantic_route_requires_a_primary_semantic_callback():
+    plan = _legacy_plan()
+
+    def callback(_request, *, timeout_seconds):
+        return None
+
+    trial = SimpleNamespace(**plan.profiles.digests)
+    ledger = SimpleNamespace(
+        reserve_model_attempt=lambda **_kwargs: "unused",
+        route_remaining_seconds=lambda *_args: 1,
+    )
+    missing = LedgeredModelAdapterFactory(
+        {"planner": lambda *_: callback},
+        {"planner": lambda _request: 10},
+        ledger,
+        plan.profiles,
+        trial_id_for=lambda _trial: "a" * 64,
+    )
+    with pytest.raises(ValueError, match="callbacks are not configured"):
+        missing(SimpleNamespace(supports_user_simulation=False), trial, Route.PLAN_PRIMARY_SEMANTIC)
+
+    factory = LedgeredModelAdapterFactory(
+        {
+            "planner": lambda *_: callback,
+            "semantic": lambda *_: callback,
+        },
+        {"planner": lambda _request: 10, "semantic": lambda _request: 10},
+        ledger,
+        plan.profiles,
+        trial_id_for=lambda _trial: "a" * 64,
+    )
+    adapters = factory(
+        SimpleNamespace(supports_user_simulation=False),
+        trial,
+        Route.PLAN_PRIMARY_SEMANTIC,
+    )
+
+    assert adapters["semantic"].profile is plan.profiles.primary
+
+
 def test_role_factory_binds_tau_user_and_judge_profiles_without_crossing_roles():
     plan = _plan_with_known_primary_prices()
 
