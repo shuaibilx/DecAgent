@@ -1,0 +1,534 @@
+{
+  "schema_version": 1,
+  "installed_at_utc": "2026-10-21T03:51:16.326548+00:00",
+  "destination": "DecAgent/.agents/skills",
+  "update_policy": "manual_review_pinned_commit",
+  "skills": [
+    {
+      "name": "supabase-postgres-best-practices",
+      "repository": "supabase/agent-skills",
+      "commit": "c9be0e931b7930f7d02126d04774d904c381e7d7",
+      "upstream_path": "skills/supabase-postgres-best-practices",
+      "source_url": "https://github.com/supabase/agent-skills/tree/c9be0e931b7930f7d02126d04774d904c381e7d7/skills/supabase-postgres-best-practices",
+      "installed_path": ".agents/skills/supabase-postgres-best-practices",
+      "license": "MIT",
+      "file_count": 36,
+      "files_sha256": {
+        "CHANGELOG.md": "751ad110037c85d400018c9894716a04fa46357ff55c22b1169b280752e19e88",
+        "SKILL.md": "ad65e776f45e761bafc609d3f506c77c1032225aa65e0c4c02f241b8071e5855",
+        "references/_contributing.md": "191e039e7d94764e6073410b513b559f9a594e0fdf0252a30c2a2986df2ab3bc",
+        "references/_sections.md": "c9e992612b422c7122de0b7542ebc2450db283edaab08cfe86c6d657fcccccd5",
+        "references/_template.md": "6299954250f212caabe339d752c3e5313a8e07d1a182a4e4b425baee91df1bd2",
+        "references/advanced-full-text-search.md": "40c2606bbb4c4dce31308f201b24cc7f58c7df05b1d9c6856fe2b888d3b7cf28",
+        "references/advanced-jsonb-indexing.md": "24cacf6a8bc35901dd566d24502ce8e57f810a5c196b897e61d52726e521d106",
+        "references/conn-idle-timeout.md": "630588902c00fcec59a5988cc5d042f76dcf2c923a535abfd8c47dca205eaed5",
+        "references/conn-limits.md": "11b2a67a7c7679cbbc5d807bbb17e69c98484a581d0c8b929c03408f412b81b2",
+        "references/conn-pooling.md": "88cf086bf98ba865d2e9d0579974e1366b14157619d6a93e7da77be91084e4a5",
+        "references/conn-prepared-statements.md": "174e9332fe3dda5c99b2b00159fb1915ae36c00bab3a7882c14e73e4344e946e",
+        "references/data-batch-inserts.md": "531933b82d6a622d0fae29e0ea80be6fe5d78655adf2804c271ea84a1930de37",
+        "references/data-n-plus-one.md": "21a44905e5b16a42741892ec34bb1bfef124d049b140a76934a9acd0f46f5fc2",
+        "references/data-pagination.md": "73c9fa10a3d439bedea0e11b640bd25bf30dd50f0d9006cf85baf7c3151543fa",
+        "references/data-upsert.md": "2612af83b20a2701dde30ef1f8d7efd26b7e9eef84717226b8f038a2d2150ff7",
+        "references/lock-advisory.md": "c88d259dbf81c3771438f59a165f7eab8acd09999dd370bdf807521c73f35aab",
+        "references/lock-deadlock-prevention.md": "09aee46f51d7178c8e55fe056cd5a94a64ba2c122fe418e6900cd99f297b2347",
+        "references/lock-short-transactions.md": "5aa7f61095916986d39644b446cdbcd2bacca7ef698a3bb50b3f82dd60207602",
+        "references/lock-skip-locked.md": "6c45077f430f29cd9cd8f448c94d578e827e7bd023fcdaf717a756acb116fa4b",
+        "references/monitor-explain-analyze.md": "4cb67ffbf8e57f2e5b380b0beb4242528b513723ce314a2c2ffcf083bd4203d7",
+        "references/monitor-pg-stat-statements.md": "89dca99d4e894fcbdcac136be7ad9fbc03d1342904f065c1b198dc9cf495f098",
+        "references/monitor-vacuum-analyze.md": "2892272011710eb49b3f185ec12f15ce9ce4c365792c672f6e2a9c90da426a1a",
+        "references/query-composite-indexes.md": "73e42424e671f0266e74fdb220db3196790f69fb43e2b19c7b9483eb4971b554",
+        "references/query-covering-indexes.md": "daf2a7f0477fb7357b62b5fb5b185b1995a77a186347e45cb780e25e7a7589b6",
+        "references/query-index-types.md": "472a74f22c2df203bd0154999b3a5a0187cca2ab3d9a3978e305bb7c32f1a282",
+        "references/query-missing-indexes.md": "91ad8b0ff4365704b4830a7f077c6f140f7140fd5d3ce5cd0b92b160cf9e25f1",
+        "references/query-partial-indexes.md": "6448982bc8558c6555284958edc331b29239c6a0130e6b4501dd6d4da607a6dd",
+        "references/schema-constraints.md": "90e8efda3e9e81095e642911ad4aae2809d160f29414338fa997253238f510f8",
+        "references/schema-data-types.md": "e01b58c14c7f3f65d8ead580b9a4fcf70b83baaab0f9a5f83c569c9fd113e8c8",
+        "references/schema-foreign-key-indexes.md": "7587713d12a65a212365459b3d39e4717d8a79e4073b10bd62f1054d8192c0dd",
+        "references/schema-lowercase-identifiers.md": "4bc80f70865f2390872591f326c8a6be6456a0aeb5a7e5a2475d7cd9d43059ab",
+        "references/schema-partitioning.md": "541e13fbeaf4bb1485c9059d4c9417dbdb766cf16f4237cd63a04ada7ec45b90",
+        "references/schema-primary-keys.md": "3c8beabef82066f9a0838b926da0885117fd2d9a263aaf84cb5ca9e5f0d400e9",
+        "references/security-privileges.md": "095909274a4fb43df785d7144cf674eeb40284d2d45628f14af4108737b93663",
+        "references/security-rls-basics.md": "e04dd1a3a382aafdaaa73fe9f7976352acdde6e90c2a2470d281b94d4f44b096",
+        "references/security-rls-performance.md": "2e1faeca7d5746e246b1c78f9492fe2a9cfa41c4d7fa1e23c402d58fa18ea014"
+      },
+      "upstream_modified": false,
+      "license_file": ".agents/skill-licenses/supabase-agent-skills-LICENSE.txt"
+    },
+    {
+      "name": "webapp-testing",
+      "repository": "anthropics/skills",
+      "commit": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "upstream_path": "skills/webapp-testing",
+      "source_url": "https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/webapp-testing",
+      "installed_path": ".agents/skills/webapp-testing",
+      "license": "Apache-2.0",
+      "file_count": 6,
+      "files_sha256": {
+        "LICENSE.txt": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+        "SKILL.md": "51b7349e77ec63b7744a6f63647e7566a0b4d2e301121cc10e8c2113af6556a2",
+        "examples/console_logging.py": "ea46877289acb82da7e7ce59d0bc37c8977cd57e2a006d0c88d7a1c625bf95da",
+        "examples/element_discovery.py": "d63c89604a22f8845d724e95dda45db49b1bf57c25ce0a83afbb7b8da3d402f0",
+        "examples/static_html_automation.py": "9d533aafb875ee3ab8b8ebf8f5b9003ac8d999da3d09b285cce252e623140064",
+        "scripts/with_server.py": "b0dcf4918935b795f4eda9821579b9902119235ff4447f687a30286e7d0925fd"
+      },
+      "upstream_modified": false,
+      "license_file": ".agents/skills/webapp-testing/LICENSE.txt"
+    },
+    {
+      "name": "security-best-practices",
+      "repository": "openai/skills",
+      "commit": "49f948faa9258a0c61caceaf225e179651397431",
+      "upstream_path": "skills/.curated/security-best-practices",
+      "source_url": "https://github.com/openai/skills/tree/49f948faa9258a0c61caceaf225e179651397431/skills/.curated/security-best-practices",
+      "installed_path": ".agents/skills/security-best-practices",
+      "license": "Apache-2.0",
+      "file_count": 13,
+      "files_sha256": {
+        "LICENSE.txt": "4dd13869245e356246a5b770723247bbb80a8f07a181d1d3d873a1734297cdb9",
+        "SKILL.md": "7b3dae1ffc5434d890f3c65c8f552af52d0307fab3b35dec13013c9ca3844c4f",
+        "agents/openai.yaml": "6e9c6f2edce448eb2b589f81ad6e3f722665021785513bcbfd0bf7b86b529171",
+        "references/golang-general-backend-security.md": "a73c47c34497b120672d48411fe51dc90d426a571801a0b3f649e2ce4ec658b4",
+        "references/javascript-express-web-server-security.md": "427835cbb5be7ba96172ea6ca9af80ddd4419c833e9ebf870996740c80d8406c",
+        "references/javascript-general-web-frontend-security.md": "3a7bc7b3f6e7ff043db9dbaa8933894d7a19d987d0607e4ddae5d70184a63d63",
+        "references/javascript-jquery-web-frontend-security.md": "bcbad2fa6c2a02709e47e889e70102c76886bf36bc798624d27db570eccf40da",
+        "references/javascript-typescript-nextjs-web-server-security.md": "71c773f7a97ce60c853adfa100b3d88b3b7bc4c6b8acaef1432ffabd923ee182",
+        "references/javascript-typescript-react-web-frontend-security.md": "d3030c0f24bddb56b9bbb91bbec1ee49eb7778bce4d3e0297b2641b2fc6b0d9c",
+        "references/javascript-typescript-vue-web-frontend-security.md": "77c6a747f9f17e3df03aad0fcb20d99ac7898001b81aef8b80908e45ac14a688",
+        "references/python-django-web-server-security.md": "4fb69b5d45f10e588d1a8c35cdc5f59e18910f6b46a93e2d342d90f286f8dfd2",
+        "references/python-fastapi-web-server-security.md": "7383c7f4fc271190b05e562ada7e825982a2c76b6c79a9f95a1da7687b65a616",
+        "references/python-flask-web-server-security.md": "9606d69190c04c167fdeac57e61297547a57b0542fd89dede36f355970446929"
+      },
+      "upstream_modified": false,
+      "license_file": ".agents/skills/security-best-practices/LICENSE.txt"
+    },
+    {
+      "name": "security-threat-model",
+      "repository": "openai/skills",
+      "commit": "49f948faa9258a0c61caceaf225e179651397431",
+      "upstream_path": "skills/.curated/security-threat-model",
+      "source_url": "https://github.com/openai/skills/tree/49f948faa9258a0c61caceaf225e179651397431/skills/.curated/security-threat-model",
+      "installed_path": ".agents/skills/security-threat-model",
+      "license": "Apache-2.0",
+      "file_count": 5,
+      "files_sha256": {
+        "LICENSE.txt": "4dd13869245e356246a5b770723247bbb80a8f07a181d1d3d873a1734297cdb9",
+        "SKILL.md": "1283c0dd62a8104d9edda4583569b5d8510b4ddaa45120687c999250fd96bad2",
+        "agents/openai.yaml": "3319b59736312abceca614e341c0e59cae47263e3b58a22b2b5ddf1e5fc8c227",
+        "references/prompt-template.md": "81a59aa3fb3ac3a739d6a26ab38e4015965f215581ee54becef21a2b121ec29b",
+        "references/security-controls-and-assets.md": "d536cfa9acad2523dc39134bcf33b9566c29dd9a57b407cbc9901637230c6b98"
+      },
+      "upstream_modified": false,
+      "license_file": ".agents/skills/security-threat-model/LICENSE.txt"
+    },
+    {
+      "name": "docker-compose-patterns",
+      "repository": "docker/skills",
+      "commit": "38df58b09720d38eb78c2c674675ddf9fa74d441",
+      "upstream_path": "skills/docker-compose-patterns",
+      "source_url": "https://github.com/docker/skills/tree/38df58b09720d38eb78c2c674675ddf9fa74d441/skills/docker-compose-patterns",
+      "installed_path": ".agents/skills/docker-compose-patterns",
+      "license": "Apache-2.0",
+      "file_count": 10,
+      "files_sha256": {
+        "SKILL.md": "b43f4d71a18159de5868e0f1a352f0dd091bb81fe3ad29b24d79cffce6adfc4c",
+        "agents/openai.yaml": "aec9d1df3cb1ce775e36d499da60ee728ad079516e26865a59007af276e1a424",
+        "assets/bad-vs-good.md": "f7de35332fa1c57f141a3df2e30fa82d109858ed00609a566536625b3df9eef8",
+        "assets/compose-dev-override.yaml": "d01ff97e0860e712c981c7100d1ce8f5e0cd18ed4a55b2237bbff604be01c2ad",
+        "assets/compose-web-app.yaml": "b9fa2b9162533724f3295b06377f76f8be5d13a428cb5572865c9d1420ded7e4",
+        "checks/verification.md": "0b41c98fc7f76d878f26187395df50c95ad9882b90d0c0a86536ab3e617956f5",
+        "references/service-dependencies.md": "54f2d8a2b0b84e5639da76c9c0b85a4b5f12f33cff407fd1a44febc7ba8f12bb",
+        "references/volumes-and-networks.md": "b7d077cbb3ddbdf3c1cc3fae0475604477f30ee8a905c4c5feb0ac42ffa66c23",
+        "scripts/verify-compose.sh": "42ba672ba1b933f00c2871c37c1e60067685b5ff58d25b1f1264f171c219ebd2",
+        "skill.yaml": "2f00f4fb618c32a8ace611dc66267572036e5494ec183ae53350107f35f4e342"
+      },
+      "upstream_modified": false,
+      "license_file": ".agents/skill-licenses/docker-skills-LICENSE.txt"
+    },
+    {
+      "name": "ecosystem-primer",
+      "repository": "langchain-ai/langchain-skills",
+      "commit": "704e9f4a2f962f449495515f2599502394bc84b2",
+      "upstream_path": "config/skills/ecosystem-primer",
+      "source_url": "https://github.com/langchain-ai/langchain-skills/tree/704e9f4a2f962f449495515f2599502394bc84b2/config/skills/ecosystem-primer",
+      "installed_path": ".agents/skills/ecosystem-primer",
+      "license": "MIT",
+      "license_file": ".agents/skill-licenses/langchain-langchain-skills-LICENSE.txt",
+      "file_count": 1,
+      "files_sha256": {
+        "SKILL.md": "cc786e2a06096142f93bda47bd9e9419338b21fead8d5c3d7b997cef43ed32cb"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1"
+    },
+    {
+      "name": "langgraph-fundamentals",
+      "repository": "langchain-ai/langchain-skills",
+      "commit": "704e9f4a2f962f449495515f2599502394bc84b2",
+      "upstream_path": "config/skills/langgraph-fundamentals",
+      "source_url": "https://github.com/langchain-ai/langchain-skills/tree/704e9f4a2f962f449495515f2599502394bc84b2/config/skills/langgraph-fundamentals",
+      "installed_path": ".agents/skills/langgraph-fundamentals",
+      "license": "MIT",
+      "license_file": ".agents/skill-licenses/langchain-langchain-skills-LICENSE.txt",
+      "file_count": 3,
+      "files_sha256": {
+        "SKILL.md": "193bea142c9df04abc44917fb96c0be53ec9b5c77f56670004d3c03c117fb990",
+        "references/python.md": "3d30871a6463f955452fdebe607248c39b6806cf07c0fe655e3783b48acc6d91",
+        "references/typescript.md": "8cf8577265a75a1e46a5e1dfc7599c63efb60059591593dbb92dbd51acd5d22a"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1"
+    },
+    {
+      "name": "langgraph-human-in-the-loop",
+      "repository": "langchain-ai/langchain-skills",
+      "commit": "704e9f4a2f962f449495515f2599502394bc84b2",
+      "upstream_path": "config/skills/langgraph-human-in-the-loop",
+      "source_url": "https://github.com/langchain-ai/langchain-skills/tree/704e9f4a2f962f449495515f2599502394bc84b2/config/skills/langgraph-human-in-the-loop",
+      "installed_path": ".agents/skills/langgraph-human-in-the-loop",
+      "license": "MIT",
+      "license_file": ".agents/skill-licenses/langchain-langchain-skills-LICENSE.txt",
+      "file_count": 1,
+      "files_sha256": {
+        "SKILL.md": "ce56e8ce58548dd1d7cb0d3e524cf546cef0c712e3c35d63fdd4ae354b40d3c1"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1"
+    },
+    {
+      "name": "langgraph-persistence",
+      "repository": "langchain-ai/langchain-skills",
+      "commit": "704e9f4a2f962f449495515f2599502394bc84b2",
+      "upstream_path": "config/skills/langgraph-persistence",
+      "source_url": "https://github.com/langchain-ai/langchain-skills/tree/704e9f4a2f962f449495515f2599502394bc84b2/config/skills/langgraph-persistence",
+      "installed_path": ".agents/skills/langgraph-persistence",
+      "license": "MIT",
+      "license_file": ".agents/skill-licenses/langchain-langchain-skills-LICENSE.txt",
+      "file_count": 1,
+      "files_sha256": {
+        "SKILL.md": "0a9a4f36e6d7895a273ce0882655e57023d2d992d4fde8e033e2936ac1df789e"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1"
+    },
+    {
+      "name": "langgraph-decision-models",
+      "repository": "langchain-ai/langchain-skills",
+      "commit": "704e9f4a2f962f449495515f2599502394bc84b2",
+      "upstream_path": "config/skills/langgraph-decision-models",
+      "source_url": "https://github.com/langchain-ai/langchain-skills/tree/704e9f4a2f962f449495515f2599502394bc84b2/config/skills/langgraph-decision-models",
+      "installed_path": ".agents/skills/langgraph-decision-models",
+      "license": "MIT",
+      "license_file": ".agents/skill-licenses/langchain-langchain-skills-LICENSE.txt",
+      "file_count": 2,
+      "files_sha256": {
+        "SKILL.md": "aed6f94f1b4e9ac841b4929e7f497229d59095c6e61ea28c4f1257af3bbea9cd",
+        "references/conversion-playbook.md": "e3b7191adaadc6e08aca681535257dd62efc10c1b8e4b60a81877b2cac409726"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1"
+    },
+    {
+      "name": "eval-engineering",
+      "repository": "langchain-ai/langchain-skills",
+      "commit": "704e9f4a2f962f449495515f2599502394bc84b2",
+      "upstream_path": "config/skills/eval-engineering",
+      "source_url": "https://github.com/langchain-ai/langchain-skills/tree/704e9f4a2f962f449495515f2599502394bc84b2/config/skills/eval-engineering",
+      "installed_path": ".agents/skills/eval-engineering",
+      "license": "MIT",
+      "license_file": ".agents/skill-licenses/langchain-langchain-skills-LICENSE.txt",
+      "file_count": 21,
+      "files_sha256": {
+        "SKILL.md": "47c93e705a3a21ab28ab0b2289488cb5e02da0e52729ca857a0c1d008a401c0b",
+        "agents/openai.yaml": "197313de881f9a2cc98cf1a90a98f4e582049e2c2025b396443796c4480edfff",
+        "references/calibration.md": "f2bb620404cca0ee8f1aa56bc2585cb2e0cfc05c4d76b3b16c04a03cd130e27a",
+        "references/discovery.md": "50ea0b7ad4aa391a8e1cb31cbadb6426014cf72a1ec08d05d873fb160bb80aef",
+        "references/environment-building.md": "eacafa2f8b67645efb3cf34be18166bdb476fc7e5f0845382e4e102f5a51e093",
+        "references/harbor.md": "e7c211f933a1dc6ae606f8ecaf9ca3c025bd84e7bcb50fe0888942f1e7567089",
+        "references/patterns.md": "39e717bbca17e3c847ad424c4dda53a17e7575444b9fc781395dacfa8af5dade",
+        "references/synthetic-data.md": "70047f998821cfaa24f08e1528b5924b206e2f0fda5dcc2fee8a1d6dee1795f0",
+        "references/task-design.md": "75e73907b50dfe3422d2673ea18b22dd1d622a938f2f160dbc33d55333bdda63",
+        "references/task-implementation.md": "1f5be2d0ba6e17777475b42bed35985f0dbd6d2842f15b7654b528be0a4d62a3",
+        "references/verifier-design.md": "5626ab0b70dde72017a98ea2646712ea1090f2080f6a234fd3661fadd5282a1f",
+        "references/world-knowledge.md": "5136a54ed8c33ead56c9e7a3fbafecc6dbab2cdcf6d56dd32e95533e66adbf16",
+        "scripts/compare_tool_schemas.py": "777b18270035e0fd0037712f0b5fb6e0218e8f11cc0218a48bc63f1e0da5b4b8",
+        "scripts/snapshot_sqlite_state.py": "c44cf7137fe66a40b61ceedc91618b6154c2fe2eb86e5ae95318e094063f787e",
+        "references/examples/service-desk.md": "c33d84e1d9e4f2801500c1f64e451d1fd4886a0b7b61e9a25f76b3c2f4242a03",
+        "references/multi-turn-simulation/guide.md": "e6f26fbd7d8e3dcc3e0a5f2c05ad4d6906a75534e8738f6ec8acb2f80c0c124e",
+        "references/multi-turn-simulation/harbor_example.py": "0443c3b4b2c4104a79253435f5b47286f3cb66a49ca8dbb3259ed346b6fb46d6",
+        "references/multi-turn-simulation/model_user.py": "37293c671c8b5bf00bc088f4340eb5fc6801f20a2b4be0010ef105f89e343a8e",
+        "references/multi-turn-simulation/runner.py": "d05c6f89510dd580ce222ae7dd013c64a529b4be67e3d9d938cfb3f6ae41db8b",
+        "assets/task/Task.md.template": "e20b7f9744b0baa18a1d8823deb5f06189222919dc74117c8ca38be2ad373a6d",
+        "assets/world-skill/SKILL.md.template": "ee3f58bfbb67c6f5b5c4e8751213ab522369b472b11c6ed7df33845617f2cfb7"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1"
+    },
+    {
+      "name": "gh-fix-ci",
+      "repository": "openai/skills",
+      "commit": "49f948faa9258a0c61caceaf225e179651397431",
+      "upstream_path": "skills/.curated/gh-fix-ci",
+      "source_url": "https://github.com/openai/skills/tree/49f948faa9258a0c61caceaf225e179651397431/skills/.curated/gh-fix-ci",
+      "installed_path": ".agents/skills/gh-fix-ci",
+      "license": "Apache-2.0",
+      "license_file": ".agents/skills/gh-fix-ci/LICENSE.txt",
+      "file_count": 6,
+      "files_sha256": {
+        "LICENSE.txt": "4dd13869245e356246a5b770723247bbb80a8f07a181d1d3d873a1734297cdb9",
+        "SKILL.md": "7b326b4a2f0f5f85122144628ec02077e48841e0e0e82efce88b3415bcfb7c26",
+        "agents/openai.yaml": "36f73b9450504983d1647c960689596f59bf9147c14b1b43162912ed7ada9af6",
+        "assets/github-small.svg": "ee05e92d373d4d84f4612af3c1090ef67698d421bbe30896a4ed5a00cb86a069",
+        "assets/github.png": "d55a9baa41798d8b5108e3058df3a5bda09914ea9fd73b49929cc38a8832424f",
+        "scripts/inspect_pr_checks.py": "9459e5b03f86785d184a83e5cd8d621b832e918ec04158a2962d867785812c6c"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1"
+    },
+    {
+      "name": "mcp-builder",
+      "repository": "anthropics/skills",
+      "commit": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "upstream_path": "skills/mcp-builder",
+      "source_url": "https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/mcp-builder",
+      "installed_path": ".agents/skills/mcp-builder",
+      "license": "Apache-2.0",
+      "license_file": ".agents/skills/mcp-builder/LICENSE.txt",
+      "file_count": 10,
+      "files_sha256": {
+        "LICENSE.txt": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+        "SKILL.md": "0f4592dcb53cf2b5d6b7febee6b4152018b565551a1c29e3c612f57b218ab295",
+        "reference/evaluation.md": "8c99479f8a2d22a636c38e274537aac3610879e26f34e0709825077c4576f427",
+        "reference/mcp_best_practices.md": "80fb4369a349447cf18ecdd7494fe7938b6065377e9f08c077cec411093a3007",
+        "reference/node_mcp_server.md": "c3ba35a4f599dd53be9c6555ae72c19a7bf412cd5426576c2c08d42755482c66",
+        "reference/python_mcp_server.md": "2da52f77e675191014ca2e146a4b95aa04d0ca7dd7e2b100322df15ade685e80",
+        "scripts/connections.py": "9403668a2041568772082a8b334122c1f88daf0541fb393af4522d0094a47a6e",
+        "scripts/evaluation.py": "49ed1d17cdce5da101b210197740713f49b935c29d4f339542a14b132658e6f7",
+        "scripts/example_evaluation.xml": "9272b348ddcc4b06ba562367ccd0770e018158c0068ac5116d5e34aaeff8777a",
+        "scripts/requirements.txt": "d5d7558b2368ecea9dfeed7d1fbc71ee9e0750bebd1282faa527d528a344c3c7"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1"
+    },
+    {
+      "name": "github-actions-efficiency",
+      "repository": "github/awesome-copilot",
+      "commit": "613efc8c21d9b3ce642dff361d17006cd9967e28",
+      "upstream_path": "skills/github-actions-efficiency",
+      "source_url": "https://github.com/github/awesome-copilot/tree/613efc8c21d9b3ce642dff361d17006cd9967e28/skills/github-actions-efficiency",
+      "installed_path": ".agents/skills/github-actions-efficiency",
+      "license": "MIT",
+      "file_count": 5,
+      "files_sha256": {
+        "SKILL.md": "9c41e860468e5c88d83ab6eec70c585b0f122facec2632ea65497b3389139e43",
+        "references/actions.md": "9f24153e0b743a978ec84e08bc64047616d18504965708cc7507437203689fdb",
+        "references/patterns.md": "a9fb61ee95b5f2f4cb372064f5de9d04ca749da1b78d050e42e909e9e97228dd",
+        "references/reporting.md": "18eec5acd0d9e52b450f86b8232e9994c5c5b7760240bcb2e97417f8a847508c",
+        "references/review-rubric.md": "f2fd2bbd34f15f68664e30ea62468f8a5b19bc9b49929dcd082a4c87316b3ce2"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1",
+      "license_file": ".agents/skill-licenses/github-awesome-copilot-LICENSE.txt",
+      "source_description": "GitHub-maintained Awesome Copilot repository; community-contributed skill, supplementary practice only, not normative GitHub documentation."
+    },
+    {
+      "name": "github-actions-hardening",
+      "repository": "github/awesome-copilot",
+      "commit": "613efc8c21d9b3ce642dff361d17006cd9967e28",
+      "upstream_path": "skills/github-actions-hardening",
+      "source_url": "https://github.com/github/awesome-copilot/tree/613efc8c21d9b3ce642dff361d17006cd9967e28/skills/github-actions-hardening",
+      "installed_path": ".agents/skills/github-actions-hardening",
+      "license": "MIT",
+      "file_count": 6,
+      "files_sha256": {
+        "SKILL.md": "31a8e7483d978e6267941edefebbe42aaa946bb3d43c9095aa3db343d4a8ff06",
+        "references/injection.md": "ebd6ef8d39ba6f1cd3dc13051e6ed4163d1d2ba36518cf0f7393836a211e58ff",
+        "references/permissions-and-tokens.md": "7272d00b20cf99c6fcbf34346f76730907c00701aef44bb9cfb7ab3eecac336b",
+        "references/report-format.md": "3ecd2442e173bc001f858747873349be7c6c77050470b87ae516647908b1e86e",
+        "references/supply-chain.md": "f66f613dbd732ce87c1e76b88208efde8feae3ffe5a3ab405cde4ce3df66f605",
+        "references/triggers-and-privilege.md": "465f3f76517e9f5374a73e30f46cb47e1fe62ce9fd81f782808a3abbb2df2756"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1",
+      "license_file": ".agents/skill-licenses/github-awesome-copilot-LICENSE.txt",
+      "source_description": "GitHub-maintained Awesome Copilot repository; community-contributed skill, supplementary practice only, not normative GitHub documentation."
+    },
+    {
+      "name": "security-audit",
+      "repository": "cloudflare/security-audit-skill",
+      "commit": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
+      "upstream_path": "skills/security-audit",
+      "source_url": "https://github.com/cloudflare/security-audit-skill/tree/c1c8a8c1471069fb0e188eeaff69b8e8db6564a8/skills/security-audit",
+      "installed_path": ".agents/skills/security-audit",
+      "license": "MIT",
+      "file_count": 20,
+      "files_sha256": {
+        "AI-AND-LLM.md": "7335a95c43554eadefcf03ece639291bb0e038c398a179299e3887ffe06bd2ef",
+        "ATTACK-CLASSES.md": "3ee4f00c6e8c9dcf6dd02dd5ac2a4ceb322e2085f3e9fbe79cf0c6330bc7ef83",
+        "CLIENT-SIDE.md": "613f6b98f86083e045525c5b60154ffdab122bac35f1e05eb17488e6e453370c",
+        "CLOUD-AND-DEPLOYMENT.md": "3c80f3088be22345e07b057c056d6ed99fe2b0304f794398964f7ccd5a496ca3",
+        "DATA-ISOLATION-AND-LIFECYCLE.md": "307dcb3e24d292715c4a041190e7bb135646a37eb6187619ae01d000a634a4ad",
+        "DESKTOP-MOBILE-AND-LOCAL-IPC.md": "58eae8ee0ca6a46611c501ec5a3ab47fdff88dd7db0d8d74789bbf8bb19d8cb2",
+        "HUNTING.md": "71c121decea1322c47c718f6e110f1a892980bb4266bd7ac55ef043a213ade09",
+        "MEMORY-SAFETY-AND-BINARY.md": "7c8b0dccfb35315cca2455509674d49632b2fe37e1f3aac16c1a496a7e9924a7",
+        "PROTOCOLS-RPC-AND-MESSAGING.md": "8b73816fa5b3697c9c40977f0c836b40f01d6e81929ff2720fe83ce089e9a619",
+        "RECONNAISSANCE.md": "02ca887aca84de8ae137f1891bd2f0a54f28d3fa6da92a27f54734382b3381a2",
+        "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md": "4326fab5c92a0b4c420a70196254040105cd794026562130b59bf1a6db3e4baa",
+        "SKILL.md": "5e3e96a1e438d8f35fef0a1e38f02d4f00e2bdf910401b7dfe00e6779c6dac85",
+        "SUPPLY-CHAIN-AND-RELEASE.md": "f372e919940e335468ba1ae09f99026c3986a345f7fe26f8068f132e199f52a5",
+        "VALIDATION-AND-REPORTING.md": "b892470cb89bb31f33403e050d4bdfbe2cdaef940ade1496fa65e32b2e129449",
+        "WEB-PROTOCOL-AND-AUTH.md": "4f3066dffa23c5635859187be9b96c32f2aff29a688186b91ff0c63e47d62b5c",
+        "report-schema.json": "6575c9de4a62255699ea052ebf9a49ebfb373a32891bcd89af6f55cc84b35519",
+        "validate-coverage-ledger.cjs": "2eb280bd2e33c002916f86db9b29f9edfedb6454e5db973c766290465b868ac8",
+        "validate-coverage-ledger.test.cjs": "cfb9df26b03469a4279a70e7664a2a5434dd6f8c2c204e91f9b0aeb9dd71e648",
+        "validate-findings.cjs": "e85f232e36bfac0f866f244da50376692d6b45c690beadcb00608b0e6c8b5283",
+        "validate-findings.test.cjs": "b92001117a92c4161d43777a0ba2fa182a8a4d97f2304cc8c0cee5331497b73b"
+      },
+      "upstream_modified": false,
+      "verified_against": "pinned_upstream_git_blob_sha1",
+      "license_file": ".agents/skill-licenses/cloudflare-security-audit-skill-LICENSE.txt",
+      "source_description": "Security-audit skill maintained in Cloudflare's official GitHub organization; use only for in-scope defensive reviews and preserve its sandbox limitations."
+    }
+  ],
+  "workflow_skills": [
+    {
+      "name": "openspec-explore",
+      "generator": "OpenSpec CLI",
+      "installed_cli_version": "1.14.1",
+      "source_kind": "existing_official_generated_workflow",
+      "installed_path": ".agents/skills/openspec-explore",
+      "files_sha256": {
+        "SKILL.md": "31a4c7543ceb40a2c4b45a184de87f4cb2921a1f98a69688acc51de3ac3e177f"
+      },
+      "copied_at_utc": "2026-10-21T03:52:13.395703+00:00",
+      "source_description": "Existing official OpenSpec-generated workflow, copied without modifications from prior project tooling"
+    },
+    {
+      "name": "openspec-propose",
+      "generator": "OpenSpec CLI",
+      "installed_cli_version": "1.14.1",
+      "source_kind": "existing_official_generated_workflow",
+      "installed_path": ".agents/skills/openspec-propose",
+      "files_sha256": {
+        "SKILL.md": "bd3d2fef6701ef39e5181e54a258f43a3b58a67369f4dfac8926b9b7e9229a26"
+      },
+      "copied_at_utc": "2026-10-21T03:52:13.530345+00:00",
+      "source_description": "Existing official OpenSpec-generated workflow, copied without modifications from prior project tooling"
+    },
+    {
+      "name": "openspec-apply-change",
+      "generator": "OpenSpec CLI",
+      "installed_cli_version": "1.14.1",
+      "source_kind": "existing_official_generated_workflow",
+      "installed_path": ".agents/skills/openspec-apply-change",
+      "files_sha256": {
+        "SKILL.md": "491fbd2617e7cd3070066acf322d0b647b7b405c03219d0ff5c894f108a1ef44"
+      },
+      "copied_at_utc": "2026-10-21T03:52:13.663695+00:00",
+      "source_description": "Existing official OpenSpec-generated workflow, copied without modifications from prior project tooling"
+    },
+    {
+      "name": "openspec-update-change",
+      "generator": "OpenSpec CLI",
+      "installed_cli_version": "1.14.1",
+      "source_kind": "existing_official_generated_workflow",
+      "installed_path": ".agents/skills/openspec-update-change",
+      "files_sha256": {
+        "SKILL.md": "f764f832630d0d7672861f5d18c519ca96907ce12100b47544920136130461f8"
+      },
+      "copied_at_utc": "2026-10-21T03:52:13.790868+00:00",
+      "source_description": "Existing official OpenSpec-generated workflow, copied without modifications from prior project tooling"
+    },
+    {
+      "name": "openspec-sync-specs",
+      "generator": "OpenSpec CLI",
+      "installed_cli_version": "1.14.1",
+      "source_kind": "existing_official_generated_workflow",
+      "installed_path": ".agents/skills/openspec-sync-specs",
+      "files_sha256": {
+        "SKILL.md": "0631ef731343aaa75d6466fe36ce3f2deecd57cc07e135026159fcdec93f2eb8"
+      },
+      "copied_at_utc": "2026-10-21T03:52:13.910910+00:00",
+      "source_description": "Existing official OpenSpec-generated workflow, copied without modifications from prior project tooling"
+    },
+    {
+      "name": "openspec-archive-change",
+      "generator": "OpenSpec CLI",
+      "installed_cli_version": "1.14.1",
+      "source_kind": "existing_official_generated_workflow",
+      "installed_path": ".agents/skills/openspec-archive-change",
+      "files_sha256": {
+        "SKILL.md": "0b0a3e43dd6d1d3b7c3b23527b8d50976b527ba294eef9649696600f584df032"
+      },
+      "copied_at_utc": "2026-10-21T03:52:14.030623+00:00",
+      "source_description": "Existing official OpenSpec-generated workflow, copied without modifications from prior project tooling"
+    }
+  ],
+  "updated_at_utc": "2026-10-21T10:16:42+00:00",
+  "installation_batches": [
+    {
+      "installed_at_utc": "2026-10-21T06:59:22.746039+00:00",
+      "reason": "User requested official project-local references for current and future engineering",
+      "added_skills": [
+        "ecosystem-primer",
+        "langgraph-fundamentals",
+        "langgraph-human-in-the-loop",
+        "langgraph-persistence",
+        "langgraph-decision-models",
+        "eval-engineering",
+        "gh-fix-ci",
+        "mcp-builder"
+      ],
+      "retained_existing_skills": [
+        "docker-compose-patterns",
+        "security-best-practices",
+        "security-threat-model",
+        "supabase-postgres-best-practices",
+        "webapp-testing"
+      ],
+      "verified_new_files": 45,
+      "python_files_syntax_checked": 8,
+      "application_dependencies_changed": false,
+      "model_requests_dispatched": 0
+    },
+    {
+      "installed_at_utc": "2026-10-21T08:58:23.514745+00:00",
+      "reason": "User requested recognized project-relevant skills; selected narrowly for GitHub Actions efficiency/security and pre-publication source auditing.",
+      "added_skills": [
+        "github-actions-efficiency",
+        "github-actions-hardening",
+        "security-audit"
+      ],
+      "verified_new_files": 31,
+      "verification": "Every installed file matched the pinned GitHub tree blob SHA; SHA-256 inventory and upstream MIT licenses recorded.",
+      "notes": [
+        "github/awesome-copilot skills are community-contributed despite the GitHub-maintained repository; use as supplementary advice, not normative GitHub policy.",
+        "Cloudflare security-audit is official Cloudflare source guidance and is not a Cloudflare Tunnel configuration skill.",
+        "Application dependencies and runtime configuration were not changed; no model calls were made."
+      ]
+    }
+  ],
+  "supplemental_references": [
+    {
+      "name": "typesafe-ai",
+      "source_kind": "user_global_skill_copy",
+      "installed_path": ".agents/skills/typesafe-ai",
+      "license": "MIT (as declared by the source skill)",
+      "license_file": ".agents/skill-licenses/typesafe-ai-LICENSE.txt",
+      "files_sha256": {
+        "SKILL.md": "71ea90d7906c6554c4f4c460ef7361b2d26f59116ccdae986dc6d997b9389f52",
+        "LICENSE": "835f233f1d6ed84a9b9a351aba0689b47644a4137d6316911fc7957bde523b02"
+      },
+      "official_docs_url": "https://docs.typesafe.ai/llms.txt",
+      "upstream_skill_repository": null,
+      "official_skill_source_verified": false,
+      "source_description": "Copied from the user's existing global TypeSafe guidance at their request; its official-document links are authoritative, but no upstream skill repository was verified."
+    }
+  ],
+  "metadata_corrections": [
+    {
+      "at_utc": "2026-10-21T10:16:42+00:00",
+      "path": ".agents/skills/typesafe-ai/LICENSE",
+      "change": "Corrected a one-character SHA-256 inventory typo after confirming the installed and user-global source files match; skill content unchanged."
+    }
+  ]
+}
