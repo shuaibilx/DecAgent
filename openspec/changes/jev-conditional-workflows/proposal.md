@@ -1,7 +1,7 @@
 # Proposal
-## 当前状态（2026-10-21，Qwen 费率 profile v4、10.10.B 完成）
+## 当前状态（2026-10-21，Qwen 费率 profile v4、同 SHA CI 完成）
 
-主 change 为 **69/79，10 项待完成**；guest change 为 10/28。10.8.D 已完成：Qwen profile v4 与公开评测 manifest v8 已冻结用户提供的标准人民币费率，并分开记录 provider-billed gross/voucher/cash 与冻结费率计算成本。10.10.B 已完成持久预算、身份和 Jev 账本边界；10.10.D 已完成 runner 接线，相关隔离回归 149 passed、14 skipped，Ruff 与 OpenSpec strict 通过。14 项跳过均因锁定 τ 子进程 runtime 未配置，属于 10.10.E 的环境验收缺口。v8 保持 206+80 任务范围和固定 4 个首波案例，状态为 `pre_registered_not_run`；真实四域故障闭环和新首波仍未通过。历史首波 5 failed/3 unknown 不重放，公开评分基准仍 0/286。当前没有发出新模型、工具或评分请求；此轮只做离线测试与文档状态核对。
+主 change 为 **71/79，8 项待完成**；guest change 为 10/28。10.8.D 已完成：Qwen profile v4 与公开评测 manifest v8 已冻结用户提供的标准人民币费率，并分开记录 provider-billed gross/voucher/cash 与冻结费率计算成本。主模型走千问兼容端点，备用 DeepSeek 走独立的 OpenRouter 端点；千问 CNY 费率不套用于 OpenRouter USD 线路。10.10.B/D/E 已完成持久预算与 Jev 账本、runner 接线及四域受控工程闭环。当前候选复验中 EnterpriseOps CSM/ITSM、τ retail/telecom 的实际隔离工具、原始评分与清理，以及账本/supervisor/unknown/清理失败/取消回归共 176 项通过；无 provider 模型请求，非正式公开成绩。证据见[四域工程闭环记录](../../../evals/benchmarks/evidence/public-four-domain-engineering-closure-20261021-3a7938fd.json)。旧候选 `3a7938fd1b3e7a564de6310fc171d1be8f8adfdc` 的 GitHub CI run [39592249617](https://github.com/shuaibilx/DecAgent/actions/runs/39592249617) 全部通过，但该 run 不包含新增的 EnterpriseOps route integration test 和本轮文档，当前工作树仍需提交并为新 SHA 重跑 CI。v8 保持 206+80 任务范围和固定 4 个首波案例，正式新首波尚未执行；历史首波 5 failed/3 unknown 不重放，公开评分基准仍为 0/286。此轮未发出新模型请求。
 
 旧 v2/v3 profile 与 v5/v6/v7 manifest 保持原样；Jev 的 USD 价格和累计 `$1` 账本不变。费率来源和 profile 映射见 [模型计费核验](../../../generated/261021/模型计费/1441_千问平台费率核验.md)。
 

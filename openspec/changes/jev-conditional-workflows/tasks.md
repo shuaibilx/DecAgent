@@ -2,15 +2,15 @@
 
 本文件只保存执行任务、验收要求、短状态与证据入口。源码和 OpenSpec 根均为 DecAgent；源码路径相对项目根目录。测试必须使用隔离数据库，不得读取、重置或迁移正在运行的业务库。
 
-## 当前状态（2026-10-21 整理）
+## 当前状态（2026-10-21 更新）
 
-- 本 change 为 **69/79，10 项待完成**；10.10.B 与 10.10.D 已完成，保留全部任务编号及先前历史证据。其他 change 状态见各自清单。
+- 本 change 为 **71/79，8 项待完成**；10.10.B、10.10.D、10.10.E 与 11.1 已完成，保留全部任务编号及先前历史证据。其他 change 状态见各自清单。
 - 旧首波已尝试 4 个任务/8 条路线：5 failed、3 unknown、0 completed；1 条 ITSM/ReAct 官方评分为 0.0，其余未评分，8/8 清理 verified。完整有效公开比较仍为 0/286，不能表述成从未尝试。
 - Qwen routed readiness 已通过；旧 $0 不是供应商账单。[平台费率来源与实施说明](../../../generated/261021/模型计费/1441_千问平台费率核验.md)现已绑定到 profile v4 / manifest v8；CNY 费率计算与逐请求 provider bill/voucher/cash 保持分开。账户逐请求 invoice 及 CNY/USD 汇率仍未核实，因此没有可用的跨币种成本优势结论。
 - 旧 unknown 不重放、不释放原预留。新 cohort、候选与额度须按现有门禁冻结；正式对照关闭跨模型降级。Jev 仍使用原累计 $1 账本。
-- 候选 1f14da7 的同 SHA CI 通过，但仍跳过 17 个 Docker executor/SQL 与 4 个 Docker repair 用例；11.1 继续未完成。旧 CI 不覆盖之后的游客和文档候选。
+- 候选 `3a7938f` 的同 SHA CI 已通过：3.11/3.13 确定性测试各 1,963 passed、18 skipped，PostgreSQL 集成各 624 passed、30 skipped；隔离 Linux Docker job 将矩阵内跳过的 17 个 executor/SQL 与 4 个 repair 用例全部实跑并通过。11.1 完成。10.10.E 随后在当前工作树以受控模型响应完成四域隔离工具、官方评分、清理及故障矩阵，共 176 个回归用例通过；新加的 EnterpriseOps route integration test 和文档不在旧 CI 中，live phase 仍须提交后新 SHA CI。旧 unknown 不重放。
 
-执行顺序：复核旧首波故障 → 四域隔离工程闭环与必要测试 → 新 cohort/额度冻结 → 新首波 → smoke/自然 Jev 配对/全量；游客与本机交付在独立 change 推进。
+执行顺序：旧首波故障复核与四域工程闭环已完成 → 审阅/提交当前切片并为新 SHA 跑 CI → 冻结新 cohort 与额度 → 新首波 → smoke/自然 Jev 配对/全量；游客与本机交付在独立 change 推进。
 
 [后续规划](../../../generated/261021/计划/1157_后续规划索引.md) · [历史与验收证据导航](../../../generated/261021/任务整理/1434_任务整理索引.md) · [整理前完整原文](../../../generated/261021/任务整理/1434_jev任务原文快照.md)
 
@@ -151,14 +151,14 @@
 - [x] 10.10.B 固定 cohort、候选、profile 和批次身份；对 Agent/模拟器/裁判落实持久请求、Token、机器时间和逐请求费用账目，Jev attempt 绑定唯一既有 `.decagent/business-eval/global-jev-ledger.json`，切换路线状态库、恢复进程或候选不能重置累计 Jev 余额。隔离账本/计费/恢复回归 85 passed；详情见[验收证据](../../../generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-b)。Qwen 费用按冻结 CNY profile 逐次计量且不作美元换算；已授权批次的保护停止线为请求、Token 与时间，未另设未获批准的 CNY 总额上限。
 - [x] 10.10.C 加入单一活动执行者租约、heartbeat 与 fencing generation；跨进程 resume 只能在 lease 过期后接管，旧 owner 不能再写入/dispatch，unknown/completed route 不 replay。
 - [x] 10.10.D runner 已接入规范 supervisor/SQLite ledger、ledgered 模型回调、MCP gateway、route/batch deadline、官方 scorer 与 cleanup；初验收 149 passed、14 skipped（τ runtime 未配置）是历史快照。随后固定 τ runtime 达到 80/80 readiness，包含 EnterpriseOps environment/scoring、四域 route/session、τ process、live runner、账本、cancel 与 supervisor 的定向组 216 passed、0 skipped（2026-10-21）；证据见[验收记录](../../../generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-d)。该结果仅证明工程接线与隔离测试，不是模型质量或公开分数。
-- [ ] 10.10.E 跨进程竞争、预算边界、profile drift、unknown 恢复和评分/清理失败已有定向回归；2026-10-21 最新评测定向组 317 passed、1 skipped（固定 τ 子进程 runtime 可导入官方工具包）；全量确定性套件 1,969 passed、4 skipped，全量 PostgreSQL 集成 630 passed、24 skipped，完整集成运行未失败。集成 skip 中 17 个 Docker executor、4 个 Docker repair 仍需专用隔离 Linux 夹具；其余为 benchmark image/opt-in EnterpriseOps Docker 检查，EnterpriseOps 的两域检查另行 2 passed。固定 τ runtime readiness 为 80/80。首波 dry-run 与本地镜像核验通过：4 任务/8 路线槽、0 ledger、0 模型/MCP 调用。仍待当前候选的四域受控真实工具/官方评分/cleanup 闭环与同 SHA CI；既有 5 failed、3 unknown 终态不重放，正式 execute 不以离线测试替代放行。证据见[验收记录](../../../generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-e)。
+- [x] 10.10.E 完成公开 runner 的并发/预算/unknown 恢复与故障回归，以及当前候选四域受控工具、官方评分和 cleanup 工程闭环。固定候选 HEAD `3a7938fd1b3e7a564de6310fc171d1be8f8adfdc` 的受控复验：EnterpriseOps CSM/ITSM 模块 4 passed（含 ReAct 真实只读 MCP 工具、原 verifier 与隔离清理）；τ retail/telecom 的 ReAct/Plan 4 passed（固定 train、原始 evaluator、受控 simulator/judge）；账本、supervisor、runner 与离线 verifier 回归 93 passed；清理失败和 τ 超时/取消回归 75 passed；共 176 个不同测试用例通过，修改测试的 Ruff 通过。没有 Qwen、OpenRouter DeepSeek 或 Jev 请求，也未创建 public-trial ledger；结果只证明工程闭环，不是公开 benchmark 成绩。此前同 SHA CI [39592249617](https://github.com/shuaibilx/DecAgent/actions/runs/39592249617) 通过，隔离 Linux Docker/SQL 21 passed；本轮增加的 EnterpriseOps 集成测试仍为未提交工作树内容，需随下一候选重新运行 CI。首波正式试次尚未执行；历史 5 failed、3 unknown 终态不重放。详见[复验记录](../../../evals/benchmarks/evidence/public-four-domain-engineering-closure-20261021-3a7938fd.json) 与[验收记录](../../../generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-e)。
 - [x] 10.10.F 在模型、工具与 route unknown 路径记录可审计但不泄露业务内容的诊断：失败阶段必须来自白名单，异常类型只保存类名，可用 HTTP 状态须有效；attempt 快照和新报告只导出安全白名单；旧账本以 nullable 列兼容迁移，unknown 清理补录保留原诊断且不可重放。
 
 ## 11. 整体回归与本机交付
 
 [本组验收记录](../../../generated/261021/任务整理/1434_整体验收证据.md#group-11)
 
-- [ ] 11.1 在隔离数据库运行确定性与集成套件，包括旧 repair/business-2 和 MCP 现代/兼容协议、取消/租约/确认/未知回执；运行项目 ruff 检查并保存摘要，缺数据库造成 skip 不能当集成通过。2026-10-21 本机复验：确定性 1,969 passed、4 skipped；隔离 PostgreSQL 集成 630 passed、24 skipped；Ruff 与 OpenSpec strict 通过。17 个 Docker executor、4 个 Docker repair 用例仍因专用 Linux Docker/SQL 夹具未运行，故任务保持未完成。
+- [x] 11.1 在隔离数据库运行确定性与集成套件，包括旧 repair/business-2 和 MCP 现代/兼容协议、取消/租约/确认/未知回执；运行项目 ruff 检查并保存摘要，缺数据库造成 skip 不能当集成通过。本机复验：确定性 1,969 passed、4 skipped；隔离 PostgreSQL 集成 630 passed、24 skipped；Ruff 与 OpenSpec strict 通过。同 SHA GitHub Actions run [39592249617](https://github.com/shuaibilx/DecAgent/actions/runs/39592249617) 全部通过：Python 3.11/3.13 各 Ruff 通过、确定性 1,963 passed/18 skipped、PostgreSQL 集成 624 passed/30 skipped；独立隔离 Docker/SQL job 21 passed，另有 wheel/MCP、Compose、Workbench 通过。PostgreSQL 服务健康；9 个可选/平台限定集成 skip 已记录，不是缺数据库造成。证据见[整体回归记录](../../../generated/261021/任务整理/1434_整体验收证据.md#task-11-1)。
 
 - [x] 11.2 构建发行包并在源码目录外验证新增 schema/模板/静态资源和启动入口；本机真实 MCP wire 场景验证新旧版本恢复与回退入口，确认没有重新引入御龙真实后端依赖。
 - [x] 11.3 逐项核对需求—场景—测试—实测证据与指南，移除新业务默认路径上失效的重复队列逻辑但保留必要旧任务兼容；交付当前完成/待办清单，独立 Linux 部署仍标后续工作。

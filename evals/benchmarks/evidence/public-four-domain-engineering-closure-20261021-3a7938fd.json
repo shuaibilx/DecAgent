@@ -1,0 +1,76 @@
+{
+  "schema_version": "public-four-domain-engineering-closure-v1",
+  "observed_at_utc": "2026-10-21T12:23:26Z",
+  "candidate_sha": "3a7938fd1b3e7a564de6310fc171d1be8f8adfdc",
+  "working_tree_dirty": true,
+  "status": "engineering_gate_passed_no_public_trials",
+  "scope": {
+    "enterpriseops_domains": ["csm", "itsm"],
+    "tau_domains": ["retail", "telecom"],
+    "routes": ["react_skill_mcp", "plan_mcp"],
+    "model_responses": "scripted local fixtures",
+    "benchmark_environments": "pinned isolated Docker or τ subprocess environment",
+    "public_trial_ledger_created": false
+  },
+  "verification": [
+    {
+      "suite": "evals/integration/test_business_enterprise_environment.py",
+      "command": "DECAGENT_ENTERPRISEOPS_DOCKER_SMOKE=1 uv run --extra dev pytest evals/integration/test_business_enterprise_environment.py -q -rs",
+      "result": "4 passed",
+      "elapsed_seconds": 47.19,
+      "coverage": [
+        "Both pinned EnterpriseOps domains opened isolated environments and used the original verifier.",
+        "Scripted ReAct routes called the selected real read-only MCP tools, received official scores, and verified session/container cleanup.",
+        "Task failure from read-only engineering actions was expected; no task-success claim is made."
+      ]
+    },
+    {
+      "suite": "pinned τ ReAct and Plan route tests",
+      "command": "DECAGENT_TEST_TAU_PYTHON=.decagent/evaluation-runtimes/tau2-96a3ef9-py312/Scripts/python.exe uv run --extra dev pytest evals/deterministic/test_business_tau_process.py::test_real_pinned_tau_route_runs_user_turn_clarification_and_original_evaluator evals/deterministic/test_business_tau_process.py::test_real_pinned_tau_plan_route_uses_simulator_for_clarification -q -rs",
+      "result": "4 passed",
+      "elapsed_seconds": 63.76,
+      "coverage": [
+        "Retail and telecom exercised both ReAct and Plan with the pinned original τ evaluator and scripted simulator/judge callbacks.",
+        "The Plan path invoked the original domain tools; environment and transcript cleanup assertions passed.",
+        "The τ samples are fixed train fixtures, not official test-split scores."
+      ]
+    },
+    {
+      "suite": "public supervisor, route, ledger, live-runner and offline verifier regressions",
+      "result": "93 passed",
+      "elapsed_seconds": 10.08,
+      "coverage": [
+        "Unknown route and judge states, persisted score and cleanup status, frozen scheduling and resume behavior.",
+        "Budget/ledger boundaries, supervisor ownership, and original verifier error handling on synthetic data."
+      ]
+    },
+    {
+      "suite": "route cleanup and τ deadline/cancellation regressions",
+      "result": "75 passed",
+      "elapsed_seconds": 38.56,
+      "coverage": [
+        "Cleanup failure remains a failed route while preserving score evidence.",
+        "Blocked or over-deadline τ subprocess operations are bounded and owned worker descendants are reclaimed."
+      ]
+    },
+    {
+      "suite": "Ruff on the changed integration test",
+      "result": "passed"
+    }
+  ],
+  "counts": {
+    "distinct_test_cases_passed": 176,
+    "provider_model_requests": 0,
+    "qwen_requests": 0,
+    "openrouter_deepseek_requests": 0,
+    "jev_requests": 0,
+    "public_benchmark_trials": 0,
+    "public_benchmark_denominator": 286
+  },
+  "limitations": [
+    "This is controlled engineering evidence, not the authorized live first-wave experiment.",
+    "No model-quality, public benchmark score, cost, latency, or Jev benefit conclusion follows from these tests.",
+    "The live eight-route first wave, 24-case smoke, and 206+80 formal benchmark remain unrun in this cohort.",
+    "Existing historical first-wave routes marked failed or unknown were not replayed."
+  ]
+}

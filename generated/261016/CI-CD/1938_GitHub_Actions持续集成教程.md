@@ -3,7 +3,7 @@ title: DecAgent GitHub Actions 持续集成与镜像发布
 type: tutorial
 audience: [A1, A4]
 runs: yes
-verified_on: 2026-10-17
+verified_on: 2026-10-21
 sources:
   - .github/workflows/ci.yml
   - .github/workflows/release.yml
@@ -12,6 +12,9 @@ sources:
   - requirements.lock
   - ops/mcp/verify_wheel.py
   - ops/control/offline_smoke.py
+  - ops/executor/run_docker_boundary_tests.py
+  - ops/executor/compose.test.yaml
+  - evals/deterministic/test_executor_docker_ci_contract.py
   - evals/deterministic/business_selection.cjs
   - evals/deterministic/business_trace_rendering.cjs
   - evals/deterministic/business_semantic_workbench.cjs
@@ -31,13 +34,15 @@ flowchart TD
     A[Push main / Pull Request / 手动运行] --> B[Python 3.11 检查]
     A --> C[Python 3.13 检查]
     A --> U[工作台 JavaScript 行为检查]
-    U --> U1[语法检查与 3 组无浏览器 UI 回归]
+    U --> U1[语法检查与 4 组无浏览器 UI 回归]
     B --> B1[Ruff]
     B1 --> B2[确定性测试]
     B2 --> B3[PostgreSQL 集成测试：2 workers / worksteal]
     C --> C1[Ruff]
     C1 --> C2[确定性测试]
     C2 --> C3[PostgreSQL 集成测试：2 workers / worksteal]
+    A --> X[隔离 Linux Docker executor / repair 边界]
+    X --> X1[21 个 Docker / SQL 用例]
     A --> D[构建 wheel 与 sdist、容器烟测]
     D --> E[独立安装 wheel 并运行 CLI]
     E --> F[测试已安装 wheel 的 MCP 调用]
@@ -45,13 +50,16 @@ flowchart TD
     H[推送 vMAJOR.MINOR.PATCH 标签] --> I[复用完整 CI]
     I --> J[确认 semver 且提交可从 main 到达]
     J --> K[发布 control / executor / runner 镜像及 digest 到 GHCR]
-    K --> L[本机 Windows Runner 拉取 digest]
-    L --> M[备份数据库、迁移、健康检查]
+    K --> L[发布流程结束；当前不部署本机]
 ```
 
-`workbench-ui` 是独立的快速 job，与两个 Python 矩阵和包/镜像烟测并行。它运行工作台静态脚本语法检查，以及选择状态、trace 渲染、语义介入/重复点击三组 Node 回归；不启动数据库或调用模型。完整 PostgreSQL 集成测试仍是总耗时主体，新增快速 job 补齐浏览器逻辑的持续回归，不替代 Playwright 端到端验收。
+`workbench-ui` 是独立的快速 job，与两个 Python 矩阵及包/镜像烟测并行。它运行工作台静态脚本语法检查，以及选择状态、trace 渲染、语义介入和游客工作台四组 Node 回归；不启动数据库或调用模型。它不替代 Playwright 端到端验收。
+
+`executor-boundary` 也是独立的 GitHub-hosted Ubuntu job。它为每个运行生成隔离的 Compose 项目与容器名，只使用临时测试凭据，并以只读方式挂载源码；随后在临时 PostgreSQL、broker 与 MCP 环境中运行 Docker executor 和 repair 共 21 个边界用例。job 的工作目录和容器使用专属随机前缀，不复用本机项目；清理时不删除卷，托管 runner 回收其临时环境。Python 集成矩阵仍将这 21 个需要显式隔离 Docker 环境的用例标为 skip，但这个独立 job 会实际执行它们并单独报告结果。
 
 GitHub Actions 为集成测试启动一个一次性 PostgreSQL 服务，使用测试专用数据库名和密码。每个 Python job 用迁移后的模板数据库为每个测试创建独立克隆，并在测试结束后删除克隆库；模板库只在每个 pytest worker 内迁移一次。集成测试固定使用 2 个 `pytest-xdist` worker 和 `worksteal` 分发，以免在 PostgreSQL 上同时启动过多测试。依赖通过 `requirements.lock` 安装，并以该文件作为 pip 缓存键；PostgreSQL 镜像使用固定 digest。Python 3.11/3.13 检查与包构建、容器烟测并行运行；发布仍等待完整 CI 通过。
+
+2026-10-21 的候选 SHA `3a7938fd1b3e7a564de6310fc171d1be8f8adfdc` 在 [CI run 39592249617](https://github.com/shuaibilx/DecAgent/actions/runs/39592249617) 上全部通过，总墙钟为 25 分 33 秒。两个 Python 版本各自 Ruff 通过、确定性测试 `1963 passed, 18 skipped`、PostgreSQL 集成 `624 passed, 30 skipped`；独立 Docker/SQL job 的 21 个测试全部通过。剩余 9 个集成 skip 是 pinned benchmark image、Windows ACL、opt-in EnterpriseOps Docker readiness、可选上游 source cache 和缺少 mcp-cli，不是 PostgreSQL 服务缺失。该 run 只能证明代码与隔离工程测试通过，不代表公开基准任务或 Jev 收益已经通过。
 
 打包阶段会把 wheel 安装到临时目录并从源码目录之外导入，避免误把当前工作区当作安装包；然后运行已安装 wheel 的 CLI 和 MCP 协议验证。最后构建 runner、control 和 executor 镜像，并调用 `ops/control/offline_smoke.py` 验证新建的隔离 Compose 项目能启动。离线烟测使用空模型凭据，不发送模型请求。发布工作流只在完整 CI 通过后把这三类镜像分别推送到 `ghcr.io/shuaibilx/decagent-control`、`decagent-executor` 和 `decagent-runner`；每个镜像带 `vX.Y.Z`、完整 commit SHA 标签，并把 Registry digest 传给部署 job。
 
@@ -121,7 +129,7 @@ Release 运行 [38995053020](https://github.com/shuaibilx/DecAgent/actions/runs/
 
 普通 CI 会构建 Python wheel、source distribution 和容器镜像，并在 GitHub Runner 临时磁盘上验证；只有推送版本标签才会发布 GHCR 镜像。当前发布流程不会部署本机服务。CI 全绿说明代码通过设定检查；GHCR 发布也不代表业务服务已经升级，更不代表独立 Linux 部署已验收。
 
-pip 下载缓存按 `requirements.lock` 复用。GHCR 发布镜像使用独立 Buildx layer cache；普通 CI 的 runner 镜像构建耗时约 10 秒，Compose 离线烟测约 90 秒。完整 CI 运行显示业务集成用例才是主要耗时点：当前使用每 worker 迁移模板库、每测试克隆数据库、2-worker `worksteal` 调度，并输出最慢 25 个用例，以便继续依据实测优化。
+pip 下载缓存按 `requirements.lock` 复用。GHCR 发布镜像使用独立 Buildx layer cache；本次 CI 的打包/镜像 job 用时约 2 分 43 秒，Docker 边界 job 用时约 2 分 22 秒，两个 PostgreSQL 集成 job 分别用时约 20 分 38 秒和 17 分 22 秒。集成仍是总耗时主体；同分支此前成功 run 用时约 18 分 41 秒，因此本次 25 分 33 秒不能证明 CI 已提速。现有流水线保留 2-worker `worksteal` 调度并输出最慢 25 个用例；下一轮应先比较多个 run 的慢用例与 worker 等待，再决定是否调整并行度，不能为缩短时间删减 Python 版本或测试覆盖。
 
 触发 GitHub Actions 可能消耗 GitHub Actions 的账户额度。普通测试不需要配置 Qwen、OpenRouter 或 GitHub API 密钥；不要把它们添加为 CI secrets，除非未来某个经批准的测试确实需要真实外部服务。
 

@@ -26,10 +26,11 @@
 | [eval-engineering](eval-engineering/SKILL.md) | LangChain | 隔离环境、Verifier、防泄漏与失败分类 |
 | [gh-fix-ci](gh-fix-ci/SKILL.md) | OpenAI | GitHub Actions 失败 PR checks 与日志定位 |
 | [mcp-builder](mcp-builder/SKILL.md) | Anthropic | Python MCP 工具契约、错误与辅助测试 |
+| [cloudflare-one](cloudflare-one/SKILL.md) | Cloudflare | 后续 Cloudflare Tunnel/Zero Trust 网络设计与验证；不会自动替所有公开访客启用 Access |
 
 其中两项补充 Jev/评测方法，五项将当前会话已有框架/MCP 参考固定到项目内，另补一项 CI 专用诊断。不会重复安装此前已有的项目技能。
 
-截至本次复核，项目内有 14 项官方开发参考（135 个文件）、2 项 GitHub 组织仓库收录的社区贡献工作流参考（11 个文件）、6 项 OpenSpec 工作流及 1 项 TypeSafe 补充参考；合计 23 个技能目录、154 个技能文件。其中 16 项 GitHub 来源的官方/社区参考（146 个文件）记录于 [skill-sources.json](../skill-sources.json)，包含固定提交、逐文件 SHA-256 与许可证；本地生成的 OpenSpec 工作流和 TypeSafe 副本不在该上游来源清单中，来源边界见下文。更新 GitHub 来源技能时必须审阅并固定提交，不跟随浮动 main 自动升级。
+截至本次复核，项目内有 15 项官方开发参考（136 个文件）、2 项 GitHub 组织仓库收录的社区贡献工作流参考（11 个文件）、6 项 OpenSpec 工作流及 1 项 TypeSafe 补充参考；合计 24 个技能目录、155 个技能文件。其中 17 项 GitHub 来源的官方/社区参考（147 个文件）记录于 [skill-sources.json](../skill-sources.json)，包含固定提交、逐文件 SHA-256 与许可证；本地生成的 OpenSpec 工作流和 TypeSafe 副本不在该上游来源清单中，来源边界见下文。更新 GitHub 来源技能时必须审阅并固定提交，不跟随浮动 main 自动升级。
 
 ## 本次新增的工作流与安全参考
 

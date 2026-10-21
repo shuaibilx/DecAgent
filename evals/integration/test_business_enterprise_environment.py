@@ -209,3 +209,113 @@ def test_pinned_container_snapshot_mcp_and_original_sql_verifier(domain, read_to
             ],
         }
         target.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "domain,read_tool,arguments",
+    [
+        ("csm", "find_product", {"name": "__decagent_readonly_smoke__"}),
+        ("itsm", "list_users", {}),
+    ],
+)
+def test_scripted_first_wave_route_uses_real_tool_official_scorer_and_cleanup(
+    tmp_path, domain, read_tool, arguments
+):
+    from decimal import Decimal
+
+    from decagent.evaluation.business.comparison import Route
+    from decagent.evaluation.business.public_session import enterprise_session_factory
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+    from decagent.evaluation.business.routes import ControlledRoutes, ModelReply
+    from evals.benchmarks.live_public_runner import (
+        _enterprise_boundary,
+        _enterprise_task,
+        build_public_comparison_trial,
+    )
+
+    plan = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    selection = next(
+        item
+        for item in plan.initial_smoke_wave
+        if item["benchmark"] == "enterpriseops-gym" and item["domain"] == domain
+    )
+    record = next(item for item in plan.trials if item["trial_id"] == selection["trial_id"])
+    source = json.loads(
+        (ROOT / "evals/benchmarks/manifests/source_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    inventory = json.loads(
+        (ROOT / "evals/benchmarks/manifests/task_inventory.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    spec, dataset_checksum = _enterprise_task(ROOT, record, source, inventory)
+    assert read_tool in spec.selected_tools
+    assert read_tool not in spec.restricted_tools
+    with EnterpriseEnvironment(spec) as preview:
+        _, boundary = _enterprise_boundary(spec, preview, record)
+    assert preview.cleanup_verified is True
+
+    trial = build_public_comparison_trial(
+        plan,
+        record,
+        dataset_checksum=dataset_checksum,
+        boundary_facts=boundary,
+    )
+    session_factory = enterprise_session_factory(
+        spec,
+        record["version"],
+        tmp_path,
+    )
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def verified_session_factory(current_trial, isolation_id):
+        with session_factory(current_trial, isolation_id) as session:
+            assert session.spec.commands[read_tool].effect == "read"
+            yield session
+
+    scripted_requests = []
+
+    def react(request):
+        scripted_requests.append(request)
+        if not request["observations"]:
+            value = {"tool": read_tool, "arguments": arguments}
+        else:
+            value = {"finish": True, "message": "I checked the available information."}
+        return ModelReply(
+            value,
+            tokens=8,
+            cost_usd=Decimal("0"),
+            model="scripted-offline",
+            input_tokens=5,
+            output_tokens=3,
+        )
+
+    result = ControlledRoutes(verified_session_factory).run(
+        Route.REACT_SKILL_MCP,
+        trial,
+        react=react,
+    )
+
+    assert result.status == "complete", result.error
+    assert result.run is not None and result.run.task_success is False
+    assert result.score is not None and result.score.official is True
+    assert result.score.success is False
+    assert result.usage.primary_requests == 2
+    assert len(scripted_requests) == 2
+    assert [call.command for call in result.tool_calls] == [read_tool]
+    assert result.cleanup_verified is True
+    assert result.cleanup_evidence == {
+        "verified": True,
+        "session_closed": True,
+        "environment_closed": True,
+    }
