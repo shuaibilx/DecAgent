@@ -3,8 +3,8 @@ title: DecAgent — 员工身份与可恢复业务执行
 type: explanation
 audience: [A1, A2, A3, A4, A5]
 runs: no
-verified_on: 2026-10-17
-sources: [decagent/business, decagent/gateway, decagent/runtime, decagent/storage, ops/local/start.py]
+verified_on: 2026-10-21
+sources: [decagent/business, decagent/gateway, decagent/runtime, decagent/storage, ops/local/start.py, generated/261021/游客使用]
 ---
 # DecAgent
 
@@ -21,6 +21,7 @@ DecAgent 是基于 LangGraph 的业务 Agent，通过 **MCP + Skill** 接入业�
 ## 使用与理解
 
 - [当前评测与本机交付实施索引](generated/261020/计划/0007_后续实施规划索引.md)：记录公开评测门禁、最新 τ 工程冒烟和 Runner 隔离状态；固定 train smoke 不计入公开分数，游客与本机 CD 仍在实施。
+- [游客本机试用文档索引](generated/261021/游客使用/1135_游客使用索引.md)：游客会话、角色切换、7 天过期、清理与权限边界；当前入口默认关闭，文档不代表公网开放或真实 Jev 验收。
 - [Jev 使用场景与真实请求上下文](generated/261019/智能体说明/1027_Jev使用场景与请求上下文.md)：区分当前 SOP、旧 repair、组件未接线和评测场景，列出 Choice/Noul/Score 的选项、尺子及代码构造的请求示例。
 
 - [项目构建与交付入门](generated/261016/1938_项目构建与交付索引.md)：分别说明代码仓库、GitHub Actions CI、GHCR 镜像和本机 Docker Compose 部署。`v0.1.4` 的本机 Runner 发布是历史验收；当前公开仓库 Runner 数量为 0，公开 release 只构建并发布 GHCR，不直接部署本机服务。私有部署仓库与自动 CD 仍待实施。
