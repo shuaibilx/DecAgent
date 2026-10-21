@@ -54,7 +54,9 @@ _INITIAL_SMOKE_CASES = (
 )
 
 
-def _validate_request_billing_evidence(value, *, actual_cost_usd, actual_cost_source):
+def _validate_request_billing_evidence(
+    value, *, actual_cost_amount, actual_cost_currency, actual_cost_source
+):
     if value is None:
         return None
     required = {
@@ -92,12 +94,13 @@ def _validate_request_billing_evidence(value, *, actual_cost_usd, actual_cost_so
     gross = amount("gross_amount", required_amount=True)
     voucher = amount("voucher_credit_amount")
     cash = amount("cash_paid_amount")
-    if currency == "USD" and (
-        actual_cost_usd is None
+    if (
+        actual_cost_amount is None
+        or actual_cost_currency != currency
         or actual_cost_source != "provider_billed"
-        or actual_cost_usd != Decimal(gross)
+        or actual_cost_amount != Decimal(gross)
     ):
-        raise ValueError("USD request billing must equal the gross provider fee")
+        raise ValueError("Request billing evidence must equal the recorded gross fee")
     return {
         "gross_amount": gross,
         "currency": currency,
@@ -337,15 +340,23 @@ def load_public_run_plan(
     if mode not in {"smoke", "full"}:
         raise ValueError("Public evaluation mode must be smoke or full")
     manifest_path = Path(manifest_path) if manifest_path else (
-        root / "evals/benchmarks/manifests/comparison_trial_manifest_v7.json"
+        root / "evals/benchmarks/manifests/comparison_trial_manifest_v8.json"
     )
     source_manifest_path = Path(source_manifest_path) if source_manifest_path else (
         root / "evals/benchmarks/manifests/source_manifest.json"
     )
-    profiles_path = Path(profiles_path) if profiles_path else (
-        root / "evals/benchmarks/manifests/evaluation_model_profiles_v3.json"
-    )
     manifest = _read_json(manifest_path)
+    manifest_version = {
+        "business-comparison-trial-manifest-7": 7,
+        "business-comparison-trial-manifest-8": 8,
+    }.get(manifest.get("schema_version"))
+    if manifest_version is None:
+        raise ValueError("Public comparison manifest version is unsupported")
+    profile_version = 3 if manifest_version == 7 else 4
+    profiles_path = Path(profiles_path) if profiles_path else (
+        root
+        / f"evals/benchmarks/manifests/evaluation_model_profiles_v{profile_version}.json"
+    )
     source_bytes = source_manifest_path.read_bytes()
     source = _read_json(source_manifest_path)
     profile_document = _read_json(profiles_path)
@@ -366,13 +377,17 @@ def load_public_run_plan(
     ):
         raise ValueError("Frozen task inventory checksum mismatch")
     if (
-        manifest.get("schema_version") != "business-comparison-trial-manifest-7"
-        or manifest.get("manifest_id") != "decagent-public-workflow-comparison-v7"
+        manifest.get("schema_version")
+        != f"business-comparison-trial-manifest-{manifest_version}"
+        or manifest.get("manifest_id")
+        != f"decagent-public-workflow-comparison-v{manifest_version}"
         or manifest.get("status") != "pre_registered_not_run"
         or manifest.get("model_profile_status") != "frozen"
         or manifest.get("model_profiles") != profile_document
+        or profile_document.get("schema_version")
+        != f"evaluation-model-profiles-v{profile_version}"
     ):
-        raise ValueError("Public comparison manifest is not a frozen v7 cohort")
+        raise ValueError("Public comparison manifest and model profile are not a frozen cohort")
     if manifest.get("counts") != {
         "full_trials": 286,
         "smoke_trials": 24,
@@ -464,6 +479,7 @@ def load_public_run_plan(
             or OPENROUTER_ENDPOINT != profiles.jev.endpoint
             or (
                 profiles.primary.pricing_status == "known"
+                and profiles.primary.currency == "USD"
                 and (
                     runtime.main_price is None
                     or runtime.main_price.version != profiles.primary.price_version
@@ -659,8 +675,15 @@ class PublicTrialLedger:
                         'reserved','dispatched','settled','unknown','not_sent','settled_overrun'
                     )), estimated_input_tokens INTEGER NOT NULL,
                     reserved_output_tokens INTEGER NOT NULL, reserved_tokens INTEGER NOT NULL,
-                    reserved_cost_usd TEXT, actual_input_tokens INTEGER,
+                    reserved_cost_usd TEXT, reserved_cost_amount TEXT,
+                    reserved_cost_currency TEXT, actual_input_tokens INTEGER,
                     actual_output_tokens INTEGER, actual_cost_usd TEXT,
+                    actual_cost_amount TEXT, actual_cost_currency TEXT,
+                    actual_cost_basis TEXT CHECK(
+                        actual_cost_basis IS NULL OR actual_cost_basis IN (
+                            'provider_billed','frozen_rate','frozen_rate_upper_bound','unknown'
+                        )
+                    ), cached_input_tokens INTEGER,
                     actual_cost_source TEXT CHECK(
                         actual_cost_source IS NULL OR actual_cost_source IN (
                             'provider_billed','frozen_profile','unknown'
@@ -842,6 +865,33 @@ class PublicTrialLedger:
                     connection.execute(
                         f"ALTER TABLE model_attempts ADD COLUMN {name} {sql_type}"
                     )
+            cost_columns = {
+                "reserved_cost_amount": "TEXT",
+                "reserved_cost_currency": "TEXT",
+                "actual_cost_amount": "TEXT",
+                "actual_cost_currency": "TEXT",
+                "actual_cost_basis": "TEXT",
+                "cached_input_tokens": "INTEGER",
+            }
+            for name, sql_type in cost_columns.items():
+                if name not in model_columns:
+                    connection.execute(
+                        f"ALTER TABLE model_attempts ADD COLUMN {name} {sql_type}"
+                    )
+            # Copy only already billed USD facts into the currency-neutral fields.
+            # Old frozen-profile estimates stay legacy-only because some historical
+            # Qwen profiles incorrectly represented voucher coverage as a zero rate.
+            connection.execute(
+                "UPDATE model_attempts SET reserved_cost_amount=reserved_cost_usd,"
+                "reserved_cost_currency='USD' WHERE reserved_cost_amount IS NULL "
+                "AND reserved_cost_usd IS NOT NULL"
+            )
+            connection.execute(
+                "UPDATE model_attempts SET actual_cost_amount=actual_cost_usd,"
+                "actual_cost_currency='USD',actual_cost_basis='provider_billed' "
+                "WHERE actual_cost_amount IS NULL AND actual_cost_usd IS NOT NULL "
+                "AND actual_cost_source='provider_billed'"
+            )
             for name, sql_type in {
                 "failure_stage": "TEXT",
                 "exception_type": "TEXT",
@@ -1541,19 +1591,45 @@ class PublicTrialLedger:
         marks = ",".join("?" for _ in roles)
         rows = self._connection.execute(
             "SELECT status,estimated_input_tokens,reserved_output_tokens,reserved_tokens,"
-            "reserved_cost_usd,"
-            "actual_input_tokens,actual_output_tokens,actual_cost_usd FROM model_attempts "
+            "reserved_cost_usd,reserved_cost_amount,reserved_cost_currency,"
+            "actual_input_tokens,actual_output_tokens,actual_cost_usd,actual_cost_amount,"
+            "actual_cost_currency FROM model_attempts "
             f"WHERE trial_id=? AND route=? AND role IN ({marks})",
             (trial_id, route, *roles),
         ).fetchall()
         dispatched_states = {"dispatched", "settled", "unknown", "settled_overrun"}
         pending_states = {"reserved", "dispatched", "unknown"}
-        costs_complete = all(
+        terminal_states = {"settled", "settled_overrun", "not_sent"}
+        usage_complete = all(
+            row["status"] in terminal_states
+            and (
+                row["status"] == "not_sent"
+                or row["actual_input_tokens"] is not None
+                and row["actual_output_tokens"] is not None
+            )
+            for row in rows
+        )
+        cost_complete = all(
+            row["status"] in terminal_states
+            and (
+                row["status"] == "not_sent"
+                or row["actual_cost_amount"] is not None
+                and row["actual_cost_currency"] is not None
+            )
+            for row in rows
+        )
+        usd_cost_complete = all(
             row["status"] in {"settled", "settled_overrun", "not_sent"}
             and (row["status"] == "not_sent" or row["actual_cost_usd"] is not None)
             for row in rows
         )
-        reserved_costs_complete = all(
+        reserved_fee_complete = all(
+            row["status"] not in pending_states
+            or row["reserved_cost_amount"] is not None
+            and row["reserved_cost_currency"] is not None
+            for row in rows
+        )
+        reserved_usd_complete = all(
             row["status"] not in pending_states or row["reserved_cost_usd"] is not None
             for row in rows
         )
@@ -1573,8 +1649,29 @@ class PublicTrialLedger:
             ),
             Decimal("0"),
         )
+        actual_by_currency = {}
+        reserved_by_currency = {}
+        for row in rows:
+            if (
+                row["actual_cost_amount"] is not None
+                and row["actual_cost_currency"] is not None
+            ):
+                currency = row["actual_cost_currency"]
+                actual_by_currency[currency] = actual_by_currency.get(
+                    currency, Decimal("0")
+                ) + Decimal(row["actual_cost_amount"])
+            if (
+                row["status"] in pending_states
+                and row["reserved_cost_amount"] is not None
+                and row["reserved_cost_currency"] is not None
+            ):
+                currency = row["reserved_cost_currency"]
+                reserved_by_currency[currency] = reserved_by_currency.get(
+                    currency, Decimal("0")
+                ) + Decimal(row["reserved_cost_amount"])
         return {
             "requests": sum(row["status"] in dispatched_states | {"reserved"} for row in rows),
+            "usage_complete": usage_complete,
             "actual_tokens": sum(
                 row["actual_input_tokens"] + row["actual_output_tokens"]
                 for row in rows
@@ -1585,10 +1682,18 @@ class PublicTrialLedger:
                 row["reserved_tokens"] for row in rows if row["status"] in pending_states
             ),
             "unknown_requests": sum(row["status"] == "unknown" for row in rows),
-            "actual_cost_usd": actual_cost if costs_complete else None,
-            "actual_cost_complete": costs_complete,
-            "reserved_cost_usd": reserved_cost if reserved_costs_complete else None,
-            "reserved_cost_complete": reserved_costs_complete,
+            "actual_cost_usd": actual_cost if usd_cost_complete else None,
+            "actual_cost_complete": usd_cost_complete,
+            "cost_complete": cost_complete,
+            "actual_cost_by_currency": {
+                currency: str(amount) for currency, amount in sorted(actual_by_currency.items())
+            },
+            "reserved_cost_usd": reserved_cost if reserved_usd_complete else None,
+            "reserved_cost_complete": reserved_usd_complete,
+            "reserved_fee_complete": reserved_fee_complete,
+            "reserved_cost_by_currency": {
+                currency: str(amount) for currency, amount in sorted(reserved_by_currency.items())
+            },
         }
 
     def usage_snapshot(self, trial_id, route):
@@ -1603,7 +1708,8 @@ class PublicTrialLedger:
 
     def reserve_model_attempt(
         self, *, trial_id, route, role, estimated_input_tokens, max_output_tokens,
-        reserved_cost_usd, profile_digest,
+        reserved_cost_usd, profile_digest, reserved_cost_amount=None,
+        reserved_cost_currency=None,
     ):
         self._active()
         if role not in {"primary", "jev", "user_simulator", "judge"}:
@@ -1622,30 +1728,43 @@ class PublicTrialLedger:
             or not 1 <= max_output_tokens <= profile.max_output_tokens
         ):
             raise ValueError("Model attempt exceeds frozen per-request token bounds")
-        if (
-            reserved_cost_usd is not None
-            and (
-                type(reserved_cost_usd) is not Decimal
-                or not reserved_cost_usd.is_finite()
-                or reserved_cost_usd < 0
-            )
+        if reserved_cost_amount is None and reserved_cost_usd is not None:
+            reserved_cost_amount = reserved_cost_usd
+            reserved_cost_currency = reserved_cost_currency or "USD"
+        for value in (reserved_cost_usd, reserved_cost_amount):
+            if value is not None and (
+                type(value) is not Decimal or not value.is_finite() or value < 0
+            ):
+                raise ValueError(
+                    "Model attempt requires finite nonnegative or unknown fee reservation"
+                )
+        if reserved_cost_currency is not None and (
+            type(reserved_cost_currency) is not str
+            or not re.fullmatch(r"[A-Z]{3}", reserved_cost_currency)
         ):
-            raise ValueError(
-                "Model attempt requires a finite nonnegative or unknown fee reservation"
-            )
+            raise ValueError("Reserved fee currency must be an uppercase three-letter code")
         if profile.pricing_status == "unknown":
-            if reserved_cost_usd is not None:
+            if any(value is not None for value in (
+                reserved_cost_usd, reserved_cost_amount, reserved_cost_currency
+            )):
                 raise ValueError("Unknown pricing cannot be represented by a numeric reservation")
             minimum_reservation = None
         else:
-            if reserved_cost_usd is None:
+            if reserved_cost_amount is None or reserved_cost_currency != profile.currency:
                 raise ValueError("Known pricing requires a numeric fee reservation")
-            minimum_reservation = (
-                profile.input_price_per_million * estimated_input_tokens
-                + profile.output_price_per_million * max_output_tokens
-            ) / Decimal(1_000_000)
-            if reserved_cost_usd < minimum_reservation:
+            if (reserved_cost_currency == "USD") != (reserved_cost_usd is not None):
+                raise ValueError("USD reservations must keep the legacy USD amount aligned")
+            if reserved_cost_usd is not None and reserved_cost_usd != reserved_cost_amount:
+                raise ValueError("USD reservation amount and currency-neutral amount disagree")
+            minimum_reservation, _basis = profile.calculate_cost(
+                estimated_input_tokens, max_output_tokens
+            )
+            if reserved_cost_amount < minimum_reservation:
                 raise ValueError("Model fee reservation is below the frozen profile upper bound")
+        if role == "jev" and (
+            reserved_cost_usd is None or reserved_cost_currency != "USD"
+        ):
+            raise ValueError("Jev fee reservation must use the shared USD budget")
         requested_tokens = estimated_input_tokens + max_output_tokens
         self._transaction()
         global_reservation_id = None
@@ -1727,13 +1846,16 @@ class PublicTrialLedger:
             self._connection.execute(
                 "INSERT INTO model_attempts(attempt_id,trial_id,route,role,status,"
                 "estimated_input_tokens,reserved_output_tokens,reserved_tokens,reserved_cost_usd,"
+                "reserved_cost_amount,reserved_cost_currency,"
                 "provider,model,endpoint,price_version,attempt_number,profile_digest,"
                 "global_jev_reservation_id,created_at_utc) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     attempt_id, trial_id, route, role, "reserved", estimated_input_tokens,
                     max_output_tokens, requested_tokens,
                     str(reserved_cost_usd) if reserved_cost_usd is not None else None,
+                    str(reserved_cost_amount) if reserved_cost_amount is not None else None,
+                    reserved_cost_currency,
                     profile.provider,
                     profile.model, profile.endpoint, profile.price_version, attempt_number,
                     profile_digest, global_reservation_id, _now(),
@@ -1772,11 +1894,27 @@ class PublicTrialLedger:
         self, attempt_id, *, actual_input_tokens, actual_output_tokens, actual_cost_usd,
         provider_request_id=None, generation_id=None, http_status=None, attempt_seconds=None,
         error_category=None, actual_provider=None, actual_model=None, actual_cost_source=None,
-        billing_evidence=None,
+        billing_evidence=None, actual_cost_amount=None, actual_cost_currency=None,
+        actual_cost_basis=None, cached_input_tokens=None,
     ):
         self._active()
+        if actual_cost_amount is None and actual_cost_usd is not None:
+            actual_cost_amount = actual_cost_usd
+            actual_cost_currency = actual_cost_currency or "USD"
+        if (
+            actual_cost_currency is None
+            and actual_cost_amount is not None
+            and actual_cost_usd is not None
+        ):
+            actual_cost_currency = "USD"
         if actual_cost_source is None:
-            actual_cost_source = "unknown" if actual_cost_usd is None else "frozen_profile"
+            actual_cost_source = "unknown" if actual_cost_amount is None else "frozen_profile"
+        if actual_cost_basis is None:
+            actual_cost_basis = {
+                "provider_billed": "provider_billed",
+                "frozen_profile": "frozen_rate",
+                "unknown": "unknown",
+            }.get(actual_cost_source)
         if (
             type(actual_input_tokens) is not int or actual_input_tokens < 0
             or type(actual_output_tokens) is not int or actual_output_tokens < 0
@@ -1788,8 +1926,50 @@ class PublicTrialLedger:
                     or actual_cost_usd < 0
                 )
             )
+            or (
+                actual_cost_amount is not None
+                and (
+                    type(actual_cost_amount) is not Decimal
+                    or not actual_cost_amount.is_finite()
+                    or actual_cost_amount < 0
+                )
+            )
+            or (
+                actual_cost_currency is not None
+                and (
+                    type(actual_cost_currency) is not str
+                    or not re.fullmatch(r"[A-Z]{3}", actual_cost_currency)
+                )
+            )
             or actual_cost_source not in {"provider_billed", "frozen_profile", "unknown"}
-            or ((actual_cost_usd is None) != (actual_cost_source == "unknown"))
+            or actual_cost_basis not in {
+                "provider_billed", "frozen_rate", "frozen_rate_upper_bound", "unknown"
+            }
+            or ((actual_cost_amount is None) != (actual_cost_source == "unknown"))
+            or ((actual_cost_amount is None) != (actual_cost_currency is None))
+            or (
+                actual_cost_usd is not None
+                and (
+                    actual_cost_currency != "USD"
+                    or actual_cost_amount != actual_cost_usd
+                )
+            )
+            or (actual_cost_source == "unknown" and actual_cost_basis != "unknown")
+            or (
+                actual_cost_source == "provider_billed"
+                and actual_cost_basis != "provider_billed"
+            )
+            or (
+                actual_cost_source == "frozen_profile"
+                and actual_cost_basis not in {"frozen_rate", "frozen_rate_upper_bound"}
+            )
+            or (
+                cached_input_tokens is not None
+                and (
+                    type(cached_input_tokens) is not int
+                    or not 0 <= cached_input_tokens <= actual_input_tokens
+                )
+            )
             or (
                 http_status is not None
                 and (type(http_status) is not int or not 100 <= http_status <= 599)
@@ -1825,7 +2005,8 @@ class PublicTrialLedger:
             ):
                 raise ValueError("Provider identifiers must be bounded safe values")
         normalized_billing = _validate_request_billing_evidence(
-            billing_evidence, actual_cost_usd=actual_cost_usd,
+            billing_evidence, actual_cost_amount=actual_cost_amount,
+            actual_cost_currency=actual_cost_currency,
             actual_cost_source=actual_cost_source,
         )
         self._transaction()
@@ -1837,14 +2018,24 @@ class PublicTrialLedger:
             if row is None:
                 raise ValueError("Only a dispatched model attempt can be settled")
             profile = self._profile(row["role"])
-            if actual_cost_usd is None:
+            if actual_cost_amount is None:
                 if row["role"] == "jev" or profile.pricing_status != "unknown":
                     raise ValueError(
                         "Unknown model cost is only valid for an unknown-price profile"
                     )
+            elif (
+                actual_cost_source == "frozen_profile"
+                and actual_cost_currency != profile.currency
+            ):
+                raise ValueError("Computed model cost currency differs from frozen profile")
             global_error = None
             if row["role"] == "jev":
-                if self.global_jev_ledger is None or not row["global_jev_reservation_id"]:
+                if (
+                    self.global_jev_ledger is None
+                    or not row["global_jev_reservation_id"]
+                    or actual_cost_usd is None
+                    or actual_cost_currency != "USD"
+                ):
                     raise ValueError("Jev attempt is not bound to the shared cumulative ledger")
                 try:
                     self.global_jev_ledger.settle(
@@ -1862,23 +2053,27 @@ class PublicTrialLedger:
                 actual_input_tokens > row["estimated_input_tokens"]
                 or actual_output_tokens > row["reserved_output_tokens"]
                 or (
-                    actual_cost_usd is not None
-                    and row["reserved_cost_usd"] is not None
-                    and actual_cost_usd > Decimal(row["reserved_cost_usd"])
+                    actual_cost_amount is not None
+                    and row["reserved_cost_amount"] is not None
+                    and actual_cost_currency == row["reserved_cost_currency"]
+                    and actual_cost_amount > Decimal(row["reserved_cost_amount"])
                 )
             )
             status = "settled_overrun" if overrun else "settled"
             self._connection.execute(
                 "UPDATE model_attempts SET status=?,actual_input_tokens=?,actual_output_tokens=?,"
-                "actual_cost_usd=?,actual_cost_source=?,provider_request_id=?,generation_id=?,"
+                "cached_input_tokens=?,actual_cost_usd=?,actual_cost_amount=?,actual_cost_currency=?,"
+                "actual_cost_basis=?,actual_cost_source=?,provider_request_id=?,generation_id=?,"
                 "actual_provider=?,actual_model=?,billing_gross_amount=?,billing_currency=?,"
                 "billing_voucher_credit_amount=?,billing_cash_paid_amount=?,billing_source=?,"
                 "billing_record_id=?,"
                 "error_category=?,http_status=?,attempt_seconds=?,settled_at_utc=? "
                 "WHERE attempt_id=?",
                 (
-                    status, actual_input_tokens, actual_output_tokens,
+                    status, actual_input_tokens, actual_output_tokens, cached_input_tokens,
                     str(actual_cost_usd) if actual_cost_usd is not None else None,
+                    str(actual_cost_amount) if actual_cost_amount is not None else None,
+                    actual_cost_currency, actual_cost_basis,
                     actual_cost_source,
                     provider_request_id, generation_id, actual_provider, actual_model,
                     normalized_billing["gross_amount"] if normalized_billing else None,
@@ -2032,7 +2227,9 @@ class PublicTrialLedger:
         row = self._connection.execute(
             "SELECT attempt_id,trial_id,route,role,status,provider,model,endpoint,price_version,"
             "attempt_number,profile_digest,estimated_input_tokens,reserved_output_tokens,"
-            "actual_input_tokens,actual_output_tokens,reserved_cost_usd,actual_cost_usd,"
+            "actual_input_tokens,actual_output_tokens,cached_input_tokens,"
+            "reserved_cost_usd,reserved_cost_amount,reserved_cost_currency,"
+            "actual_cost_usd,actual_cost_amount,actual_cost_currency,actual_cost_basis,"
             "actual_cost_source,"
             "billing_gross_amount,billing_currency,billing_voucher_credit_amount,"
             "billing_cash_paid_amount,billing_source,billing_record_id,"
@@ -2051,7 +2248,9 @@ class PublicTrialLedger:
         """Report request-level billing evidence without spreading aggregate data."""
         self._active()
         rows = self._connection.execute(
-            "SELECT attempt_id,role,status,actual_cost_usd,actual_cost_source,"
+            "SELECT attempt_id,role,status,actual_input_tokens,actual_output_tokens,"
+            "cached_input_tokens,actual_cost_usd,actual_cost_amount,"
+            "actual_cost_currency,actual_cost_basis,actual_cost_source,"
             "billing_gross_amount,billing_currency,billing_voucher_credit_amount,"
             "billing_cash_paid_amount,billing_source,billing_record_id "
             "FROM model_attempts WHERE trial_id=? AND route=? "
@@ -2060,7 +2259,39 @@ class PublicTrialLedger:
         ).fetchall()
         records = []
         by_currency = {}
+        costs_by_currency = {}
+        cost_records = []
         for row in rows:
+            if row["actual_cost_amount"] is not None:
+                currency = row["actual_cost_currency"]
+                amount = Decimal(row["actual_cost_amount"])
+                basis = row["actual_cost_basis"]
+                group = costs_by_currency.setdefault(
+                    currency,
+                    {
+                        "frozen_rate": Decimal(0),
+                        "frozen_rate_upper_bound": Decimal(0),
+                        "provider_billed": Decimal(0),
+                        "attempts": 0,
+                    },
+                )
+                if basis not in group or basis == "attempts":
+                    raise ValueError("Settled model cost has an unsupported billing basis")
+                group[basis] += amount
+                group["attempts"] += 1
+                cost_records.append(
+                    {
+                        "attempt_id": row["attempt_id"],
+                        "role": row["role"],
+                        "currency": currency,
+                        "amount": str(amount),
+                        "source": row["actual_cost_source"],
+                        "basis": basis,
+                        "input_tokens": row["actual_input_tokens"],
+                        "output_tokens": row["actual_output_tokens"],
+                        "cached_input_tokens": row["cached_input_tokens"],
+                    }
+                )
             if row["billing_gross_amount"] is None:
                 continue
             currency = row["billing_currency"]
@@ -2132,8 +2363,17 @@ class PublicTrialLedger:
             "settled_attempts": len(rows),
             "evidence_attempts": len(records),
             "missing_evidence_attempts": len(rows) - len(records),
+            "missing_cost_attempts": len(rows) - len(cost_records),
             "by_currency": result,
             "records": records,
+            "cost_by_currency": {
+                currency: {
+                    key: str(value) if isinstance(value, Decimal) else value
+                    for key, value in group.items()
+                }
+                for currency, group in sorted(costs_by_currency.items())
+            },
+            "cost_records": cost_records,
         }
 
     def mark_model_not_sent(self, attempt_id, *, reason, verified_not_sent):

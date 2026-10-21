@@ -224,6 +224,7 @@ class ModelReply:
     generation_id: str | None = None
     http_status: int | None = None
     billing_evidence: ProviderBillingEvidence | None = None
+    cached_input_tokens: int | None = None
 
     def __post_init__(self):
         if type(self.tokens) is not int or self.tokens < 0:
@@ -246,7 +247,13 @@ class ModelReply:
             raise ValueError(
                 "Model cost source must be provider billed, frozen profile, or unknown"
             )
-        if (self.cost_usd is None) != (self.cost_source == "unknown"):
+        non_usd_bill = (
+            self.billing_evidence is not None
+            and self.billing_evidence.currency != "USD"
+        )
+        if non_usd_bill and self.cost_source == "unknown":
+            object.__setattr__(self, "cost_source", "provider_billed")
+        if (self.cost_usd is None) != (self.cost_source == "unknown") and not non_usd_bill:
             raise ValueError("Unknown cost source and missing cost must be recorded together")
         if self.billing_evidence is not None and self.billing_evidence.currency == "USD":
             if self.cost_usd is None:
@@ -257,6 +264,10 @@ class ModelReply:
                 or self.cost_usd != self.billing_evidence.gross_amount
             ):
                 raise ValueError("USD model cost must equal the gross provider fee evidence")
+        elif non_usd_bill and (
+            self.cost_usd is not None or self.cost_source != "provider_billed"
+        ):
+            raise ValueError("Non-USD provider billing must remain in its original currency")
         for name, value in (
             ("provider", self.provider),
             ("provider request ID", self.provider_request_id),
@@ -278,6 +289,12 @@ class ModelReply:
             or self.tokens != self.input_tokens + self.output_tokens
         ):
             raise ValueError("Measured token split must match the total token count")
+        if self.cached_input_tokens is not None and (
+            self.input_tokens is None
+            or type(self.cached_input_tokens) is not int
+            or not 0 <= self.cached_input_tokens <= self.input_tokens
+        ):
+            raise ValueError("Cached input tokens must be bounded by measured input tokens")
 
 
 class ModelCallError(Exception):

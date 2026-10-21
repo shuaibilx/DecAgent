@@ -1,0 +1,685 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-21T14:34:11+08:00",
+  "source": "openspec/changes/jev-conditional-workflows/tasks.md",
+  "snapshot": "generated/261021/任务整理/1434_jev任务原文快照.md",
+  "source_before_sha256": "d8f334b7acd722502e2b4c48ac4b18e9b12bd3ea9d79446c7b1236d44614fe72",
+  "source_after_sha256": "a6c3cab9d3935ca2fab3a6a3f1a4920b65ab6e880c33958394ba00264c43635d",
+  "source_before_bytes": 109599,
+  "source_after_bytes": 26970,
+  "task_count": 79,
+  "completed": 66,
+  "remaining": 13,
+  "task_id_order_and_states_unchanged": true,
+  "retained_task_text_is_exact_source_prefix": true,
+  "other_artifacts_sha256": {
+    "openspec/changes/jev-conditional-workflows/design.md": "5db2bb469b8c99968ea3f9e24ebbd8c8d492e6ee687b1b48380677397109d706",
+    "openspec/changes/jev-conditional-workflows/proposal.md": "0bda10776cec13d83020babe312eafd8813bc92e3a122095dce60a45f9477d4e",
+    "openspec/changes/jev-conditional-workflows/specs/business-context-memory/spec.md": "5aa0f74e662c19d6f9cc117a8342e8e656a527cd259efc644f63a842a490e7b8",
+    "openspec/changes/jev-conditional-workflows/specs/conditional-plan-execution/spec.md": "9f0baa3cc94f83431f2768445f0a7ae53d55a89b48332fdc0d738807c8395549",
+    "openspec/changes/jev-conditional-workflows/specs/conditional-workflow-workbench/spec.md": "f125a0217b3ff64ab66cd5e00a17bdf9499b2265dd261ff1aeedb643514b76e1",
+    "openspec/changes/jev-conditional-workflows/specs/confidence-gated-intervention/spec.md": "5f3c63f1f1c0057a8ac8b86527daa11c137f87eee335353d7fdba092e7c7fabf",
+    "openspec/changes/jev-conditional-workflows/specs/selective-business-evaluation/spec.md": "79736cd836700d4295ec71b9bbcd7bb454b1834565c6f5650b71bc3748b40d3e",
+    "openspec/changes/jev-conditional-workflows/specs/typed-business-plans/spec.md": "c404c3a3c28d66258d48ff1882909661862c4c7c03be94e38ac8baae633c1394",
+    "openspec/changes/jev-conditional-workflows/specs/verified-workflow-reuse/spec.md": "80e6e6a596f5f210db23f785b0abc2f4913e289ac6a69a4c8f99675cc134d573",
+    "openspec/changes/guest-sop-local-trial/tasks.md": "5f2fcca9b4d10adefbeea0d3930aa5987dcfffb6417e7b923b4232888d46498a",
+    "openspec/changes/build-decagent-workbench/tasks.md": "16e6b3576a71a8197b4964b7f5b6cd1323ab609007472f09f37072aa6a5d4c3b"
+  },
+  "tasks": [
+    {
+      "id": "1.1",
+      "state": "x",
+      "source_line": 55,
+      "retained_prefix_sha256": "f81cff239cd89d71712285627e1b7189b8a283825d0a6e2f4fe4ab4e7e028325",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-1-1"
+    },
+    {
+      "id": "1.2",
+      "state": "x",
+      "source_line": 56,
+      "retained_prefix_sha256": "24fff5a1d9835270f31a6a1547377e0bdbcadb9f85854de1fe7fcd748a084748",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-1-2"
+    },
+    {
+      "id": "1.3",
+      "state": "x",
+      "source_line": 57,
+      "retained_prefix_sha256": "409700174c1b9406d48b476927480e85d10f050c643b00eb87e6a065ab5fdd75",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-1-3"
+    },
+    {
+      "id": "2.1",
+      "state": "x",
+      "source_line": 61,
+      "retained_prefix_sha256": "a554c1f5895bdddd7bc4ade88379c25b97aa75321eac8e255246d694398f0447",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-2-1"
+    },
+    {
+      "id": "2.2",
+      "state": "x",
+      "source_line": 62,
+      "retained_prefix_sha256": "63cd16b8747c689dba1ede252126c47fbd24e70d4667ed7df6ce64c80947e4d6",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-2-2"
+    },
+    {
+      "id": "2.3",
+      "state": "x",
+      "source_line": 63,
+      "retained_prefix_sha256": "b5ab9d9066faf1c10a23f2958baff75c14a738fb1f9ff56e3ee95f7fd8c7546d",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-2-3"
+    },
+    {
+      "id": "2.4",
+      "state": "x",
+      "source_line": 64,
+      "retained_prefix_sha256": "31894dbe4811262318395f8415f6e5028a09606f8b0a0e8ce4845d9d0095303e",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-2-4"
+    },
+    {
+      "id": "2.5",
+      "state": "x",
+      "source_line": 65,
+      "retained_prefix_sha256": "4293182b33e751a62906ec322bd3432720bd64511ca448268d19f1d2b7237585",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-2-5"
+    },
+    {
+      "id": "2.6",
+      "state": "x",
+      "source_line": 66,
+      "retained_prefix_sha256": "e89d72ab66cd80ad9b265ed0c5484cbe4cccab28c40efc64f401b3812e1462a3",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-2-6"
+    },
+    {
+      "id": "2.7",
+      "state": "x",
+      "source_line": 67,
+      "retained_prefix_sha256": "bb74136fba9466298c002c6c3dcd9f40392913eed2699ff7fbc9195e40e9ec6a",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-2-7"
+    },
+    {
+      "id": "3.1",
+      "state": "x",
+      "source_line": 71,
+      "retained_prefix_sha256": "4523b06431718e02fa37c0d909ccc7ce06b838bb92856e8d8044151e7f9e3e29",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-3-1"
+    },
+    {
+      "id": "3.2",
+      "state": "x",
+      "source_line": 72,
+      "retained_prefix_sha256": "027cb063788da477f388a04666e518ec51367d3d4319efdf793e8192a30dab13",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-3-2"
+    },
+    {
+      "id": "3.3",
+      "state": "x",
+      "source_line": 73,
+      "retained_prefix_sha256": "7366e12f24a8ffa01a540cd2b68ae34225886de1163ef9231f5f4f846839ea00",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-3-3"
+    },
+    {
+      "id": "3.4",
+      "state": "x",
+      "source_line": 74,
+      "retained_prefix_sha256": "b9f85c11dc71c61db141f2a0051fccecb105c98230a77565aa3a615c11eaf375",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-3-4"
+    },
+    {
+      "id": "3.5",
+      "state": "x",
+      "source_line": 75,
+      "retained_prefix_sha256": "6a6eb7a554f98ea5c2ea6663f23e0dac23c7669745d48dbf95c5dce087d40de9",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-3-5"
+    },
+    {
+      "id": "3.6",
+      "state": "x",
+      "source_line": 76,
+      "retained_prefix_sha256": "6ad5296801a5d31202fbd4bc66daf3b0fd1e6ef50a7fa78aff2f359080b7a0e4",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-3-6"
+    },
+    {
+      "id": "3.7",
+      "state": "x",
+      "source_line": 77,
+      "retained_prefix_sha256": "daa79ed887e2455bb0b3b6db1e44d2afb8cddf636ed7b6c756b38ffd619d4af5",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-3-7"
+    },
+    {
+      "id": "3.8",
+      "state": "x",
+      "source_line": 78,
+      "retained_prefix_sha256": "3cf694b9aaa7eb45190ca1acf95b557efb77f0729c949a9bf512fb7140797e02",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-3-8"
+    },
+    {
+      "id": "4.1",
+      "state": "x",
+      "source_line": 82,
+      "retained_prefix_sha256": "b20fcf161cd3ae9a907088a18249fa94609fc1aa55f0db22a40ecd2f91483744",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-4-1"
+    },
+    {
+      "id": "4.2",
+      "state": "x",
+      "source_line": 83,
+      "retained_prefix_sha256": "f9a2a5bff742bb7bffbbc62e807d49acb970bfd881e28db97e4fcef9fe3c7937",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-4-2"
+    },
+    {
+      "id": "4.3",
+      "state": "x",
+      "source_line": 84,
+      "retained_prefix_sha256": "99d4fb21dee73cbf17a2d1386a62f1e48413bbce67b114efea1e18dccb82e0a9",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-4-3"
+    },
+    {
+      "id": "4.4",
+      "state": "x",
+      "source_line": 85,
+      "retained_prefix_sha256": "933efdf7bf776fb73c627bc57f6f9e7370c2dcaeaf23f4c94dcf7f5c66ce8753",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-4-4"
+    },
+    {
+      "id": "5.1",
+      "state": "x",
+      "source_line": 89,
+      "retained_prefix_sha256": "7e094813c4cdef42c6ba86017381b402d501a0407f4d4b365502a8628314269c",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-5-1"
+    },
+    {
+      "id": "5.2",
+      "state": "x",
+      "source_line": 90,
+      "retained_prefix_sha256": "3e8d50114eead1ddc515c9078e2680a41ec740ddbaa31981d724b9a2f224f336",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-5-2"
+    },
+    {
+      "id": "5.3",
+      "state": "x",
+      "source_line": 91,
+      "retained_prefix_sha256": "050946d958c5f6f9f9a22754cc404a10faccf932afa539dd434c1deac51b6e9f",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-5-3"
+    },
+    {
+      "id": "5.4",
+      "state": "x",
+      "source_line": 92,
+      "retained_prefix_sha256": "db513862f52fb898bbb9b26f7c36ff560248683ac682c378ad6ee465b0694e3f",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-5-4"
+    },
+    {
+      "id": "5.5",
+      "state": "x",
+      "source_line": 93,
+      "retained_prefix_sha256": "a4aad5f7fda54520595afd6817dacb5cc93837e3571ab485bebeec3d6ba97916",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-5-5"
+    },
+    {
+      "id": "5.6",
+      "state": "x",
+      "source_line": 94,
+      "retained_prefix_sha256": "c8fa0d37bf294b30109ab85374702fb4ddd392fcdb059f901c7d174ff4012d1c",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-5-6"
+    },
+    {
+      "id": "6.1",
+      "state": "x",
+      "source_line": 98,
+      "retained_prefix_sha256": "c8bc0521fbe64324f043d3f9c5b900f207b2706f9ab9fa06b4ce1eedb1319c60",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-6-1"
+    },
+    {
+      "id": "6.2",
+      "state": "x",
+      "source_line": 99,
+      "retained_prefix_sha256": "a35c19d3585a815e295c3d38f5564c5adcc096fbeedef371954816f4d7cad081",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-6-2"
+    },
+    {
+      "id": "6.3",
+      "state": "x",
+      "source_line": 100,
+      "retained_prefix_sha256": "0e87aa73057562a1bf3d5ba83df615a422b96d7f2f16d133e07784dc9b313cac",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-6-3"
+    },
+    {
+      "id": "6.4",
+      "state": "x",
+      "source_line": 101,
+      "retained_prefix_sha256": "2a6d56f92edf5690a90deee4e54adfbf151ac52938b9a9eb62cadfffb60d7dc2",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-6-4"
+    },
+    {
+      "id": "6.5",
+      "state": "x",
+      "source_line": 102,
+      "retained_prefix_sha256": "e9264c665f8713bcc85e05e3d99d96950c3468ac1097c855c403cb9f877a66f0",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-6-5"
+    },
+    {
+      "id": "6.6",
+      "state": "x",
+      "source_line": 103,
+      "retained_prefix_sha256": "0fc3cb91d68479d335fb892a6b95763a4444dc6fdd1edbb37469739b92815dc0",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-6-6"
+    },
+    {
+      "id": "7.1",
+      "state": "x",
+      "source_line": 107,
+      "retained_prefix_sha256": "1e585de763be2ffafcae447e48a722dfb3626c714e4d740aa80fd671b15ce2e3",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-7-1"
+    },
+    {
+      "id": "7.2",
+      "state": "x",
+      "source_line": 108,
+      "retained_prefix_sha256": "5b6e8588d50bfc3066bfb05916175d56492deb9b5bb97ef3fc377b64070e947b",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-7-2"
+    },
+    {
+      "id": "7.3",
+      "state": "x",
+      "source_line": 109,
+      "retained_prefix_sha256": "f4fc321efcb4fa90121ffb7edccfdff9cd9c5a989f7bb8bdd61922ef72c77c3a",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-7-3"
+    },
+    {
+      "id": "7.4",
+      "state": "x",
+      "source_line": 110,
+      "retained_prefix_sha256": "e7d26e31780c20e05cdea0e17e54cda005a08a73d38b69fae9ab81a1c7059e28",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-7-4"
+    },
+    {
+      "id": "7.5",
+      "state": "x",
+      "source_line": 111,
+      "retained_prefix_sha256": "b76844f9ffb7a97757996e55102c4706e0ec645eae0019ff047e0da97f174895",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-7-5"
+    },
+    {
+      "id": "8.1",
+      "state": "x",
+      "source_line": 115,
+      "retained_prefix_sha256": "5f05886ce88f36eeed0aa04901f08bcc05b427f443d1a99526d65a8a440484ce",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-8-1"
+    },
+    {
+      "id": "8.2",
+      "state": "x",
+      "source_line": 116,
+      "retained_prefix_sha256": "7dd235c327a5638dc1fdfcb8047b7ff5a3ea0b360577446fd83afd01e9898a4c",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-8-2"
+    },
+    {
+      "id": "8.3",
+      "state": "x",
+      "source_line": 117,
+      "retained_prefix_sha256": "5f631323874f7ef7735b8d8588fceb448e3944e2c3d983f6aa031ed1e7038e97",
+      "cut_reason": "historical_result:验收：",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-8-3"
+    },
+    {
+      "id": "8.4",
+      "state": "x",
+      "source_line": 118,
+      "retained_prefix_sha256": "58347cb7b1714adafaaa5572fe32e2a2c409e12bbdb8963a3eee23cc1123502f",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-8-4"
+    },
+    {
+      "id": "8.5",
+      "state": "x",
+      "source_line": 119,
+      "retained_prefix_sha256": "031007baeade63768a99ebe87e8f6d7ea85f758ebf456976cc97eed16fc43e34",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_实现与工作台证据.md#task-8-5"
+    },
+    {
+      "id": "9.1",
+      "state": "x",
+      "source_line": 123,
+      "retained_prefix_sha256": "324fc27852d74b1bd582082d9d7ad05b1b4fa819f2a5bf83ec22b1972d07294e",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-1"
+    },
+    {
+      "id": "9.2",
+      "state": "x",
+      "source_line": 124,
+      "retained_prefix_sha256": "a58d80b8553dcd8b1992f80e494991027b15a1981c90810fc3c08198a1d4b3a7",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-2"
+    },
+    {
+      "id": "9.3",
+      "state": "x",
+      "source_line": 125,
+      "retained_prefix_sha256": "ec44fe0f5bdb3d80a1a6771e32c8d463ae4e0f34a46bbfbf8e36db87472017d9",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-3"
+    },
+    {
+      "id": "9.4",
+      "state": "x",
+      "source_line": 126,
+      "retained_prefix_sha256": "20d1632c6adf840a7e6b97dd1244980224730bbbadcd6ce4d5b1f321de3d27e5",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-4"
+    },
+    {
+      "id": "9.5",
+      "state": "x",
+      "source_line": 127,
+      "retained_prefix_sha256": "c75dc081dd50d5b4c1dfb8dbf03373820cdbc96c1ba79bbdb59d4d9692ebd92d",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-5"
+    },
+    {
+      "id": "9.6.A",
+      "state": "x",
+      "source_line": 132,
+      "retained_prefix_sha256": "13ed8bf0e47191438c8528d675af86de29235fe20e9b515f440d314cec266c4e",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-6-a"
+    },
+    {
+      "id": "9.6.B",
+      "state": "x",
+      "source_line": 133,
+      "retained_prefix_sha256": "c5b75bbfa19f9c01eeadff8fceccff5e159dd76167baad7cf4f67ed056958da6",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-6-b"
+    },
+    {
+      "id": "9.6.C",
+      "state": "x",
+      "source_line": 134,
+      "retained_prefix_sha256": "b90e65919d194576938ac675e2b9d4eb0cb0693a695b42d71f53528fb733ca4e",
+      "cut_reason": "historical_result:锁定 τ2",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-6-c"
+    },
+    {
+      "id": "9.6.D",
+      "state": " ",
+      "source_line": 139,
+      "retained_prefix_sha256": "042098f6c763d1f916a4b5c94508345572d39313d67100123a7b5121e305d458",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-6-d"
+    },
+    {
+      "id": "9.6.E",
+      "state": " ",
+      "source_line": 140,
+      "retained_prefix_sha256": "d339753eeb3a8d68c8b96b0129cf3628202ce1dd8d239b0b73b79981ccc316f3",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-6-e"
+    },
+    {
+      "id": "9.6.F",
+      "state": " ",
+      "source_line": 141,
+      "retained_prefix_sha256": "53eba1cec636cc7733272ec01936e69060c93879c95dcd027f5fa4297d820624",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-6-f"
+    },
+    {
+      "id": "9.6.G",
+      "state": " ",
+      "source_line": 144,
+      "retained_prefix_sha256": "56dba86ae5acaf6d385d9f91f1643d0fd9682996b1924a1fa1c772e63e6db1e8",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-6-g"
+    },
+    {
+      "id": "9.7",
+      "state": "x",
+      "source_line": 150,
+      "retained_prefix_sha256": "a73548f6e1de572777f12dadd365e43e74a927daf96e9f33d4f091bcd84b0d57",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-7"
+    },
+    {
+      "id": "9.8",
+      "state": "x",
+      "source_line": 151,
+      "retained_prefix_sha256": "22e47b8b6bf8ae691cd11373ed736680793a011215b1fd21d526ff8f30dfe9e2",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_评测基础证据.md#task-9-8"
+    },
+    {
+      "id": "10.1",
+      "state": "x",
+      "source_line": 155,
+      "retained_prefix_sha256": "42f5a759e7bb00aa24a08302ed9f9d87f19fec0b945f31e788ec4b19a3c4538c",
+      "cut_reason": "historical_result:实际结果：",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-1"
+    },
+    {
+      "id": "10.2",
+      "state": "x",
+      "source_line": 156,
+      "retained_prefix_sha256": "c4589d095385e9ac45fcb1579566204acbed3bad380ba367debafd13c59ef92a",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-2"
+    },
+    {
+      "id": "10.3",
+      "state": " ",
+      "source_line": 157,
+      "retained_prefix_sha256": "58c52bd57461ee5c6dd6c82af6f3866947c2d9059e013b2056d3d2915c91a125",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-3"
+    },
+    {
+      "id": "10.4",
+      "state": " ",
+      "source_line": 161,
+      "retained_prefix_sha256": "cf809f9c661ec0fdec47dbc80bde86f9a7bf38148633c4a847d451d69b1c0825",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-4"
+    },
+    {
+      "id": "10.5",
+      "state": " ",
+      "source_line": 162,
+      "retained_prefix_sha256": "aeed2fdd5ec8555e16a2a59e375657ee4d3117bc65d7e97390ec16f0a83d124e",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-5"
+    },
+    {
+      "id": "10.6",
+      "state": " ",
+      "source_line": 163,
+      "retained_prefix_sha256": "97e569a3b27c0cfaf5baf081948cbadbabbeea19a13a01d3863ca29c12af768c",
+      "cut_reason": "unchanged",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-6"
+    },
+    {
+      "id": "10.7",
+      "state": "x",
+      "source_line": 165,
+      "retained_prefix_sha256": "28b54209c70aaaa8eed8ca702f1751d8e63d38d5b32d7503554c481f77bb11ca",
+      "cut_reason": "historical_result:验收结果：",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-7"
+    },
+    {
+      "id": "10.8.A",
+      "state": "x",
+      "source_line": 169,
+      "retained_prefix_sha256": "0203b464857fea9c5a2583fe49e49d05f8e145db118bd1bed18da4b5bf080179",
+      "cut_reason": "historical_result:验收：",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-8-a"
+    },
+    {
+      "id": "10.8.B",
+      "state": "x",
+      "source_line": 170,
+      "retained_prefix_sha256": "d0307170aadcec4b3f33878f94e3a64b44e4c51f07668d472b9a99f7c3ad3c71",
+      "cut_reason": "historical_result:验收：",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-8-b"
+    },
+    {
+      "id": "10.8.C",
+      "state": "x",
+      "source_line": 171,
+      "retained_prefix_sha256": "1f107a8ae6ab537cc521afd4d7c4003eb3001087ed594a9f15972687d4b4ed13",
+      "cut_reason": "historical_result:验收：",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-8-c"
+    },
+    {
+      "id": "10.8.D",
+      "state": " ",
+      "source_line": 172,
+      "retained_prefix_sha256": "4a3533e305e36aaa89b96919f3bbe01fb9de85d84d3913a9c784815e16b6abbf",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-8-d"
+    },
+    {
+      "id": "10.9",
+      "state": "x",
+      "source_line": 175,
+      "retained_prefix_sha256": "1ad89f68376defc768e6b9158d314cd28cb3a47b8bcfab6ee7070bdc5ff1cf9d",
+      "cut_reason": "historical_result:验收证据：",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-9"
+    },
+    {
+      "id": "10.10.A",
+      "state": "x",
+      "source_line": 180,
+      "retained_prefix_sha256": "9036de99cc9763d93fbdd8dd4ca56744945c214b7db055befe6a922de2593686",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-a"
+    },
+    {
+      "id": "10.10.B",
+      "state": " ",
+      "source_line": 181,
+      "retained_prefix_sha256": "014c33495eabef3a2035b11ce33be36f72334c2f9a13467c08e18cbdd0138903",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-b"
+    },
+    {
+      "id": "10.10.C",
+      "state": "x",
+      "source_line": 188,
+      "retained_prefix_sha256": "96d008607d46a4b09a5784d210199ee746c1ce199d777b10cb767b0467a82b81",
+      "cut_reason": "historical_result:验收：",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-c"
+    },
+    {
+      "id": "10.10.D",
+      "state": " ",
+      "source_line": 189,
+      "retained_prefix_sha256": "c887f463d86dcbe865dfc38c8dcd51aaebfd7d524e4a83cef62a74cb76496827",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-d"
+    },
+    {
+      "id": "10.10.E",
+      "state": " ",
+      "source_line": 199,
+      "retained_prefix_sha256": "06ef74ab9e02c75acad6aabecd5b84c98990b47a51571a2bb1a4a81e243660fb",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-e"
+    },
+    {
+      "id": "10.10.F",
+      "state": "x",
+      "source_line": 202,
+      "retained_prefix_sha256": "7279e5f9e4aa46dbec697b25db34dcd34aabd3c94fa04af0d451d680064d94c1",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-f"
+    },
+    {
+      "id": "11.1",
+      "state": " ",
+      "source_line": 216,
+      "retained_prefix_sha256": "774a4373727ab9e7808e8f972af2e4d997355696e23d902f59f3be3427777cfb",
+      "cut_reason": "historical_result:候选 ",
+      "evidence": "generated/261021/任务整理/1434_整体验收证据.md#task-11-1"
+    },
+    {
+      "id": "11.2",
+      "state": "x",
+      "source_line": 221,
+      "retained_prefix_sha256": "9b669b05f37e30337b3455c98b5f8a77930b6902b15f73c33a9c731bf59d2c46",
+      "cut_reason": "historical_result:验收：",
+      "evidence": "generated/261021/任务整理/1434_整体验收证据.md#task-11-2"
+    },
+    {
+      "id": "11.3",
+      "state": "x",
+      "source_line": 222,
+      "retained_prefix_sha256": "0828003231ad6a004a0d930c4ba8e8e31a40f72efe4e79476d3793a1f2fb1fa3",
+      "cut_reason": "explicit_evidence_or_progress",
+      "evidence": "generated/261021/任务整理/1434_整体验收证据.md#task-11-3"
+    }
+  ],
+  "verification": {
+    "verified_at": "2026-10-21T14:45:11+08:00",
+    "snapshot_bytes_unchanged": true,
+    "task_id_order_and_states_unchanged": true,
+    "retained_task_prefix_hashes_verified": 79,
+    "other_artifact_hashes_unchanged": true,
+    "openspec_strict_changes_passed": 6,
+    "openspec_apply_progress": {
+      "total": 79,
+      "complete": 66,
+      "remaining": 13
+    },
+    "local_document_count": 11,
+    "local_links_checked": 88,
+    "explicit_anchors_checked": 11,
+    "link_errors": [],
+    "model_requests_dispatched": 0,
+    "application_tests_rerun": false
+  },
+  "post_compaction_metadata_updates": [
+    "Verified fee-source pointer in current status",
+    "Markdown paragraph spacing"
+  ]
+}

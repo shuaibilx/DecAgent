@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk
 
-from decagent.models.primary import ModelUsage, PrimaryModel, tool_schemas
+from decagent.models.primary import ModelUsage, PrimaryModel, _response_usage, tool_schemas
 from decagent.policy import Redactor
 from decagent.runtime.model_calls import BudgetedPrimary, TokenPrice
 from decagent.storage.budget import Budget, BudgetExceeded
@@ -17,6 +17,49 @@ SYNTHETIC_MARKER = "SYNTHETIC-PRIVATE-MARKER-KEEP-OUT"
 KNOWN_PRICE = TokenPrice("fixture-v1", Decimal("2"), Decimal("4"))
 FREE_PRICE = TokenPrice("owner-free-v1", Decimal("0"), Decimal("0"))
 UNKNOWN_RESERVATION = Decimal("0.25")
+
+
+def test_response_usage_retains_and_bounds_cached_input_tokens():
+    usage, invalid = _response_usage(
+        {
+            **USAGE,
+            "input_token_details": {"cache_read": 4},
+        }
+    )
+
+    assert invalid is False
+    assert usage == ModelUsage(11, 3, 14, cached_input_tokens=4)
+
+    invalid_usage, invalid = _response_usage(
+        {
+            **USAGE,
+            "input_token_details": {"cache_read": 12},
+        }
+    )
+    assert invalid is True
+    assert invalid_usage is None
+
+
+def test_response_usage_accepts_qwen_openai_prompt_token_details_and_rejects_conflicts():
+    usage, invalid = _response_usage(
+        {
+            **USAGE,
+            "prompt_tokens_details": {"cached_tokens": 4},
+        }
+    )
+
+    assert invalid is False
+    assert usage == ModelUsage(11, 3, 14, cached_input_tokens=4)
+
+    conflicting, invalid = _response_usage(
+        {
+            **USAGE,
+            "input_token_details": {"cache_read": 4},
+            "prompt_tokens_details": {"cached_tokens": 5},
+        }
+    )
+    assert invalid is True
+    assert conflicting is None
 
 
 class Client:

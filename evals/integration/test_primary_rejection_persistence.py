@@ -20,6 +20,7 @@ from evals.integration.business_support import FixtureTickets
 
 pytestmark = pytest.mark.integration
 USAGE = {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30}
+NORMALIZED_USAGE = {**USAGE, "cached_input_tokens": None}
 ACTUAL_MODEL = "observed-fixture-model-1"
 SENSITIVE = "synthetic-sensitive-marker-9437"
 
@@ -124,7 +125,7 @@ def test_business_rejection_records_usage_model_and_bounded_failure(database, fr
         assert result["error"] == "planner_response_invalid"
         assert result["rejection_reason"] == "tool_schema"
         assert result["proposals"] == [] and "assistant" not in result
-        assert result["usage"] == USAGE
+        assert result["usage"] == NORMALIZED_USAGE
         assert SENSITIVE not in repr(result)
 
 
@@ -167,7 +168,7 @@ def test_repair_rejected_response_is_durable_and_never_redispatched_after_rebuil
     ]
     assert saved[-1]["payload"]["status"] == "rejected"
     assert saved[-1]["payload"]["reason"] == "tool_schema"
-    assert saved[-1]["payload"]["usage"] == (USAGE if known_usage else None)
+    assert saved[-1]["payload"]["usage"] == (NORMALIZED_USAGE if known_usage else None)
     assert saved[-1]["payload"]["model"] == ACTUAL_MODEL
     assert "turn" not in saved[-1]["payload"]
     assert SENSITIVE not in repr(saved[-1]["payload"])
@@ -256,7 +257,12 @@ def test_business_local_preflight_keeps_zero_usage_and_safe_failure(database):
     assert usage == {"status": "settled", "actual_tokens": 0, "actual_cost": Decimal(0)}
     assert decision["resolved_model"] is None
     assert decision["result"]["rejection_reason"] == "context_limit"
-    assert decision["result"]["usage"] == {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    assert decision["result"]["usage"] == {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "cached_input_tokens": None,
+    }
     assert decision["result"]["proposals"] == []
 
 
@@ -278,7 +284,12 @@ def test_repair_local_preflight_is_durable_and_never_redispatched(database, tmp_
         event for event in database.events(task["id"]) if event["kind"].startswith("runtime.model.")
     ][-1]["payload"]
     assert saved["status"] == "not_dispatched" and saved["reason"] == "context_limit"
-    assert saved["usage"] == {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    assert saved["usage"] == {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "cached_input_tokens": None,
+    }
     assert "turn" not in saved and saved["model"] is None
     with database.connect() as conn:
         usage = conn.execute(

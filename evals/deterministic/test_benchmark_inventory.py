@@ -1,4 +1,6 @@
 import json
+from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -63,6 +65,45 @@ def test_trial_manifest_builder_accepts_linux_inventory_line_endings(monkeypatch
     built = build_trial_manifest(root, model_profiles=profiles, manifest_version=7)
 
     assert built["task_inventory_sha256"] == expected
+
+
+def test_manifest_v8_freezes_cny_pricing_without_changing_trial_scope():
+    root = Path(__file__).resolve().parents[2]
+    profile_path = INVENTORY_PATH.parent / "evaluation_model_profiles_v3.json"
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(profile_path.read_text(encoding="utf-8"))
+    )
+    qwen_roles = {
+        role: replace(
+            getattr(profiles, role),
+            price_version="qwen3.8-flash-standard-cny-20261021-v1",
+            price_source="https://platform.qianwenai.com/pricing/api",
+            input_price_per_million=Decimal("0.8"),
+            output_price_per_million=Decimal("2.7"),
+            pricing_status="known",
+            price_currency="CNY",
+            cached_input_price_per_million=Decimal("0.1"),
+        )
+        for role in ("primary", "user_simulator", "judge")
+    }
+    cny_profiles = replace(profiles, **qwen_roles)
+
+    built = build_trial_manifest(root, model_profiles=cny_profiles, manifest_version=8)
+
+    assert built["schema_version"] == "business-comparison-trial-manifest-8"
+    assert built["model_profiles"] == cny_profiles.to_dict()
+    assert built["counts"] == {
+        "full_trials": 286,
+        "smoke_trials": 24,
+        "initial_smoke_wave": 4,
+    }
+    assert built["batch_limits"]["qwen_requests"] == 500
+    assert all(
+        trial["model_profile_digest"] == cny_profiles.primary.fingerprint
+        for trial in built["full_trials"]
+    )
 
 
 def test_resource_subset_is_stable_across_source_order_and_bounded():

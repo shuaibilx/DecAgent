@@ -294,18 +294,19 @@ class LedgeredModelCallback:
             raise ValueError("Complete model input exceeds the frozen input-token bound")
         output_bound = profile.max_output_tokens
         reserved_cost = None
+        reserved_cost_currency = None
         if profile.pricing_status == "known":
-            reserved_cost = (
-                profile.input_price_per_million * input_bound
-                + profile.output_price_per_million * output_bound
-            ) / Decimal(1_000_000)
+            reserved_cost, _basis = profile.calculate_cost(input_bound, output_bound)
+            reserved_cost_currency = profile.currency
         attempt_id = self.ledger.reserve_model_attempt(
             trial_id=self.trial_id,
             route=self.route,
             role=profile.role,
             estimated_input_tokens=input_bound,
             max_output_tokens=output_bound,
-            reserved_cost_usd=reserved_cost,
+            reserved_cost_usd=(reserved_cost if reserved_cost_currency == "USD" else None),
+            reserved_cost_amount=reserved_cost,
+            reserved_cost_currency=reserved_cost_currency,
             profile_digest=profile.fingerprint,
         )
         try:
@@ -435,33 +436,44 @@ class LedgeredModelCallback:
             raise PublicModelOutcomeUnknown(
                 "Dispatched model usage or frozen profile identity is unknown"
             )
+        calculated_cost = None
+        calculated_basis = None
         if profile.pricing_status == "known":
-            calculated_cost = (
-                profile.input_price_per_million * reply.input_tokens
-                + profile.output_price_per_million * reply.output_tokens
-            ) / Decimal(1_000_000)
-            cost_mismatch = (
-                reply.cost_source == "frozen_profile"
-                and reply.cost_usd is not None
-                and reply.cost_usd != calculated_cost
+            calculated_cost, calculated_basis = profile.calculate_cost(
+                reply.input_tokens,
+                reply.output_tokens,
+                cached_input_tokens=reply.cached_input_tokens,
             )
-            if reply.cost_source in {"unknown", "frozen_profile"}:
-                actual_cost = calculated_cost
-                cost_source = "frozen_profile"
-            else:
-                actual_cost = reply.cost_usd
-                cost_source = reply.cost_source
+        billing = reply.billing_evidence
+        if billing is not None:
+            actual_cost = billing.gross_amount
+            actual_currency = billing.currency
+            cost_source = "provider_billed"
+            cost_basis = "provider_billed"
+        elif reply.cost_source == "provider_billed" and reply.cost_usd is not None:
+            actual_cost = reply.cost_usd
+            actual_currency = "USD"
+            cost_source = "provider_billed"
+            cost_basis = "provider_billed"
+        elif calculated_cost is not None:
+            actual_cost = calculated_cost
+            actual_currency = profile.currency
+            cost_source = "frozen_profile"
+            cost_basis = calculated_basis
         else:
-            cost_mismatch = False
-            if reply.cost_source == "provider_billed" and reply.cost_usd is not None:
-                actual_cost = reply.cost_usd
-                cost_source = "provider_billed"
-            elif reply.cost_source == "unknown" and reply.cost_usd is None:
-                actual_cost = None
-                cost_source = "unknown"
-            else:
-                actual_cost = None
-                cost_source = "unknown"
+            actual_cost = None
+            actual_currency = None
+            cost_source = "unknown"
+            cost_basis = "unknown"
+        actual_cost_usd = actual_cost if actual_currency == "USD" else None
+        cost_mismatch = (
+            reply.cost_source == "frozen_profile"
+            and reply.cost_usd is not None
+            and (
+                actual_currency != "USD"
+                or reply.cost_usd != actual_cost
+            )
+        )
         if cost_source not in {"provider_billed", "frozen_profile", "unknown"}:
             self.ledger.mark_model_unknown(
                 attempt_id,
@@ -481,7 +493,11 @@ class LedgeredModelCallback:
             attempt_id,
             actual_input_tokens=reply.input_tokens,
             actual_output_tokens=reply.output_tokens,
-            actual_cost_usd=actual_cost,
+            cached_input_tokens=reply.cached_input_tokens,
+            actual_cost_usd=actual_cost_usd,
+            actual_cost_amount=actual_cost,
+            actual_cost_currency=actual_currency,
+            actual_cost_basis=cost_basis,
             provider_request_id=reply.provider_request_id,
             generation_id=reply.generation_id,
             http_status=reply.http_status,
@@ -492,22 +508,22 @@ class LedgeredModelCallback:
             actual_cost_source=cost_source,
             billing_evidence=(
                 {
-                    "gross_amount": str(reply.billing_evidence.gross_amount),
-                    "currency": reply.billing_evidence.currency,
+                    "gross_amount": str(billing.gross_amount),
+                    "currency": billing.currency,
                     "voucher_credit_amount": (
-                        str(reply.billing_evidence.voucher_credit_amount)
-                        if reply.billing_evidence.voucher_credit_amount is not None
+                        str(billing.voucher_credit_amount)
+                        if billing.voucher_credit_amount is not None
                         else None
                     ),
                     "cash_paid_amount": (
-                        str(reply.billing_evidence.cash_paid_amount)
-                        if reply.billing_evidence.cash_paid_amount is not None
+                        str(billing.cash_paid_amount)
+                        if billing.cash_paid_amount is not None
                         else None
                     ),
-                    "source": reply.billing_evidence.source,
-                    "record_id": reply.billing_evidence.record_id,
+                    "source": billing.source,
+                    "record_id": billing.record_id,
                 }
-                if reply.billing_evidence is not None
+                if billing is not None
                 else None
             ),
         )
@@ -687,12 +703,30 @@ def _is_measured_model_reply(value):
     model = getattr(value, "model", None)
     cost = getattr(value, "cost_usd", None)
     cost_source = getattr(value, "cost_source", None)
+    cached_input_tokens = getattr(value, "cached_input_tokens", None)
+    billing = getattr(value, "billing_evidence", None)
+    billing_currency = getattr(billing, "currency", None)
+    billing_amount = getattr(billing, "gross_amount", None)
+    non_usd_bill = (
+        type(billing_currency) is str
+        and billing_currency != "USD"
+        and isinstance(billing_amount, Decimal)
+        and billing_amount.is_finite()
+        and billing_amount >= 0
+    )
     return (
         type(tokens) is int
         and tokens >= 0
         and type(input_tokens) is int
         and type(output_tokens) is int
         and tokens == input_tokens + output_tokens
+        and (
+            cached_input_tokens is None
+            or (
+                type(cached_input_tokens) is int
+                and 0 <= cached_input_tokens <= input_tokens
+            )
+        )
         and (model is None or (type(model) is str and bool(model.strip())))
         and (
             cost is None
@@ -703,7 +737,7 @@ def _is_measured_model_reply(value):
             )
         )
         and (
-            cost_source == "unknown"
+            cost_source == "unknown" or (non_usd_bill and cost_source == "provider_billed")
             if cost is None
             else cost_source in {"provider_billed", "frozen_profile"}
         )

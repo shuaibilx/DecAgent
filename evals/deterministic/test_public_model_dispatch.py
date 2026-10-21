@@ -26,14 +26,19 @@ from decagent.evaluation.business.routes import (
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _plan_with_known_primary_prices():
-    plan = load_public_run_plan(
+def _legacy_plan():
+    return load_public_run_plan(
         ROOT,
         mode="smoke",
+        manifest_path=ROOT / "evals/benchmarks/manifests/comparison_trial_manifest_v7.json",
         check_images=False,
         check_runtime=False,
         check_source_files=False,
     )
+
+
+def _plan_with_known_primary_prices():
+    plan = _legacy_plan()
     primary = replace(
         plan.profiles.primary,
         pricing_status="known",
@@ -63,6 +68,24 @@ def _plan_with_known_primary_prices():
         ),
     )
     return replace(plan, profiles=profiles)
+
+
+def _plan_with_cny_model_prices():
+    plan = _plan_with_known_primary_prices()
+    qwen_roles = {
+        role: replace(
+            getattr(plan.profiles, role),
+            price_version="qwen3.8-flash-cny-20261021-v1",
+            price_source="https://platform.qianwenai.com/pricing/api",
+            input_price_per_million=Decimal("0.8"),
+            output_price_per_million=Decimal("2.7"),
+            price_currency="CNY",
+            cached_input_price_per_million=Decimal("0.1"),
+        )
+        for role in ("primary", "user_simulator", "judge")
+    }
+    jev = replace(plan.profiles.jev, price_currency="USD")
+    return replace(plan, profiles=replace(plan.profiles, **qwen_roles, jev=jev))
 
 
 def _started_ledger(tmp_path, plan):
@@ -124,6 +147,63 @@ def test_model_callback_reserves_then_settles_with_frozen_rate_provenance(tmp_pa
     ledger.close()
 
 
+def test_cny_cost_is_reserved_and_settled_without_a_guessed_usd_conversion(tmp_path):
+    plan = _plan_with_cny_model_prices()
+    ledger, trial_id, route = _started_ledger(tmp_path, plan)
+    profile = plan.profiles.primary
+
+    measured = LedgeredModelCallback(
+        lambda _request, *, timeout_seconds: ModelReply(
+            "ok",
+            13,
+            None,
+            profile.model,
+            10,
+            3,
+            profile,
+            cached_input_tokens=4,
+        ),
+        ledger,
+        profile=profile,
+        trial_id=trial_id,
+        route=route,
+        input_token_upper_bound=lambda _value: 10,
+        route_remaining_seconds=lambda: 10,
+    )
+
+    measured({"prompt": "bounded"})
+
+    attempt = ledger._connection.execute("SELECT attempt_id FROM model_attempts").fetchone()
+    snapshot = ledger.model_attempt_snapshot(attempt["attempt_id"])
+    usage = ledger.usage_snapshot(trial_id, route.value)["primary"]
+    assert snapshot["reserved_cost_currency"] == "CNY"
+    assert snapshot["reserved_cost_amount"] == "0.0221264"
+    assert snapshot["actual_cost_amount"] == "0.0000133"
+    assert snapshot["actual_cost_currency"] == "CNY"
+    assert snapshot["actual_cost_source"] == "frozen_profile"
+    assert snapshot["actual_cost_basis"] == "frozen_rate"
+    assert snapshot["actual_cost_usd"] is None
+    assert usage["usage_complete"] is True
+    assert usage["cost_complete"] is True
+    assert usage["actual_cost_usd"] is None
+    assert usage["actual_cost_by_currency"] == {"CNY": "0.0000133"}
+    billing = ledger.billing_snapshot(trial_id, route.value)
+    assert billing["evidence_attempts"] == 0
+    assert billing["missing_cost_attempts"] == 0
+    assert billing["cost_by_currency"] == {
+        "CNY": {
+            "frozen_rate": "0.0000133",
+            "frozen_rate_upper_bound": "0",
+            "provider_billed": "0",
+            "attempts": 1,
+        }
+    }
+    assert billing["cost_records"][0]["source"] == "frozen_profile"
+    assert billing["cost_records"][0]["basis"] == "frozen_rate"
+    assert billing["cost_records"][0]["cached_input_tokens"] == 4
+    ledger.close()
+
+
 def test_model_callback_respects_caller_deadline_ceiling(tmp_path):
     plan = _plan_with_known_primary_prices()
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
@@ -162,13 +242,7 @@ def test_model_callback_respects_caller_deadline_ceiling(tmp_path):
 
 
 def test_missing_upstream_model_identity_is_recorded_as_null_not_profile_identity(tmp_path):
-    plan = load_public_run_plan(
-        ROOT,
-        mode="smoke",
-        check_images=False,
-        check_runtime=False,
-        check_source_files=False,
-    )
+    plan = _legacy_plan()
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     profile = plan.profiles.primary
 
@@ -209,13 +283,7 @@ def test_missing_upstream_model_identity_is_recorded_as_null_not_profile_identit
 
 
 def test_reported_upstream_model_drift_stops_the_frozen_batch(tmp_path):
-    plan = load_public_run_plan(
-        ROOT,
-        mode="smoke",
-        check_images=False,
-        check_runtime=False,
-        check_source_files=False,
-    )
+    plan = _legacy_plan()
     ledger = PublicTrialLedger.create(tmp_path / "model-drift.sqlite3", plan)
     trial, later_trial = plan.trials[:2]
     route = Route.REACT_SKILL_MCP
@@ -297,28 +365,25 @@ def test_role_factory_wraps_controlled_route_callbacks_in_public_ledger(tmp_path
     response = adapters["react"]({"task": "read"})
     assert response.value == {"finish": True}
     assert len(requests) == 1
-    assert ledger.usage_snapshot(trial_id, route.value)["primary"] == {
-        "requests": 1,
-        "actual_tokens": 7,
-        "reserved_tokens": 0,
-        "unknown_requests": 0,
-        "actual_cost_usd": (Decimal("0.8") * 5 + Decimal("2.7") * 2)
-        / Decimal(1_000_000),
-        "actual_cost_complete": True,
-        "reserved_cost_usd": Decimal("0"),
-        "reserved_cost_complete": True,
-    }
+    usage = ledger.usage_snapshot(trial_id, route.value)["primary"]
+    assert usage["requests"] == 1
+    assert usage["actual_tokens"] == 7
+    assert usage["reserved_tokens"] == 0
+    assert usage["unknown_requests"] == 0
+    assert usage["actual_cost_usd"] == (
+        Decimal("0.8") * 5 + Decimal("2.7") * 2
+    ) / Decimal(1_000_000)
+    assert usage["actual_cost_complete"] is True
+    assert usage["actual_cost_by_currency"] == {"USD": "0.0000094"}
+    assert usage["cost_complete"] is True
+    assert usage["usage_complete"] is True
+    assert usage["reserved_cost_usd"] == Decimal("0")
+    assert usage["reserved_cost_complete"] is True
     ledger.close()
 
 
 def test_role_factory_uses_jev_profile_only_for_semantic_jev_route():
-    plan = load_public_run_plan(
-        ROOT,
-        mode="smoke",
-        check_images=False,
-        check_runtime=False,
-        check_source_files=False,
-    )
+    plan = _legacy_plan()
 
     def callback(_request, *, timeout_seconds):
         return None
@@ -624,13 +689,7 @@ def test_unknown_dispatched_model_outcome_blocks_route_and_cannot_replay(tmp_pat
 
 
 def test_unknown_qwen_cost_keeps_bounded_dispatch_and_never_records_zero(tmp_path):
-    plan = load_public_run_plan(
-        ROOT,
-        mode="smoke",
-        check_images=False,
-        check_runtime=False,
-        check_source_files=False,
-    )
+    plan = _legacy_plan()
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     called = []
 
@@ -678,13 +737,7 @@ def test_unknown_qwen_cost_keeps_bounded_dispatch_and_never_records_zero(tmp_pat
 
 
 def test_unknown_jev_price_remains_blocked_by_cumulative_dollar_budget(tmp_path):
-    plan = load_public_run_plan(
-        ROOT,
-        mode="smoke",
-        check_images=False,
-        check_runtime=False,
-        check_source_files=False,
-    )
+    plan = _legacy_plan()
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     profile = replace(
         plan.profiles.jev,
@@ -745,13 +798,7 @@ def test_callback_cost_source_must_be_supported_by_the_frozen_contract(tmp_path)
 
 
 def test_provider_billing_keeps_gross_fee_voucher_and_cash_as_separate_evidence(tmp_path):
-    plan = load_public_run_plan(
-        ROOT,
-        mode="smoke",
-        check_images=False,
-        check_runtime=False,
-        check_source_files=False,
-    )
+    plan = _legacy_plan()
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     profile = plan.profiles.primary
     evidence = ProviderBillingEvidence(
@@ -812,13 +859,7 @@ def test_provider_billing_keeps_gross_fee_voucher_and_cash_as_separate_evidence(
 
 
 def test_non_usd_provider_billing_is_retained_without_guessed_conversion(tmp_path):
-    plan = load_public_run_plan(
-        ROOT,
-        mode="smoke",
-        check_images=False,
-        check_runtime=False,
-        check_source_files=False,
-    )
+    plan = _legacy_plan()
     ledger, trial_id, route = _started_ledger(tmp_path, plan)
     profile = plan.profiles.primary
     measured = LedgeredModelCallback(
@@ -852,7 +893,7 @@ def test_non_usd_provider_billing_is_retained_without_guessed_conversion(tmp_pat
     usage = ledger.usage_snapshot(trial_id, route.value)["primary"]
 
     assert reply.cost_usd is None
-    assert reply.cost_source == "unknown"
+    assert reply.cost_source == "provider_billed"
     assert snapshot["billing_gross_amount"] == "0.08"
     assert snapshot["billing_currency"] == "CNY"
     assert snapshot["billing_cash_paid_amount"] is None
@@ -862,6 +903,7 @@ def test_non_usd_provider_billing_is_retained_without_guessed_conversion(tmp_pat
     assert billing["by_currency"]["CNY"]["gross_api_fee"] == "0.08"
     assert billing["by_currency"]["CNY"]["voucher_credit"] == "0.08"
     assert billing["by_currency"]["CNY"]["cash_paid"] is None
+    assert billing["cost_by_currency"]["CNY"]["provider_billed"] == "0.08"
     ledger.close()
 
 
@@ -872,9 +914,7 @@ def test_provider_billing_rejects_unsupported_currency_and_inconsistent_usd_fee(
     evidence = ProviderBillingEvidence(
         Decimal("0.02"), "USD", source="provider_activity"
     )
-    profile = load_public_run_plan(
-        ROOT, mode="smoke", check_images=False, check_runtime=False, check_source_files=False
-    ).profiles.primary
+    profile = _legacy_plan().profiles.primary
     with pytest.raises(ValueError, match="gross provider fee"):
         ModelReply(
             "ok",

@@ -21,10 +21,35 @@ def plan(mode="smoke"):
     return load_public_run_plan(
         ROOT,
         mode=mode,
+        manifest_path=ROOT / "evals/benchmarks/manifests/comparison_trial_manifest_v7.json",
         check_images=False,
         check_runtime=False,
         check_source_files=False,
     )
+
+
+def test_default_plan_uses_cny_manifest_and_explicit_v7_stays_reproducible():
+    current = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    legacy = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        manifest_path=ROOT / "evals/benchmarks/manifests/comparison_trial_manifest_v7.json",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+
+    assert current.profiles.primary.price_version == "qwen3.8-flash-standard-cny-20261021-v1"
+    assert current.profiles.primary.currency == "CNY"
+    assert current.profiles.primary.cached_input_price_per_million == Decimal("0.1")
+    assert legacy.profiles.to_dict()["schema_version"] == "evaluation-model-profiles-v3"
+    assert legacy.profiles.primary.pricing_status == "unknown"
 
 
 def _start_public_route_with_machine_deadline(ledger, trial_id, route):
@@ -1847,7 +1872,9 @@ def test_live_process_cannot_resume_an_unexpired_public_trial_lease(tmp_path):
             "PublicTrialLedger, load_public_run_plan)",
             (
                 "plan = load_public_run_plan("
-                "Path.cwd(), check_images=False, check_runtime=False, "
+                    "Path.cwd(), manifest_path=Path.cwd() / "
+                    "'evals/benchmarks/manifests/comparison_trial_manifest_v7.json', "
+                    "check_images=False, check_runtime=False, "
                 "check_source_files=False)"
             ),
             "try:",

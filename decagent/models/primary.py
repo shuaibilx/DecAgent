@@ -26,6 +26,7 @@ class ModelUsage:
     input_tokens: int
     output_tokens: int
     total_tokens: int
+    cached_input_tokens: int | None = None
 
 
 _REJECTION_MESSAGES = {
@@ -69,7 +70,24 @@ def _response_usage(metadata):
     values = tuple(metadata.get(key) for key in ("input_tokens", "output_tokens", "total_tokens"))
     if not _valid_usage_values(values):
         return None, True
-    return ModelUsage(*values), False
+    cached_counts = []
+    for details_key, count_key in (
+        ("input_token_details", "cache_read"),
+        ("prompt_tokens_details", "cached_tokens"),
+    ):
+        details = metadata.get(details_key)
+        if details is not None:
+            if type(details) is not dict:
+                return None, True
+            if count_key in details:
+                cached = details[count_key]
+                if type(cached) is not int or not 0 <= cached <= values[0]:
+                    return None, True
+                cached_counts.append(cached)
+    if len(set(cached_counts)) > 1:
+        return None, True
+    cached = cached_counts[0] if cached_counts else None
+    return ModelUsage(*values, cached_input_tokens=cached), False
 
 
 def _safe_model_identifier(value, redactor=None):
@@ -103,7 +121,7 @@ class PrimaryResponseRejected(ValueError):
         if type(usage) is ModelUsage:
             values = (usage.input_tokens, usage.output_tokens, usage.total_tokens)
             if _valid_usage_values(values):
-                self.usage = ModelUsage(*values)
+                self.usage = ModelUsage(*values, cached_input_tokens=usage.cached_input_tokens)
         self.model = _safe_model_identifier(model)
         self.server_request_id = _safe_request_identifier(request_id)
         self.validation_issues = (
@@ -507,6 +525,12 @@ class PrimaryModel:
                             usage.input_tokens + chunk_usage.input_tokens,
                             usage.output_tokens + chunk_usage.output_tokens,
                             usage.total_tokens + chunk_usage.total_tokens,
+                            cached_input_tokens=(
+                                usage.cached_input_tokens + chunk_usage.cached_input_tokens
+                                if usage.cached_input_tokens is not None
+                                and chunk_usage.cached_input_tokens is not None
+                                else None
+                            ),
                         )
                     )
                 metadata = chunk.response_metadata

@@ -461,7 +461,7 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
         item["lifecycle"]["status"] == "completed" for item in route_metrics.values()
     )
     return {
-        "schema_version": "public-evaluation-live-first-wave-v2",
+        "schema_version": "public-evaluation-live-first-wave-v3",
         "dry_run": False,
         "phase": "first-wave",
         "candidate_sha": candidate_sha,

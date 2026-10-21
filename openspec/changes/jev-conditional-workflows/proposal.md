@@ -1,13 +1,33 @@
 # Proposal
-## 当前实施状态（2026-10-21，首波实测后）
+## 当前状态（2026-10-21，Qwen 费率 profile v4、10.10.B 完成）
 
-主 change 当前为 **66/79，13 项待完成**；`guest-sop-local-trial` 为 6/28。基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的 GitHub CI run [39497828524](https://github.com/shuaibilx/DecAgent/actions/runs/39497828524) 全部通过：Python 3.11/3.13 各 `1931 passed, 18 skipped` deterministic、`605 passed, 30 skipped` PostgreSQL integration，Ruff、Workbench、wheel/MCP、镜像构建和 Compose 冒烟均成功。首波后两个执行前缺陷已修复。候选 `777ca4e` 的 run `39506416272` 在 Python 3.13 发现 POSIX 进程树竞态；随后候选 `350a085` 的 run `39508745410` 在 Python 3.11/3.13 又确认 SIGKILL 后代短暂处于 Linux `D` 状态，其他 Workbench/build/wheel/MCP/image/Compose job 通过。当前本机实现加入 Linux `/proc` 活动成员扫描：zombie 不视为活动成员，进程表不完整或 2 秒内无法确认则返回 unresolved tree error。取消模块定向测试 `10 passed`，完整 deterministic `1936 passed, 18 skipped (215.04s)`，Ruff 与 OpenSpec strict 通过；严格 fail-closed 更新后的 Linux Python 3.11 容器进程树回归 `50/50`，此前版本 Python 3.11/3.13 各 `50/50` 是历史压力证据，当前 3.13 以最新候选 CI 验证为准。最新修复尚未形成并通过远端完整 CI 的候选 SHA，因此 11.1 仍待验。
+主 change 为 **69/79，10 项待完成**；guest change 为 10/28。10.8.D 已完成：Qwen profile v4 与公开评测 manifest v8 已冻结用户提供的标准人民币费率，并分开记录 provider-billed gross/voucher/cash 与冻结费率计算成本。10.10.B 已完成持久预算、身份和 Jev 账本边界；10.10.D 已完成 runner 接线，相关隔离回归 149 passed、14 skipped，Ruff 与 OpenSpec strict 通过。14 项跳过均因锁定 τ 子进程 runtime 未配置，属于 10.10.E 的环境验收缺口。v8 保持 206+80 任务范围和固定 4 个首波案例，状态为 `pre_registered_not_run`；真实四域故障闭环和新首波仍未通过。历史首波 5 failed/3 unknown 不重放，公开评分基准仍 0/286。当前没有发出新模型、工具或评分请求；此轮只做离线测试与文档状态核对。
 
-同一候选的首波 live runner 已尝试冻结四域 4 个任务、8 条 ReAct/Plan 路线：5 failed、3 unknown、0 completed；仅 ITSM/ReAct 到达原始评分器并得到 `0.0`，其余 7 条未评分；8/8 环境清理验证成功。Qwen 4 次请求中，两次主模型响应合计 18,738 个实际 Token；两次 τ 用户模拟器请求 usage unknown，保留 53,508 个 Token 预留。账本 Token 计数为 72,246（实际加预留），工具 attempt 1，约 58.36 秒。Qwen 费用与代金券/实付拆分未核实，保持 unknown；Jev 和裁判均为 0 次请求。`find_user` 被评测目录标记为 write，MCP 返回 unknown，不能声称其无业务副作用。报告见 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json` 和 `generated/261021/0545_首波公开评测报告.md`。
+旧 v2/v3 profile 与 v5/v6/v7 manifest 保持原样；Jev 的 USD 价格和累计 `$1` 账本不变。费率来源和 profile 映射见 [模型计费核验](../../../generated/261021/模型计费/1441_千问平台费率核验.md)。
 
-本次运行只说明账本、路线派发和清理可被审计；执行闭环未通过，完整公开基准成功任务仍为 0/286，单个 `0.0` route score 不能作为 benchmark 总分。Jev 未使用，不能作收益判断。所有 unknown 不重放，首波后续 smoke 与全量评测暂停；两个业务适配缺陷已修复，POSIX 后代进程清理仍在加固并等待最新候选的完整远端 CI。Qwen 账单仍须核实，之后另行估算并冻结下一批预算。95% 自动正确率和每类至少 100 个自动样本的资格条件不变。
+## 历史实施快照（2026-10-21，首波实测后）
 
-固定候选离线复现已定位 EnterpriseOps Plan 的 `AttributeError` 为 callback 使用空 session schema，以及 τ telecom `TauBridgeError` 为 callback 8 项工具 schema 上限低于官方 user simulator 的 30 项目录。两项修复均新增定向回归；取消模块定向回归 `10 passed`，完整 deterministic `1936 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过；严格 fail-closed 扫描更新后的 Linux Python 3.11 进程树回归 `50/50` 通过。此前 Linux Python 3.11/3.13 各 `50/50` 属于上一版排空逻辑，当前 3.13 以新候选 CI 验证为准。τ retail unknown、ITSM/ReAct 原始响应细节和 CSM `find_user` 写入结果无法由安全账本恢复，保持不重放。新候选 SHA 的远端 CI 尚待完成。
+### 当前执行基线（2026-10-21 02:43 UTC）
+
+下一目标仍是首波固定 4 个任务、ReAct/Plan 共 8 条路线真实经过模型、工具、原始评分器与清理；历史首波已终结的 5 failed/3 unknown 路线不得重放。当前精确候选 `1f14da73480218d431040fb11a194f326dd4086a` 的 CI run `39532141696` 于 2026-10-21 02:43:15 UTC 全部通过：Python 3.11/3.13、Workbench 与 build/package/container jobs 均成功。由于工作树含未提交游客切片且旧 unknown 不可重放，当前没有可派发候选；公开 benchmark 仍 0/286。Qwen 代金券只影响实付，不改变抵扣前 API 计费；账单和转发 endpoint 的适用费率未核验时保留成本 unknown。Jev 只进入单独冻结的、自然适用语义节点配对，不取代明确规则。
+
+主 change 当前为 **66/79，13 项待完成**；`guest-sop-local-trial` 为 9/28。候选 `c586f7a2b31e1d68741f64736c8877063e0e03f7` 的 GitHub Actions run [39512609133](https://github.com/shuaibilx/DecAgent/actions/runs/39512609133) 全部成功：Python 3.11/3.13 各 Ruff 通过、确定性 `1936 passed, 18 skipped`、PostgreSQL 集成 `605 passed, 30 skipped`；Workbench 浏览器、wheel/MCP 新协议 `2026-07-28` 与兼容协议 `2025-11-25`、镜像构建和 Compose 冒烟均通过。数据库服务健康，没有因缺数据库造成的集成 skip。30 个 integration skip 中，17 个 executor Docker/SQL 与 4 个 Docker repair 用例因专用隔离容器夹具未配置而未验证；其余 9 个为可选 τ、上游缓存/benchmark 镜像、Windows ACL 或 mcp-cli 检查。由于 21 个真实 Docker 边界用例仍未跑，11.1 仍待完成。该候选也通过了修复前两次失败的 Linux POSIX 后代进程回收回归。
+
+本地提交 `ca58684` 将 `ControlledRoutes` 的剩余路线/批次 deadline 传给 planner、ReAct、semantic 与 summarizer；随后独立提交 `1f14da7` 增加 ledgered Jev callback 与实际版本漂移保护，并已推送到现有分支 `feat/conditional-evaluation`。全量 deterministic 在该身份字段最后一次收紧前为 `1947 passed, 18 skipped (239.28s)`；字段修正后的 Jev callback 定向集为 `8 passed`，Ruff 通过。精确 SHA `1f14da73480218d431040fb11a194f326dd4086a` 的 GitHub Actions CI run `39532141696` 已运行；截至 2026-10-21 02:30 UTC，Python 3.11/3.13 job 正执行 PostgreSQL 集成，Workbench 与 build/package jobs 已成功，整体尚未结束。工作树仍保留游客实现与 OpenSpec 的未提交切片，因此 live candidate gate 仍关闭。没有新增模型、Jev、业务工具、评分器或账单请求；公开 benchmark 仍为 0/286，历史 unknown 不重放，10.10.D 仍未完成。
+
+本机补充验收：隔离 Compose executor 出口边界 smoke 通过；同一 SHA 的 first-wave dry-run 固定 4 个任务/8 个 ReAct/Plan 槽位，0 ledger、0 模型/MCP 请求。公开仓库没有 self-hosted runner，release workflow 使用 GitHub-hosted runner。Qwen 官方 `qwen3.8-flash` 列表费率因区域不同而不同，但当前转发 endpoint 的实际区域与账单映射未核实，成本 profile 继续 unknown；详细证据见 `tasks.md`。
+
+首波 live runner 在早期候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 上尝试冻结四域 4 个任务、8 条 ReAct/Plan 路线；该候选的 GitHub Actions run `39497828524` 通过。结果为 5 failed、3 unknown、0 completed；仅 ITSM/ReAct 到达原始评分器并得到 `0.0`，其余 7 条未评分；8/8 环境清理验证成功。Qwen 4 次请求中，两次主模型响应合计 18,738 个实际 Token；两次 τ 用户模拟器请求 usage unknown，保留 53,508 个 Token 预留。账本 Token 计数为 72,246（实际加预留），工具 attempt 1，约 58.36 秒。Qwen 费用与代金券/实付拆分未核实，保持 unknown；Jev 和裁判均为 0 次请求。`find_user` 被评测目录标记为 write，MCP 返回 unknown，不能声称其无业务副作用。报告见 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json` 和 `generated/261021/0545_首波公开评测报告.md`。该 live 结果不属于较新的 `c586f7a...` CI 候选。
+
+本次运行只说明账本、路线派发和清理可被审计；执行闭环未通过，完整公开基准成功任务仍为 0/286，单个 `0.0` route score 不能作为 benchmark 总分。Jev 未使用，不能作收益判断。所有 unknown 不重放，首波后续 smoke 与全量评测暂停；两个业务适配缺陷及 POSIX 后代进程清理均已有通过同 SHA 完整 CI 的修复。Qwen 账单仍须核实，之后另行估算并冻结下一批预算。95% 自动正确率和每类至少 100 个自动样本的资格条件不变。
+
+### 2026-10-21 Jev 语义回调离线接线
+
+新增评测专用 `PublicJevSemanticCallback`，只为显式选择的 `plan_jev_semantic_mcp` 配对路线提供 Jev 回调。派发前它按 `QuestionRegistry` 重建并核对问题模板、版本、状态和员工/权限摘要；每次调用只发送一个受信 Decisions 请求，通过一次性可取消 worker 执行，并把用量、提供方报告费用、实际模型名、request ID、generation ID 和 HTTP 状态交给现有 ledger callback 结算。profile 中的 `openrouter` 是请求路由端点；当前 callback 没有收到已验证的上游推理服务商身份，因此账本 `actual_provider` 保留 null。用量缺失或派发后传输结果不明保持 unknown，不做内部重试。`~typesafe/jev-latest` 可解析为实际版本；同一冻结组中出现多个不同实际 Jev 版本时，账本先保存已知 attempt，再停止该 cohort，不能拼接成绩。
+
+该 callback 在 `public_first_wave_model_adapter_factory` 中默认关闭；没有修改冻结的 ReAct/Plan 八路线首波、公开 manifest 或生产业务工具，也未发送 Jev 请求。新测试覆盖模板/身份拒绝、HTTP wire contract、用量与账单字段、别名解析、版本漂移以及 opt-in 接线：callback 定向 `8 passed`，相关模型派发/PlanRuntime/试次回归 `152 passed`，全量 `evals/deterministic` 为 `1947 passed, 18 skipped (239.28s)`，Ruff 通过。它只完成离线接入层，不等同于 9.6.D 的同状态 Jev/Qwen 真实配对，也不完成 10.10.D 的完整 supervisor、官方评分与故障注入验收。
+
+固定候选离线复现已定位 EnterpriseOps Plan 的 `AttributeError` 为 callback 使用空 session schema，以及 τ telecom `TauBridgeError` 为 callback 8 项工具 schema 上限低于官方 user simulator 的 30 项目录。两项修复均新增定向回归；Linux 后代进程竞态也通过同 SHA Python 3.11/3.13 CI。τ retail unknown、ITSM/ReAct 原始响应细节和 CSM `find_user` 写入结果无法由安全账本恢复，保持不重放。该候选的远端 CI 已完成，但真实 Docker executor/repair 专用夹具仍未验证。
 
 ## 历史实施状态快照（2026-10-21，候选 Ruff 修复前）
 
@@ -21,7 +41,7 @@
 
 首波已有规范账本、模型/工具账本适配器、manifest 身份绑定、单路线入口、受控 provider callbacks、四任务环境预检和 first-wave phase scheduler。τ bridge 现拒绝不接受 `timeout_seconds` 的同步模型 callback，防止无界 callback 进入派发路径；用户模拟器/裁判时限现为请求级 cap，不再修改共享 channel 默认值。但无法强杀自行忽略 timeout 的任意 Python 同步函数。CLI 要求同一干净 HEAD 存在成功 GitHub CI，校验模型配置与 readiness、本地摘要固定的 EnterpriseOps 镜像、τ Python 3.12 runtime 和新报告路径，然后才可进入 supervisor 与规范账本。远端候选 `2b65a2a1afc21074385caa3874c139833e363bfb` 已修复离线测试依赖后，候选 `60ea6f6dce5855cb078c4796abeaa3708d988247` 的 CI 又发现 3 个平台/配置边界测试问题（2 个 τ 清单原始换行校验、1 个 dry-run 读取 live `.env`）。三处修复现位于本地未提交工作树，完整回归和远端复验待完成。本轮尚未进行模型 API 调用。四域真实受控响应闭环、强制取消、评分/清理故障注入和完整首波尚未验收，不能称为真实评测闭环。最新完整确定性回归为 `1906 passed, 18 skipped`（包含第三轮 CI 修复后的本机结果），这不改变 66/78 与 0/286 状态。
 
-## 最新真实评测状态（2026-10-20，首波 live 执行后）
+## 历史真实评测状态（2026-10-20；后续首波结果见顶部当前状态）
 
 固定四域首波已在候选 `9bc3ee6654e46630c9ae8238a28eb6e34a088698` 上实际派发，精确候选 CI run `39442012550` 全部通过。4 个任务共执行 ReAct/Plan 8 条路线；结果为 4 unknown、4 failed、0 completed，8/8 cleanup verified，8/8 官方评分未启动。首波工程闭环因此未通过，公开基准仍没有任何已评分任务；历史状态中的“尚未派发”只代表执行前快照。
 
@@ -42,7 +62,7 @@
 
 证据 `evals/benchmarks/evidence/jev-semantic-template-audit-20261020.json` 与 `jev-semantic-template-registry-20261020.json` 来自 pinned CSM MCP 容器工具目录审阅及真实 registry 核验；cleanup verified，0 业务工具调用、0 模型请求。上游 `retrieve_knowledge` 没有 `readOnlyHint`，本地隔离目录仅对匹配已审 schema 的工具应用只读覆盖；生产 capability registry 保持不变。registry/compile/scripted route 回归 8 passed，模板构造器 6 passed，相关公开 Session 套件 36 passed。工具响应没有总数或截断元数据，因此只声称比较实际返回数组。当前 first-wave dry-run 状态已更新为 `reviewed_csm_natural_case_pairing_pending`；该标签表示自然场景已审核但 Jev/Qwen 配对尚未排期，冻结首波仍只有 ReAct/Plan 两路线、8 个路线槽位。真实同状态配对和官方任务成绩仍未运行，故 9.6.D 保持未完成、公开基准仍为 0/286。
 
-### 2026-10-21 CI 复验状态
+### 早期 CI 复验记录（2026-10-21，历史候选；最终候选见顶部当前状态）
 
 较早候选 `1b13fc2e42744e5287f153333b95f22a6e3b6a20` 的 CI `39474267980` 曾因历史 v6 迁移夹具使用当前 `TicketStore` 而失败。夹具改为直接按 v6 schema 写入，相关 PostgreSQL 迁移回归 `3 passed`；修复随后进入候选 `40d1a13d69ae0e84d0779bdbcbba94c061581290`，CI `39481982722` 已全部通过。当前未提交的 Enterprise judge adapter 不属于该 run，仍须提交后做同 SHA CI。主 change 因 11.1 复核重开为 66/79。没有发起新的模型或公开评测请求，首波旧 unknown 不重放，公开基准仍为 0/286。
 
@@ -74,7 +94,7 @@ Qwen API 调用仍按服务计费，账户代金券只抵扣账单，不改变 A
 
 上述多数是离线组件证据，不等于真实评测运行。受门禁保护的 first-wave CLI 与 provider/session/environment factories 已接通；四域受控响应、官方评分/清理故障注入、任意阻塞 callback 的强制取消和 Jev unknown 的 live runner 注入仍未完成。公开 benchmark 继续为 0/286；本轮未发送模型请求。本机公共 release Runner 已注销并停用自启；远端 `main` 没有部署 job，公共 CI 与 GHCR 发布保留。
 
-部署边界复核（2026-10-20）：通过 GitHub Actions API 复核，`shuaibilx/DecAgent` 当前注册 Runner 数量为 0；远端 `release.yml` 的 job 只有 reusable CI gate 与 `ubuntu-latest` GHCR publish，没有本机 self-hosted deployment job。Windows 上精确检查的 `DecAgentLocalDeployRunner` 计划任务状态为 `Disabled`，Runner.Listener/Worker 进程及 Runner Windows 服务均为 0。公共 CI、GHCR 发布和现有 DecAgent 容器保持运行。当前工作树将 release workflow 显示名改为 `Release image publishing (GHCR only)`，并新增 deterministic boundary test；该名称修正尚未合并到远端，远端显示名仍是历史的 “Release and local deployment”。本项确认实际 dispatch 边界已冻结，也增加仓库回归门禁；不代表本机自动 CD 已完成。
+部署边界复核（2026-10-21）：重新通过 GitHub Actions API 确认 `shuaibilx/DecAgent` 注册 Runner 数量为 0；仓库现有 Actions workflow 只有 `ci.yml` 与 `release.yml`，后者 job 只有 reusable CI gate 与 `ubuntu-latest` GHCR publish，没有本机 self-hosted deployment job。Windows 上 `DecAgentLocalDeployRunner` 计划任务为 `Disabled`，Runner.Listener/Worker 进程及 Runner Windows 服务均为 0。公共 CI、GHCR 发布和现有 DecAgent 容器保持运行。无需再注销 Runner 或停用任务；私有 Runner/CD 仍未实施。
 
 模型身份复核（2026-10-20）：冻结 profile 记录请求模型；响应可取得的上游实际模型名另行记录。provider 未返回实际模型名时保留 null，不以请求名填充；如果实际返回模型与冻结 profile 不一致，则本次派发记录保留，并在规范账本中持久写入 `model_profile_drift` 停止原因，阻止后续路线派发，不能拼接为同一模型实验组。
 

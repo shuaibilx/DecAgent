@@ -1,10 +1,44 @@
 # Design
 
+## 当前执行边界（2026-10-21 02:43 UTC）
+
+真实评测的首要目标是同一固定候选上的 4 个任务/8 条 ReAct-Plan 路线闭环。任何新试次都须绑定干净候选 SHA、该 SHA 全绿 CI、唯一 supervisor 与规范账本，并逐次 reserve → dispatch → settle/unknown。历史终态路线不重放；Qwen usage unknown 终结当前路线，Jev usage 或费用 unknown 停止新增 Jev 派发。价格 unknown 不伪装成零费用，供应商没有给出抵扣前账单、代金券抵扣及现金支付时不得推算分摊。当前公开基准 0/286，首波结果不能证明质量或 Jev 收益；因此本地工作只推进可离线验证的边界。
+
+## 批次身份与预算账本离线验收（2026-10-21）
+
+10.10.B 已由现有受控执行边界和隔离回归验收。公开首波只能通过 `open_first_wave_public_trial_ledger` 使用 canonical cohort/candidate SQLite 路径、项目级监督锁及已存在的 `.decagent/business-eval/global-jev-ledger.json`；缺失 Jev 账本拒绝创建，CLI 初始化和路径校验不能改用替代文件。SQLite metadata 固定 manifest/cohort/profile/batch-limit 摘要，resume 对身份漂移拒绝继续；恢复时 pending/dispatched Jev attempt 转为 unknown 并保留原累计预留。
+
+10.10.D 的工程接线已完成：`execute_live_first_wave()` 组合规范 supervisor/ledger、`LedgeredModelAdapterFactory`、`LedgeredToolGateway`、`ControlledRoutes`、官方 scorer 与 session/environment cleanup。模型 request timeout 取模型 profile、route 与 batch 截止时间的最小值并传至一次性 provider worker；MCP/τ 适配器分别使用请求级 timeout 与拥有的 τ 子进程桥。Qwen usage unknown 终结当前 route；Jev unknown/费用 unknown 通过共享累计账本阻止所有后续 Jev reservation。该项是受门禁执行链的实现和隔离回归验收，不表示真实 API、首波或四域环境已重新运行。真实锁定 τ runtime、完整故障矩阵、候选 CI 与首波仍由 10.10.E/9.6.G/10.3 验收。
+
+每条模型 attempt 在同一 SQLite 事务内执行批次/route admission 与费用、Token、request reserve；Qwen Agent、模拟器、裁判有各自与总批次 request/Token 上限，工具与 wall-clock 上限持久累计。Qwen 费用依冻结 profile 按原币种计量并区分 provider bill、冻结费率和 unknown；本批未授权独立 CNY 现金总额上限，不推定兑换率。Jev 使用已知 USD 单次预留并原子绑定共享 `$1` ledger；unknown/pending 阻止新的 Jev 预留。
+
+`test_business_public_trials.py`、`test_public_supervisor.py`、`test_public_model_dispatch.py` 共 85 passed；涵盖 canonical ledger、缺失拒绝、候选切换保留余额、请求/Token/费用记录及跨进程 lease 恢复身份。项目 Ruff 与 OpenSpec strict 校验通过。该结果只验收离线账本和 admission，不等同于四域真实评分/清理，也不构成新基准试次。
+
 ## 最新公开评测实测（2026-10-21）
 
-基线候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 的远端 CI 全绿后，首次经受监督 runner 实际派发冻结首波 4 个任务/8 条 ReAct 与 Plan 路线。结果为 5 failed、3 unknown、0 completed；仅 1 条 EnterpriseOps 路线获得官方 `0.0` 分数，8 条 cleanup 均 verified。Qwen 请求用量部分 unknown、所有费用来源 unknown；Jev 未调用。离线复现发现 planner factory 将空 session schema 传入 validator，以及 τ telecom 的 30 个官方用户工具 schema 超过 adapter 原 8 项上限；两处已有最小修复和先失败后通过的回归。第一修复候选 `777ca4e` 的 CI run `39506416272` 暴露 POSIX 进程组终止竞态；后续候选 `350a085` 的 CI run `39508745410` 在 Python 3.11/3.13 deterministic 均重现：SIGKILL 后代短暂处于 Linux `D` 状态，调用方未等到其退出。Linux 容器排查确认这是尚未完成退出的活动进程，不是 zombie。当前 supervisor 在 reap worker 前再次 sweep，并扫描 `/proc` 中该进程组的成员状态；只有完整扫描确认没有活动成员才算清理完成，zombie 不视为仍可运行，读取不完整或 2 秒内仍有活动成员则返回 unresolved tree error。Windows 本机 full deterministic `1936 passed, 18 skipped`，Ruff/OpenSpec strict 通过；严格 fail-closed 更新后的 Linux Python 3.11 进程树回归 `50/50` 通过；此前 Python 3.11/3.13 各 `50/50` 属于前一版逻辑的历史压力证据。后续代码与规格切片尚未形成新的完整 CI 候选；端到端公开评测集成仍未验收，不改变预算、unknown 不重放、Jev 仅比较自然适用语义节点等设计决定。
+候选 `c586f7a2b31e1d68741f64736c8877063e0e03f7` 的 GitHub Actions run [39512609133](https://github.com/shuaibilx/DecAgent/actions/runs/39512609133) 全部成功。Python 3.11/3.13 各确定性 `1936 passed, 18 skipped`、PostgreSQL 集成 `605 passed, 30 skipped`，Ruff、Workbench browser、wheel/MCP `2026-07-28` 与兼容协议 `2025-11-25`、镜像和 Compose smoke 均通过；PostgreSQL 服务健康。集成 skip 中 17 个 executor Docker/SQL 与 4 个 Docker repair fixture 尚未运行，故 11.1 继续待办。此 CI 同 SHA 验证了 Linux `/proc` fail-closed 进程树回收修复。
 
-具体指标、错误阶段、固定任务 ID、离线复现与跳过项见 [首波公开评测报告](../../../generated/261021/0545_首波公开评测报告.md) 与机器证据 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json`。本机完整 deterministic `1936 passed, 18 skipped`、Ruff 与 OpenSpec strict 已通过；严格 fail-closed 变更后的 Linux Python 3.11 容器进程树压力回归 `50/50` 通过。Linux Python 3.13 将由最新 SHA 的远端 CI 覆盖；先前版本两种 Python 各 `50/50` 是历史回归证据。前一候选的远端 CI 仍失败，当前最新文件尚待形成 SHA 并通过完整远端 CI。其余 smoke/full 仍需依据账单和可确认实耗另行估算并冻结资源。
+早期候选 `38447609df10e602b8a29ef8d58941ce9ebb337e` 上的首波真实试次结果为 5 failed、3 unknown、0 completed；仅 1 条 EnterpriseOps 路线得到官方 `0.0` 分数，8 条 cleanup 均 verified。Qwen 部分 usage unknown、实际费用全部未核验；Jev 未调用。较新的 `c586f7a2b31e1d68741f64736c8877063e0e03f7` CI 通过，不代表首波报告是在该 SHA 上执行。两个首波适配错误及 Linux 进程树退出竞态已有修复，但该小样本未通过任务完成闭环，公开基准仍 `0/286`，不能得出 Jev 收益。所有 unknown 不重放；继续暂停新增公开路线，直至预算与账单可核验并重新冻结批次。
+
+具体指标、错误阶段、固定任务 ID、离线复现与首波 skip 见 [首波公开评测报告](../../../generated/261021/0545_首波公开评测报告.md) 与机器证据 `evals/benchmarks/evidence/public-first-wave-live-20261021-candidate-3844760.json`。同 SHA 的 Python 3.11/3.13 已通过完整 CI；21 个真实 Docker executor/repair 用例仍待隔离夹具验收。其余 smoke/full 需依据可确认实耗和账单另行估算并冻结资源。
+
+## Jev 语义 callback 的受控接线（2026-10-21）
+
+Jev 语义判断沿用与生产 PlanRuntime 相同的 `ControlledRoutes` 和 `LedgeredModelAdapterFactory`，不另建执行器。仅在单独构造 Jev 配对适配器时显式开启 semantic callback；默认 first-wave factory 不提供该 callback，因此不会改变冻结的四域 ReAct/Plan 八路线 cohort。
+
+回调将路由输入重新投影为封闭字段集合，并按评测 session 的 `QuestionRegistry` 重新渲染模板，逐项核对 question ID/version、问题内容、状态来源以及 trial actor/permission 摘要。可信问题转换为 TypeSafe Decisions `DecisionRequest` 后，使用冻结的 OpenRouter Jev profile 请求单个 Choices 判断。网络请求在一次性 worker 中执行，沿用 supervisor worker guard 和 route/batch timeout；没有 SDK 隐藏重试。用量缺失、响应不满足 typed decision 契约或派发后连接结果不确定时保留为失败/unknown，不能重放；能够核验的用量和费用、resolved model、provider request ID、generation ID 与 HTTP 状态通过标准模型 callback 写入路线账本。
+
+公开 profile 的 `~typesafe/jev-latest` 是请求别名，允许响应返回带日期/版本后缀的实际 Jev 模型身份；判断该响应是否匹配 profile 时使用专用 alias matcher，而不是字符串相等。ledger 每次保存真实返回身份；同 cohort 一旦观察到多个不同 resolved Jev model，持久停止原因并拒绝继续拼接。实际模型身份缺失仍为 null，不从 alias 推断。
+
+此接线与已审核的 `csm_knowledge_article` 模板和自然语义节点登记兼容，但只提供离线组件和受控响应测试。它没有 live dispatch、没有新增 first-wave 路线，没有同状态 Qwen/Jev 评分，也没有证明 Jev 的准确率、延迟或成本优势；这些仍需独立冻结的配对 cohort 与真实账单/用量证据。
+
+本次验证结果：callback 文件定向测试 `8 passed`，含公开模型派发、PlanRuntime 与试次账本的相关回归合计 `152 passed`；全量 deterministic `1947 passed, 18 skipped (239.28s)`，Ruff 检查通过。最终 `actual_provider=null` 边界修正后再次运行 callback 定向集 `8 passed`。代码提交 `1f14da73480218d431040fb11a194f326dd4086a` 已推送；GitHub Actions CI run `39532141696` 于 2026-10-21 02:43:15 UTC 全部通过，两个 Python job、Workbench browser 和 build/package/container jobs 均成功。工作区仍有其它未提交的 guest 变更，live candidate gate 保持关闭。
+
+身份记录边界：profile 保存请求路由 `openrouter`，但只有响应明确提供且经校验的实际上游身份才写入 `actual_provider`。当前 Decisions callback 能核实返回模型版本、request/generation ID、usage 与 response cost，不能核实物理推理服务商，因此 `actual_provider=null`；不得把请求路由端点复制成实际上游提供方。最终字段修正后，Jev callback 定向套件仍为 `8 passed`、Ruff 通过。提交 `1f14da73480218d431040fb11a194f326dd4086a` 的远端 CI run `39532141696` 已于 2026-10-21 02:43:15 UTC 全部通过。
+
+## 计费映射核查（2026-10-21）
+
+阿里云 Model Studio 的官方 [`qwen3.8-flash` 定价页](https://help.aliyun.com/en/model-studio/qwen3-8-flash)确认该模型调用 ID，并按区域公布未促销列表价：北京输入/输出 ¥0.8/¥2.7 每百万 token，新加坡 ¥1.094/¥3.427 每百万 token。项目实际 endpoint `maas.qianwenaiapi.com` 是转发地址；现有配置不能证明其目标区域、缓存命中类别或请求实际计费档位，账户账单中的券抵扣/实付也没有逐请求证据。因此 profile 保持 `pricing_status=unknown`，不把某一区域费率当成已核验值，也不把代金券视作免费调用。
 
 ## Context
 
@@ -454,7 +488,7 @@ v2 Qwen `0/0` rate 是旧的账户代金券解释，不是零费率或账单证�
 
 EnterpriseOps 的 response-check judge 现在也接受“请求数、token 和耗时已知、费用未知”的供应商账单状态：`BudgetedEnterpriseJudge` 与 scorer 继续执行原始官方 verifier，`TaskScore` 保留 judge token/请求、费用记为 null，账单完整性不会伪装成评分失败。定向测试 `test_unknown_judge_price_keeps_official_score_and_known_token_usage` 通过。τ worker 原有回调协议同样把缺失成本作为 null 传回，同时保留 token 分项。
 
-当前 profile 尚未逐笔保存 gross API charge、voucher credit 和 cash paid；也没有证实供应商费用回执或适用于该 endpoint 的冻结 tariff。因此 10.8.D 保持待办，不能做 Qwen 成本总额或 Jev/通用模型成本优劣结论。获取足够的账单/地域信息后，单独增加可审计的成本依据，不改写旧账。
+`ProviderBillingEvidence`、逐请求账本字段与 `billing_snapshot()` 已实现，`live_public_runner` 会在每条路线报告中输出该原始粒度快照；未提供的 voucher/cash 分项保持 null，不会由账户余额推算。Qwen endpoint 的逐笔账单读取、适用地域/费率核验与账户时间窗对账仍未接入，因此 v3 profile 保持 pricing unknown，10.8.D 未完成，也不能做 Qwen 成本总额或 Jev/通用模型成本优劣结论。
 
 已对 `comparison_trial_manifest_v6.json` 执行离线 smoke dry-run：24 个任务、48 个路线槽位，首波 4 个任务/8 个路线；ledger 创建数、模型请求和 MCP 请求均为 0。报告为 `evals/benchmarks/evidence/public-evaluation-dry-run-smoke-v6-20261020.json`。这是固定输入和当前 profile 的准备验证，不是模型或业务流程成绩。
 
@@ -543,7 +577,7 @@ profile 和计量字段、10.10 的持久资源账本和 fail-closed dry-run 已
 
 ### 2026-10-20 原始计费证据字段
 
-`ProviderBillingEvidence` 是单次模型回复可选携带的、逐请求供应商账单证据。公开 attempt 账本分别保存 gross API fee、币种、供应商明确返回的 voucher credit 和 cash paid、证据来源与供应商记录 ID；字段缺失时保留 null，不以账户余额反推，也不把账户或时间窗口总额分摊到路线。USD 原始 gross 与 `actual_cost_usd` 必须一致，因此券只解释谁承担账单，不会降低被比较的模型 API 成本。非 USD 原金额保留，但没有可核验汇率时 USD 成本仍 unknown。`billing_snapshot()` 按原币种汇总路线已有证据并报告缺失项，不合并不同币种。当前只实现持久化契约与离线验证，Qwen 账单查询、时间窗对账和评测报告汇总还未接入，不能据此声称 Qwen 成本已核实。
+`ProviderBillingEvidence` 是单次模型回复可选携带的、逐请求供应商账单证据。公开 attempt 账本分别保存 gross API fee、币种、供应商明确返回的 voucher credit 和 cash paid、证据来源与供应商记录 ID；字段缺失时保留 null，不以账户余额反推，也不把账户或时间窗口总额分摊到路线。USD 原始 gross 与 `actual_cost_usd` 必须一致，因此券只解释谁承担账单，不会降低被比较的模型 API 成本。非 USD 原金额保留，但没有可核验汇率时 USD 成本仍 unknown。`billing_snapshot()` 按原币种汇总路线已有证据并报告缺失项，不合并不同币种；`live_public_runner` 已将该快照接入逐路线报告。Qwen 账单查询和时间窗对账还未接入，实际 Qwen 成本仍未核实。
 
 ### 2026-10-20 可恢复的官方评分摘要
 
@@ -676,3 +710,17 @@ EnterpriseOps pinned 原始 verifier 可含 response_check，其 judge 现在由
 The historical `public-smoke-v7.sqlite3` path remains available only for compatibility and history inspection. A new first-wave execution derives its canonical path from both the frozen cohort digest and the CI-verified candidate SHA, under `.decagent/business-eval/public-trials/cohorts/`. This makes same-candidate resume idempotent while different candidates cannot overwrite, inherit, or erase old route attempts. The shared canonical Jev ledger remains global, so candidate scoping cannot reset Jev's cumulative budget. Arbitrary path overrides and symlinked canonical components fail closed. The old v7 ledger is not migrated or modified by this path change.
 
 The path and dispatcher regressions cover candidate/cohort separation, same-candidate resume, preserved legacy data, and rejection of mismatched paths. The four affected deterministic files pass (`88 passed`). This is a ledger identity/isolation change only: it does not create benchmark trials or authorize model, Jev, tool, or scorer dispatch. Live execution remains closed; full route-worker separation and remaining cancellation gaps are still outstanding.
+
+### 2026-10-21 Route deadline propagation through agent callbacks
+
+`ControlledRoutes` now evaluates the persisted route/batch deadline immediately before planner, ReAct, semantic-decision, and final-summary calls, then passes the remaining seconds through `ObservedUsage.call_reply()`. A deadline-bound callback must accept `timeout_seconds`; the existing ledgered adapter intersects it with the frozen model profile timeout and its own ledger deadline before the transport call. τ user-simulator/judge and business-tool calls continue to use their existing session and bridge deadline paths. This closes the gap where a replacement callback could receive a deadline-bound route but be invoked without its timeout contract.
+
+Regression coverage exercises planner, ReAct, Jev semantic, and final-summary callback deadlines; the four affected deterministic files pass (`122 passed`), the full deterministic suite passes (`1939 passed, 18 skipped, 232.78s`), and Ruff passes. This does not establish hard cancellation for arbitrary synchronous tool callbacks, provider worker separation for the full route, or four-domain live scorer/cleanup completion. No model, Jev, business tool, or official scorer request was dispatched; the live gate remains closed.
+
+### 2026-10-21 Qwen CNY rate profile and per-request cost reporting
+
+The Qwen rate source supplied by the owner applies to the configured `https://maas.qianwenaiapi.com/compatible-mode/v1` endpoint. A new profile schema v4 freezes the public standard realtime `qwen3.8-flash` rates in CNY: input ¥0.8/M tokens, output ¥2.7/M, and cached input ¥0.1/M. The source URL, observation version, currency and rates enter each Qwen role profile fingerprint. New public manifest v8 binds those profiles to the same frozen 206+80 denominator and 4-task first-wave identity. The old v3 profile and v7 manifest remain readable and unchanged; the Jev profile fingerprint and global USD ledger remain unchanged.
+
+The evaluator uses the rate only as a frozen calculated gross API cost. If response usage provides cache-hit tokens, those are priced at the cache rate; if that count is absent, input is charged at the ordinary input rate and the basis is `frozen_rate_upper_bound`. The Qwen OpenAI-compatible response documents `usage.prompt_tokens_details.cached_tokens`; installed LangChain OpenAI normalization maps it to `input_token_details.cache_read`. The parser accepts either representation and rejects conflicting counts. Per-attempt evidence records usage, cached input tokens, currency, cost source and calculation basis. `billing_snapshot()` now separates provider-invoiced gross/voucher/cash evidence from frozen-rate estimates by currency; amounts remain in CNY and are never guessed into USD. Missing per-request invoice, voucher and cash values remain null. `usage_complete` and `cost_complete` are distinct.
+
+Verification: profile v4 legacy round-trip, manifest v8 scope, CNY reserve/settle/report, cached-token parsing, provider CNY bill/voucher separation and v3/v7 compatibility are covered by deterministic tests. No new model request, invoice lookup, or public benchmark route was executed. Manifest v8 is `pre_registered_not_run`; the historical 8-route attempt set remains untouched, and public scored results remain `0/286`. Jev-versus-Qwen cost comparison still needs a verified CNY/USD conversion rate and comparable provider-billed or frozen-rate basis.

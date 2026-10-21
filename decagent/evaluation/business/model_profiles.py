@@ -42,6 +42,8 @@ class ModelProfile:
     timeout_seconds: int = 60
     provider_routing: str = "direct_endpoint"
     pricing_status: str = "known"
+    price_currency: str | None = None
+    cached_input_price_per_million: Decimal | None = None
 
     def __post_init__(self):
         if type(self.role) is not str or not _ROLE.fullmatch(self.role):
@@ -72,10 +74,16 @@ class ModelProfile:
             or endpoint.fragment
         ):
             raise ValueError("Model endpoint must be an HTTPS URL without credentials or query")
+        if self.price_currency is not None and (
+            type(self.price_currency) is not str
+            or not re.fullmatch(r"[A-Z]{3}", self.price_currency)
+        ):
+            raise ValueError("Model price currency must be an uppercase three-letter code")
         if self.pricing_status == "unknown":
             if (
                 self.input_price_per_million is not None
                 or self.output_price_per_million is not None
+                or self.cached_input_price_per_million is not None
             ):
                 raise ValueError("Unknown pricing requires both rates to be null")
         elif self.pricing_status == "known":
@@ -84,6 +92,13 @@ class ModelProfile:
                 for rate in (self.input_price_per_million, self.output_price_per_million)
             ):
                 raise ValueError("Known pricing requires finite nonnegative Decimal rates")
+            if self.cached_input_price_per_million is not None and (
+                type(self.cached_input_price_per_million) is not Decimal
+                or not self.cached_input_price_per_million.is_finite()
+                or self.cached_input_price_per_million < 0
+                or self.price_currency is None
+            ):
+                raise ValueError("Cached-token pricing requires a currency and valid rate")
         else:
             raise ValueError("Pricing status must be known or unknown")
         if type(self.max_input_tokens) is not int or not 1 <= self.max_input_tokens <= 65_536:
@@ -184,6 +199,49 @@ class ModelProfile:
         """Digest of provider, model, endpoint, prices and safety limits; no key material."""
         return digest(self.to_dict())
 
+    @property
+    def currency(self):
+        """The frozen price currency; legacy profiles used USD implicitly."""
+        return self.price_currency or "USD"
+
+    def calculate_cost(self, input_tokens, output_tokens, *, cached_input_tokens=None):
+        """Calculate a profile fee and identify whether cache usage was exact or bounded."""
+        if (
+            type(input_tokens) is not int
+            or input_tokens < 0
+            or type(output_tokens) is not int
+            or output_tokens < 0
+        ):
+            raise ValueError("Measured input and output tokens must be nonnegative integers")
+        if cached_input_tokens is not None and (
+            type(cached_input_tokens) is not int
+            or not 0 <= cached_input_tokens <= input_tokens
+        ):
+            raise ValueError("Cached input tokens must be between zero and input tokens")
+        if self.pricing_status != "known":
+            raise ValueError("Unknown profile pricing cannot calculate a model fee")
+        cache_rate = self.cached_input_price_per_million
+        if cached_input_tokens is None and cache_rate not in {
+            None, self.input_price_per_million
+        }:
+            # Missing cache usage is billed at the highest applicable input rate,
+            # yielding a conservative bound instead of a guessed invoice amount.
+            cached_input_tokens = 0
+            input_rate = max(self.input_price_per_million, cache_rate)
+            cost_basis = "frozen_rate_upper_bound"
+        else:
+            cached_input_tokens = cached_input_tokens or 0
+            input_rate = self.input_price_per_million
+            cost_basis = "frozen_rate"
+        uncached_tokens = input_tokens - cached_input_tokens
+        cache_rate = cache_rate or self.input_price_per_million
+        amount = (
+            input_rate * uncached_tokens
+            + cache_rate * cached_input_tokens
+            + self.output_price_per_million * output_tokens
+        ) / Decimal(1_000_000)
+        return amount, cost_basis
+
     def to_dict(self):
         values = asdict(self)
         if self.pricing_status == "unknown":
@@ -193,6 +251,15 @@ class ModelProfile:
             values.pop("pricing_status")
             values["input_price_per_million"] = str(self.input_price_per_million)
             values["output_price_per_million"] = str(self.output_price_per_million)
+        if self.price_currency is None and self.cached_input_price_per_million is None:
+            values.pop("price_currency")
+            values.pop("cached_input_price_per_million")
+        else:
+            values["cached_input_price_per_million"] = (
+                str(self.cached_input_price_per_million)
+                if self.cached_input_price_per_million is not None
+                else None
+            )
         values["temperature"] = str(self.temperature) if self.temperature is not None else None
         values["top_p"] = str(self.top_p) if self.top_p is not None else None
         values["unsupported_parameters"] = list(self.unsupported_parameters)
@@ -235,11 +302,21 @@ class EvaluationModelProfiles:
             role: {**getattr(self, role).to_dict(), "fingerprint": getattr(self, role).fingerprint}
             for role in role_names
         }
-        version = (
-            "evaluation-model-profiles-v3"
-            if any(getattr(self, role).pricing_status == "unknown" for role in role_names)
-            else "evaluation-model-profiles-v2"
-        )
+        role_profiles = [getattr(self, role) for role in role_names]
+        if any(
+            profile.price_currency is not None
+            or profile.cached_input_price_per_million is not None
+            for profile in role_profiles
+        ):
+            version = "evaluation-model-profiles-v4"
+        elif any(profile.pricing_status == "unknown" for profile in role_profiles):
+            version = "evaluation-model-profiles-v3"
+        else:
+            version = "evaluation-model-profiles-v2"
+        if version == "evaluation-model-profiles-v4":
+            for record in profiles.values():
+                record.setdefault("price_currency", None)
+                record.setdefault("cached_input_price_per_million", None)
         payload = {"schema_version": version, "roles": profiles}
         return {**payload, "fingerprint": digest(payload)}
 
@@ -254,7 +331,8 @@ class EvaluationModelProfiles:
             type(value) is not dict
             or set(value) != {"schema_version", "roles", "fingerprint"}
             or value["schema_version"] not in {
-                "evaluation-model-profiles-v2", "evaluation-model-profiles-v3"
+                "evaluation-model-profiles-v2", "evaluation-model-profiles-v3",
+                "evaluation-model-profiles-v4",
             }
             or type(value["roles"]) is not dict
             or not {"primary", "user_simulator", "judge"} <= set(value["roles"])
@@ -292,6 +370,9 @@ class EvaluationModelProfiles:
             "provider_routing",
             "fingerprint",
         }
+        v4_fields = expected_fields | {
+            "price_currency", "cached_input_price_per_million"
+        }
         for role, record in value["roles"].items():
             record_fields = set(record) if type(record) is dict else set()
             pricing_status = record.get("pricing_status", "known") if type(record) is dict else None
@@ -300,8 +381,15 @@ class EvaluationModelProfiles:
                 or frozenset(record_fields) not in {
                     frozenset(expected_fields),
                     frozenset(expected_fields | {"pricing_status"}),
+                    frozenset(v4_fields),
+                    frozenset(v4_fields | {"pricing_status"}),
                 }
                 or (version == "evaluation-model-profiles-v2" and "pricing_status" in record_fields)
+                or (
+                    version != "evaluation-model-profiles-v4"
+                    and record_fields & (v4_fields - expected_fields)
+                )
+                or (version == "evaluation-model-profiles-v4" and not v4_fields <= record_fields)
                 or pricing_status not in {"known", "unknown"}
             ):
                 raise ValueError("Invalid frozen model profile fields")
@@ -311,6 +399,7 @@ class EvaluationModelProfiles:
                 if (
                     profile_values["input_price_per_million"] is not None
                     or profile_values["output_price_per_million"] is not None
+                    or profile_values.get("cached_input_price_per_million") is not None
                 ):
                     raise ValueError("Unknown pricing requires both rates to be null")
                 profile_values["pricing_status"] = "unknown"
@@ -321,6 +410,9 @@ class EvaluationModelProfiles:
                 profile_values["output_price_per_million"] = Decimal(
                     profile_values["output_price_per_million"]
                 )
+            cached_rate = profile_values.get("cached_input_price_per_million")
+            if cached_rate is not None:
+                profile_values["cached_input_price_per_million"] = Decimal(cached_rate)
             if profile_values["temperature"] is not None:
                 profile_values["temperature"] = Decimal(profile_values["temperature"])
             if profile_values["top_p"] is not None:

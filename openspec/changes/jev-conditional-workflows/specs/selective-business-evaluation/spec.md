@@ -602,6 +602,18 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** callback 收到带原币种的逐请求账单证据
 - **THEN** 持久账本分别保存原始 gross API fee、实际提供的 voucher credit 与 cash paid、币种、来源和供应商记录 ID；路线账单快照按币种聚合并给出证据覆盖率，未提供的分项保持 null，不从账户余额推算，也不把账户或时间窗口总额分摊到路线
 
+#### Scenario: Frozen Qwen standard rate prices CNY usage by cache status
+- **WHEN** 新 cohort 使用适用于配置 endpoint 的冻结 Qwen 标准实时费率，输入/输出用量已知，且响应提供缓存命中 Token 数
+- **THEN** versioned model profile 保存 `CNY`、费率来源与版本、普通输入/输出费率及缓存命中输入费率；账本按命中数计算抵扣前 API 成本并保留 CNY，不推测兑换率，也不把该费率计算值称作供应商账单或 voucher 实付
+
+#### Scenario: Cached-token detail is omitted from model usage
+- **WHEN** 冻结费率含较低缓存命中价，但该响应没有可验证的缓存命中数量
+- **THEN** 账本仍可保存完整 Token 用量与成本完整性，按普通输入费率计算保守上界并标记为 `frozen_rate_upper_bound`；不得假定命中缓存或按优惠价结算
+
+#### Scenario: New pricing cohort preserves historical profile digests
+- **WHEN** 新的币种/缓存费率需要版本化模型 profile 与 manifest
+- **THEN** 新 cohort 使用 profile/manifest 的新 schema 版本，旧 v3 profile 与 v7 manifest 原字节和指纹保持可读取，Jev 原 profile 指纹与累计美元账本保持不变
+
 #### Scenario: Provider bills in a currency without a verified exchange rate
 - **WHEN** 逐请求账单提供非 USD 原始金额，但没有已核验汇率
 - **THEN** 持久账本保留原金额与币种，USD 成本仍为 unknown，成本报告不得自行换算

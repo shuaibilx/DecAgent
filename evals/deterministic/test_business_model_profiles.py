@@ -1,5 +1,7 @@
+import json
 from dataclasses import replace
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -106,6 +108,99 @@ def test_unknown_pricing_is_explicit_and_round_trips_in_profile_v3():
     assert encoded["roles"]["primary"]["pricing_status"] == "unknown"
     assert decoded.primary.fingerprint == unknown.fingerprint
     assert decoded.fingerprint == profiles.fingerprint
+
+
+def test_cny_cached_input_prices_round_trip_in_profile_v4_without_rewriting_v3():
+    source = "https://platform.qianwenai.com/pricing/api"
+    roles = {
+        role: replace(
+            profile(role=role),
+            price_version="qwen3.8-flash-cny-20261021-v1",
+            price_source=source,
+            input_price_per_million=Decimal("0.8"),
+            output_price_per_million=Decimal("2.7"),
+            pricing_status="known",
+            price_currency="CNY",
+            cached_input_price_per_million=Decimal("0.1"),
+        )
+        for role in ("primary", "user_simulator", "judge")
+    }
+    profiles = EvaluationModelProfiles(**roles)
+
+    encoded = profiles.to_dict()
+    decoded = EvaluationModelProfiles.from_dict(encoded)
+
+    assert encoded["schema_version"] == "evaluation-model-profiles-v4"
+    assert encoded["roles"]["primary"]["price_currency"] == "CNY"
+    assert encoded["roles"]["primary"]["cached_input_price_per_million"] == "0.1"
+    assert decoded.primary.fingerprint == profiles.primary.fingerprint
+    assert decoded.fingerprint == profiles.fingerprint
+
+    root = Path(__file__).resolve().parents[2]
+    legacy_document = json.loads(
+        (root / "evals/benchmarks/manifests/evaluation_model_profiles_v3.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    legacy = EvaluationModelProfiles.from_dict(legacy_document)
+    assert legacy.to_dict() == legacy_document
+
+
+def test_profile_v4_keeps_jev_identity_and_declares_currency_fields_for_every_role():
+    root = Path(__file__).resolve().parents[2]
+    legacy_document = json.loads(
+        (root / "evals/benchmarks/manifests/evaluation_model_profiles_v3.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    legacy = EvaluationModelProfiles.from_dict(legacy_document)
+    updates = {
+        role: replace(
+            getattr(legacy, role),
+            price_version="qwen3.8-flash-standard-cny-20261021-v1",
+            price_source="https://platform.qianwenai.com/pricing/api",
+            input_price_per_million=Decimal("0.8"),
+            output_price_per_million=Decimal("2.7"),
+            pricing_status="known",
+            price_currency="CNY",
+            cached_input_price_per_million=Decimal("0.1"),
+        )
+        for role in ("primary", "user_simulator", "judge")
+    }
+    profiles = replace(legacy, **updates)
+
+    encoded = profiles.to_dict()
+    decoded = EvaluationModelProfiles.from_dict(encoded)
+
+    assert encoded["schema_version"] == "evaluation-model-profiles-v4"
+    assert set(encoded["roles"]["jev"]) >= {
+        "price_currency",
+        "cached_input_price_per_million",
+    }
+    assert encoded["roles"]["jev"]["price_currency"] is None
+    assert encoded["roles"]["jev"]["cached_input_price_per_million"] is None
+    assert encoded["roles"]["jev"]["fingerprint"] == legacy_document["roles"]["jev"]["fingerprint"]
+    assert decoded.jev.fingerprint == legacy.jev.fingerprint
+
+
+def test_profile_calculates_cny_cost_with_cache_and_safe_uncached_upper_bound():
+    selected = replace(
+        profile(),
+        price_version="qwen-cny-v1",
+        price_source="https://platform.qianwenai.com/pricing/api",
+        input_price_per_million=Decimal("0.8"),
+        output_price_per_million=Decimal("2.7"),
+        price_currency="CNY",
+        cached_input_price_per_million=Decimal("0.1"),
+    )
+
+    exact_cost, exact_basis = selected.calculate_cost(10, 3, cached_input_tokens=4)
+    upper_bound, upper_bound_basis = selected.calculate_cost(10, 3)
+
+    assert exact_cost == Decimal("0.0000133")
+    assert exact_basis == "frozen_rate"
+    assert upper_bound == Decimal("0.0000161")
+    assert upper_bound_basis == "frozen_rate_upper_bound"
 
 
 def test_unknown_price_requires_both_rates_and_explicit_status():

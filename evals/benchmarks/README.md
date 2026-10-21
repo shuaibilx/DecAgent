@@ -176,27 +176,31 @@ must stop the run and leave the score unreported.
 ## Frozen model profiles and public comparison manifest
 
 `manifests/evaluation_model_profiles.json`, v2, and comparison manifests
-through v5 are preserved as historical, unrun inputs. The current cohort uses
-`manifests/evaluation_model_profiles_v3.json`.
+through v7 are preserved as historical inputs. The current cohort uses
+`manifests/evaluation_model_profiles_v4.json` with
+`manifests/comparison_trial_manifest_v8.json`.
 It freezes secret-free identities for planning, τ-Bench simulation, judging and
 Jev, including endpoint, price provenance, retry/output limits, timeout,
 provider routing, sampling-parameter support/omission, response mode and tool
 choice. The profile matches the readiness model without embedding credentials.
 The earlier Qwen zero-rate profile reflected a mistaken interpretation of the
-account voucher. Qwen API usage is billed; the voucher offsets the bill. In v3,
-Qwen rates and per-request costs remain explicitly `unknown` until the rate
-applicable to the configured endpoint and deployment region is verified. Known
-token usage remains reportable and does not become a zero cost. The route
-callback can persist exact per-request gross API charges, voucher credits and
-cash paid as separate original-currency evidence; missing values remain
-unknown, account-window totals are never spread across requests, and non-USD
-values are not converted without a verified rate. The Qwen endpoint's bill
-records are not fetched automatically yet, so its current route costs remain
-unknown until evidence is supplied. `PublicTrialLedger.billing_snapshot()`
-reports supplied request records by currency and exposes missing voucher/cash
-fields; it does not allocate account-level billing data. Jev's input rate is owner-reported and must
-be checked against each OpenRouter generation record. Cross-provider fallback
-stays disabled within a paired cohort.
+account voucher. Qwen API usage is billed; the voucher offsets the bill. The v3
+Qwen profile remains explicitly `unknown` as historical evidence. The new v4
+profile freezes the user-confirmed applicable Qwen standard realtime rates for
+`qwen3.8-flash`: CNY ¥0.8/M uncached input, ¥2.7/M output, and ¥0.1/M cached
+input. A response with a validated cache-hit count is costed at that split;
+without it, the ordinary input rate provides a conservative upper bound. These
+are `frozen_rate` or `frozen_rate_upper_bound` estimates, not provider
+invoices. Exact per-request gross API charges, voucher credits and cash paid
+remain separate provider evidence; missing amounts are null, account-window
+totals are never spread across requests, and CNY is not converted without a
+verified rate. The endpoint's account invoices are not fetched automatically,
+so provider-billed totals may remain unavailable. `billing_snapshot()` reports
+provider evidence under `by_currency`, rate-computed and provider-billed costs
+under `cost_by_currency`, plus per-attempt cache/token/basis records. Jev's USD
+input rate is owner-reported and must be checked against each OpenRouter
+generation record. Cross-provider fallback stays disabled within a paired
+cohort.
 
 The public-trial ledger also retains a minimal official score summary for
 recovery/reporting: scorer source, score in `[0, 1]`, success flag and measured
@@ -207,7 +211,7 @@ column; absent historical score detail stays absent. This persistence contract
 does not mean the public runner has produced any official score; the live runner
 is still disabled and the benchmark score denominator remains 0/286.
 
-`manifests/comparison_trial_manifest_v7.json` pre-registers the 206 EnterpriseOps
+`manifests/comparison_trial_manifest_v8.json` pre-registers the 206 EnterpriseOps
 oracle tasks and 80 τ-Bench official test tasks, plus separate 20-task
 EnterpriseOps and 4-task τ-Bench smoke sets. It pins the source-manifest and
 task-inventory hashes, all role-specific model-profile fingerprints,
@@ -229,15 +233,15 @@ like benchmark-data drift; all non-newline content remains covered by SHA-256.
 Exposure groups remain `unassigned` because task-family mappings still need
 independent review. The manifest does not copy prompts, simulator scenarios,
 verifiers, expected actions, or database contents. Rebuild it deterministically
-from the frozen local inventory with the v3 pricing profile and v7 cohort using:
+from the frozen local inventory with the v4 pricing profile and v8 cohort using:
 
 ```powershell
-.venv\Scripts\python.exe evals/benchmarks/build_trial_manifest.py --manifest-version 7 --model-profiles evals/benchmarks/manifests/evaluation_model_profiles_v3.json --output .decagent/evaluation-closeout/new-comparison-trial-manifest.json
+.venv\Scripts\python.exe evals/benchmarks/build_trial_manifest.py --manifest-version 8 --model-profiles evals/benchmarks/manifests/evaluation_model_profiles_v4.json --output .decagent/evaluation-closeout/new-comparison-trial-manifest.json
 ```
 
-For the current cohort, use `evaluation_model_profiles_v3.json` and explicitly
-select manifest version 7. The builder's default remains v5 for compatibility.
-The v5 and earlier files remain unchanged for historical traceability. The v7
+For the current cohort, use `evaluation_model_profiles_v4.json` and explicitly
+select manifest version 8. The builder's default remains v5 for compatibility.
+Earlier files remain unchanged for historical traceability. The v8
 batch ceilings are 500 Qwen requests / 5,000,000 Qwen tokens / 1,600 tool calls
 and 4 hours, with separate Agent (300 / 3,000,000), user-simulator (160 /
 1,600,000), and judge (40 / 400,000) request/token caps. A persisted batch
@@ -246,12 +250,18 @@ unfinished trials untouched. This is an admission guard, not a hard cancel for
 an already-running network request, so the live runner remains gated.
 
 The command uses exclusive file creation, so choose a new output path. Earlier
-v2 and v3 manifests remain as historical evidence; they are not overwritten.
+profile and manifest versions remain as historical evidence; they are not overwritten.
 Route pairs must carry the same exposure assignment, model-profile and
 resource-profile digests. Structured branches use code rules; a Jev semantic
 comparison is marked not-applicable until the benchmark contains a naturally
 occurring semantic decision with a trusted, reviewed question template. Do not
 manufacture Jev cases or change the official 206+80 denominator.
+
+New live reports use `public-evaluation-live-first-wave-v3` and include
+`cost_by_currency` and `cost_records` from the ledger billing snapshot. The
+v3 report distinguishes provider-billed amounts from rate-based estimates and
+does not convert CNY amounts into USD. Historical v1/v2 live reports remain
+unchanged.
 
 ## Isolated comparison runtime
 

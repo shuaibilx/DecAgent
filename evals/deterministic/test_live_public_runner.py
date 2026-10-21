@@ -371,7 +371,18 @@ def test_live_report_contains_only_whitelisted_attempt_diagnostics():
             return {}
 
         def billing_snapshot(self, *_args):
-            return []
+            return {
+                "settled_attempts": 1,
+                "cost_by_currency": {
+                    "CNY": {
+                        "frozen_rate": "0.0000133",
+                        "frozen_rate_upper_bound": "0",
+                        "provider_billed": "0",
+                        "attempts": 1,
+                    }
+                },
+                "cost_records": [],
+            }
 
         def model_attempts_snapshot(self, current_trial, current_route):
             if (current_trial, current_route) != (trial_id, route):
@@ -401,7 +412,8 @@ def test_live_report_contains_only_whitelisted_attempt_diagnostics():
         working_tree_dirty=False,
     )
     route_record = report["routes"][trial_id + ":" + route]
-    assert report["schema_version"] == "public-evaluation-live-first-wave-v2"
+    assert report["schema_version"] == "public-evaluation-live-first-wave-v3"
+    assert route_record["billing"]["cost_by_currency"]["CNY"]["frozen_rate"] == "0.0000133"
     assert route_record["model_attempts"][0]["exception_type"] == "TimeoutError"
     assert route_record["tool_attempts"] == []
     assert "PRIVATE RESPONSE BODY" not in repr(report)

@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "snapshot_created_at": "2026-10-21T14:41:04+08:00",
+  "observed_date": "2026-10-21",
+  "source_url": "https://platform.qianwenai.com/pricing/api",
+  "public_data_endpoint": "https://platform-home.qianwenai.com/data/api.json?product=AliyunDeliveryService&action=ListModelSeries",
+  "public_data_request": {
+    "method": "POST",
+    "authentication": "none",
+    "params": {
+      "PageNo": 1,
+      "PageSize": 100,
+      "OrderType": "Featured",
+      "Language": "zh-CN"
+    }
+  },
+  "public_data_request_id": "01A15D2D-6D27-5091-A0E0-87329AEB7976",
+  "raw_response_sha256": "0ad10fed0cbfe1c283b38bc6b360331cba96ebce5eeed852c2278eef474c4646",
+  "catalog_scope": {
+    "retrieved_series": 100,
+    "total_series": 125,
+    "purpose": "selected current-model pricing only; not a complete model catalog"
+  },
+  "pricing_component": {
+    "url": "https://q.alyasset.com/npm/@ali/hmod-qwen-api-price/0.1.15/index.js",
+    "sha256": "6e704e0f2d93d361086188309b06c8c9fc40f0b2526805ec29f2dfee37581ce4"
+  },
+  "locale_component": {
+    "url": "https://q.alyasset.com/npm/@ali/hmod-qwen-api-price/0.1.15/locales/zh-CN.js",
+    "sha256": "b7fcaa6c798e3a8baafd8c318f1e19864cbae672c7128b75e141b822913ff366"
+  },
+  "currency": "CNY",
+  "currency_source": "qianwencloud text pricing columns in the page component; qwencloud international branch uses USD instead",
+  "price_unit_tokens": 1000000,
+  "api_base_url": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+  "endpoint_documentation": "https://platform.qianwenai.com/docs/developer-guides/getting-started/latest-model",
+  "account_scope": {
+    "source": "human_user_confirmation",
+    "available_model_families": [
+      "qwen",
+      "deepseek"
+    ],
+    "credential_checked": false
+  },
+  "listed_prices": {
+    "qwen3.8-flash": {
+      "Model": "qwen3.8-flash",
+      "Name": "Qwen3.8-Flash",
+      "Provider": "qwen",
+      "InferenceProvider": "aliyun-bailian",
+      "Prices": [
+        {
+          "TimeBand": "standard",
+          "Type": "input_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "0.8",
+          "PriceName": "输入"
+        },
+        {
+          "TimeBand": "standard",
+          "Type": "output_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "2.7",
+          "PriceName": "输出"
+        },
+        {
+          "TimeBand": "standard",
+          "Type": "input_token_cache",
+          "PriceUnit": "每百万tokens",
+          "Price": "0.1",
+          "PriceName": "输入（缓存命中）"
+        },
+        {
+          "TimeBand": "standard",
+          "Type": "input_token_batch",
+          "PriceUnit": "每百万tokens",
+          "Price": "0.4",
+          "PriceName": "输入（Batch File）"
+        },
+        {
+          "TimeBand": "standard",
+          "Type": "output_token_batch",
+          "PriceUnit": "每百万tokens",
+          "Price": "1.35",
+          "PriceName": "输出（Batch File）"
+        },
+        {
+          "TimeBand": "standard",
+          "Type": "input_token_cache_creation_5m",
+          "PriceUnit": "每百万tokens",
+          "Price": "1.25",
+          "PriceName": "显式缓存创建"
+        },
+        {
+          "TimeBand": "standard",
+          "Type": "input_token_cache_read",
+          "PriceUnit": "每百万tokens",
+          "Price": "0.1",
+          "PriceName": "显式缓存命中"
+        },
+        {
+          "TimeBand": "standard",
+          "Type": "input_token_batch_chat",
+          "Discount": "0.5",
+          "PriceUnit": "每百万tokens",
+          "Price": "0.8",
+          "PriceName": "输入（Batch Chat)"
+        },
+        {
+          "TimeBand": "standard",
+          "Type": "output_token_batch_chat",
+          "Discount": "0.5",
+          "PriceUnit": "每百万tokens",
+          "Price": "2.7",
+          "PriceName": "输出（Batch Chat)"
+        }
+      ],
+      "MultiPrices": [
+        {
+          "Prices": [
+            {}
+          ]
+        }
+      ],
+      "UpdateAt": "2026-08-25T12:16:04.000+00:00"
+    },
+    "deepseek-v4.1-flash": {
+      "Model": "deepseek-v4.1-flash",
+      "Name": "DeepSeek-V4.1-Flash",
+      "Provider": "deepseek",
+      "InferenceProvider": "aliyun-bailian",
+      "Prices": [
+        {
+          "TimeBand": "offpeak",
+          "Type": "input_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "1",
+          "PriceName": "输入"
+        },
+        {
+          "TimeBand": "peak",
+          "Type": "input_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "2",
+          "PriceName": "输入"
+        },
+        {
+          "TimeBand": "offpeak",
+          "Type": "output_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "4",
+          "PriceName": "输出"
+        },
+        {
+          "TimeBand": "peak",
+          "Type": "output_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "8",
+          "PriceName": "输出"
+        },
+        {
+          "TimeBand": "offpeak",
+          "Type": "input_token_cache",
+          "PriceUnit": "每百万tokens",
+          "Price": "0.1",
+          "PriceName": "输入（缓存命中）"
+        },
+        {
+          "TimeBand": "peak",
+          "Type": "input_token_cache",
+          "PriceUnit": "每百万tokens",
+          "Price": "0.2",
+          "PriceName": "输入（缓存命中）"
+        }
+      ],
+      "MultiPrices": null,
+      "UpdateAt": "2026-09-12T16:13:01.000+00:00"
+    },
+    "deepseek-v4.1-flash-1017": {
+      "Model": "deepseek-v4.1-flash-1017",
+      "Name": "DeepSeek-V4.1-Flash-1017",
+      "Provider": "deepseek",
+      "InferenceProvider": "aliyun-bailian",
+      "Prices": [
+        {
+          "TimeBand": "offpeak",
+          "Type": "input_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "1",
+          "PriceName": "输入"
+        },
+        {
+          "TimeBand": "peak",
+          "Type": "input_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "2",
+          "PriceName": "输入"
+        },
+        {
+          "TimeBand": "offpeak",
+          "Type": "output_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "4",
+          "PriceName": "输出"
+        },
+        {
+          "TimeBand": "peak",
+          "Type": "output_token",
+          "PriceUnit": "每百万tokens",
+          "Price": "8",
+          "PriceName": "输出"
+        },
+        {
+          "TimeBand": "offpeak",
+          "Type": "input_token_cache",
+          "PriceUnit": "每百万tokens",
+          "Price": "0.1",
+          "PriceName": "输入（缓存命中）"
+        },
+        {
+          "TimeBand": "peak",
+          "Type": "input_token_cache",
+          "PriceUnit": "每百万tokens",
+          "Price": "0.2",
+          "PriceName": "输入（缓存命中）"
+        }
+      ],
+      "MultiPrices": null,
+      "UpdateAt": "2026-10-18T16:27:49.221+00:00"
+    }
+  },
+  "deepseek_time_bands": {
+    "peak_label": "忙时（8点-22点）",
+    "offpeak_label": "闲时（22点-次日8点）",
+    "time_zone_independently_verified": false,
+    "reservation_guidance": "use peak upper bound if time zone or band is not verified"
+  },
+  "binding_status": "reference_evidence_only_runtime_profile_not_modified",
+  "limitations": [
+    "Not an actual provider bill or account discount statement",
+    "Do not apply MAAS prices to OpenRouter routes",
+    "No verified CNY/USD exchange rate captured",
+    "Do not rewrite historical unknown or zero-profile evidence",
+    "Do not use batch or explicit-cache prices without verifying the actual API mode"
+  ]
+}

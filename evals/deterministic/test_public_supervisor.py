@@ -141,6 +141,8 @@ def test_expired_ledger_lease_cannot_transfer_dispatch_while_old_process_holds_l
         load_public_run_plan(
             root,
             mode="smoke",
+                manifest_path=root
+                / "evals/benchmarks/manifests/comparison_trial_manifest_v7.json",
             check_images=False,
             check_runtime=False,
             check_source_files=False,
