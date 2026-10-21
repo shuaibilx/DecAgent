@@ -40,6 +40,7 @@ MIGRATIONS = (
     "023_guest_sessions.sql",
     "024_guest_inactivity.sql",
     "025_guest_cleanup.sql",
+    "026_guest_trial_budget.sql",
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

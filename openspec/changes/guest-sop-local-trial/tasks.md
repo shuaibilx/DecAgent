@@ -1,6 +1,6 @@
 # Tasks
 
-本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；workspace 隔离、游客会话创建/恢复、角色切换、7 天无活动失效、空间停用与受限物理清理已完成。游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭，公开域名/隧道不在本轮开通。清理遇在途 Worker 或含歧义的操作证据时保持 pending，不删除恢复材料。
+本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；workspace 隔离、游客会话创建/恢复、角色切换、7 天无活动失效、空间停用与受限物理清理已完成。游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭，公开域名/隧道不在本轮开通。清理遇在途 Worker 或含歧义的操作证据时保持 pending，不删除恢复材料。当前 12/28 项完成；模型账单结算、限流/队列、SOP Compose 与私有 CD 仍未实施。
 
 ## 1. Workspace 数据与身份边界
 
@@ -18,15 +18,15 @@
 - [x] 2.3 实现 7 天无活动失效与清空入口；验证过期即禁访问、后台轮询不续命、删除请求幂等和 CSRF。证据：migration 024 增加 `last_activity_at`；仅成功的非被动游客请求滑动续期，session 恢复/status/EventSource 不续期；失效后 `/guest/session`、员工会话回退、MCP token 和 Worker 凭证解析均拒绝。CSRF+Origin 保护的清空会停用 workspace、撤销浏览器/MCP 凭证并禁用该空间账号；`EmployeeAuth` 对浏览器、MCP 与 Worker 凭证解析均要求 workspace active 和有效 guest session。丢失清空响应后，同一原 token+CSRF+Origin 可安全重试并仍返回已清空，错误 Origin/CSRF 不通过；物理记录/检查点清理留给 2.4。游客 PostgreSQL 集成 13 项通过；身份/Workspace/Gateway 与员工账户/操作集成共 78 项通过；deterministic 1937 项通过、18 项因 τ 运行时或 Windows symlink 环境跳过。浏览器实测覆盖开始、切换、刷新、清空；控制台 0 错误/警告。测试无模型调用。
 - [x] 2.4 实现受限生命周期清理：撤销凭证、停止准入、取消/等待租约、核实 unknown 后清理记录和 checkpoint；测试在途写入与进程重启无重复副作用。证据：migration `025_guest_cleanup.sql` 增加清理完成标记和仅保存清空重试哈希的 tombstone，并将 workspace 内循环外键延迟到事务提交检查。`GuestWorkspaceCleaner` 每次限量过期/清理；清空后立即尝试，Worker 周期重试；Worker 只领取 active workspace 任务，并持有跨进程 task advisory lock 覆盖 graph/checkpoint 写入，租约续期也要求 workspace active。清理器获取 workspace/task/operation 锁后复查租约、任务和操作集合；租约/锁仍在途、receipt partial/mismatch 或成功操作无 verified receipt 时保持 pending。安全收尾后 fence/cancel 未终态任务、删除所有 checkpoint 与 workspace 业务行，只留下 workspace 完成标记和 clear tombstone；重复清空可验证 tombstone 并幂等返回，未知操作不会重放。隔离 PostgreSQL 游客生命周期 19 项通过，Worker/操作/workspace migration 联合回归 67 项通过；Ruff 通过。测试覆盖真实 BusinessWorker 在途 checkpoint、独立进程持有锁、租约等待、未知 receipt 歧义/已验证、7 天自动过期及跨 Cleaner 重启幂等；无模型调用。
 - [ ] 2.5 工作台增加开始体验/恢复/清空/角色提示，仅已注册模拟业务；展示真实 Jev 建议并保持语义选择与写入确认分离，覆盖 Choice/Noul/Score/无匹配/补充/拒绝核心 E2E。部分离线证据（2026-10-21）：工作台已展示服务端返回的 `suggestion`/`raw_model_answer`，`business_semantic_workbench.cjs` 覆盖 Choice/Noul/Score、无匹配、补充、拒绝、过期选择和不调用写入端点，`guest_workbench.cjs` 覆盖会话开始/恢复/角色切换/清空提示。尚未从真实 Jev 请求验证建议来源，也未在浏览器以 Jev 结果跑完六种交互，因此任务保持未完成，不用模拟结果冒充真实体验。
-- [ ] 2.6 按游客使用子目录交付指南、会话/过期时序图及权限说明；实际浏览器走通文档，不虚构公网地址或生产准确率。部分文档（2026-10-21）：[游客本机体验指南](../../../generated/261021/游客使用/1135_游客本机体验指南.md)、[会话与权限说明](../../../generated/261021/游客使用/1135_游客会话与权限说明.md)及[子目录索引](../../../generated/261021/游客使用/1135_游客使用索引.md)已创建并链接到 README；包含会话、角色、清空、7 天过期、锁/回执清理时序图及权限表。当前 127.0.0.1 浏览器实测确认入口隐藏（默认关闭）；此前 Playwright 本机验证覆盖已启用隔离构建的开始/恢复/切换/清空。尚未在新文档对应的独立启用实例重新走完全部步骤，因此保持未勾选；不打开当前工作实例或公网入口。
+- [x] 2.6 按游客使用子目录交付指南、会话/过期时序图及权限说明；实际浏览器走通文档，不虚构公网地址或生产准确率。文档：[游客本机体验指南](../../../generated/261021/游客使用/1135_游客本机体验指南.md)、[会话与权限说明](../../../generated/261021/游客使用/1135_游客会话与权限说明.md)及[子目录索引](../../../generated/261021/游客使用/1135_游客使用索引.md)已链接到 README，包含会话/角色/清空/过期/清理时序图及权限表。2026-10-22 在独立 loopback fixture 中走通开始、刷新恢复、切换主管、刷新后保持新身份、清空和 8 天无活动过期；浏览器走查与限制见[验收记录](../../../evals/integration/evidence/guest-browser-doc-walkthrough-20261022.md)。临时 PostgreSQL 数据库和容器已清理，未调用模型、未执行业务操作、未触碰现有工作实例或公网。额外修复 fixture 原先打印的错误 `/business` 地址，回归测试验证工作台路径为 `/`。
 
 ## 3. 资源准入与试用预算
 
-- [ ] 3.1 实现独立 trial 日账本和配置，按北京时间全站 $5/500万 token、游客30任务/50万 token；并发集成测试证明不会超额，评测账本不受影响。
+- [x] 3.1 实现独立 trial 日账本和配置，按北京时间全站 $5 美元等值抵扣前 API 费用/500万 Qwen token、每游客30任务/50万 Qwen token；CNY 账单使用冻结的 CFETS USD/CNY 中间价快照并按 10% 安全余量保守换算，报价超 7 天拒绝 CNY 预留，含代金券的抵扣前 API 费用照计；原子并发测试证明不超额，公开评测 Jev 账本不受影响。实现证据：[预算账本验证记录](../../../evals/integration/evidence/trial-budget-ledger-20261022.md)、migration `026_guest_trial_budget.sql`、`TrialBudgetLedger`、`TrialBudgetPolicy` 和配置项。隔离 PostgreSQL 测试覆盖并发全站费用、全站/单游客 Qwen token、单游客 30 个任务、幂等准入/请求、额度/汇率快照漂移、旧汇率拒绝、未知价格拒绝及非游客拒绝；账本不调用模型，派发与实际结算留在 3.2。
 - [ ] 3.2 将模型派发接入任务/游客/全站原子预留与实际结算，unknown 保留；测试免费额度、无可靠价格拒发、超时、跨日和重启不能释放未知占用。
 - [ ] 3.3 实现游客1/全站2的持久执行准入及20等待队列，任务计数在入队成功后占用；测试满载拒绝、取消、租约回收、公平领取和恢复不双执行。
 - [ ] 3.4 实现创建/提交/回复限流与受信代理解析，UI显示额度/等待/429；测试清Cookie仍受全站限制、不可信转发头无效和队列边界。
-- [ ] 3.5 交付资源与费用说明及预留/结算状态图；用本组测试账本核对零费用、未知和拒绝显示口径。
+- [ ] 3.5 交付资源与费用说明及预留/结算状态图；说明每日汇率快照/来源日期/安全余量、抵扣前费用、券后实付和跨币种换算；用测试账本核对零费用、unknown 和拒绝派发显示口径。
 
 ## 4. SOP 本机部署
 

@@ -17,6 +17,7 @@ from decagent.gateway import GatewayCallbacks, create_app
 from decagent.storage.database import Database
 
 HOST, PORT = "127.0.0.1", 8025
+WORKBENCH_PATH = "/"
 
 
 def build_fixture():
@@ -51,7 +52,7 @@ if __name__ == "__main__":
     if not os.environ.get("DECAGENT_TEST_DATABASE_URL"):
         raise SystemExit("Set DECAGENT_TEST_DATABASE_URL to a disposable PostgreSQL database")
     administrator, name, app = build_fixture()
-    print(f"Guest browser fixture: http://{HOST}:{PORT}/business", flush=True)
+    print(f"Guest browser fixture: http://{HOST}:{PORT}{WORKBENCH_PATH}", flush=True)
     try:
         uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
     finally:

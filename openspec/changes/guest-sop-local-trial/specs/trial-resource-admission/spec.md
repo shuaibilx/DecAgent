@@ -8,11 +8,27 @@
 
 ### Requirement: Layered daily trial limits
 
-试用 MUST 同时遵守全站每日 5 美元及 5,000,000 Qwen token、每游客每日 30 个任务及 500,000 Qwen token。日界 MUST 使用北京时间；任务原有模型、执行、时间与费用限制仍生效。试用 MUST 与累计 1 美元 Jev 评测账本隔离。
+试用 MUST 遵守全站每日 $5 美元等值 API 费用及 5,000,000 Qwen token 上限、每游客每日 30 个任务及 500,000 Qwen token 上限。日界 MUST 使用北京时间；原有每任务限制继续生效，公开基准 Jev ledger 保持隔离。
 
 #### Scenario: Free main model quota
 - **WHEN** 千问当前免费且实际支付为零
 - **THEN** 仍累计其调用和 token，达到 token 或任务上限后拒绝新准入，不因零支付无限调用
+
+### Requirement: Conservative currency billing and snapshots
+
+游客费用 MUST 按抵扣前 API 费用计入 `$5` 上限，并另存券后实付。人民币账单 MUST 使用每个北京时间预算日不可变的 CFETS USD/CNY 中间价快照，首版留 10% 保守余量；报价日期超过 7 个日历日 MUST 停止 CNY 派发。换算 MUST 使用十进制数并向上取整预留；缺少可核验汇率或可靠费率上界时 MUST 拒绝派发。
+
+#### Scenario: Voucher-backed CNY usage
+- **WHEN** Qwen 抵扣前费用为 ¥2，代金券使实付为 ¥0，当日冻结中间价为 6.7200 CNY/USD
+- **THEN** 预算使用 `floor(6.7200 × 0.90, 2) = 6.04 CNY/USD` 换算抵扣前费用为至少 `$0.331126`，并分别记录 ¥2 API 费用与 ¥0 实付；该示例来源报价见[CFETS 官方汇率页面](https://www.chinamoney.com.cn/english/)，其报价日期为 2026-10-20
+
+#### Scenario: Frozen rate outside a trading day
+- **WHEN** 北京时间预算日为周末或市场休市日
+- **THEN** 系统使用最近一个已发布的官方中间价，并将报价日期、基础汇率、来源 URL、安全余量及有效汇率写入当天不可变快照
+
+#### Scenario: CNY provider charges use gross usage
+- **WHEN** Qwen 返回人民币计价的抵扣前 API 费用，用户用代金券抵扣了全部或部分实付
+- **THEN** 系统仍按该预算日已冻结的 CFETS 汇率和安全余量将抵扣前费用计入 `$5` 美元等值上限，并单独记录券后实际付款；缺少可靠用量或费率时保留 unknown 预留或拒绝新派发
 
 ### Requirement: Atomic dispatch reservations and unknown usage
 
