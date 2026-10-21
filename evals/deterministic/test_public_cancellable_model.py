@@ -411,6 +411,132 @@ def test_public_primary_exposes_only_allowlisted_worker_diagnostics(
     model.close()
 
 
+def test_one_shot_primary_client_setup_error_is_verified_not_dispatched(monkeypatch):
+    from decagent.evaluation.business import public_models
+
+    class BrokenFactory:
+        @staticmethod
+        def from_evaluation_profile(*_args, **_kwargs):
+            raise ValueError("private setup detail and credential")
+
+    monkeypatch.setattr(public_models, "PrimaryModel", BrokenFactory)
+    result = public_models._one_shot_primary_dispatch(
+        None, "test-secret", (), None, [], 1.0
+    )
+
+    assert result == {"kind": "not_dispatched", "reason": "input_invalid"}
+    assert "private" not in repr(result)
+    assert "test-secret" not in repr(result)
+
+
+def test_one_shot_primary_model_call_error_stays_unknown_with_safe_stage(monkeypatch):
+    from decagent.evaluation.business import public_models
+
+    class BrokenClient:
+        closed = False
+
+        def respond(self, *_args, **_kwargs):
+            raise ValueError("private provider response and credential")
+
+        def close(self):
+            self.closed = True
+
+    client = BrokenClient()
+
+    class TestFactory:
+        @staticmethod
+        def from_evaluation_profile(*_args, **_kwargs):
+            return client
+
+    monkeypatch.setattr(public_models, "PrimaryModel", TestFactory)
+    result = public_models._one_shot_primary_dispatch(
+        None, "test-secret", (), None, [], 1.0
+    )
+
+    assert result == {
+        "kind": "worker_outcome_unknown",
+        "worker_stage": "model_call",
+        "exception_type": "ValueError",
+    }
+    assert client.closed
+    assert "private" not in repr(result)
+    assert "test-secret" not in repr(result)
+
+
+def test_one_shot_primary_response_framing_error_has_response_stage(monkeypatch):
+    from decagent.evaluation.business import public_models
+
+    class ClientWithUnserializableTurn:
+        closed = False
+
+        def respond(self, *_args, **_kwargs):
+            return object()
+
+        def close(self):
+            self.closed = True
+
+    client = ClientWithUnserializableTurn()
+
+    class TestFactory:
+        @staticmethod
+        def from_evaluation_profile(*_args, **_kwargs):
+            return client
+
+    monkeypatch.setattr(public_models, "PrimaryModel", TestFactory)
+    result = public_models._one_shot_primary_dispatch(
+        None, "test-secret", (), None, [], 1.0
+    )
+
+    assert result == {
+        "kind": "worker_outcome_unknown",
+        "worker_stage": "response",
+        "exception_type": "AttributeError",
+    }
+    assert client.closed
+    assert "test-secret" not in repr(result)
+
+
+def test_one_shot_primary_decodes_model_call_unknown_stage(monkeypatch):
+    from decagent.evaluation.business import cancellable_model
+    from decagent.evaluation.business.public_models import (
+        ModelWorkerOutcomeUnknown,
+        OneShotPrimaryModel,
+    )
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    profile = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    ).profiles.primary
+    model = OneShotPrimaryModel(profile, api_key="test-secret")
+
+    def dispatch(*_args, **_kwargs):
+        return {
+            "kind": "worker_outcome_unknown",
+            "worker_stage": "model_call",
+            "exception_type": "ValueError",
+        }
+
+    monkeypatch.setattr(cancellable_model, "run_cancellable_process", dispatch)
+    with pytest.raises(ModelWorkerOutcomeUnknown) as raised:
+        model.respond([{"role": "user", "content": "safe test"}])
+
+    assert raised.value.failure_stage == "model_worker_model_call"
+    assert raised.value.diagnostic_exception_type == "ValueError"
+    assert "test-secret" not in str(raised.value)
+    from decagent.evaluation.business.public_diagnostics import validate_diagnostic
+
+    validate_diagnostic(
+        failure_stage=raised.value.failure_stage,
+        exception_type=raised.value.diagnostic_exception_type,
+    )
+    model.close()
+
+
 def test_tau_public_model_uses_one_shot_primary_factory_by_default():
     from decagent.evaluation.business.public_models import (
         PublicTauModelCallback,

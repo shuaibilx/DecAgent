@@ -3,7 +3,7 @@ title: DecAgent — 员工身份与可恢复业务执行
 type: explanation
 audience: [A1, A2, A3, A4, A5]
 runs: no
-verified_on: 2026-10-21
+verified_on: 2026-10-22
 sources: [decagent/business, decagent/gateway, decagent/runtime, decagent/storage, ops/local/start.py, generated/261021/游客使用]
 ---
 # DecAgent
@@ -21,6 +21,7 @@ DecAgent 是基于 LangGraph 的业务 Agent，通过 **MCP + Skill** 接入业�
 ## 使用与理解
 
 - [当前评测与本机交付规划索引](generated/261021/计划/1157_后续规划索引.md)：核对已完成工作、旧首波故障和运行版本，安排四域闭环、游客资源准入与私有 CD；分区计划包含门槛、验收与待输入事项。
+- [v9 四域首波真实评测报告](generated/261022/0133_公开评测首波报告_v9.md)：记录 4 任务/8 路线结果、5 次 Qwen usage unknown、费用预留和不重放边界；不将小样本解释为模型可靠性概率。
 - [项目开发技能与来源](.agents/skills/README.md)：14 项官方参考覆盖 Jev/LangGraph、评测、MCP、PostgreSQL、浏览器、安全、Docker 与 CI 定位；另保留社区工作流参考和六项 OpenSpec 工作流。对应任务和适配边界见[技能对照](generated/261021/开发技能/1502_官方技能与任务对照.md)，来源提交与文件摘要单独保留。
 - [模型费率核验](generated/261021/模型计费/1441_千问平台费率核验.md)：Qwen/DeepSeek 适用的人民币公开标准价已绑定到版本化评测 profile；供应商逐笔账单和代金券/实付尚未核验，不能据此与美元 Jev 费率直接比较。
 - [游客本机试用文档索引](generated/261021/游客使用/1135_游客使用索引.md)：游客会话、角色切换、7 天过期、清理与权限边界；当前入口默认关闭，文档不代表公网开放或真实 Jev 验收。

@@ -1,21 +1,19 @@
 # Tasks
 
-本文件只保存执行任务、验收要求、短状态与证据入口。源码和 OpenSpec 根均为 DecAgent；源码路径相对项目根目录。测试必须使用隔离数据库，不得读取、重置或迁移正在运行的业务库。
+本文件只保存执行任务、验收要求、短状态与证据入口。源码和 OpenSpec 根均为 DecAgent；测试必须使用隔离数据库，不得读取、重置或迁移正在运行的业务库。
 
 ## 当前状态（2026-10-22 更新）
 
-- 本 change 为 **72/79，7 项待完成**；9.6.E、10.10.B、10.10.D、10.10.E 与 11.1 已完成，保留全部任务编号及先前历史证据。其他 change 状态见各自清单。
-- 历史 v7 首波为 5 failed、3 unknown；保留原账本且不重放。当前 v8 首波已在候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a` 执行 4 个任务/8 条路线：2 failed、6 unknown、0 成功；两条已评分路线均为 0.0，8/8 清理 verified。结果见[首波报告](../../../generated/261021/2110_公开评测首波报告_v8.md)与[机器证据](../../../evals/benchmarks/evidence/public-first-wave-live-20261021-v8-5a21ded.json)。完整有效公开比较仍为 0/286，不能表述成从未尝试。
-- Qwen routed readiness 已通过；旧 $0 不是供应商账单。[平台费率来源与实施说明](../../../generated/261021/模型计费/1441_千问平台费率核验.md)现已绑定到 profile v4 / manifest v8；CNY 费率计算与逐请求 provider bill/voucher/cash 保持分开。账户逐请求 invoice 及 CNY/USD 汇率仍未核实，因此没有可用的跨币种成本优势结论。
-- 旧 unknown 不重放、不释放原预留。新 cohort、候选与额度须按现有门禁冻结；正式对照关闭跨模型降级。Jev 仍使用原累计 $1 账本。
-- 候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a` 的同 SHA CI run [39600167554](https://github.com/shuaibilx/DecAgent/actions/runs/39600167554) 全部通过，包含 Python 3.11/3.13、PostgreSQL、Workbench、隔离 Docker 边界、wheel/MCP 与 Compose。受控四域工程闭环仍为 176 项通过；真实 v8 首波现已执行，但质量门槛未通过。旧 unknown 不重放。
-- 2026-10-22 暴露范围复核已冻结新 manifest v9，SHA-256 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`：只有两个已实测 EnterpriseOps case 标为 `development_exposed`；其他 204 个 EnterpriseOps 与 τ 官方 test 80 个为 `not_exposed`，τ train smoke 属开发数据。该标签不代表独立 holdout，也不能排除预训练污染。v9 first-wave dry-run 通过，4 个固定任务/8 个路线槽位，未创建 ledger、模型或 MCP 调用。v8 及其 unknown 路线保持不变且不能 live dispatch。本地提交已推送到 `feat/conditional-evaluation`；GitHub Actions run [39638045691](https://github.com/shuaibilx/DecAgent/actions/runs/39638045691) 正在验证 SHA `4f693c51a491ddb20a67526ee5859f3dda65583e`。公开真实评测仍未启动。
+- 主 change 为 **72/79，7 项待完成**：9.6.D、9.6.F、9.6.G、10.3–10.6。Guest change 当前为 10/28。先前已完成任务的编号和验收条件不变。
+- v9 首波已在候选 `126fe5a3dc9edcb3d595d0aa40fa1a5d8713af41` 完成 4 个任务/8 条路线：2 failed、6 unknown、0 succeeded；官方评分 2 条且均为 0.0，8/8 清理 verified。5/14 Qwen 请求 usage unknown，保留 252,296 Token 与 ¥0.2796608 冻结费率预留上界。详见[首波报告](../../../generated/261022/0133_公开评测首波报告_v9.md)及[机器证据](../../../evals/benchmarks/evidence/public-first-wave-live-20261022-v9-126fe5a.json)。
+- 该候选同 SHA GitHub Actions [CI run 39639666250](https://github.com/shuaibilx/DecAgent/actions/runs/39639666250) 通过。CI 通过不代表首波业务质量通过；完整公开比较仍为 0/286。Jev 与裁判没有请求，不能声称 Jev 收益。
+- Exposure manifest v9 digest 为 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`。用户确认仅两个 EnterpriseOps case 进入过项目实测；其他 EnterpriseOps 204 条与 τ 官方 test 80 条没有在项目外查看，τ 项目内调试使用 train。`not_exposed` 不等于独立 holdout，也不能排除预训练污染。
+- 费率 profile 按用户提供且适用当前 endpoint 的 Qwen 公开 CNY 费率估算：9 条 settled 请求为 ¥0.0610926，5 条 unknown 预留上界 ¥0.2796608，合计估算上界 ¥0.3407534；均非供应商逐请求 invoice 或现金实付。代金券不把 API 费用变为零。旧 v8、早期 v7 unknown 与 Jev 全局 `$1` 账本均不修改、不重放。
+- 2026-10-22 离线诊断切片：worker 客户端构造异常现在标为可验证的 `not_dispatched`；`respond()` 中未分类异常保留 unknown 并记录 `model_worker_model_call`，模型已返回但本地响应封帧失败则记录 `model_worker_response`。异常内容仍不跨进程暴露。新增分层回归先红后绿；本地 Token 复核发现三次 Plan 输入上界为 51,653/60,124/62,435（profile 上限 65,536），另各保留 8,192 输出 Token；这不能证明近上限输入导致 60 秒超时。完整 deterministic 与适用验收结果列在下方历史切片补充。该修复不反推两个历史 ValueError 的根因，也不改写/重放任何 v9 attempt。提交已在本地 `feat/conditional-evaluation` 分支，工作区干净；本次两次 push 均因连接 `github.com:443` 超时失败，远端尚无此提交且未触发其 CI。网络恢复后先推送并核验该 SHA CI，再决定后续评测；新 cohort/预算和派发授权需单独冻结，当前不运行剩余 smoke、公开全量或 Jev 对照。
 
-执行顺序：四域受控工程闭环与候选 CI 已完成 → v8 首波已执行但门槛未通过 → v9 精确案例暴露分组、角色 profile/资源/消融冻结及 dry-run 已完成 → 完成其余本地隔离与恢复门禁并提交新候选 → 同 SHA CI 通过后，再按已批准停止线执行新的受控首波；v8 unknown 不重放。剩余 smoke、自然 Jev 配对和全量暂停，游客与本机交付在独立 change 推进。
+[当前规划索引](../../../generated/261021/计划/1157_后续规划索引.md) · [v9 首波报告](../../../generated/261022/0133_公开评测首波报告_v9.md) · [历史与验收证据导航](../../../generated/261021/任务整理/1434_任务整理索引.md) · [整理前完整原文](../../../generated/261021/任务整理/1434_jev任务原文快照.md)
 
-[后续规划](../../../generated/261021/计划/1157_后续规划索引.md) · [历史与验收证据导航](../../../generated/261021/任务整理/1434_任务整理索引.md) · [整理前完整原文](../../../generated/261021/任务整理/1434_jev任务原文快照.md)
-
-任务保留文本与原文逐字比对；移出的验收展开和执行记录仍按原编号保存在证据页，相关约束不因分离而取消。原状态、旧测试和旧候选证据不等于本次重新验收；以 design/specs 与适用候选的证据共同核对。
+任务保留文本与原文逐字比对；移出的验收展开和执行记录仍按原编号保存在证据页。历史状态、旧测试和旧候选证据不等于本次重新验收；以最新证据及适用候选的 CI 共同核对。
 
 ## 1. 基线留存与兼容准备
 
@@ -140,7 +138,8 @@
 - [x] 10.2 完成冻结数据的阈值资格诊断与决策：只有经审核的验证数据具备每决策族至少 100 个自动样本时才执行阈值选择；不满足时如实保留 95% 正确率目标、报告无合格策略且不使用 holdout 补样。当前 synthetic auxiliary 数据最高每族 40 个工作流样本、20/10 个记忆样本，已证实不具备资格，因此本轮不产生生产阈值。
 - [ ] 10.3 先执行四域首波（CSM、ITSM、τ retail、τ telecom 各 1 条；ReAct/Plan 共 8 个路线试次），通过真实模型、工具、原官方计分及清理闭环后，再补齐 24 例固定 smoke；每域至少完成一个官方计分流程并通过评分错误处理检查。门槛通过后才运行 EnterpriseOps 全部 206 条和冻结 τ official test 80 条。固定任务、模板、模型、策略和快照；提交每域/暴露组/未暴露组/任务族的分子分母和区间。模型或资源不足时保留准确未运行清单，不冒充全量或实测结果。DecAgent 自有数据只作为辅助回归，不进入公开基准主分数或阈值资格。10.9 routed readiness 已通过；用户确认的 v8 首波上限已执行；当前首波报告未满足门槛，10.3 保持未完成。
 
-  首波实测（2026-10-21，候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a`）：8 条路线全部终态，2 条失败且经官方评分为 `0.0`，6 条 unknown，成功 0，清理 8/8 verified。CSM 与 τ retail 未获官方分数；Qwen/模拟器 26 次请求中 5 次用量 unknown（252,369 Token 预留），不重放。主模型/模拟器共 182,591 已知 Token；按冻结 profile 的已知成本上界 ¥0.1583867，unknown 预留约 ¥0.2797192，invoice/voucher/cash 不完整。用户确认的批次费率推导抵扣前上界约 ¥13.50（5,000,000 Token × 最高冻结费率 ¥2.7/M，不是供应商账单）。实际批次消费 434,960/5,000,000 预算 Token、26/500 请求、9/1,600 工具调用、约 449 秒/4 小时。详见[首波报告](../../../generated/261021/2110_公开评测首波报告_v8.md)。
+  历史 v8 首波实测（2026-10-21，候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a`）：8 条路线全部终态，2 条失败且经官方评分为 `0.0`，6 条 unknown，成功 0，清理 8/8 verified。CSM 与 τ retail 未获官方分数；Qwen/模拟器 26 次请求中 5 次用量 unknown（252,369 Token 预留），不重放。主模型/模拟器共 182,591 已知 Token；按冻结 profile 的已知成本上界 ¥0.1583867，unknown 预留约 ¥0.2797192，invoice/voucher/cash 不完整。用户确认的批次费率推导抵扣前上界约 ¥13.50（5,000,000 Token × 最高冻结费率 ¥2.7/M，不是供应商账单）。实际批次消费 434,960/5,000,000 预算 Token、26/500 请求、9/1,600 工具调用、约 449 秒/4 小时。详见[首波报告](../../../generated/261021/2110_公开评测首波报告_v8.md)。
+  v9 首波实测（2026-10-22，候选 `126fe5a3dc9edcb3d595d0aa40fa1a5d8713af41`）：4 个固定任务/8 条路线均终态，2 failed、6 unknown、0 success；ITSM/ReAct 与 τ telecom/ReAct 两条官方评分均为 0.0，清理 8/8 verified。14 次 Qwen 请求中 5 次 usage unknown，保留 252,296 Token 与 ¥0.2796608 unknown 预留上界；完整明细见[报告](../../../generated/261022/0133_公开评测首波报告_v9.md)与[机器证据](../../../evals/benchmarks/evidence/public-first-wave-live-20261022-v9-126fe5a.json)。本首波未通过门槛，10.3 保持未完成。
 
   后续独立 Qwen 批次的用户选择上限同为 500 次请求、5,000,000 Token、1,600 次工具调用和 4 小时；角色上限为 Agent/模拟器/裁判 300/160/40 次请求、3,000,000/1,600,000/400,000 Token。¥13.50 是按冻结最高费率计算的抵扣前上界，不是账单。该预算尚未写入新 manifest 或批次账本；不改变 v8 的消费/unknown 记录，不重放 v8，也不代表样本暴露审阅已完成。须先确定新 cohort 暴露标记并通过其余门禁，才可派发新路线。
 
@@ -170,7 +169,9 @@
 - [x] 10.10.E 完成公开 runner 的并发/预算/unknown 恢复与故障回归，以及当前候选四域受控工具、官方评分和 cleanup 工程闭环。固定候选 HEAD `3a7938fd1b3e7a564de6310fc171d1be8f8adfdc` 的受控复验：EnterpriseOps CSM/ITSM 模块 4 passed（含 ReAct 真实只读 MCP 工具、原 verifier 与隔离清理）；τ retail/telecom 的 ReAct/Plan 4 passed（固定 train、原始 evaluator、受控 simulator/judge）；账本、supervisor、runner 与离线 verifier 回归 93 passed；清理失败和 τ 超时/取消回归 75 passed；共 176 个不同测试用例通过，修改测试的 Ruff 通过。没有 Qwen、OpenRouter DeepSeek 或 Jev 请求；结果只证明工程闭环，不是公开 benchmark 成绩。新增 EnterpriseOps route integration test 已包含在候选 `5a21ded64061ce5576b33c58dcec3266615e2a1a` 的同 SHA CI [39600167554](https://github.com/shuaibilx/DecAgent/actions/runs/39600167554)，所有 job 通过。该候选随后执行 v8 首波 8 条真实路线，2 failed、6 unknown、0 成功，8/8 清理验证；这次质量结果属于 10.3，未满足四域评分门槛。详见[受控复验记录](../../../evals/benchmarks/evidence/public-four-domain-engineering-closure-20261021-3a7938fd.json)、[真实首波报告](../../../generated/261021/2110_公开评测首波报告_v8.md)和[验收证据](../../../generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-e)。
 - [x] 10.10.F 在已派发的模型、工具与 route attempt 记录可审计但不泄露业务内容的诊断：失败阶段必须来自白名单，异常类型只保存类名，可用 HTTP 状态须有效；包含已知用量但响应契约失败的 settled model attempt；attempt 快照和新报告只导出安全白名单；旧账本以 nullable 列兼容迁移，unknown 清理补录保留原诊断且不可重放。2026-10-21 一致性补充已用真实 SQLite 回归验证（84 项定向、全量 deterministic 1970 passed/18 skipped，Ruff 通过），详情见[10.10.F 验收证据](../../../generated/261021/任务整理/1434_模型与真实评测证据.md#task-10-10-f)。
 
-  首波后补充诊断：one-shot primary worker 的 `target`/`response` 失败阶段映射到白名单值，worker 异常类型仅保留经校验的类名；HTTP 超时等无 worker stage 的异常保持通用阶段。测试覆盖安全属性持久化和拒绝任意 stage/type。本次定向确定性回归 `142 passed`，完整 `evals/deterministic` 为 `1969 passed, 18 skipped (213.44s)`，隔离 EnterpriseOps 容器集成为 `5 passed`，全仓 Ruff 与 OpenSpec strict 均通过；跳过项如实保留，未发出任何模型请求，旧 unknown 不重放。
+  首波后补充诊断（历史切片）：one-shot primary worker 的 `target`/`response` 失败阶段映射到白名单值，worker 异常类型仅保留经校验的类名；HTTP 超时等无 worker stage 的异常保持通用阶段。测试覆盖安全属性持久化和拒绝任意 stage/type。本次定向确定性回归 `142 passed`，完整 `evals/deterministic` 为 `1969 passed, 18 skipped (213.44s)`，隔离 EnterpriseOps 容器集成为 `5 passed`，全仓 Ruff 与 OpenSpec strict 均通过；跳过项如实保留，未发出任何模型请求，旧 unknown 不重放。
+
+  2026-10-22 后续诊断切片：客户端构造错误、`respond()` 调用异常和已返回结果的本地封帧异常已分别映射为 `not_dispatched`、`model_worker_model_call` 和 `model_worker_response`；新增模型调用阶段加入诊断白名单。回归先红后绿；完整 deterministic `1,982 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过。此改进只影响未来 cohort，v9 历史 `target/ValueError` 保持原样。未做真实请求、容器集成或新候选 CI，完整公开评测仍关闭。
 
 ## 11. 整体回归与本机交付
 

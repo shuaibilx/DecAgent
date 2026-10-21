@@ -1,5 +1,17 @@
 # Design
 
+## 最新执行结果（2026-10-22，manifest v9）
+
+候选 `126fe5a3dc9edcb3d595d0aa40fa1a5d8713af41` 已通过同 SHA GitHub Actions [CI run 39639666250](https://github.com/shuaibilx/DecAgent/actions/runs/39639666250)，其后执行冻结 v9 的 4 个任务/8 条 ReAct/Plan 路线。8 条路线均终态：2 failed、6 unknown、0 succeeded；只有 ITSM/ReAct 与 τ telecom/ReAct 经原始 scorer 评分，两者均为 0.0；清理 8/8 verified。Qwen 14 次请求中 5 次 usage unknown，保留 252,296 Token 及 ¥0.2796608 冻结费率费用预留上界；Jev/judge 0 次。完整结果、路线级证据和 unknown 时间窗见[公开评测报告](../../../generated/261022/0133_公开评测首波报告_v9.md)和机器证据 `evals/benchmarks/evidence/public-first-wave-live-20261022-v9-126fe5a.json`。
+
+worker 诊断仍不能把两个 τ retail ValueError 区分为本地构造阶段错误或提供方收到请求后的错误；三个 Plan timeout 也没有 provider request ID/usage。`dispatched` 仅说明本机进入派发尝试，不证明提供方已接收。不得重放这些 attempts。四域首波质量门槛没有通过，9.6.F/G 与 10.3–10.6 继续未完成；公开完整比较仍 0/286，尚无 Jev 收益结论。下一步先做不含请求正文的离线根因分析及安全阶段诊断回归，再决定是否冻结新 cohort。
+
+### 2026-10-22 后续离线诊断分层
+
+`_one_shot_primary_dispatch()` 现在将 `PrimaryModel.from_evaluation_profile()` 的构造期异常映射为 `not_dispatched/input_invalid`，因为该边界在调用 `respond()` 前，不会发送模型请求；`respond()` 中未分类异常映射为 `worker_outcome_unknown/model_call`，父进程转成诊断白名单阶段 `model_worker_model_call`；模型调用已返回但本地结果封帧失败则映射到 `worker_outcome_unknown/response` 和 `model_worker_response`。后两类仍保留未知 usage/业务终态。异常文本、请求体和凭证不跨进程返回。已知的响应拒绝、未派发和提供方失败仍由原 typed contract 处理。
+
+四个新回归场景均先复现失败，再实现最小修复。v9 账本显示三次 Plan 输入上界分别为 51,653、60,124、62,435 Token，输出预留均为 8,192；三者低于 profile 的 65,536 输入上限，最大输入约为上限的 95.3%。这些请求均在约 60 秒超时；仅凭上界不能归因到输入大小，且不证明服务商是否收到请求。定向组与账本/诊断/派发相关组结果以最新任务报告为准；完整 deterministic `1,982 passed, 18 skipped`，Ruff 和 OpenSpec strict 通过。v9 两个 τ retail attempt 的旧 `target/ValueError` 无法由事后代码改写来追溯；历史 route、attempt、预留和报告保持不变。提交已在本地 `feat/conditional-evaluation` 分支，向 GitHub 的两次推送均因 443 连接超时失败；远端 CI 未触发，也未重跑公开评测。
+
 ## 执行边界快照（2026-10-21 02:43 UTC；历史状态）
 
 真实评测的首要目标是同一固定候选上的 4 个任务/8 条 ReAct-Plan 路线闭环。任何新试次都须绑定干净候选 SHA、该 SHA 全绿 CI、唯一 supervisor 与规范账本，并逐次 reserve → dispatch → settle/unknown。历史终态路线不重放；Qwen usage unknown 终结当前路线，Jev usage 或费用 unknown 停止新增 Jev 派发。价格 unknown 不伪装成零费用，供应商没有给出抵扣前账单、代金券抵扣及现金支付时不得推算分摊。当前公开基准 0/286，首波结果不能证明质量或 Jev 收益；因此本地工作只推进可离线验证的边界。
@@ -16,7 +28,7 @@
 
 `test_business_public_trials.py`、`test_public_supervisor.py`、`test_public_model_dispatch.py` 共 85 passed；涵盖 canonical ledger、缺失拒绝、候选切换保留余额、请求/Token/费用记录及跨进程 lease 恢复身份。项目 Ruff 与 OpenSpec strict 校验通过。该结果只验收离线账本和 admission，不等同于四域真实评分/清理，也不构成新基准试次。
 
-## 最新公开评测实测（2026-10-21）
+## v8 公开评测实测（2026-10-21，历史）
 
 候选 `c586f7a2b31e1d68741f64736c8877063e0e03f7` 的 GitHub Actions run [39512609133](https://github.com/shuaibilx/DecAgent/actions/runs/39512609133) 全部成功。Python 3.11/3.13 各确定性 `1936 passed, 18 skipped`、PostgreSQL 集成 `605 passed, 30 skipped`，Ruff、Workbench browser、wheel/MCP `2026-07-28` 与兼容协议 `2025-11-25`、镜像和 Compose smoke 均通过；PostgreSQL 服务健康。集成 skip 中 17 个 executor Docker/SQL 与 4 个 Docker repair fixture 尚未运行，故 11.1 继续待办。此 CI 同 SHA 验证了 Linux `/proc` fail-closed 进程树回收修复。
 

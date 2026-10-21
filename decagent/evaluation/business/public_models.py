@@ -164,6 +164,7 @@ class ModelWorkerOutcomeUnknown(RuntimeError):
 
     _FAILURE_STAGES = {
         "target": "model_worker_target",
+        "model_call": "model_worker_model_call",
         "response": "model_worker_response",
     }
 
@@ -348,13 +349,19 @@ def _one_shot_primary_dispatch(
     """Perform exactly one provider request inside an isolated child process."""
     primary = None
     try:
-        primary = PrimaryModel.from_evaluation_profile(
-            profile,
-            api_key=api_key,
-            known_secrets=known_secrets,
-            tool_definitions=tool_definitions,
-            validator=_schema_only_tool_validator(tool_definitions),
-        )
+        try:
+            primary = PrimaryModel.from_evaluation_profile(
+                profile,
+                api_key=api_key,
+                known_secrets=known_secrets,
+                tool_definitions=tool_definitions,
+                validator=_schema_only_tool_validator(tool_definitions),
+            )
+        except Exception:
+            # Client construction and local tool binding happen before respond()
+            # can dispatch an HTTP request. Keep that verified preflight failure
+            # separate from failures after the provider call begins.
+            return {"kind": "not_dispatched", "reason": "input_invalid"}
         try:
             turn = primary.respond(messages, timeout_seconds=timeout_seconds)
         except PrimaryResponseRejected as exc:
@@ -385,7 +392,20 @@ def _one_shot_primary_dispatch(
                 "retry_after_seconds": exc.retry_after_seconds,
                 "server_request_id": exc.server_request_id,
             }
-        return _primary_result_frame(turn)
+        except Exception as exc:
+            return {
+                "kind": "worker_outcome_unknown",
+                "worker_stage": "model_call",
+                "exception_type": type(exc).__name__,
+            }
+        try:
+            return _primary_result_frame(turn)
+        except Exception as exc:
+            return {
+                "kind": "worker_outcome_unknown",
+                "worker_stage": "response",
+                "exception_type": type(exc).__name__,
+            }
     finally:
         if primary is not None:
             primary.close()
@@ -504,6 +524,11 @@ class OneShotPrimaryModel:
                 request_id=frame.get("server_request_id"),
                 validation_issues=frame.get("validation_issues", ()),
             )
+        if kind == "worker_outcome_unknown":
+            raise ModelWorkerOutcomeUnknown(
+                worker_stage=frame.get("worker_stage"),
+                exception_type=frame.get("exception_type"),
+            ) from None
         if kind != "turn" or type(frame.get("turn")) is not dict:
             raise RuntimeError("One-shot provider response is unresolved")
         turn = frame["turn"]

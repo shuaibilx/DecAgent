@@ -25,4 +25,8 @@ The review did not rewrite the frozen v8 manifest or its trial ledger. At that p
 
 ## Frozen cohort update (2026-10-22)
 
-The reviewed assignment is now frozen in `comparison_trial_manifest_v9.json` with digest `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`. The v9 cohort preserves all 286 full and 24 smoke cases, marks only the two confirmed EnterpriseOps cases as `development_exposed`, assigns the other EnterpriseOps and τ official test cases `not_exposed`, and marks τ train smoke cases as development data. This is a pre-registration only: no trial ledger, model call, tool call, or official score was created. v8 and its unknown route states remain unchanged and cannot be dispatched by the live runner.
+The reviewed assignment is frozen in `comparison_trial_manifest_v9.json` with digest `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`. The v9 cohort preserves all 286 full and 24 smoke cases, marks only the two confirmed EnterpriseOps cases as `development_exposed`, assigns the other EnterpriseOps and τ official test cases `not_exposed`, and marks τ train smoke cases as development data. At the time of this freeze, no v9 trial ledger or live request existed; v8 and its unknown route states remained unchanged.
+
+## Subsequent execution (2026-10-22)
+
+After the v9 freeze, the first-wave phase ran under candidate `126fe5a3dc9edcb3d595d0aa40fa1a5d8713af41`, which passed same-SHA CI run `39639666250`. The run selected the same four fixed cases and eight ReAct/Plan routes. It did not dispatch any of the 80 official τ-Bench test tasks; both τ cases were from train. Results and unresolved usage are recorded in [the v9 report](../../../generated/261022/0133_公开评测首波报告_v9.md) and [machine evidence](public-first-wave-live-20261022-v9-126fe5a.json). Exposure labels and the frozen manifest were not changed by execution.

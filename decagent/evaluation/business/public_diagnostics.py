@@ -14,6 +14,7 @@ FAILURE_STAGES = frozenset(
     {
         "model_callback",
         "model_response_validation",
+        "model_worker_model_call",
         "model_worker_target",
         "model_worker_response",
         "tool_gateway",
