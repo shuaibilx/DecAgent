@@ -84,6 +84,20 @@ jobs:
       - name: Run database integration tests
         run: python -m pytest evals/integration -n 2 --dist=worksteal -q -rs --durations=25
 
+  executor-boundary:
+    name: Disposable Docker executor and repair boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Run real Docker and SQL boundary tests
+        run: python ops/executor/run_docker_boundary_tests.py
+
   package-and-images:
     name: Build package and container images
     runs-on: ubuntu-latest
