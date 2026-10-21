@@ -10,7 +10,7 @@ worker 诊断仍不能把两个 τ retail ValueError 区分为本地构造阶段
 
 `_one_shot_primary_dispatch()` 现在将 `PrimaryModel.from_evaluation_profile()` 的构造期异常映射为 `not_dispatched/input_invalid`，因为该边界在调用 `respond()` 前，不会发送模型请求；`respond()` 中未分类异常映射为 `worker_outcome_unknown/model_call`，父进程转成诊断白名单阶段 `model_worker_model_call`；模型调用已返回但本地结果封帧失败则映射到 `worker_outcome_unknown/response` 和 `model_worker_response`。后两类仍保留未知 usage/业务终态。异常文本、请求体和凭证不跨进程返回。已知的响应拒绝、未派发和提供方失败仍由原 typed contract 处理。
 
-四个新回归场景均先复现失败，再实现最小修复。v9 账本显示三次 Plan 输入上界分别为 51,653、60,124、62,435 Token，输出预留均为 8,192；三者低于 profile 的 65,536 输入上限，最大输入约为上限的 95.3%。这些请求均在约 60 秒超时；仅凭上界不能归因到输入大小，且不证明服务商是否收到请求。定向组与账本/诊断/派发相关组结果以最新任务报告为准；完整 deterministic `1,982 passed, 18 skipped`，Ruff 和 OpenSpec strict 通过。v9 两个 τ retail attempt 的旧 `target/ValueError` 无法由事后代码改写来追溯；历史 route、attempt、预留和报告保持不变。提交已在本地 `feat/conditional-evaluation` 分支，向 GitHub 的两次推送均因 443 连接超时失败；远端 CI 未触发，也未重跑公开评测。
+四个新回归场景均先复现失败，再实现最小修复。v9 账本显示三次 Plan 输入上界分别为 51,653、60,124、62,435 Token，输出预留均为 8,192；三者低于 profile 的 65,536 输入上限，最大输入约为上限的 95.3%。这些请求均在约 60 秒超时；仅凭上界不能归因到输入大小，且不证明服务商是否收到请求。完整 deterministic `1,982 passed, 18 skipped`，Ruff 和 OpenSpec strict 通过。v9 两个 τ retail attempt 的旧 `target/ValueError` 无法由事后代码改写来追溯；历史 route、attempt、预留和报告保持不变。代码 commit `812bf62359c2b8dc11658fbb66cc9874e6a6ea80` 已在远端，同 SHA [CI run 39649117340](https://github.com/shuaibilx/DecAgent/actions/runs/39649117340) 五个 job 全部通过；总耗时 22 分 34 秒。没有重跑公开评测。
 
 ## 执行边界快照（2026-10-21 02:43 UTC；历史状态）
 

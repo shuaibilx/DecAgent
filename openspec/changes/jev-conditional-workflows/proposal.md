@@ -8,7 +8,7 @@ v9 固定首波执行了 4 个任务/8 条 ReAct/Plan 路线，结果为 2 faile
 
 用户确认没有在项目外查看 τ-Bench 官方 test 80 条；v9 manifest 按精确案例冻结暴露分组。not_exposed 不等同独立 holdout，也不能排除模型预训练污染。首波门槛未过前，剩余 smoke、206+80 全量和 Jev 配对均暂停。
 
-2026-10-22 的离线诊断切片已把客户端构造错误标为可验证的 `not_dispatched`，把 `respond()` 内未分类异常保留为 unknown (`model_worker_model_call`)，把返回结果的本地封帧错误单列为 `model_worker_response`。v9 账本中三个 Plan 请求的输入上界为 51,653/60,124/62,435，均低于 65,536 profile 上限；各预留 8,192 输出 Token，最大输入上界占 profile 上限约 95.3%。它们均约 60 秒超时，但没有证据可判定输入接近上限是否导致超时或服务商是否收到请求。回归先红后绿；完整 deterministic `1,982 passed, 18 skipped`，Ruff 通过。代码无法揭示已终结 v9 `target/ValueError` 的根因，也没有修改历史账本。代码与文档已提交到本地 `feat/conditional-evaluation` 分支，但向 GitHub 的两次 push 均因 443 连接超时失败，因此远端无该提交、无同 SHA CI。网络恢复后先推送并核验 CI；新 cohort、额度和真实派发须另行冻结与授权。
+2026-10-22 的离线诊断切片已把客户端构造错误标为可验证的 `not_dispatched`，把 `respond()` 内未分类异常保留为 unknown (`model_worker_model_call`)，把返回结果的本地封帧错误单列为 `model_worker_response`。v9 账本中三个 Plan 请求的输入上界为 51,653/60,124/62,435，均低于 65,536 profile 上限；各预留 8,192 输出 Token，最大输入上界占 profile 上限约 95.3%。它们均约 60 秒超时，但没有证据可判定输入接近上限是否导致超时或服务商是否收到请求。回归先红后绿；完整 deterministic `1,982 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过。代码无法揭示已终结 v9 `target/ValueError` 的根因，也没有修改历史账本。代码 commit `812bf62359c2b8dc11658fbb66cc9874e6a6ea80` 已推至功能分支，同 SHA [CI run 39649117340](https://github.com/shuaibilx/DecAgent/actions/runs/39649117340) 全部五个 job 通过；总耗时 22 分 34 秒，其中 Python 3.13 PostgreSQL job 为 22 分 28 秒。新 cohort、额度和真实派发须另行冻结与授权。
 
 ## 历史实施快照（2026-10-21 及更早）
 
