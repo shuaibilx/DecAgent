@@ -14,7 +14,9 @@
 
 loader 默认选择 v10，同时仍可显式读取历史 v9/v4；builder 将 v10 限定为使用含 Jev 的 v4 profile schema。新增回归验证版本身份、120/60 秒角色分界、206/24/4 固定分母和 v9 历史 cohort 可读取。v10 是 `pre_registered_not_run`；生成和 dry-run 不创建 ledger、不发送模型/MCP 请求。实际四域首波还需干净候选、同 SHA CI、image/runtime 门禁及新的独立批次授权；若 120 秒请求仍失败，应按真实证据分类，不能仅靠再延长 timeout 来掩盖根因。
 
-离线使用 τ retail train case 0 和本地 mock callback，确认用户模拟器可在没有用户侧工具时请求文本回复，τ worker 因而发送 `tools=[]`。旧 `_schema_only_tool_validator([])` 返回 `None`，而 `PrimaryModel` 明确要求非 None 工具目录与 validator 成对注入，one-shot 客户端因此在网络派发前拒绝请求。现已将“显式空列表”与“未提供工具目录”区分，空目录由 validator 拒绝所有 tool calls。新增 loopback 测试与注册工具现有测试通过；定向 `test_public_cancellable_model.py` 为 `25 passed`，完整 deterministic 为 `2,025 passed, 18 skipped`（288.37 秒），Ruff 通过。该修复发生在历史 candidate f1a4 后，没有重写其 `not_sent` 记录；三条 Plan timeout 与 CSM MCP unknown 仍未解释，新 SHA CI 尚待运行，当前不启动新 cohort。
+2026-10-22 的最终候选 `d3e000692999c813c2ea084fe4dfa17c4f08aa05` 已通过同 SHA GitHub Actions [run 39782622299](https://github.com/shuaibilx/DecAgent/actions/runs/39782622299)，9/9 jobs 成功。CI 后重新检查固定镜像的 v10 dry-run，仍为 4 个首波任务/8 个路线槽、0 ledger、0 模型请求和 0 MCP 调用；报告见[机器数据](../../../evals/benchmarks/evidence/public-first-wave-preflight-20261022-d3e0006.json)和[解释](../../../evals/benchmarks/evidence/public-first-wave-preflight-20261022-d3e0006.md)。这只完成离线候选验收，不改变 `pre_registered_not_run` 的 live 状态，也不构成新批次授权。
+
+离线使用 τ retail train case 0 和本地 mock callback，确认用户模拟器可在没有用户侧工具时请求文本回复，τ worker 因而发送 `tools=[]`。旧 `_schema_only_tool_validator([])` 返回 `None`，而 `PrimaryModel` 明确要求非 None 工具目录与 validator 成对注入，one-shot 客户端因此在网络派发前拒绝请求。现已将“显式空列表”与“未提供工具目录”区分，空目录由 validator 拒绝所有 tool calls。新增 loopback 测试与注册工具现有测试通过；定向 `test_public_cancellable_model.py` 为 `25 passed`，完整 deterministic 为 `2,025 passed, 18 skipped`（288.37 秒），Ruff 通过。该修复发生在历史 candidate f1a4 后，没有重写其 `not_sent` 记录；三条 Plan timeout 与 CSM MCP unknown 仍未解释。该段保留修复时的工作区测试记录；后续 v10 候选 `d3e0006` 的最终 CI 与 dry-run 证据见前文。
 
 ## Earlier execution result（2026-10-22，manifest v9 / candidate 126fe5a）
 

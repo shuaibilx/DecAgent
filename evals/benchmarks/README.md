@@ -441,7 +441,7 @@ See the [runtime guide and current evidence](../../generated/261018/评测/1928_
 
 ## Public comparison preflight
 
-The public runner is offline by default. It verifies the frozen v7 trial manifest,
+The public runner is offline by default. It verifies the frozen v10 trial manifest,
 source and inventory checksums, model profiles, routed-model readiness evidence,
 and optionally local digest-pinned EnterpriseOps images. It does not create a
 trial ledger, call a model, or call an MCP tool:
@@ -461,7 +461,11 @@ These selectors are dry-run previews; they do not claim routes or resume a
 ledger.
 
 To preserve a new preflight report, use `--report` with a new JSON filename under
-`evals/benchmarks/evidence`; existing evidence cannot be overwritten. `--state`
+`evals/benchmarks/evidence`; existing evidence cannot be overwritten. The
+2026-10-22 v10 preflight after CI is recorded in
+[`public-first-wave-preflight-20261022-d3e0006.md`](evidence/public-first-wave-preflight-20261022-d3e0006.md)
+and its machine-readable JSON. It passed all pinned-image checks and selected
+4 tasks / 8 route slots with no ledger, model calls, or MCP calls. `--state`
 is unsupported in both dry-run and live mode; execution always uses the canonical
 ledger path.
 `--execute` is implemented for the fixed first-wave phase, but remains fail-closed
