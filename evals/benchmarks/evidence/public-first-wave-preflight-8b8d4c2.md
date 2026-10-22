@@ -9,7 +9,9 @@ The first-wave selector and digest-pinned EnterpriseOps image check completed su
 
 The report records `ledger_created=false`, `live_model_calls=0`, and `mcp_calls=0`. It verifies local image availability and frozen selection only; it is not a model-quality result, official score, or authorization to replay historical `unknown` attempts.
 
-The same candidate SHA passed all nine GitHub Actions CI jobs in **12m39s**: [run 39773178389](https://github.com/shuaibilx/DecAgent/actions/runs/39773178389). This verifies code and package/container checks for this candidate; it does not authorize a new billable cohort.
+The same candidate SHA passed all nine GitHub Actions CI jobs in **12m42s**: [run 39773178389](https://github.com/shuaibilx/DecAgent/actions/runs/39773178389). This verifies code and package/container checks for this candidate; it does not authorize a new billable cohort.
+
+The evidence-only follow-up commit `06b390328c5eb3a089f08b68899dd8f6d285c5b4` also passed all nine CI jobs in **10m18s**: [run 39775263485](https://github.com/shuaibilx/DecAgent/actions/runs/39775263485). That commit changed documentation and evidence only; it did not change runtime code.
 
 Command:
 
