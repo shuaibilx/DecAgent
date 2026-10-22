@@ -536,7 +536,10 @@ This first wave did not pass the route completion or score gate. Do not replay
 unknown routes. A later offline loopback reproduced and fixed the τ retail
 empty-tool-list preflight defect; the targeted callback test file passes 25
 tests and the full deterministic suite passes (2,025 passed, 18 skipped). Ruff
-and strict OpenSpec validation pass. Plan timeouts and the CSM MCP unknown remain
-unresolved. The new source SHA still needs same-SHA CI; remaining smoke and the
-206+80 benchmark stay paused pending that check and a newly frozen batch.
+and strict OpenSpec validation pass. The fix was committed as
+`cb050a92b181cc75c7939a99d8c466a1f912c266`, and same-SHA [CI run
+39736719671](https://github.com/shuaibilx/DecAgent/actions/runs/39736719671)
+passed all jobs in about 12.1 minutes. Plan timeouts and the CSM MCP unknown
+remain unresolved; remaining smoke and the 206+80 benchmark stay paused pending
+a newly frozen batch.
 This result does not measure Jev or establish a Jev gain.

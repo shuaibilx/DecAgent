@@ -8,9 +8,9 @@
 
 用户确认没有在项目外查看 τ-Bench 官方 test 80 条；v9 manifest 按精确案例冻结暴露分组。not_exposed 不等同独立 holdout，也不能排除模型预训练污染。首波门槛未过前，剩余 smoke、206+80 全量和 Jev 配对均暂停。
 
-2026-10-22 的离线诊断切片已将客户端构造错误标为可验证的 `not_dispatched`，将 `respond()` 内未分类异常保留为 unknown (`model_worker_model_call`)，将返回结果的本地封帧错误单列为 `model_worker_response`。此前候选上的三个 Plan 请求及 f1a4 本次首波的三个 Plan 请求都约 60 秒超时，但没有证据能判定输入大小是否导致超时或服务商是否收到请求。τ retail 的 `not_sent` 已离线复现并找到空工具列表校验器缺失的原因；CSM/ReAct 的 MCP attempt 仍为 unknown。首波前完整 deterministic 为 `2,024 passed, 18 skipped`；加入修复及 loopback 回归后，当前完整 deterministic 为 `2,025 passed, 18 skipped`，新增 callback 文件 `25 passed`，Ruff 与 OpenSpec strict 通过。PostgreSQL 集成先前 `682 passed, 27 skipped`；新修复不涉及数据库层。候选同 SHA GitHub Actions CI 全部 job 通过，但那是修复前 SHA；当前改动仍需新 SHA CI。历史终态路线及账本不改写、不重放；下一批真实试次仍暂停。
+2026-10-22 的离线诊断切片已将客户端构造错误标为可验证的 `not_dispatched`，将 `respond()` 内未分类异常保留为 unknown (`model_worker_model_call`)，将返回结果的本地封帧错误单列为 `model_worker_response`。此前候选上的三个 Plan 请求及 f1a4 本次首波的三个 Plan 请求都约 60 秒超时，但没有证据能判定输入大小是否导致超时或服务商是否收到请求。τ retail 的 `not_sent` 已离线复现并找到空工具列表校验器缺失的原因；CSM/ReAct 的 MCP attempt 仍为 unknown。首波前完整 deterministic 为 `2,024 passed, 18 skipped`；加入修复及 loopback 回归后，当前完整 deterministic 为 `2,025 passed, 18 skipped`，新增 callback 文件 `25 passed`，Ruff 与 OpenSpec strict 通过。PostgreSQL 集成先前 `682 passed, 27 skipped`；新修复不涉及数据库层。修复代码 SHA `cb050a92b181cc75c7939a99d8c466a1f912c266` 的同 SHA [GitHub Actions CI run 39736719671](https://github.com/shuaibilx/DecAgent/actions/runs/39736719671) 全部通过（约 12.1 分钟）；历史终态路线及账本不改写、不重放，真实评测仍暂停。
 
-首波后的离线复现已定位并修复 τ retail 本地拒发的一个可复现原因：τ train case 0 的用户模拟器可合法返回空工具目录；此前空目录产生 `validator=None`，与显式 `tool_definitions=[]` 的成对契约冲突，导致 one-shot client 本地拒发。现在空目录保留拒绝任何工具调用的校验器。`test_public_cancellable_model.py` 定向文件 `25 passed`，全量 deterministic `2,025 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过；新 SHA 的 GitHub CI 仍待运行，历史路线保持不变。三个 Plan 超时与 CSM MCP unknown 仍未找到可核验根因。
+首波后的离线复现已定位并修复 τ retail 本地拒发的一个可复现原因：τ train case 0 的用户模拟器可合法返回空工具目录；此前空目录产生 `validator=None`，与显式 `tool_definitions=[]` 的成对契约冲突，导致 one-shot client 本地拒发。现在空目录保留拒绝任何工具调用的校验器。`test_public_cancellable_model.py` 定向文件 `25 passed`，全量 deterministic `2,025 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过；修复提交 `cb050a9` 的同 SHA GitHub CI 已全部通过，历史路线保持不变。三个 Plan 超时与 CSM MCP unknown 仍未找到可核验根因。
 
 ## 历史实施快照（2026-10-21 及更早）
 
