@@ -148,6 +148,10 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 - **WHEN** 试验需要创建环境、恢复快照、运行官方评分或清理资源
 - **THEN** 分别记录准备、Agent 区间、私有评分、清理和总墙钟时间；Agent 机器延迟排除环境准备、评分、清理和已观测的人工/模拟器等待，初始化失败明确标记未启动，不能作为低延迟成功样本
 
+#### Scenario: Dispatched tool outcome is unknown but elapsed time is measured
+- **WHEN** 工具调用已标记派发，随后出现 transport 或 deadline 异常，无法确认远端结果
+- **THEN** 工具及路线仍必须保留 `unknown` 终态并禁止自动重放，同时保存从派发到异常被观察到的有限非负耗时；不得将其记录成成功、补造结果摘要或据此推断远端副作用状态
+
 #### Scenario: Reuse cost comparison
 - **WHEN** 报告零主模型复用收益
 - **THEN** 分列首次编排和模板验证成本、命中率及复用执行成本，不将所有成本隐藏到准备阶段

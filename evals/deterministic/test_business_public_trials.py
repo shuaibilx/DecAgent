@@ -308,6 +308,7 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
     legacy_ledger.mark_tool_dispatched(historical_attempt)
     legacy_ledger.mark_tool_unknown(
         historical_attempt,
+        duration_seconds=1.25,
         error_category="transport_timeout",
         failure_stage="tool_gateway",
         exception_type="TimeoutError",
@@ -965,6 +966,7 @@ def test_tool_call_cap_is_persisted_and_unknown_tool_is_never_replayed(tmp_path)
     ledger.mark_tool_dispatched(attempt)
     ledger.mark_tool_unknown(
         attempt,
+        duration_seconds=0.75,
         error_category="transport_timeout",
         failure_stage="tool_gateway",
         exception_type="TimeoutError",
@@ -1138,6 +1140,7 @@ def test_unknown_route_records_cleanup_without_becoming_success(tmp_path):
     ledger.mark_tool_dispatched(attempt)
     ledger.mark_tool_unknown(
         attempt,
+        duration_seconds=1.5,
         error_category="transport_timeout",
         failure_stage="tool_gateway",
         exception_type="TimeoutError",
@@ -1285,6 +1288,8 @@ def test_ledgered_tool_gateway_marks_transport_failure_unknown_and_blocks_replay
     assert attempt["failure_stage"] == "tool_gateway"
     assert attempt["exception_type"] == "TimeoutError"
     assert attempt["http_status"] is None
+    assert isinstance(attempt["duration_seconds"], float)
+    assert attempt["duration_seconds"] >= 0
     assert "transport lost after remote dispatch" not in repr(attempt)
     lifecycle = ledger.route_lifecycle(trial["trial_id"], route)
     assert lifecycle["failure_stage"] == "tool_gateway"
@@ -1586,19 +1591,13 @@ def test_ledgered_tool_gateway_rechecks_deadline_after_dispatch_mark_before_tran
         gateway.call("lookup_ticket", {})
 
     assert upstream.calls == 0
-    assert ledger.events == [
-        "reserve",
-        "dispatch",
-        (
-            "unknown",
-            "tool_deadline_error",
-            {
-                "failure_stage": "route_deadline",
-                "exception_type": "ValueError",
-                "http_status": None,
-            },
-        ),
-    ]
+    assert ledger.events[:2] == ["reserve", "dispatch"]
+    assert ledger.events[2][0:2] == ("unknown", "tool_deadline_error")
+    assert ledger.events[2][2]["failure_stage"] == "route_deadline"
+    assert ledger.events[2][2]["exception_type"] == "ValueError"
+    assert ledger.events[2][2]["http_status"] is None
+    assert isinstance(ledger.events[2][2]["duration_seconds"], float)
+    assert ledger.events[2][2]["duration_seconds"] >= 0
 
 
 def test_machine_time_is_reserved_before_work_and_unknown_is_retained(tmp_path):

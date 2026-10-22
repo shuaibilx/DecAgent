@@ -2683,10 +2683,16 @@ class PublicTrialLedger:
             raise
 
     def mark_tool_unknown(
-        self, attempt_id, *, error_category, failure_stage=None,
+        self, attempt_id, *, duration_seconds, error_category, failure_stage=None,
         exception_type=None, http_status=None,
     ):
         self._active()
+        if (
+            type(duration_seconds) not in {int, float}
+            or not isfinite(duration_seconds)
+            or duration_seconds < 0
+        ):
+            raise ValueError("Unknown tool duration must be finite and nonnegative")
         if type(error_category) is not str or not _ERROR.fullmatch(error_category):
             raise ValueError("Unknown tool failure category must be sanitized")
         validate_diagnostic(
@@ -2704,10 +2710,13 @@ class PublicTrialLedger:
             if row is None:
                 raise ValueError("Only an unresolved tool attempt can become unknown")
             self._connection.execute(
-                "UPDATE tool_attempts SET status='unknown',error_category=?,failure_stage=?,"
-                "exception_type=?,http_status=? "
+                "UPDATE tool_attempts SET status='unknown',duration_seconds=?,"
+                "error_category=?,failure_stage=?,exception_type=?,http_status=? "
                 "WHERE tool_attempt_id=?",
-                (error_category, failure_stage, exception_type, http_status, attempt_id),
+                (
+                    float(duration_seconds), error_category, failure_stage,
+                    exception_type, http_status, attempt_id,
+                ),
             )
             self._connection.execute(
                 "UPDATE route_trials SET status='unknown',error_category=?,failure_stage=?,"

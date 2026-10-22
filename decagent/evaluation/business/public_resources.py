@@ -190,6 +190,7 @@ class LedgeredToolGateway:
         except Exception as exc:
             self.ledger.mark_tool_unknown(
                 attempt,
+                duration_seconds=max(0.0, perf_counter() - started),
                 error_category="tool_deadline_error",
                 failure_stage="route_deadline",
                 exception_type=safe_chained_exception_type(exc),
@@ -206,6 +207,7 @@ class LedgeredToolGateway:
         except Exception as exc:
             self.ledger.mark_tool_unknown(
                 attempt,
+                duration_seconds=max(0.0, perf_counter() - started),
                 error_category="tool_dispatch_error",
                 failure_stage="tool_gateway",
                 exception_type=safe_chained_exception_type(exc),

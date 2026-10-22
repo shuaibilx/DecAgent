@@ -28,3 +28,9 @@ The later full Windows/Python 3.13 deterministic run exposed one flaky deadline 
 ## Limits
 
 This verifies deterministic cancellation, a local model-client HTTP/ledger path, and ledger behavior only. It does not explain the historical v9 `ValueError` recorded at `model_worker_target`; the old evidence stores only a safe exception type, and the originating worker no longer exists. It also does not demonstrate a successful live model callback, official benchmark score, or four-domain route closure. Keep 9.6.F and 9.6.G unchecked, preserve the v9 unknown attempts, and require a separately frozen and authorized cohort before any new provider request.
+
+## Unknown tool elapsed-time evidence (2026-10-22)
+
+The frozen f1a4 CSM `find_user` tool attempt retained `unknown`, `tool_gateway`, and `NodeFailure`, but its `duration_seconds` was null. The ledger had a duration column, while the unknown settlement path did not persist the gateway's already measured elapsed time. A regression first reproduced the missing duration, then the implementation was corrected to save finite nonnegative elapsed time for both transport exceptions and post-dispatch deadline failure. The status remains `unknown`, no result digest is added, and automatic replay remains blocked. Historical f1a4 evidence is not rewritten.
+
+Validation: focused deterministic public trial/execution/route suites `150 passed`; Ruff passed. No live model, MCP, benchmark or scorer request was made.
