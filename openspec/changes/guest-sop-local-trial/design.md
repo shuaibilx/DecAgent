@@ -74,6 +74,10 @@ Jev 当前的 `$0.01` 仅是固定记账预留，不是可证明的单请求费�
 
 公共 DecAgent 的 push/PR 跑 CI，语义版本 tag 跑完整 release gate 并发布 GHCR digest。新私有仓库 `DecAgent-deploy` 仅容纳部署控制代码和验证器；本机 Runner 只注册到此库，关闭公共仓库直接本机部署入口。发布端使用仅目标私有仓库 Actions write 的细粒度凭证触发固定 workflow，凭证不进入PR；部署端用只读凭证独立查询公共仓库 tag/main ancestry、成功 CI/run attempt、release/SHA 与镜像来源/digest。拒绝任意仓库、脚本、镜像引用和本地路径输入；不 checkout 或执行 dispatch 指定的公共代码。私有库固定、经审核部署脚本才可操作Docker。
 
+私有部署的 workflow_dispatch 仅允许 `source_repository`、`tag`、`sha`、`run_id`、`run_attempt` 与 `image` 六个字符串输入；验证器固定来源仓库、语义版本格式、commit SHA、release workflow/run attempt、CI 与发布 job、main ancestry、GHCR SHA tag 对应 digest 及 OCI source/revision/version 标签。验证器只向后续固定 rollout coordinator 输出经过核验的不可变 digest，不接受脚本、命令、工作目录或仓库覆盖。公共镜像先从固定 `ghcr.io/shuaibilx/decagent-control:sha-<sha>` 拉取，仅读取 Docker inspect 元数据，不执行镜像代码。
+
+2026-10-22 5.2 实施记录（部分实现）：新增标准库实现 `ops/deploy/release_verifier.py` 和私有 workflow 模板 `ops/deploy/private-deploy-workflow.yml`。离线测试验证注解 tag 解析、main 祖先比较、release run 的 tag/SHA/run attempt 绑定、CI/publish 成功状态、digest/OCI 标签、固定 Docker tag、最小 dispatch 输入、拒绝任意命令/脚本字段与私有 main 环境边界；相关定向测试 `44 passed`。workflow 只 checkout 固定 `main` 私有部署代码、运行受限 Windows Runner、使用 read-only GHCR/API 凭证，并绑定 `decagent-local-production` environment；该 GitHub Environment 必须在私有仓库中限制为 main，并将凭证保存为 Environment secret，不能使用可被分支 workflow 读取的 repository secret。**5.2 尚未完成：** 私有 `DecAgent-deploy` 仓库和受保护 Environment 尚未建立，验证器/Compose/rollout 固定代码也尚未迁入；公共 release 尚未触发私有 workflow。模板不可直接视作已部署 CD。
+
 所有部署共享单一 concurrency lock。保存旧 digest/config/schema 和 pg_dump；兼容性预检、拉取、升级、API/Worker/MCP及隔离模拟业务探针通过后激活。业务探针使用可清理专用空间、脚本模型、零付费，不能污染游客。失败先核验旧镜像支持当前 schema，兼容时回滚应用再验证；不兼容停止，不自动恢复数据库。保留备份路径和人工恢复步骤。用户已接受 Windows/Docker 登录、睡眠和网络引起短时中断，实测登录启动与重启恢复，不承诺开机未登录即在线。
 
 ### 6. CI 分层和文档

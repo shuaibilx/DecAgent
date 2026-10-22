@@ -1,0 +1,83 @@
+# Template for DecAgent-deploy/.github/workflows/deploy-sop.yml.
+# Keep the verifier, Compose file, and rollout coordinator in the private
+# deployment repository. Never check out or execute code from the public release.
+name: Deploy reviewed DecAgent image
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: Fixed public source repository
+        required: true
+        type: string
+      tag:
+        description: Semantic version tag
+        required: true
+        type: string
+      sha:
+        description: 40-character release commit SHA
+        required: true
+        type: string
+      run_id:
+        description: Successful public release workflow run ID
+        required: true
+        type: string
+      run_attempt:
+        description: Successful public release workflow attempt
+        required: true
+        type: string
+      image:
+        description: Fixed control image by immutable digest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: decagent-sop-local-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    environment: decagent-local-production
+    runs-on: [self-hosted, Windows, X64, decagent-deploy]
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out only protected deployment code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Log in to GHCR with read-only package credentials
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: shuaibilx
+          password: ${{ secrets.DECAGENT_PUBLIC_READ_TOKEN }}
+
+      - name: Verify public release provenance and immutable image digest
+        id: verify
+        env:
+          DECAGENT_PUBLIC_READ_TOKEN: ${{ secrets.DECAGENT_PUBLIC_READ_TOKEN }}
+        run: python .\ops\deploy\release_verifier.py
+
+      - name: Roll out the verified digest through the fixed coordinator
+        env:
+          VERIFIED_IMAGE: ${{ steps.verify.outputs.image }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:VERIFIED_IMAGE -notmatch '^ghcr\.io/shuaibilx/decagent-control@sha256:[0-9a-f]{64}$') {
+            throw 'Verifier did not produce the fixed immutable control image.'
+          }
+          python .\ops\deploy\sop_rollout.py `
+            --candidate-image $env:VERIFIED_IMAGE `
+            --project-directory $PWD `
+            --run-id "gha-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
