@@ -70,6 +70,8 @@ Jev 当前的 `$0.01` 仅是固定记账预留，不是可证明的单请求费�
 
 2026-10-22 实施记录（4.2）：API `/health` 只表示进程 liveness，新增 `/readyz` 检查数据库迁移版本、启用且摘要匹配的业务插件、内部 MCP 健康及 conditional workflow 开关；Worker 专用容器探针还校验其 PID 1 参数为 `worker --kind business`。宿主机 readiness 汇总六个 Compose 服务、迁移/bootstrap 结果、API、MCP 与 Worker 健康；Compose API 健康检查改用 `/readyz`。故障注入停止 Worker 时，API liveness 仍为 healthy 而业务 readiness 降级，恢复 Worker 后重新 ready。一次性 Compose 数据卷/网络/镜像和真实 MCP + ScriptedModel 集成测试均隔离清理，不调用供应商。修复客户端/服务器连接策略冲突：业务 MCP 客户端继续接受本机 loopback，并且只额外接受固定 `http://business-mcp:8001/mcp`；任意其他 DNS、外部 IP、端口、路径与认证信息均拒绝。详见[业务 readiness 与故障恢复证据](../../../evals/integration/evidence/sop-business-readiness-20261022.md)。OpenSpec 4.2 完成；备份/兼容回滚 4.3、Windows/Runner 恢复 4.4 与私有 CD 仍待完成。
 
+2026-10-22 实施记录（4.3，部分实现）：新增 `ops/deploy/sop_rollout.py`，只接受 `ghcr.io/shuaibilx/decagent-control@sha256:...` 固定 digest；部署前核验当前 SOP readiness 并记录运行中镜像、Compose 配置指纹、数据库迁移版本和活跃 graph 版本。先停止 API、Worker 与业务 MCP，再在无业务写入的窗口中保存 `pg_dump`、`/data`、脱敏后的渲染 Compose JSON 与逐文件 SHA-256；备份失败时记录故障并尝试恢复旧版本。目录访问限于当前 Windows 用户，Linux 文件权限为 0700/0600。独占锁拒绝并发部署。候选镜像未 ready 或操作者按 Ctrl+C 中断时，会尝试恢复旧镜像；旧镜像因迁移/checksum/graph 不兼容时保持 API/Worker/MCP 停止、保留数据库及备份，绝不自动 `pg_restore` 覆盖当前数据库。定向 coordinator/preflight/readiness 测试 `33 passed`，完整 deterministic `2,075 passed, 18 skipped`；Ruff 与格式检查通过，SOP Compose 只读 preflight 通过。详见[回滚协调器实现记录](../../../evals/integration/evidence/sop-rollout-coordinator-20261022.md)。**4.3 尚未完成：** 公开最新 tag `v0.1.4` 不含当前 SOP Compose，尚无可用的发布镜像在独立 Docker 数据卷上演练可信 digest 升级、健康失败回滚和 schema 不兼容停服；因此不勾选 4.3，也不宣称生产回滚已经验收。
+
 公共 DecAgent 的 push/PR 跑 CI，语义版本 tag 跑完整 release gate 并发布 GHCR digest。新私有仓库 `DecAgent-deploy` 仅容纳部署控制代码和验证器；本机 Runner 只注册到此库，关闭公共仓库直接本机部署入口。发布端使用仅目标私有仓库 Actions write 的细粒度凭证触发固定 workflow，凭证不进入PR；部署端用只读凭证独立查询公共仓库 tag/main ancestry、成功 CI/run attempt、release/SHA 与镜像来源/digest。拒绝任意仓库、脚本、镜像引用和本地路径输入；不 checkout 或执行 dispatch 指定的公共代码。私有库固定、经审核部署脚本才可操作Docker。
 
 所有部署共享单一 concurrency lock。保存旧 digest/config/schema 和 pg_dump；兼容性预检、拉取、升级、API/Worker/MCP及隔离模拟业务探针通过后激活。业务探针使用可清理专用空间、脚本模型、零付费，不能污染游客。失败先核验旧镜像支持当前 schema，兼容时回滚应用再验证；不兼容停止，不自动恢复数据库。保留备份路径和人工恢复步骤。用户已接受 Windows/Docker 登录、睡眠和网络引起短时中断，实测登录启动与重启恢复，不承诺开机未登录即在线。
@@ -86,6 +88,7 @@ Jev 当前的 `$0.01` 仅是固定记账预留，不是可证明的单请求费�
 - 游客无可靠个人身份 → 创建/调用限流与全站限额，丢 Cookie 无法恢复；不承诺防止所有分布式滥用。
 - 日预算遇 unknown → 保留预留并停止该任务新模型请求，不把异常计零；其他任务受剩余全站额度约束。
 - schema 回退限制 → 按兼容矩阵决定应用回滚，数据库恢复仅人工流程。
+- 部署备份包含数据库与 `/data` 业务内容；当前仅使用 Windows 用户 ACL/Linux 文件权限保护，未做应用层加密。保存真实敏感业务数据前，主机磁盘加密、备份保留期限和恢复权限需确认并记录。
 - 公共基准未完成 → 与游客功能验收分离，性能结论仍由原 change 管理。
 
 ## Migration Plan
