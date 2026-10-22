@@ -53,6 +53,7 @@ _PROVIDER_FAILURE_MESSAGES = {
 }
 _MODEL_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}", re.ASCII)
 _REQUEST_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/_-]{0,254}", re.ASCII)
+_DIAGNOSTIC_EXCEPTION_TYPE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}\Z", re.ASCII)
 
 
 def _valid_usage_values(values):
@@ -133,10 +134,16 @@ class PrimaryResponseRejected(ValueError):
 class PrimaryRequestNotDispatched(ValueError):
     """Trusted local validation failed before the provider client was called."""
 
-    def __init__(self, *, reason):
+    def __init__(self, *, reason, diagnostic_exception_type=None):
         if type(reason) is not str or reason not in _PREFLIGHT_MESSAGES:
             raise ValueError("Unsupported primary preflight reason") from None
         self.reason = reason
+        self.diagnostic_exception_type = (
+            diagnostic_exception_type
+            if type(diagnostic_exception_type) is str
+            and _DIAGNOSTIC_EXCEPTION_TYPE.fullmatch(diagnostic_exception_type)
+            else None
+        )
         self.usage = ModelUsage(0, 0, 0)
         self.model = None
         super().__init__(_PREFLIGHT_MESSAGES[reason])

@@ -454,7 +454,11 @@ def test_one_shot_primary_client_setup_error_is_verified_not_dispatched(monkeypa
         None, "test-secret", (), None, [], 1.0
     )
 
-    assert result == {"kind": "not_dispatched", "reason": "input_invalid"}
+    assert result == {
+        "kind": "not_dispatched",
+        "reason": "input_invalid",
+        "exception_type": "ValueError",
+    }
     assert "private" not in repr(result)
     assert "test-secret" not in repr(result)
 

@@ -26,6 +26,10 @@ loopback 客户端和 ledger 集成测试同时返回 `x-request-id` 与兼容�
 
 四个新回归场景均先复现失败，再实现最小修复。v9 账本显示三次 Plan 输入上界分别为 51,653、60,124、62,435 Token，输出预留均为 8,192；三者低于 profile 的 65,536 输入上限，最大输入约为上限的 95.3%。这些请求均在约 60 秒超时；仅凭上界不能归因到输入大小，且不证明服务商是否收到请求。完整 deterministic `1,982 passed, 18 skipped`，Ruff 和 OpenSpec strict 通过。v9 两个 τ retail attempt 的旧 `target/ValueError` 无法由事后代码改写来追溯；历史 route、attempt、预留和报告保持不变。代码 commit `812bf62359c2b8dc11658fbb66cc9874e6a6ea80` 已在远端，同 SHA [CI run 39649117340](https://github.com/shuaibilx/DecAgent/actions/runs/39649117340) 五个 job 全部通过；总耗时 22 分 34 秒。没有重跑公开评测。
 
+### 2026-10-22 已核验模型请求未发送的原因记录
+
+构造期或输入校验失败可由 one-shot 边界证明请求未离开进程，但原先只留下通用 `verified_model_preflight_failure`，没有可用于离线诊断的异常类型。现在子进程只回传经白名单校验的异常类名，模型 attempt 记录 `model_worker_request_pre_send`、有限错误类别和安全异常类型；`http_status` 保持 null，预留仍按已核验的 `not_sent` 释放，route 不进入终态。消息、请求内容和凭证不跨进程或进入账本。定向测试先确认两处缺失，再验证修复；历史账本不回填，未触发真实模型请求。具体结果见[安全预检诊断证据](../../../evals/integration/evidence/public-preflight-diagnostics-20261022.md)。
+
 ### 2026-10-22 Jev/Qwen 语义输入配对回归
 
 新增 `test_jev_and_primary_callbacks_receive_identical_semantic_state_and_options`，在同一个冻结请求上分别执行两种 callback，并直接比较 Jev Decisions wire payload 与 Qwen function-call 消息正文中的 `state` 和 `questions`。测试证明候选、`no_match`、问题说明及实际工具状态相同；provider worker 均为本地 mock，不发生模型或业务工具请求。语义 callback、路线执行与比较三个定向文件共 `101 passed`；Ruff 通过。该测试验证工程层的输入配对，不证明模型输出相等、真实配对质量或 Jev 性能收益；9.6.D 仍等待获得授权的真实配对试次。
@@ -394,7 +398,7 @@ EnterpriseOps 固定 CSM/ITSM 206 条始终保留在总分母；暴露分组按�
 
 2026-10-22 暴露审阅将历史任务族启发式收窄为精确 case 规则并冻结进 manifest v9：用户确认仅 CSM `task_20260106_161859_265_00364ece_0e836ce8` 与 ITSM `task_20260115_201951_323_391f1eff_659b9dae` 进入项目实测；其余 204 个 EnterpriseOps case 的内容未在项目外查看，仓库记录中仅有任务 ID。用户也确认未在项目外查看 τ-Bench 官方 test 80 条，项目开发使用 train。v9 将两个已测 EnterpriseOps case 标记为 `development_exposed`，剩余 204 条与 τ 官方 test 80 条标记为 `not_exposed`；不向相似任务族传播启发式标签。τ train 仍仅用于开发/冒烟。`not_exposed` 表示没有项目任务级暴露，不等价于独立 holdout；所有 official denominator 保持不变。依据见 [exposure review](../../../evals/benchmarks/evidence/exposure-review-20261022.md)。v8 不回写。
 
-v9 的 manifest digest 为 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`，保留 286 个 full、24 个 smoke、4 个首波案例，并固定 v4 角色 profile、逐路线/全批资源、冷/热流程复用及员工绑定记忆消融。默认 dry-run 选出首波 4 个任务/8 条路线，未创建 ledger，未派发模型或 MCP。运行时拒绝以历史 v7/v8 manifest 进行 live dispatch，避免旧 unknown 路线被重放。v9 当前只注册，尚未真实执行。
+v9 的 manifest digest 为 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604`，保留 286 个 full、24 个 smoke、4 个首波案例，并固定 v4 角色 profile、逐路线/全批资源、冷/热流程复用及员工绑定记忆消融。冻结时的 dry-run 选择首波 4 个任务/8 条路线，未创建 ledger、未派发模型或 MCP；之后候选 `f1a4a704fe2c36b22127006fe0bc9860733923d5` 实际运行了该 manifest 的四域首波。结果为 4 failed、4 unknown、0 succeeded，只有两条到达官方评分器且均为 0.0，8/8 清理验证通过。首波未通过成功门槛；历史 v7/v8 与 f1a4 unknown 均不得重放。准确路由、计量和失败阶段见[首波执行报告](../../../generated/261022/1426_公开评测首波执行报告_f1a4a70.md)及[机器证据](../../../evals/benchmarks/evidence/public-first-wave-live-20261022-f1a4a70.json)。
 
 ### 10a. 隔离评测工具注册（2026-10-18 用户已确认）
 

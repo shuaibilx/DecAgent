@@ -28,6 +28,7 @@ from decagent.decisions.contracts import (
     validate_response,
 )
 from decagent.evaluation.business.model_profiles import ModelProfile
+from decagent.evaluation.business.public_diagnostics import safe_exception_type
 from decagent.evaluation.business.public_resources import LedgeredModelAdapterFactory
 from decagent.evaluation.business.routes import ModelCallError, ModelReply
 from decagent.models.primary import (
@@ -393,11 +394,15 @@ def _one_shot_primary_dispatch(
                 validator=_schema_only_tool_validator(tool_definitions),
                 http_client=http_client,
             )
-        except Exception:
+        except Exception as exc:
             # Client construction and local tool binding happen before respond()
             # can dispatch an HTTP request. Keep that verified preflight failure
             # separate from failures after the provider call begins.
-            return {"kind": "not_dispatched", "reason": "input_invalid"}
+            return {
+                "kind": "not_dispatched",
+                "reason": "input_invalid",
+                "exception_type": safe_exception_type(exc),
+            }
         try:
             turn = primary.respond(messages, timeout_seconds=timeout_seconds)
         except PrimaryResponseRejected as exc:
@@ -419,7 +424,11 @@ def _one_shot_primary_dispatch(
                 "validation_issues": list(exc.validation_issues),
             }
         except PrimaryRequestNotDispatched as exc:
-            return {"kind": "not_dispatched", "reason": exc.reason}
+            return {
+                "kind": "not_dispatched",
+                "reason": exc.reason,
+                "exception_type": safe_exception_type(exc),
+            }
         except PrimaryProviderFailure as exc:
             return {
                 "kind": "provider_failure",
@@ -514,8 +523,11 @@ class OneShotPrimaryModel:
                 ensure_ascii=False,
                 allow_nan=False,
             ).encode("utf-8")
-        except (TypeError, ValueError):
-            raise PrimaryRequestNotDispatched(reason="input_invalid") from None
+        except (TypeError, ValueError) as exc:
+            raise PrimaryRequestNotDispatched(
+                reason="input_invalid",
+                diagnostic_exception_type=type(exc).__name__,
+            ) from None
         if len(serialized) > 4 * 1024 * 1024:
             raise PrimaryRequestNotDispatched(reason="context_limit") from None
         try:
@@ -536,7 +548,10 @@ class OneShotPrimaryModel:
             raise TimeoutError("One-shot provider request exceeded its deadline") from None
         except CancellableProcessError as exc:
             if exc.stage == "isolation_setup":
-                raise PrimaryRequestNotDispatched(reason="input_invalid") from None
+                raise PrimaryRequestNotDispatched(
+                    reason="input_invalid",
+                    diagnostic_exception_type=exc.exception_type,
+                ) from None
             raise ModelWorkerOutcomeUnknown(
                 worker_stage=exc.stage,
                 exception_type=exc.exception_type,
@@ -545,7 +560,10 @@ class OneShotPrimaryModel:
             raise RuntimeError("One-shot provider response is unresolved")
         kind = frame.get("kind")
         if kind == "not_dispatched":
-            raise PrimaryRequestNotDispatched(reason=frame.get("reason"))
+            raise PrimaryRequestNotDispatched(
+                reason=frame.get("reason"),
+                diagnostic_exception_type=frame.get("exception_type"),
+            )
         if kind == "provider_failure":
             raise PrimaryProviderFailure(
                 category=frame.get("category"),

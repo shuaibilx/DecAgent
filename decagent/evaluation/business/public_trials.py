@@ -2442,10 +2442,23 @@ class PublicTrialLedger:
             "cost_records": cost_records,
         }
 
-    def mark_model_not_sent(self, attempt_id, *, reason, verified_not_sent):
+    def mark_model_not_sent(
+        self,
+        attempt_id,
+        *,
+        reason,
+        verified_not_sent,
+        failure_stage=None,
+        exception_type=None,
+    ):
         self._active()
         if type(reason) is not str or not _ERROR.fullmatch(reason) or verified_not_sent is not True:
             raise ValueError("Only a verified local preflight failure can release a reservation")
+        validate_diagnostic(
+            failure_stage=failure_stage,
+            exception_type=exception_type,
+            http_status=None,
+        )
         self._transaction()
         try:
             reservation = self._connection.execute(
@@ -2465,9 +2478,10 @@ class PublicTrialLedger:
                     actual_model=None,
                 )
             cursor = self._connection.execute(
-                "UPDATE model_attempts SET status='not_sent',error_category=? "
+                "UPDATE model_attempts SET status='not_sent',error_category=?,"
+                "failure_stage=?,exception_type=?,http_status=NULL "
                 "WHERE attempt_id=? AND status IN ('reserved','dispatched')",
-                (reason, attempt_id),
+                (reason, failure_stage, exception_type, attempt_id),
             )
             if cursor.rowcount != 1:
                 raise ValueError("Only unresolved model attempts can be confirmed not sent")

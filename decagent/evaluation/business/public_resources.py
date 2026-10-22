@@ -335,11 +335,13 @@ class LedgeredModelCallback:
             if timeout_seconds is not None:
                 timeout_limits.append(float(timeout_seconds))
             timeout_seconds = min(timeout_limits)
-        except Exception:
+        except Exception as exc:
             self.ledger.mark_model_not_sent(
                 attempt_id,
                 reason="deadline_preflight",
                 verified_not_sent=True,
+                failure_stage="route_deadline",
+                exception_type=safe_exception_type(exc),
             )
             raise
         try:
@@ -358,8 +360,12 @@ class LedgeredModelCallback:
         except PrimaryRequestNotDispatched as exc:
             self.ledger.mark_model_not_sent(
                 attempt_id,
-                reason="verified_model_preflight_failure",
+                reason=f"verified_model_preflight_{exc.reason}",
                 verified_not_sent=True,
+                failure_stage=safe_failure_stage(
+                    exc, default="model_worker_request_pre_send"
+                ),
+                exception_type=safe_exception_type(exc),
             )
             raise PublicModelNotDispatched(
                 "Model client rejected the request before provider dispatch"
@@ -369,6 +375,10 @@ class LedgeredModelCallback:
                 attempt_id,
                 reason="verified_preflight_failure",
                 verified_not_sent=True,
+                failure_stage=safe_failure_stage(
+                    exc, default="model_worker_request_pre_send"
+                ),
+                exception_type=safe_exception_type(exc),
             )
             raise exc
         except BaseException as exc:

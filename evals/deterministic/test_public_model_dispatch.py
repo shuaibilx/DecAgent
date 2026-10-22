@@ -1214,6 +1214,44 @@ def test_verified_preflight_failure_releases_dispatched_reservation(tmp_path):
     ledger.close()
 
 
+def test_primary_preflight_persists_only_safe_diagnostic_metadata(tmp_path):
+    from decagent.models.primary import PrimaryRequestNotDispatched
+
+    plan = _plan_with_known_primary_prices()
+    ledger, trial_id, route = _started_ledger(tmp_path, plan)
+    profile = plan.profiles.primary
+
+    def callback(_request, *, timeout_seconds):
+        assert timeout_seconds > 0
+        raise PrimaryRequestNotDispatched(
+            reason="context_limit",
+            diagnostic_exception_type="ValueError",
+        )
+
+    measured = LedgeredModelCallback(
+        callback,
+        ledger,
+        profile=profile,
+        trial_id=trial_id,
+        route=route,
+        input_token_upper_bound=lambda value: max(1, len(json.dumps(value).encode("utf-8"))),
+        route_remaining_seconds=lambda: ledger.route_remaining_seconds(trial_id, route.value),
+    )
+    with pytest.raises(PublicModelNotDispatched):
+        measured({"messages": []})
+
+    attempt = ledger.model_attempts_snapshot(trial_id, route.value)[0]
+    assert attempt["status"] == "not_sent"
+    assert attempt["error_category"] == "verified_model_preflight_context_limit"
+    assert attempt["failure_stage"] == "model_worker_request_pre_send"
+    assert attempt["exception_type"] == "ValueError"
+    assert attempt["http_status"] is None
+    assert ledger.route_status(trial_id, route.value) == "running"
+    assert ledger.batch_snapshot()["qwen_requests"] == 0
+    assert "Model client rejected the request" not in repr(attempt)
+    ledger.close()
+
+
 def test_primary_model_applies_the_effective_deadline_to_the_http_client():
     from types import SimpleNamespace
 

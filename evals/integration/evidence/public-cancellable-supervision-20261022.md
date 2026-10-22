@@ -34,3 +34,7 @@ This verifies deterministic cancellation, a local model-client HTTP/ledger path,
 The frozen f1a4 CSM `find_user` tool attempt retained `unknown`, `tool_gateway`, and `NodeFailure`, but its `duration_seconds` was null. The ledger had a duration column, while the unknown settlement path did not persist the gateway's already measured elapsed time. A regression first reproduced the missing duration, then the implementation was corrected to save finite nonnegative elapsed time for both transport exceptions and post-dispatch deadline failure. The status remains `unknown`, no result digest is added, and automatic replay remains blocked. Historical f1a4 evidence is not rewritten.
 
 Validation: focused deterministic public trial/execution/route suites `150 passed`; Ruff passed. No live model, MCP, benchmark or scorer request was made.
+
+## Current candidate offline revalidation (2026-10-22)
+
+On local code HEAD `8373c73`, the CI-scoped Ruff command `python -m ruff check decagent evals ops` passed, and OpenSpec strict validation passed for all six changes. The focused set `test_public_release_boundary.py`, `test_business_public_trials.py`, `test_public_model_dispatch.py`, and `test_public_cancellable_model.py` passed `113 tests`; this rechecks public-runner isolation, persisted resource admission, model identity/cost settlement, and cancellation/unknown handling. No model provider, MCP benchmark environment, or scorer was contacted. The worktree contained documentation-only evidence updates during this run; no candidate SHA or live authorization was created.

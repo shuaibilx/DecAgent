@@ -676,11 +676,15 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 
 ### Requirement: Public failure diagnostics are allowlisted and immutable
 
-公开评测账本 MUST 对已派发的模型与工具 attempt 记录有限诊断字段：白名单 `failure_stage`、仅由异常类名组成的 `exception_type`，以及实际可取得且处于 100–599 范围内的 HTTP 状态码。route 终态可镜像原 attempt 的 `failure_stage` 与 `exception_type`，不得合并或伪造 attempt 级 HTTP 状态。诊断 MUST NOT 持久化异常消息、请求/响应正文、工具参数/返回值或凭证。导出的 attempt 快照和 live report MUST 只包含审核后的诊断元数据及既有安全账本字段。数据库升级 MUST 以 nullable 列追加字段，不得重置 cohort、尝试、预算或旧 unknown；历史诊断缺失时保持 null。unknown 路线可幂等补录评分以外允许的清理证据，但 MUST 保留原 error category 与诊断且不得改写业务终态或重放。
+公开评测 attempt 诊断 MUST 使用白名单阶段码、异常类名和 100–599 HTTP 状态码，且 MUST NOT 保存异常消息、请求/响应正文、工具参数或凭证。route 仅可镜像阶段码和异常类名；快照只导出安全字段。升级 MUST 追加 nullable 列，历史缺失保持 null。unknown 清理不得改写失败证据或重放。可信证明模型请求未发送的 attempt MUST 保持 `not_sent`，HTTP 状态为 null，且不改变 route 状态。
 
 #### Scenario: Model callback fails after dispatch
 - **WHEN** 已派发模型请求后遇到超时或传输异常，且服务端 usage 无法核实
 - **THEN** attempt 与 route 进入 unknown，记录 `model_callback`、安全异常类名及可获得的 HTTP 状态码；异常消息和模型输入/输出正文不进入账本或报告
+
+#### Scenario: Verified model preflight failure records safe diagnostics
+- **WHEN** one-shot 模型客户端构造或输入校验在发出任何 HTTP 请求前失败，且本机可确认请求未发送
+- **THEN** attempt 保持 `not_sent` 并释放预留，可记录 `model_worker_request_pre_send`、受限失败原因及安全异常类名；`http_status` 保持 null，route 仍可继续，异常消息、请求内容和凭证不进入账本
 
 #### Scenario: Worker reaches the HTTP pre-send hook but receives no response
 - **WHEN** 隔离模型 worker 的 HTTPX2 request hook 已触发，但 response hook 未触发且模型 usage 无法核实
