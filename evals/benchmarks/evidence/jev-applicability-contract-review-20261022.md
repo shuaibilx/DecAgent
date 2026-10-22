@@ -22,3 +22,11 @@ ITSM、τ retail 和 τ telecom 当前没有对应的已审核 Jev 模板。它�
 - 本次仅检查静态政策、工具实现和 DecAgent 的模板注册/编译器代码；没有读取任何 EnterpriseOps 或 τ-Bench task JSON，也没有访问官方 test 任务内容。
 - 这不是对具体任务分布的扫描。若新任务提供一个非规则、非员工保留的自然语义选择，必须先单独审核其完整工具输入、候选来源、无匹配行为、权限边界和模板版本，再加入对照。
 - 9.6.D 继续保持未完成：CSM 模板虽已冻结，但还没有相同状态的 Jev / 通用模型真实请求配对。没有进行任何模型或公开 benchmark 请求。
+
+## TypeSafe primitive fit and confidence semantics (2026-10-22)
+
+The reviewed CSM node uses **Choice** only. Its domain is one member of a closed candidate set: one `article:<knowledge_id>` option for each eligible article, plus `no_match`. It is not a Noul because it is not a yes/no question, and it is not a Score because article candidates have no meaningful ordinal scale. The current TypeSafe definitions describe Choice as selecting from a fixed set, Noul as a yes/no probability, and Score as an ordered set of descriptive levels ([Choice](https://docs.typesafe.ai/primitives/choice), [Noul](https://docs.typesafe.ai/primitives/noul), [Score](https://docs.typesafe.ai/primitives/score)).
+
+The request state is built from the task's issue text, optional product name, and the complete result of the same unbounded, read-only `retrieve_knowledge` call. It carries the published article fields needed for comparison and source digests. The question criteria contain only returned candidate IDs and `no_match`; result truncation is refused. See [`semantic_templates.py`](../../../decagent/evaluation/business/semantic_templates.py) and [`templates.py`](../../../decagent/business/plans/templates.py).
+
+TypeSafe's Choice `confidence` summarizes how concentrated its option probabilities are. It is not measured task accuracy, calibrated success probability for the entire workflow, employee consent, or permission to perform a write ([Confidence](https://docs.typesafe.ai/confidence), [State](https://docs.typesafe.ai/concepts/state)). The paired callback regression verifies identical state and question serialization for Jev and the fixed general-model comparator, using local mock transports only. There is still no real paired trial, so this semantic review does not complete 9.6.D or establish a Jev advantage.
