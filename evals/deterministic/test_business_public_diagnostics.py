@@ -1,6 +1,8 @@
 import pytest
 
 from decagent.evaluation.business.public_diagnostics import (
+    safe_chained_exception_type,
+    safe_chained_http_status,
     safe_exception_type,
     safe_failure_stage,
     safe_http_status,
@@ -51,3 +53,41 @@ def test_worker_failure_diagnostic_rejects_untrusted_attributes():
     error = UntrustedFailure("secret")
     assert safe_failure_stage(error) == "model_callback"
     assert safe_exception_type(error) == "UntrustedFailure"
+
+
+def test_chained_diagnostics_follow_implicit_context_without_reading_messages():
+    class UpstreamHttpFailure(Exception):
+        status_code = 504
+
+    try:
+        try:
+            raise UpstreamHttpFailure("private upstream response body")
+        except UpstreamHttpFailure:
+            raise RuntimeError("private wrapper message")  # noqa: B904 - exercise implicit context
+    except RuntimeError as wrapped:
+        diagnostic = (
+            safe_chained_exception_type(wrapped),
+            safe_chained_http_status(wrapped),
+        )
+
+    assert diagnostic == ("UpstreamHttpFailure", 504)
+    assert "private upstream response body" not in repr(diagnostic)
+    assert "private wrapper message" not in repr(diagnostic)
+
+
+def test_suppressed_exception_context_is_not_exposed_in_diagnostics():
+    class UpstreamHttpFailure(Exception):
+        status_code = 504
+
+    try:
+        try:
+            raise UpstreamHttpFailure("private")
+        except UpstreamHttpFailure:
+            raise RuntimeError("wrapper") from None
+    except RuntimeError as wrapped:
+        diagnostic = (
+            safe_chained_exception_type(wrapped),
+            safe_chained_http_status(wrapped),
+        )
+
+    assert diagnostic == ("RuntimeError", None)

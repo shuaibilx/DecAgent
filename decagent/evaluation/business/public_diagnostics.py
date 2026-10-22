@@ -56,6 +56,39 @@ def safe_exception_type(error: BaseException | None) -> str | None:
     return name if _EXCEPTION_TYPE.fullmatch(name) is not None else "UnknownException"
 
 
+def _exception_chain(error: BaseException | None) -> tuple[BaseException, ...]:
+    if error is None:
+        return ()
+    chain = []
+    seen = set()
+    current = error
+    for _ in range(8):
+        if id(current) in seen:
+            break
+        seen.add(id(current))
+        chain.append(current)
+        try:
+            cause = current.__cause__
+            if isinstance(cause, BaseException):
+                current = cause
+                continue
+            if current.__suppress_context__:
+                break
+            context = current.__context__
+        except Exception:
+            break
+        if not isinstance(context, BaseException):
+            break
+        current = context
+    return tuple(chain)
+
+
+def safe_chained_exception_type(error: BaseException | None) -> str | None:
+    """Return the deepest allowlisted chained exception type without messages."""
+    chain = _exception_chain(error)
+    return safe_exception_type(chain[-1]) if chain else None
+
+
 def safe_failure_stage(error: BaseException | None, *, default="model_callback") -> str:
     """Keep an explicitly attached stage only when it belongs to the allowlist."""
     if type(default) is not str or default not in FAILURE_STAGES:
@@ -82,6 +115,15 @@ def safe_http_status(error: BaseException | None) -> int | None:
         return None
     if type(value) is int and 100 <= value <= 599:
         return value
+    return None
+
+
+def safe_chained_http_status(error: BaseException | None) -> int | None:
+    """Return a valid HTTP status from the deepest chained exception that has one."""
+    for item in reversed(_exception_chain(error)):
+        status = safe_http_status(item)
+        if status is not None:
+            return status
     return None
 
 

@@ -1295,6 +1295,56 @@ def test_ledgered_tool_gateway_marks_transport_failure_unknown_and_blocks_replay
     ledger.close()
 
 
+def test_ledgered_tool_gateway_keeps_safe_root_cause_diagnostics(tmp_path):
+    from decagent.business.plans.runtime import NodeFailure
+    from decagent.evaluation.business.public_resources import (
+        LedgeredToolGateway,
+        PublicToolOutcomeUnknown,
+    )
+
+    selected = plan()
+    ledger = PublicTrialLedger.create(tmp_path / "wrapped-tool-error.sqlite3", selected)
+    trial = selected.trials[0]
+    route = selected.routes[0]
+    _start_public_route_with_machine_deadline(ledger, trial["trial_id"], route)
+
+    class UpstreamHttpFailure(Exception):
+        status_code = 502
+
+    class WrappedUpstream:
+        def call(self, command, params, *, timeout_seconds):
+            assert command == "lookup_ticket"
+            assert params == {"ticket_id": "private-ticket-id"}
+            assert timeout_seconds <= 60
+            try:
+                raise UpstreamHttpFailure("private response body and credential")
+            except UpstreamHttpFailure as exc:
+                raise NodeFailure(
+                    "Original benchmark tool failed: UpstreamHttpFailure"
+                ) from exc
+
+    gateway = LedgeredToolGateway(
+        WrappedUpstream(),
+        ledger,
+        trial_id=trial["trial_id"],
+        route=route,
+        tool_effects={"lookup_ticket": "read"},
+    )
+
+    with pytest.raises(PublicToolOutcomeUnknown):
+        gateway.call("lookup_ticket", {"ticket_id": "private-ticket-id"})
+
+    attempt = ledger.tool_attempts_snapshot(trial["trial_id"], route)[0]
+    assert attempt["status"] == "unknown"
+    assert attempt["failure_stage"] == "tool_gateway"
+    assert attempt["exception_type"] == "UpstreamHttpFailure"
+    assert attempt["http_status"] == 502
+    assert "private-ticket-id" not in repr(attempt)
+    assert "private response body" not in repr(attempt)
+    assert "credential" not in repr(attempt)
+    ledger.close()
+
+
 def test_ledgered_tool_gateway_does_not_dispatch_unregistered_commands(tmp_path):
     from decagent.evaluation.business.public_resources import LedgeredToolGateway
 

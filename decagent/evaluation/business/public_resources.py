@@ -11,7 +11,13 @@ from time import perf_counter
 from decagent.decisions.contracts import digest, jev_model_matches
 from decagent.models.primary import PrimaryRequestNotDispatched
 
-from .public_diagnostics import safe_exception_type, safe_failure_stage, safe_http_status
+from .public_diagnostics import (
+    safe_chained_exception_type,
+    safe_chained_http_status,
+    safe_exception_type,
+    safe_failure_stage,
+    safe_http_status,
+)
 
 
 class PublicToolOutcomeUnknown(RuntimeError):
@@ -186,8 +192,8 @@ class LedgeredToolGateway:
                 attempt,
                 error_category="tool_deadline_error",
                 failure_stage="route_deadline",
-                exception_type=safe_exception_type(exc),
-                http_status=safe_http_status(exc),
+                exception_type=safe_chained_exception_type(exc),
+                http_status=safe_chained_http_status(exc),
             )
             raise PublicToolOutcomeUnknown(
                 "Public tool outcome is unknown; automatic replay is disabled"
@@ -202,8 +208,8 @@ class LedgeredToolGateway:
                 attempt,
                 error_category="tool_dispatch_error",
                 failure_stage="tool_gateway",
-                exception_type=safe_exception_type(exc),
-                http_status=safe_http_status(exc),
+                exception_type=safe_chained_exception_type(exc),
+                http_status=safe_chained_http_status(exc),
             )
             raise PublicToolOutcomeUnknown(
                 "Public tool outcome is unknown; automatic replay is disabled"
