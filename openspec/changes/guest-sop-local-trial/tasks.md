@@ -1,6 +1,6 @@
 # Tasks
 
-本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；workspace 隔离、游客生命周期、预算账本、持久队列及匿名限流/受信代理边界已实现并通过相应隔离验证。模型预留与结算已部分实现，但 Jev 的固定预留尚未证明是供应商费用上界，3.2 保持未完成；游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭，公开域名/隧道不在本轮开通。清理遇在途 Worker 或含歧义的操作证据时保持 pending，不删除恢复材料。当前 15/28 项完成；尚无真实供应商调用验收；SOP Compose 与私有 CD 仍未完成。
+本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；workspace 隔离、游客生命周期、预算账本、持久队列及匿名限流/受信代理边界已实现并通过相应隔离验证。模型预留与结算已部分实现，但 Jev 的固定预留尚未证明是供应商费用上界，3.2 保持未完成；游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭，公开域名/隧道不在本轮开通。清理遇在途 Worker 或含歧义的操作证据时保持 pending，不删除恢复材料。当前 16/28 项完成；尚无真实供应商调用验收；SOP Compose 4.1 已完成本机隔离容器验收，4.2–4.4 与私有 CD 仍未完成。
 
 ## 1. Workspace 数据与身份边界
 
@@ -31,7 +31,7 @@
 
 ## 4. SOP 本机部署
 
-- [ ] 4.1 交付 API/业务Worker/业务MCP/PostgreSQL SOP Compose 与配置预检；真实容器检查条件计划开关、MCP身份和仅loopback暴露，保留repair兼容隔离。
+- [x] 4.1 交付 API/业务Worker/业务MCP/PostgreSQL SOP Compose 与配置预检；真实容器检查条件计划开关、MCP身份和仅loopback暴露，保留repair兼容隔离。证据：[SOP Compose 本机容器冒烟](../../../evals/integration/evidence/sop-compose-smoke-20261022.md)。新增独立 `compose.sop.yaml`、安全配置预检和一次性真实容器冒烟；预检要求服务集合精确匹配六个已审查服务，额外加入任何服务（包括 repair worker）都会拒绝。PostgreSQL/migrate/bootstrap/API/Worker/MCP 全部启动，API 与 MCP 健康，业务 Worker profile、条件计划与 MCP resource identity 正确，游客入口关闭。API 仅绑定 `127.0.0.1`，内部服务无 host port，不含 repair executor/Docker socket；原 `compose.yaml` 仍可解析。Ruff、94 项定向确定性测试通过；27 项 PostgreSQL MCP 集成因未配置专用测试数据库而跳过，已明确列为未执行，不计通过。零模型请求；冒烟后核实容器、卷、网络和镜像均已清理。
 - [ ] 4.2 实现含 Worker/MCP 的业务健康探针及专用可清理空间、零付费脚本模型冒烟；故障注入证明API健康不能掩盖业务故障。
 - [ ] 4.3 实现旧digest/config/schema记录、备份和兼容应用回滚；演练升级成功、健康失败回滚、schema不兼容停止且不覆盖数据库。
 - [ ] 4.4 核验 Windows 登录启动、Docker Desktop、Runner 和服务重启恢复，交付本机部署子目录指南、拓扑/恢复图及实测证据。
@@ -40,7 +40,7 @@
 
 - [ ] 5.1 优化公共CI分层、独立job并行与锁定缓存，保留Python3.11/3.13、Ruff、确定性、PostgreSQL、核心E2E、wheel/MCP、Compose；比较各job与总耗时，列出skip原因。2026-10-22 进展：[CI 关键路径与分片验证](../../../evals/integration/evidence/ci-sharding-20261022.md)：已据 run 39691794406 量出 14:54 墙钟与 10–11 分钟 PostgreSQL 集成关键路径；新增稳定 node-id 分片及 2×2 Python/分片矩阵。本地 Python 3.13 确定性套件 2023 passed、18 skipped；全量 integration 的两个 shard 覆盖 707 个 node ids，合计 680 passed、27 skipped、0 failed，skip 原因已归类。workflow 的 Node job 不是浏览器 E2E，真实浏览器 job 尚缺；还待完整 Python 3.11/3.13 GitHub Actions 全绿与墙钟、runner-minutes 对比。本项未验收，保持未勾选。
 - [ ] 5.2 实现私有部署仓库的发布验证器和最小输入工作流；离线测试拒绝错误repo/SHA/tag/main/CI/run attempt/digest和任意脚本路径，不在本机执行未验证代码。
-- [ ] 5.3 创建/配置私有 DecAgent-deploy，迁移本机Runner，公共发布仅最小凭证触发固定workflow；验证公共PR/Actions无法调度本机，私有凭证最小且不打印密钥。2026-10-22 复核：[公共 Runner 边界证据](../../../evals/integration/evidence/public-runner-boundary-20261022.md)：GitHub Runner API 返回 `total_count=0`，账号无组织；默认分支 CI/release 均使用 GitHub-hosted `ubuntu-latest`，没有本机 deploy job。已合并[安全 PR #1](https://github.com/shuaibilx/DecAgent/pull/1)。本机 `DecAgentLocalDeployRunner` 计划任务为 `Disabled`，Runner 服务/进程均不存在；候选 `f994fdc` 的五个 CI job 全部成功，且 `test_public_release_boundary.py` 锁定 tag-only GHCR release、GitHub-hosted runner 和无本机调度，Python 3.13 两个本地环境均 `9 passed`。候选分支已把 workflow 名称改为 `Release image publishing (GHCR only)`；远端默认分支仍显示 `Release and local deployment`，需后续将已验证分支变更合入默认分支。私有部署仓库、最小触发凭证、Runner 迁移和部署演练仍未完成，本项保持未勾选。
+- [ ] 5.3 创建/配置私有 DecAgent-deploy，迁移本机Runner，公共发布仅最小凭证触发固定workflow；验证公共PR/Actions无法调度本机，私有凭证最小且不打印密钥。2026-10-22 复核：[公共 Runner 边界证据](../../../evals/integration/evidence/public-runner-boundary-20261022.md)：GitHub Runner API 返回 `total_count=0`，账号无组织；安全 PR #1 已合并至默认分支 SHA `0c747a3`，从 release workflow 删除 `deploy-local` job。默认分支 workflow 仍显示旧名称 `Release and local deployment`，但原始 YAML 只有 `quality` 与 GH-hosted `publish` job，无 `self-hosted` label。本机 `DecAgentLocalDeployRunner` 计划任务为 `Disabled`，Runner 服务/进程均不存在；候选 `f994fdc` 的五个 CI job 全部成功，且 `test_public_release_boundary.py` 锁定 tag-only GHCR release、GitHub-hosted runner 和无本机调度，Python 3.13 两个本地环境均 `9 passed`。公共仓库调度边界已完成；私有部署仓库、最小触发凭证、Runner 迁移和部署演练仍未完成，本项保持未勾选。
 - [ ] 5.4 完成一次可信版本GHCR发布至本机SOP服务的全链路演练及失败演练；保存commit/run/digest/健康/回滚证据，任务串行无互相覆盖。
 - [ ] 5.5 分别更新代码仓库、CI、CD操作指南与导航，提供发布时序/信任边界图；核对真实仓库/命令，不把公网与独立Linux标为完成。
 

@@ -2,6 +2,7 @@
 
 import ipaddress
 import json
+import re
 from urllib.parse import urlsplit
 
 import anyio
@@ -78,6 +79,7 @@ class BusinessMCPServer:
         database,
         employee_auth,
         *,
+        resource_url,
         timeout_seconds=REQUEST_TIMEOUT_SECONDS,
         max_result_bytes=MAX_RESULT_BYTES,
     ):
@@ -87,6 +89,7 @@ class BusinessMCPServer:
             raise ValueError("MCP result limit must be between 1024 and 256 KiB")
         self.database = database
         self.employee_auth = employee_auth
+        self.resource_url = resource_url
         self.timeout_seconds = timeout_seconds
         self.max_result_bytes = max_result_bytes
         self.spec = PluginSpec.from_mapping(builtin_manifest())
@@ -253,24 +256,58 @@ def create_mcp_app(
     *,
     host="127.0.0.1",
     port=8001,
+    resource_url=None,
     timeout_seconds=REQUEST_TIMEOUT_SECONDS,
     max_result_bytes=MAX_RESULT_BYTES,
 ):
-    """Create the loopback-only official SDK app serving modern and legacy MCP."""
+    """Create a loopback or explicitly named internal-network MCP app."""
     try:
         address = ipaddress.ip_address(host)
     except ValueError as exc:
-        raise ValueError("Business MCP host must be a loopback IP address") from exc
-    if not address.is_loopback or not 1 <= port <= 65535:
-        raise ValueError("Business MCP requires a loopback address and valid port")
-    if host != "127.0.0.1":
-        raise ValueError("Business MCP currently binds to IPv4 loopback only")
-    endpoint_url = f"http://{host}:{port}/mcp"
-    if urlsplit(endpoint_url).hostname != host:
-        raise ValueError("Invalid MCP endpoint")
+        raise ValueError("Business MCP bind must be a loopback or explicit internal IP") from exc
+    if not 1 <= port <= 65535:
+        raise ValueError("Business MCP requires a valid port")
+
+    if address.is_loopback:
+        if host != "127.0.0.1":
+            raise ValueError("Business MCP loopback mode currently requires IPv4 loopback")
+        endpoint_url = f"http://{host}:{port}/mcp"
+        if resource_url not in {None, endpoint_url}:
+            raise ValueError("Loopback MCP resource URL must match its listener")
+        allowed_hosts = [f"127.0.0.1:{port}"]
+        allowed_origins = [f"http://127.0.0.1:{port}"]
+    else:
+        if host != "0.0.0.0":
+            raise ValueError("Non-loopback MCP binds are restricted to 0.0.0.0")
+        if resource_url is None:
+            raise ValueError("Non-loopback MCP bind requires an explicit internal resource URL")
+        parsed = urlsplit(resource_url)
+        try:
+            resource_port = parsed.port
+        except ValueError as exc:
+            raise ValueError("Invalid internal MCP resource URL") from exc
+        hostname = parsed.hostname or ""
+        if (
+            parsed.scheme != "http"
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+            or parsed.path != "/mcp"
+            or resource_port != port
+            or not re.fullmatch(r"[a-z][a-z0-9-]{0,62}", hostname)
+        ):
+            raise ValueError("Invalid internal MCP resource URL")
+        endpoint_url = resource_url
+        allowed_hosts = [parsed.netloc]
+        allowed_origins = []
+
+    parsed_endpoint = urlsplit(endpoint_url)
+    issuer_url = f"{parsed_endpoint.scheme}://{parsed_endpoint.netloc}"
     service = BusinessMCPServer(
         database,
         employee_auth,
+        resource_url=endpoint_url,
         timeout_seconds=timeout_seconds,
         max_result_bytes=max_result_bytes,
     )
@@ -282,11 +319,11 @@ def create_mcp_app(
         host=host,
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
-            allowed_hosts=[f"127.0.0.1:{port}"],
-            allowed_origins=[f"http://127.0.0.1:{port}"],
+            allowed_hosts=allowed_hosts,
+            allowed_origins=allowed_origins,
         ),
         auth=AuthSettings(
-            issuer_url=f"http://{host}:{port}",
+            issuer_url=issuer_url,
             resource_server_url=endpoint_url,
             required_scopes=["business"],
             validate_token_resource=True,

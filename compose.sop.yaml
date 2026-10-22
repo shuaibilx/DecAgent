@@ -1,0 +1,123 @@
+name: ${DECAGENT_SOP_COMPOSE_PROJECT:-decagent-sop}
+
+x-sop-control: &sop-control
+  image: ${DECAGENT_SOP_IMAGE:-decagent-sop:local}
+  build:
+    context: .
+    dockerfile: ops/control/Dockerfile
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  mem_limit: 1g
+  tmpfs: ["/tmp:size=64m,nosuid,nodev"]
+  volumes: [sop_data:/data]
+  environment: &sop-environment
+    DECAGENT_DATA_DIR: /data
+    DECAGENT_PUBLIC_URL: ${DECAGENT_SOP_PUBLIC_URL:-http://127.0.0.1:8000}
+    DECAGENT_TICKETS_MCP_URL: http://business-mcp:8001/mcp
+    DECAGENT_CONDITIONAL_WORKFLOWS_ENABLED: "true"
+    DECAGENT_GUEST_TRIAL_ENABLED: ${DECAGENT_GUEST_TRIAL_ENABLED:-false}
+    DECAGENT_MAIN_MODEL: ${DECAGENT_MAIN_MODEL:-qwen3.8-flash}
+    DECAGENT_MAIN_PROVIDER: ${DECAGENT_MAIN_PROVIDER:-qwen}
+    DECAGENT_MAIN_BASE_URL: ${DECAGENT_MAIN_BASE_URL:-https://maas.qianwenaiapi.com/compatible-mode/v1}
+    DECAGENT_MAIN_PRICE_VERSION: ${DECAGENT_MAIN_PRICE_VERSION:-qwen3.8-flash-pricing-2026-10-22}
+    DECAGENT_MAIN_INPUT_PER_MILLION: ${DECAGENT_MAIN_INPUT_PER_MILLION:-0.8}
+    DECAGENT_MAIN_OUTPUT_PER_MILLION: ${DECAGENT_MAIN_OUTPUT_PER_MILLION:-2.7}
+    DECAGENT_MAIN_PRICE_CURRENCY: ${DECAGENT_MAIN_PRICE_CURRENCY:-CNY}
+    DECAGENT_MAIN_FALLBACK_ENABLED: ${DECAGENT_MAIN_FALLBACK_ENABLED:-false}
+    DECAGENT_MAIN_FALLBACK_MODEL: ${DECAGENT_MAIN_FALLBACK_MODEL:-deepseek/deepseek-v4.1-flash}
+    DECAGENT_MAIN_FALLBACK_BASE_URL: ${DECAGENT_MAIN_FALLBACK_BASE_URL:-https://openrouter.ai/api/v1}
+    DECAGENT_JEV_MODEL: ${DECAGENT_JEV_MODEL:-~typesafe/jev-latest}
+    DECAGENT_JEV_PROVIDER: ${DECAGENT_JEV_PROVIDER:-openrouter}
+    DECAGENT_JEV_RESERVATION: ${DECAGENT_JEV_RESERVATION:-0.01}
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: decagent
+      POSTGRES_USER: decagent
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes: [sop_postgres_data:/var/lib/postgresql/data]
+    networks: [sop-internal]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U decagent -d decagent]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *sop-control
+    command: [migrate]
+    secrets: [postgres_password]
+    networks: [sop-internal]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  bootstrap:
+    <<: *sop-control
+    command: [sop-bootstrap]
+    secrets: [postgres_password]
+    networks: [sop-internal]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: "no"
+
+  business-mcp:
+    <<: *sop-control
+    command:
+      [business-server, --host, "0.0.0.0", --port, "8001", --resource-url, http://business-mcp:8001/mcp]
+    secrets: [postgres_password]
+    networks: [sop-internal]
+    expose: [8001]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    <<: *sop-control
+    command: [api]
+    secrets: [postgres_password, main_api_key, jev_api_key]
+    networks: [sop-internal, sop-egress]
+    ports: ["127.0.0.1:${DECAGENT_SOP_API_PORT:-8000}:8000"]
+    depends_on:
+      business-mcp: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    <<: *sop-control
+    command: [worker, --kind, business]
+    secrets: [postgres_password, main_api_key, jev_api_key]
+    networks: [sop-internal, sop-egress]
+    depends_on:
+      business-mcp: {condition: service_healthy}
+
+networks:
+  sop-internal:
+    internal: true
+  sop-egress: {}
+
+volumes:
+  sop_data: {}
+  sop_postgres_data: {}
+
+secrets:
+  postgres_password:
+    file: ${DECAGENT_SOP_SECRETS_DIR:-.decagent/sop-secrets}/postgres_password
+  main_api_key:
+    file: ${DECAGENT_SOP_SECRETS_DIR:-.decagent/sop-secrets}/main_api_key
+  jev_api_key:
+    file: ${DECAGENT_SOP_SECRETS_DIR:-.decagent/sop-secrets}/jev_api_key

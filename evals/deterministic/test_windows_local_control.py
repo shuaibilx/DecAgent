@@ -122,6 +122,22 @@ def test_business_server_cli_uses_shared_employee_credential_directory(monkeypat
     assert captured["app"] is app
     assert captured["uvicorn"] == {"host": "127.0.0.1", "port": 8853}
 
+    resource_url = "http://business-mcp:8001/mcp"
+    cli.main(
+        [
+            "business-server",
+            "--port",
+            "8854",
+            "--resource-url",
+            resource_url,
+        ]
+    )
+    assert captured["options"] == {
+        "host": "127.0.0.1",
+        "port": 8854,
+        "resource_url": resource_url,
+    }
+
     monkeypatch.setenv("DECAGENT_LOCAL_MCP_PORT", "8855")
     cli.main(["business-server"])
     assert captured["options"] == {"host": "127.0.0.1", "port": 8855}

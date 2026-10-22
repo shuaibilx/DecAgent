@@ -31,6 +31,7 @@ def main(argv=None):
     )
     business_server.add_argument("--host", default="127.0.0.1")
     business_server.add_argument("--port", type=int)
+    business_server.add_argument("--resource-url")
     worker = commands.add_parser("worker", help="Run the serial task worker")
     worker.add_argument("--kind", choices=("business", "repository_repair"))
     from decagent.business.administration import add_commands
@@ -158,7 +159,10 @@ def main(argv=None):
             if args.port is not None
             else int(os.getenv("DECAGENT_LOCAL_MCP_PORT", "8001"))
         )
-        app = create_mcp_app(database, employee_auth, host=args.host, port=port)
+        mcp_options = {"host": args.host, "port": port}
+        if args.resource_url is not None:
+            mcp_options["resource_url"] = args.resource_url
+        app = create_mcp_app(database, employee_auth, **mcp_options)
         uvicorn.run(app, host=args.host, port=port)
     elif args.command == "worker":
         from decagent.runtime.worker import run_worker

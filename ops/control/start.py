@@ -33,6 +33,8 @@ def main():
     role = sys.argv[1:]
     if role == ["api"]:
         administrative(["serve", "--host", "0.0.0.0", "--port", "8000"])
+    elif role == ["sop-bootstrap"]:
+        administrative(["plugins", "install-tickets"])
     else:
         administrative(role)
 

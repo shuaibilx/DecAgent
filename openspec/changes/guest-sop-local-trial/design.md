@@ -66,6 +66,8 @@ Jev 当前的 `$0.01` 仅是固定记账预留，不是可证明的单请求费�
 
 新增 SOP 专用 Compose 配置，API/业务 Worker/业务 MCP 使用受信内部身份与条件计划开关，PostgreSQL 持久卷；API 默认127.0.0.1。旧 repair/executor 隔离保留兼容，不随游客启动开放。配置检查必须验证 Worker profile 和 MCP URL，健康检查不止 API liveness。
 
+2026-10-22 实施记录：新增 `compose.sop.yaml`，将 PostgreSQL、迁移、业务 bootstrap 和业务 MCP 限制在 internal network；API/Worker 另接 model egress network，API 只把宿主机端口发布到 loopback。配置预检拒绝 repair executor 服务、Docker socket、公开 API bind、内部服务 host port、错误 Worker kind、条件计划关闭或不匹配的 MCP resource identity。一次性容器冒烟真实启动六个服务并验证 API/MCP 健康、业务 Worker 类型和游客关闭；使用空模型密钥，零模型请求，结束后清理容器/卷/镜像。原 repair `compose.yaml` 解析仍通过。27 项需专用 PostgreSQL 测试库的 MCP 集成测试因当前未配置 `DECAGENT_TEST_DATABASE_URL` 而跳过，不计通过。详见[本机容器冒烟证据](../../../evals/integration/evidence/sop-compose-smoke-20261022.md)。该实现完成 OpenSpec 4.1，不代表 4.2 业务探针或 4.3 回滚验收通过。
+
 公共 DecAgent 的 push/PR 跑 CI，语义版本 tag 跑完整 release gate 并发布 GHCR digest。新私有仓库 `DecAgent-deploy` 仅容纳部署控制代码和验证器；本机 Runner 只注册到此库，关闭公共仓库直接本机部署入口。发布端使用仅目标私有仓库 Actions write 的细粒度凭证触发固定 workflow，凭证不进入PR；部署端用只读凭证独立查询公共仓库 tag/main ancestry、成功 CI/run attempt、release/SHA 与镜像来源/digest。拒绝任意仓库、脚本、镜像引用和本地路径输入；不 checkout 或执行 dispatch 指定的公共代码。私有库固定、经审核部署脚本才可操作Docker。
 
 所有部署共享单一 concurrency lock。保存旧 digest/config/schema 和 pg_dump；兼容性预检、拉取、升级、API/Worker/MCP及隔离模拟业务探针通过后激活。业务探针使用可清理专用空间、脚本模型、零付费，不能污染游客。失败先核验旧镜像支持当前 schema，兼容时回滚应用再验证；不兼容停止，不自动恢复数据库。保留备份路径和人工恢复步骤。用户已接受 Windows/Docker 登录、睡眠和网络引起短时中断，实测登录启动与重启恢复，不承诺开机未登录即在线。
