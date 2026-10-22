@@ -167,6 +167,33 @@ def test_manifest_v9_uses_reviewed_case_level_exposure_without_family_expansion(
     )
 
 
+def test_manifest_v10_freezes_longer_primary_timeout_without_changing_scope():
+    root = Path(__file__).resolve().parents[2]
+    profile_path = INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json"
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(profile_path.read_text(encoding="utf-8"))
+    )
+    profiles = replace(
+        profiles,
+        primary=replace(profiles.primary, timeout_seconds=120),
+    )
+
+    built = build_trial_manifest(root, model_profiles=profiles, manifest_version=10)
+
+    assert built["schema_version"] == "business-comparison-trial-manifest-10"
+    assert built["model_profiles"]["roles"]["primary"]["timeout_seconds"] == 120
+    assert built["model_profiles"]["roles"]["user_simulator"]["timeout_seconds"] == 60
+    assert built["model_profiles"]["roles"]["judge"]["timeout_seconds"] == 60
+    assert built["exposure_assignment"]["status"] == "reviewed_case_level"
+    assert built["counts"] == {
+        "full_trials": 286,
+        "smoke_trials": 24,
+        "initial_smoke_wave": 4,
+    }
+
+
 def test_public_trial_loader_accepts_reviewed_v9_exposure_manifest(tmp_path):
     from decagent.decisions.contracts import digest
     from decagent.evaluation.business.public_trials import load_public_run_plan
@@ -261,7 +288,7 @@ def test_historical_v8_manifest_cannot_be_loaded_for_live_dispatch():
         )
 
 
-def test_default_public_trial_plan_uses_the_current_v9_cohort():
+def test_v9_public_trial_plan_remains_loadable_as_historical_cohort():
     from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
     from decagent.evaluation.business.public_trials import load_public_run_plan
 
@@ -278,6 +305,8 @@ def test_default_public_trial_plan_uses_the_current_v9_cohort():
     plan = load_public_run_plan(
         root,
         mode="smoke",
+        manifest_path=INVENTORY_PATH.parent / "comparison_trial_manifest_v9.json",
+        profiles_path=INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json",
         check_images=False,
         check_runtime=False,
         check_source_files=False,
@@ -293,6 +322,24 @@ def test_default_public_trial_plan_uses_the_current_v9_cohort():
     assert "development_exposed" not in serialized
     assert "target_state" not in serialized
     assert "reference_actions" not in serialized
+
+
+def test_default_public_trial_plan_uses_the_timeout_recovery_cohort():
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    plan = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+
+    assert plan.profiles.primary.timeout_seconds == 120
+    assert plan.profiles.user_simulator.timeout_seconds == 60
+    assert plan.profiles.judge.timeout_seconds == 60
+    assert len(plan.initial_smoke_wave) == 4
 
 
 def test_resource_subset_is_stable_across_source_order_and_bounded():

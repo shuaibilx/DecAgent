@@ -365,7 +365,7 @@ def load_public_run_plan(
     if mode not in {"smoke", "full"}:
         raise ValueError("Public evaluation mode must be smoke or full")
     manifest_path = Path(manifest_path) if manifest_path else (
-        root / "evals/benchmarks/manifests/comparison_trial_manifest_v9.json"
+        root / "evals/benchmarks/manifests/comparison_trial_manifest_v10.json"
     )
     source_manifest_path = Path(source_manifest_path) if source_manifest_path else (
         root / "evals/benchmarks/manifests/source_manifest.json"
@@ -375,10 +375,12 @@ def load_public_run_plan(
         "business-comparison-trial-manifest-7": 7,
         "business-comparison-trial-manifest-8": 8,
         "business-comparison-trial-manifest-9": 9,
+        "business-comparison-trial-manifest-10": 10,
     }.get(manifest.get("schema_version"))
     if manifest_version is None:
         raise ValueError("Public comparison manifest version is unsupported")
-    profile_version = 3 if manifest_version == 7 else 4
+    profile_version = {7: 3, 8: 4, 9: 4, 10: 5}[manifest_version]
+    profile_schema_version = 3 if manifest_version == 7 else 4
     profiles_path = Path(profiles_path) if profiles_path else (
         root
         / f"evals/benchmarks/manifests/evaluation_model_profiles_v{profile_version}.json"
@@ -411,7 +413,7 @@ def load_public_run_plan(
         or manifest.get("model_profile_status") != "frozen"
         or manifest.get("model_profiles") != profile_document
         or profile_document.get("schema_version")
-        != f"evaluation-model-profiles-v{profile_version}"
+        != f"evaluation-model-profiles-v{profile_schema_version}"
     ):
         raise ValueError("Public comparison manifest and model profile are not a frozen cohort")
     if manifest.get("counts") != {
@@ -423,7 +425,7 @@ def load_public_run_plan(
     full, smoke = manifest.get("full_trials"), manifest.get("smoke_trials")
     if type(full) is not list or type(smoke) is not list or len(full) != 286 or len(smoke) != 24:
         raise ValueError("Frozen public task lists do not match their exact denominators")
-    if manifest_version == 9:
+    if manifest_version >= 9:
         assignment = manifest.get("exposure_assignment")
         expected_case_ids = sorted(DEVELOPMENT_EXPOSED_ENTERPRISEOPS_CASES)
         if (

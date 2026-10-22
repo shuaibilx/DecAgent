@@ -6,6 +6,14 @@
 
 失败阶段只能由当前保存的安全字段描述；现有证据不能归因于网络代理、提示词大小或供应商故障。后续先做离线根因分析和隔离回归，再为任何新真实批次冻结新候选、CI 与额度。
 
+### 2026-10-22 Evidence-led primary timeout recovery cohort
+
+历史 v9 的三次 Plan primary 请求分别耗时 60.291、60.299、60.291 秒；冻结 profile v4 的 primary timeout 为 60 秒。这个一致性说明本机 timeout cap 是值得单独验证的因素，但不能证明请求未到达服务商，也不能确认用量或账单。历史 attempt 的 usage unknown、198,176 Token 预留、¥0.2052352 冻结费率预留和 route terminal state 均保持不变；不重放、不释放预留。
+
+新 profile set v5 与 manifest v10 只把 `primary.timeout_seconds` 从 60 调为 120。用户模拟器和裁判仍为 60 秒，Jev 仍为 10 秒；其余模型 identity、请求参数、价格/计费、任务清单、暴露分组、资源预算及实验路线不变。profile fingerprint 为 `4fa091d2840928bfb6a00dccfbd452a2dee8c42c465512955fd63923eb0a6721`，manifest digest 为 `1096d0515168eab71b06cb6b9bde558a0fa2a5269ec723aef996886a342b2fed`。新时限仍与路线/批次剩余 deadline 取最小值，不会延长路线或批次预算。
+
+loader 默认选择 v10，同时仍可显式读取历史 v9/v4；builder 将 v10 限定为使用含 Jev 的 v4 profile schema。新增回归验证版本身份、120/60 秒角色分界、206/24/4 固定分母和 v9 历史 cohort 可读取。v10 是 `pre_registered_not_run`；生成和 dry-run 不创建 ledger、不发送模型/MCP 请求。实际四域首波还需干净候选、同 SHA CI、image/runtime 门禁及新的独立批次授权；若 120 秒请求仍失败，应按真实证据分类，不能仅靠再延长 timeout 来掩盖根因。
+
 离线使用 τ retail train case 0 和本地 mock callback，确认用户模拟器可在没有用户侧工具时请求文本回复，τ worker 因而发送 `tools=[]`。旧 `_schema_only_tool_validator([])` 返回 `None`，而 `PrimaryModel` 明确要求非 None 工具目录与 validator 成对注入，one-shot 客户端因此在网络派发前拒绝请求。现已将“显式空列表”与“未提供工具目录”区分，空目录由 validator 拒绝所有 tool calls。新增 loopback 测试与注册工具现有测试通过；定向 `test_public_cancellable_model.py` 为 `25 passed`，完整 deterministic 为 `2,025 passed, 18 skipped`（288.37 秒），Ruff 通过。该修复发生在历史 candidate f1a4 后，没有重写其 `not_sent` 记录；三条 Plan timeout 与 CSM MCP unknown 仍未解释，新 SHA CI 尚待运行，当前不启动新 cohort。
 
 ## Earlier execution result（2026-10-22，manifest v9 / candidate 126fe5a）

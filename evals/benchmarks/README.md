@@ -176,9 +176,9 @@ must stop the run and leave the score unreported.
 ## Frozen model profiles and public comparison manifest
 
 `manifests/evaluation_model_profiles.json`, v2, and comparison manifests
-through v8 are preserved as historical inputs. The current pre-registered cohort uses
-`manifests/evaluation_model_profiles_v4.json` with
-`manifests/comparison_trial_manifest_v9.json`.
+through v9 are preserved as historical inputs. The current pre-registered cohort uses
+profile-set file `manifests/evaluation_model_profiles_v5.json` (profile schema v4)
+with `manifests/comparison_trial_manifest_v10.json`.
 It freezes secret-free identities for planning, τ-Bench simulation, judging and
 Jev, including endpoint, price provenance, retry/output limits, timeout,
 provider routing, sampling-parameter support/omission, response mode and tool
@@ -189,8 +189,12 @@ Qwen profile remains explicitly `unknown` as historical evidence. The new v4
 profile freezes the user-confirmed applicable Qwen standard realtime rates for
 `qwen3.8-flash`: CNY ¥0.8/M uncached input, ¥2.7/M output, and ¥0.1/M cached
 input. A response with a validated cache-hit count is costed at that split;
-without it, the ordinary input rate provides a conservative upper bound. These
-are `frozen_rate` or `frozen_rate_upper_bound` estimates, not provider
+without it, the ordinary input rate provides a conservative upper bound. The v5
+profile set changes only the primary request timeout from 60 to 120 seconds
+after v9 Plan requests ended at the 60-second local deadline; the user simulator
+and judge remain at 60 seconds, and Jev remains at 10 seconds. This is a distinct
+unrun cohort, not a retry of historical unknown attempts. These are `frozen_rate`
+or `frozen_rate_upper_bound` estimates, not provider
 invoices. Exact per-request gross API charges, voucher credits and cash paid
 remain separate provider evidence; missing amounts are null, account-window
 totals are never spread across requests, and CNY is not converted without a
@@ -208,8 +212,10 @@ forbidden-side-effect count. Its digest is checked against the frozen benchmark
 for new scored routes. The summary contains no verifier SQL, gold state or task
 labels and is not added to agent context. Older ledgers migrate with a nullable
 column; absent historical score detail stays absent. The historical v8 live run recorded
-two official scores, both 0.0. The complete paired benchmark result remains
-0/286; see the [v8 first-wave report](../../generated/261021/2110_公开评测首波报告_v8.md).
+two official scores, both 0.0. The later v9 first-wave attempt also failed its
+quality gate (4 failed, 4 unknown, 0 success; two scores of 0.0). The complete
+paired benchmark result remains 0/286; see the [v8 first-wave report](../../generated/261021/2110_公开评测首波报告_v8.md)
+and [v9 first-wave report](../../generated/261022/1426_公开评测首波执行报告_f1a4a70.md).
 
 `manifests/comparison_trial_manifest_v8.json` pre-registered the 206 EnterpriseOps
 oracle tasks and 80 τ-Bench official test tasks, plus separate 20-task
@@ -235,7 +241,8 @@ endings before hashing, so Git's Windows/Linux checkout settings do not look
 like benchmark-data drift; all non-newline content remains covered by SHA-256.
 
 The v8 cohort remains historically `unassigned`; do not edit or dispatch it.
-The reviewed exposure policy is frozen separately in v9. The manifest does not
+The reviewed exposure policy is frozen separately in v9 and preserved in v10.
+The manifest does not
 copy prompts, simulator scenarios, verifiers, expected actions, or database
 contents. It assigns only the two EnterpriseOps cases confirmed as tested to
 `development_exposed`; the other 204 EnterpriseOps cases and all 80 τ official
@@ -244,32 +251,54 @@ This is project-level exposure tracking, not an independent holdout and not a
 claim about model pretraining. Do not expand exposure labels using the
 unreviewed task-family heuristic.
 
-Rebuild v9 deterministically from the frozen local inventory and v4 profiles.
-Use a new output path because the builder refuses to overwrite evidence:
+Rebuild historical v9 deterministically from the frozen local inventory and v4
+profiles. Use a new output path because the builder refuses to overwrite evidence:
 
 ```powershell
 .venv\Scripts\python.exe evals/benchmarks/build_trial_manifest.py --manifest-version 9 --model-profiles evals/benchmarks/manifests/evaluation_model_profiles_v4.json --output .decagent/evaluation-closeout/rebuilt-v9.json
 ```
 
-The committed v9 digest is
+The historical v9 digest is
 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604` and
 contains 286 full tasks, 24 smoke tasks, and 4 first-wave tasks. The default
-manifest version remains v5 for compatibility. Live dispatch rejects v7/v8;
-At the time of the v9 freeze it was only pre-registered and had not started a
-ledger or real trial. The v9
+manifest builder version remains v5 for compatibility. Live dispatch rejects v7/v8;
+v9 was later executed; its terminal routes are recorded in the linked report.
+The current v10 digest is
+`1096d0515168eab71b06cb6b9bde558a0fa2a5269ec723aef996886a342b2fed`, and its
+profile-set digest is
+`4fa091d2840928bfb6a00dccfbd452a2dee8c42c465512955fd63923eb0a6721`. The v10
+cohort is pre-registered but has not created a ledger or started a live route.
+Rebuild v10 explicitly with a new output path:
+
+```powershell
+.venv\Scripts\python.exe evals/benchmarks/build_trial_manifest.py --manifest-version 10 --model-profiles evals/benchmarks/manifests/evaluation_model_profiles_v5.json --output .decagent/evaluation-closeout/rebuilt-v10.json
+```
+
+The v10
 batch ceilings are 500 Qwen requests / 5,000,000 Qwen tokens / 1,600 tool calls
 and 4 hours, with separate Agent (300 / 3,000,000), user-simulator (160 /
 1,600,000), and judge (40 / 400,000) request/token caps. A persisted batch
 ledger carries these limits and its deadline across resume; a stop line keeps
 unfinished trials untouched. This is an admission guard, not a hard cancel for
 an already-running network request, so the live runner remains gated. The
-user-approved token envelope implies an estimated pre-voucher CNY upper
+previously selected token envelope implies an estimated pre-voucher CNY upper
 bound of about ¥13.50 at the highest frozen Qwen rate (5,000,000 × ¥2.7/M).
 This is a profile-derived guardrail, not an expected charge or provider invoice;
-voucher credits only change cash paid, not gross API cost.
+voucher credits only change cash paid, not gross API cost, and this ceiling is
+not a new live-batch authorization.
 
 The command uses exclusive file creation, so choose a new output path. Earlier
 profile and manifest versions remain as historical evidence; they are not overwritten.
+The default public-run dry-run selects v10. To inspect the fixed first-wave slice
+and verify local images without creating a ledger or calling a model/MCP server:
+
+```powershell
+.venv\Scripts\python.exe evals/benchmarks/run_public_trials.py --phase first-wave --check-images
+```
+
+A live run still requires the exact candidate to pass CI, all runtime gates, a
+new persisted budget, and separate user authorization; the expired v9 batch
+authorization does not carry forward.
 Route pairs must carry the same exposure assignment, model-profile and
 resource-profile digests. Structured branches use code rules; a Jev semantic
 comparison is marked not-applicable until the benchmark contains a naturally
@@ -432,16 +461,18 @@ These selectors are dry-run previews; they do not claim routes or resume a
 ledger.
 
 To preserve a new preflight report, use `--report` with a new JSON filename under
-`evals/benchmarks/evidence`; existing evidence cannot be overwritten. The `--state`
-option is reserved for future live execution and is rejected in dry-run mode.
-`--execute` currently fails closed until a persistent phase runner owns the
-provider dispatch lifecycle, cancellation, official scorer accounting, and
-verified environment cleanup. The smoke/full reports dated 2026-10-19 are
-preflight evidence only: they contain 24/286 planned cases, not executed tasks or
-benchmark scores. They also enumerate the fixed four-case first wave and its
-eight ReAct/Plan route slots without dispatching them. Jev remains N/A unless a
-naturally occurring semantic decision has been reviewed and matched to a trusted
-template.
+`evals/benchmarks/evidence`; existing evidence cannot be overwritten. `--state`
+is unsupported in both dry-run and live mode; execution always uses the canonical
+ledger path.
+`--execute` is implemented for the fixed first-wave phase, but remains fail-closed
+until the persisted supervisor, candidate/CI, model, runtime, image, and cleanup
+gates below pass. Every new live cohort also requires a separately frozen budget
+and explicit user authorization; a previous cohort's authorization does not carry
+forward. The smoke/full reports dated 2026-10-19 are preflight evidence only:
+they contain 24/286 planned cases, not executed tasks or benchmark scores. They
+also enumerate the fixed four-case first wave and its eight ReAct/Plan route
+slots without dispatching them. Jev remains N/A unless a naturally occurring
+semantic decision has been reviewed and matched to a trusted template.
 
 The gated live first-wave path now reuses the production PlanRuntime route
 adapters, pinned EnterpriseOps/τ environments, measured model callbacks,

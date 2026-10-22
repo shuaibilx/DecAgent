@@ -606,6 +606,10 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** 通用模型 profile 将 temperature 和 top_p 固定为数值，且 seed 标记为 unsupported
 - **THEN** 通用模型客户端显式发送 temperature/top_p、完全省略 seed，并把 timeout 与 tool choice 绑定到相同 profile
 
+#### Scenario: Timeout recovery creates an immutable model cohort
+- **WHEN** 有证据表明模型请求在冻结 profile timeout 附近终止，且需要评估更长的请求时限
+- **THEN** 新请求时限必须写入新的 role profile 指纹和 cohort manifest；历史 profile、manifest、route attempt、usage reservation 与终态保持不变，不得重放旧 unknown；只允许调整目标角色的 timeout，其他角色沿用各自冻结值
+
 ### Requirement: Billable model cost is distinct from account credits
 
 模型成本比较 MUST 使用可核验的抵扣前 API 计费金额。账户代金券/credit 抵扣及实际现金支付 MUST 分别记录，代金券覆盖账单 MUST NOT 被解释为 API 零费率。每个成本值 MUST 标记为供应商/账户账单实际值、基于冻结费率的计算值或 unknown；费率来源及版本 MUST 进入 profile 指纹。已知 token 用量与 unknown 费用 MUST 可以同时存在。未获核验的零费率不得用于 Jev 与通用模型的成本结论；历史 profile 与原始账单/请求证据保持不可变，通过更正说明隔离其错误假设。

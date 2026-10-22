@@ -1,6 +1,14 @@
 # Proposal
 
-## 当前状态（2026-10-22，manifest v9 / candidate f1a4a70 首波已执行且质量门槛未通过）
+## 当前实施状态（2026-10-22，v10 timeout-recovery cohort 已冻结，未执行）
+
+主 change 为 **72/79，7 项待完成**：9.6.D、9.6.F、9.6.G、10.3–10.6；`guest-sop-local-trial` 为 **17/28**。公开基准仍为 **0/286**。历史 v9 首波的 4 个任务/8 条路线全部结束，但结果是 4 failed、4 unknown、0 success；两条官方评分均为 0.0，清理 8/8 verified。历史 unknown 不重放。
+
+离线证据显示三次 Plan primary 请求分别在 60.291、60.299、60.291 秒终止，与 v4 冻结 profile 的 60 秒本地请求截止吻合；无法据此判断服务端是否完成或是否计费。为单独验证请求时限是否是可恢复原因，新建 profile v5 与 manifest v10：只将 primary 的 timeout 从 60 秒改为 120 秒；用户模拟器、裁判仍为 60 秒，Jev 仍为 10 秒，其余模型、费率、任务分母、暴露分组、预算与实验策略不变。v10 manifest digest 为 `1096d0515168eab71b06cb6b9bde558a0fa2a5269ec723aef996886a342b2fed`，profile-set digest 为 `4fa091d2840928bfb6a00dccfbd452a2dee8c42c465512955fd63923eb0a6721`。v9、profile v4、历史账本及 unknown 保持原样；v10 尚无账本、模型或 MCP 派发记录，不能视为真实评测结果或对新批次的授权。
+
+本轮本机 focused inventory 回归为 17 passed，全量 `evals/deterministic` 为 2,122 passed、18 skipped；全仓 Ruff、OpenSpec strict 6/6 和 v10 `first-wave --check-images` dry-run 均通过，后者选中 4 个固定任务/8 个路线槽且创建 0 ledger、发出 0 模型/0 MCP 请求。同 SHA 远端 CI 尚待完成；live 运行仍需新的独立批次授权。费用说明已按操作者解释文档完成，包含人民币/美元口径、冻结汇率与 10% 余量、reserve/settle/unknown/拒发状态和 Mermaid 状态图。
+
+## 历史 live 状态（2026-10-22，manifest v9 / candidate f1a4a70 首波已执行且质量门槛未通过）
 
 主 change 为 **72/79，7 项待完成**；`guest-sop-local-trial` 为 15/28。候选 `f1a4a704fe2c36b22127006fe0bc9860733923d5` 的同 SHA GitHub Actions [CI run 39731158534](https://github.com/shuaibilx/DecAgent/actions/runs/39731158534) 全部通过。
 

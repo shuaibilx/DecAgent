@@ -78,11 +78,11 @@ def build_trial_manifest(
     root: Path, *, model_profiles: EvaluationModelProfiles | None = None,
     manifest_version: int = 5,
 ) -> dict:
-    if manifest_version not in {5, 6, 7, 8, 9}:
-        raise ValueError("Supported public trial manifest versions are 5, 6, 7, 8 and 9")
+    if manifest_version not in {5, 6, 7, 8, 9, 10}:
+        raise ValueError("Supported public trial manifest versions are 5, 6, 7, 8, 9 and 10")
     if model_profiles is not None and not isinstance(model_profiles, EvaluationModelProfiles):
         raise TypeError("model_profiles must use the frozen evaluation profile contract")
-    if manifest_version == 9 and (
+    if manifest_version >= 9 and (
         model_profiles is None
         or model_profiles.jev is None
         or model_profiles.to_dict().get("schema_version") != "evaluation-model-profiles-v4"
@@ -216,7 +216,7 @@ def build_trial_manifest(
     if len(identities) != len(set(identities)):
         raise ValueError("Trial manifest contains duplicate trial identities")
 
-    if manifest_version == 9:
+    if manifest_version >= 9:
         _assign_reviewed_case_exposure(full_trials + smoke_trials)
 
     smoke_by_identity = {
@@ -279,7 +279,7 @@ def build_trial_manifest(
                     "no workflow-family heuristic expansion."
                 ),
             }
-            if manifest_version == 9
+            if manifest_version >= 9
             else {
                 "status": "unreviewed_unassigned",
                 "default_group": "unassigned",
@@ -352,7 +352,7 @@ def main(argv=None):
         type=Path,
         help="Secret-free, fingerprinted evaluation model profiles JSON file",
     )
-    parser.add_argument("--manifest-version", type=int, choices=(5, 6, 7, 8, 9), default=5)
+    parser.add_argument("--manifest-version", type=int, choices=(5, 6, 7, 8, 9, 10), default=5)
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[2]
     profiles = (
