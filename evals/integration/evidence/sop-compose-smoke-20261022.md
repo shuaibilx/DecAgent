@@ -22,5 +22,5 @@
 ## 可复核范围
 
 - 运行时结果覆盖容器启动、迁移、业务 bootstrap、API liveness、MCP readiness、Worker 类型、网络发布范围和 MCP resource identity。
-- 本项不验证 Worker 执行完整业务任务、计划健康探针、备份恢复、升级/回滚、Windows 登录自启、Runner 或外部域名；对应 OpenSpec 4.2–4.4、5.x 仍待实施。
+- 本项本身不验证 Worker 的运行时 MCP readiness、完整业务工具执行、备份恢复、升级/回滚、Windows 登录自启、Runner 或外部域名。Worker/MCP readiness 和故障恢复已由[单独的 4.2 证据](sop-business-readiness-20261022.md)完成；备份回滚、Windows/Runner 与外部域名仍是后续任务。
 - 环境未提供独立 PostgreSQL integration test URL，因此报告明确保留 27 项跳过状态。

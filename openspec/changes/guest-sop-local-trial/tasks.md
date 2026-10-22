@@ -1,6 +1,6 @@
 # Tasks
 
-本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；workspace 隔离、游客生命周期、预算账本、持久队列及匿名限流/受信代理边界已实现并通过相应隔离验证。模型预留与结算已部分实现，但 Jev 的固定预留尚未证明是供应商费用上界，3.2 保持未完成；游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭，公开域名/隧道不在本轮开通。清理遇在途 Worker 或含歧义的操作证据时保持 pending，不删除恢复材料。当前 16/28 项完成；尚无真实供应商调用验收；SOP Compose 4.1 已完成本机隔离容器验收，4.2–4.4 与私有 CD 仍未完成。
+本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；workspace 隔离、游客生命周期、预算账本、持久队列及匿名限流/受信代理边界已实现并通过相应隔离验证。模型预留与结算已部分实现，但 Jev 的固定预留尚未证明是供应商费用上界，3.2 保持未完成；游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭，公开域名/隧道不在本轮开通。清理遇在途 Worker 或含歧义的操作证据时保持 pending，不删除恢复材料。当前 17/28 项完成；尚无真实供应商调用验收；SOP Compose 4.1 与 4.2 已完成本机隔离容器和业务健康验收，4.3–4.4 与私有 CD 仍未完成。
 
 ## 1. Workspace 数据与身份边界
 
@@ -32,7 +32,7 @@
 ## 4. SOP 本机部署
 
 - [x] 4.1 交付 API/业务Worker/业务MCP/PostgreSQL SOP Compose 与配置预检；真实容器检查条件计划开关、MCP身份和仅loopback暴露，保留repair兼容隔离。证据：[SOP Compose 本机容器冒烟](../../../evals/integration/evidence/sop-compose-smoke-20261022.md)。新增独立 `compose.sop.yaml`、安全配置预检和一次性真实容器冒烟；预检要求服务集合精确匹配六个已审查服务，额外加入任何服务（包括 repair worker）都会拒绝。PostgreSQL/migrate/bootstrap/API/Worker/MCP 全部启动，API 与 MCP 健康，业务 Worker profile、条件计划与 MCP resource identity 正确，游客入口关闭。API 仅绑定 `127.0.0.1`，内部服务无 host port，不含 repair executor/Docker socket；原 `compose.yaml` 仍可解析。Ruff、94 项定向确定性测试通过；27 项 PostgreSQL MCP 集成因未配置专用测试数据库而跳过，已明确列为未执行，不计通过。零模型请求；冒烟后核实容器、卷、网络和镜像均已清理。
-- [ ] 4.2 实现含 Worker/MCP 的业务健康探针及专用可清理空间、零付费脚本模型冒烟；故障注入证明API健康不能掩盖业务故障。
+- [x] 4.2 实现含 Worker/MCP 的业务健康探针及专用可清理空间、零付费脚本模型冒烟；故障注入证明 API 健康不能掩盖业务故障。证据：[SOP 业务 readiness 与故障恢复烟测](../../../evals/integration/evidence/sop-business-readiness-20261022.md)：独立 Compose 栈覆盖数据库迁移/bootstrap、MCP、API liveness/readiness 和 business Worker；停 Worker 时 `/health` 保持存活、整栈 readiness 失败，恢复后再次 ready，结束后确认无本次容器、卷、网络或镜像残留。另由真实 Worker + MCP 集成测试使用本地 ScriptedModel 走完只读工具链，供应商请求为 0、测试价格为 0。修复只允许固定 Compose MCP endpoint，同时维持 loopback CLI 并拒绝其他 DNS/IP/端口/路径。相关确定性测试 115 passed，PostgreSQL readiness/真实 MCP scripted-worker 集成 2 passed，Ruff 与 Compose 预检通过。
 - [ ] 4.3 实现旧digest/config/schema记录、备份和兼容应用回滚；演练升级成功、健康失败回滚、schema不兼容停止且不覆盖数据库。
 - [ ] 4.4 核验 Windows 登录启动、Docker Desktop、Runner 和服务重启恢复，交付本机部署子目录指南、拓扑/恢复图及实测证据。
 

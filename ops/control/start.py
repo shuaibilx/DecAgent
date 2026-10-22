@@ -35,9 +35,13 @@ def main():
         administrative(["serve", "--host", "0.0.0.0", "--port", "8000"])
     elif role == ["sop-bootstrap"]:
         administrative(["plugins", "install-tickets"])
+    elif len(role) >= 1 and role[0] == "readiness":
+        from decagent.business.readiness import main as readiness_main
+
+        return readiness_main(role[1:])
     else:
         administrative(role)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

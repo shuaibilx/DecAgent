@@ -640,6 +640,16 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     def health():
         return {"status": "ok"}
 
+    @app.get("/readyz")
+    def readiness():
+        from decagent.business.readiness import business_readiness
+
+        result = business_readiness(database, runtime_config)
+        return JSONResponse(
+            result,
+            status_code=200 if result["status"] == "ready" else 503,
+        )
+
     @app.get("/api/v3/guest/status")
     def guest_trial_status():
         return {"enabled": settings.guest_trial_enabled}

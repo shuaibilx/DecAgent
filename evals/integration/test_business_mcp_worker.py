@@ -3,6 +3,7 @@
 import hashlib
 import json
 from dataclasses import replace
+from decimal import Decimal
 from uuid import uuid4
 
 import psycopg
@@ -12,11 +13,14 @@ from decagent.business.access import AccessError
 from decagent.business.execution import BusinessExecutor
 from decagent.business.mcp_client import MCPConnectionManager
 from decagent.business.registry import PluginRegistry
+from decagent.business.services import BusinessServices
 from decagent.business.worker import BusinessWorker
 from decagent.config import Settings
 from decagent.gateway.business import BusinessControl
 from decagent.gateway.models import ReplyInput
+from decagent.models.primary import ModelTurn, ModelUsage, ToolProposal
 from decagent.runtime.config import RuntimeConfig
+from decagent.runtime.model_calls import TokenPrice
 from evals.integration.test_business_mcp_client import service as service
 
 pytestmark = pytest.mark.integration
@@ -88,6 +92,114 @@ def test_worker_reuses_process_manager_and_finishes_employee_tasks(service, tmp_
         assert (
             conn.execute("SELECT count(*) AS n FROM business.ticket_history").fetchone()["n"] == 2
         )
+
+
+def test_scripted_model_worker_smoke_uses_real_mcp_without_provider_credentials(
+    service, tmp_path, monkeypatch
+):
+    import decagent.business.services as business_services
+
+    database, url, auth, tokens, _category = service
+    actor = auth.authenticate_mcp_token(tokens["employee-it"][0])
+    browser = _browser(database, actor)
+    issued = auth.issue_mcp(browser)
+    scope = PluginRegistry(database).list()[0]
+    task = database.create_business_task(
+        scope["id"],
+        {
+            "instruction": "请查询分类目录。",
+            "strategy": "main",
+            "plugin_digest": scope["manifest_digest"],
+            "provenance": {"employee_id": str(actor.employee_id), "authenticated": True},
+        },
+        budget={"max_calls": 10, "max_tokens": 100000, "max_active_seconds": 60},
+        employee_id=actor.employee_id,
+        credential_ref=issued["credential_ref"],
+    )
+    scripted_calls = []
+
+    class ScriptedModel:
+        def __init__(self, protocol):
+            self.protocol = protocol
+
+        def respond(self, messages, **_kwargs):
+            observations = [
+                json.loads(message["content"])
+                for message in messages
+                if message["role"] == "tool"
+            ]
+            if not observations:
+                name = next(
+                    tool_name
+                    for tool_name, command in self.protocol.commands.items()
+                    if command == "directory"
+                )
+                params = {}
+            else:
+                action_ids = [
+                    item["action_id"] for item in observations if item.get("action_id")
+                ]
+                name = "decagent_finish"
+                params = {
+                    "summary": "Read the current ticket directory.",
+                    "completed_actions": action_ids,
+                }
+            scripted_calls.append(name)
+            return ModelTurn(
+                "",
+                (ToolProposal("offline-smoke-" + str(len(scripted_calls)), name, params),),
+                ModelUsage(8, 2, 10),
+                "scripted-offline",
+            )
+
+    class ScriptedBusinessServices(BusinessServices):
+        def __init__(self, *args, mcp_client, **kwargs):
+            super().__init__(
+                *args,
+                mcp_client=mcp_client,
+                primary_factory=lambda _settings, protocol: ScriptedModel(protocol),
+                **kwargs,
+            )
+
+    monkeypatch.setattr(business_services, "BusinessServices", ScriptedBusinessServices)
+
+    settings = Settings(database_url=database.url, data_dir=tmp_path, main_api_key="")
+    runtime = RuntimeConfig(
+        tickets_mcp_url=url,
+        main_price=TokenPrice("scripted-offline-1", Decimal(0), Decimal(0)),
+    )
+    with MCPConnectionManager(url, auth) as manager:
+        worker = BusinessWorker(
+            database,
+            settings,
+            runtime,
+            employee_auth=auth,
+            mcp_manager=manager,
+        )
+        assert worker.run_once()
+
+    result = database.get_task(task["id"])
+    assert result["state"] == "succeeded", database.events(task["id"])[-1]["payload"]
+    assert len(scripted_calls) == 2 and scripted_calls[-1] == "decagent_finish"
+    assert settings.main_api_key == ""
+    with database.connect() as conn:
+        actions = conn.execute(
+            "SELECT status,snapshot FROM app.actions WHERE task_id=%s", (task["id"],)
+        ).fetchall()
+        assert len(actions) == 1
+        assert actions[0]["status"] == "succeeded"
+        assert actions[0]["snapshot"]["command"] == "directory"
+        usage = conn.execute(
+            "SELECT status,dispatch_state,actual_cost,actual_tokens,resolved_model "
+            "FROM app.usage_records WHERE task_id=%s ORDER BY created_at,id",
+            (task["id"],),
+        ).fetchall()
+    assert len(usage) == 2
+    assert all(item["status"] == "settled" for item in usage)
+    assert all(item["dispatch_state"] == "responded" for item in usage)
+    assert all(item["actual_cost"] == Decimal(0) for item in usage)
+    assert all(item["actual_tokens"] == 10 for item in usage)
+    assert all(item["resolved_model"] == "scripted-offline" for item in usage)
 
 
 def test_worker_restart_after_browser_approval_keeps_original_service_operation(service, tmp_path):

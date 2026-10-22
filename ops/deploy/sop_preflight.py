@@ -8,9 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-_REQUIRED_SERVICES = {"postgres", "migrate", "bootstrap", "business-mcp", "api", "worker"}
-_MCP_RESOURCE_URL = "http://business-mcp:8001/mcp"
-_PRIVATE_SERVICES = {"postgres", "migrate", "bootstrap", "business-mcp"}
+from decagent.business.mcp_contract import COMPOSE_INTERNAL_MCP_ENDPOINT
+from ops.deploy.sop_contract import SOP_PRIVATE_SERVICES, SOP_REQUIRED_SERVICES
 
 
 def _environment(service):
@@ -38,6 +37,18 @@ def _command(service):
     raise ValueError("SOP service command must be an argument list")
 
 
+def _healthcheck_test(service):
+    healthcheck = service.get("healthcheck")
+    if not isinstance(healthcheck, dict):
+        return []
+    test = healthcheck.get("test")
+    if isinstance(test, list) and all(isinstance(item, str) for item in test):
+        return test
+    if isinstance(test, str):
+        return test.split()
+    return []
+
+
 def _mounts_docker_socket(service):
     for mount in service.get("volumes") or []:
         if isinstance(mount, str):
@@ -59,7 +70,7 @@ def validate_compose_config(config):
     if not isinstance(project_name, str) or not project_name.startswith("decagent-sop"):
         raise ValueError("SOP Compose project name must use the decagent-sop prefix")
     services = config.get("services")
-    if not isinstance(services, dict) or set(services) != _REQUIRED_SERVICES:
+    if not isinstance(services, dict) or set(services) != SOP_REQUIRED_SERVICES:
         raise ValueError("SOP Compose service set must match the reviewed business topology")
 
     networks = config.get("networks") or {}
@@ -76,7 +87,7 @@ def validate_compose_config(config):
         if service.get("privileged") is True or _mounts_docker_socket(service):
             raise ValueError("SOP services must not have privileged access or a Docker socket")
         service_networks = _network_names(service)
-        if name in _PRIVATE_SERVICES and service_networks != {"sop-internal"}:
+        if name in SOP_PRIVATE_SERVICES and service_networks != {"sop-internal"}:
             raise ValueError("SOP internal services must stay on the private network")
         if name in {"api", "worker"} and service_networks != {
             "sop-internal",
@@ -102,6 +113,19 @@ def validate_compose_config(config):
         raise ValueError("SOP PostgreSQL image must be pinned by digest")
     if _command(services["worker"]) != ["worker", "--kind", "business"]:
         raise ValueError("SOP must run the business worker, not repository repair")
+    api_healthcheck = _healthcheck_test(services["api"])
+    if not api_healthcheck or not any("/readyz" in item for item in api_healthcheck):
+        raise ValueError("SOP API healthcheck must use API business readiness")
+    worker_healthcheck = _healthcheck_test(services["worker"])
+    if worker_healthcheck != [
+        "CMD",
+        "python",
+        "/opt/decagent/start.py",
+        "readiness",
+        "--role",
+        "worker",
+    ]:
+        raise ValueError("SOP worker healthcheck must use the business worker readiness probe")
     if _command(services["migrate"]) != ["migrate"] or _command(services["bootstrap"]) != [
         "sop-bootstrap"
     ]:
@@ -113,7 +137,7 @@ def validate_compose_config(config):
         "--port",
         "8001",
         "--resource-url",
-        _MCP_RESOURCE_URL,
+        COMPOSE_INTERNAL_MCP_ENDPOINT,
     ]
     if _command(services["business-mcp"]) != expected_mcp_command:
         raise ValueError("SOP MCP must bind internally with the reviewed resource identity")
@@ -122,7 +146,7 @@ def validate_compose_config(config):
         environment = _environment(services[service_name])
         if environment.get("DECAGENT_CONDITIONAL_WORKFLOWS_ENABLED") != "true":
             raise ValueError("SOP API and worker must enable conditional workflows")
-        if environment.get("DECAGENT_TICKETS_MCP_URL") != _MCP_RESOURCE_URL:
+        if environment.get("DECAGENT_TICKETS_MCP_URL") != COMPOSE_INTERNAL_MCP_ENDPOINT:
             raise ValueError("SOP MCP resource identity must match API and worker configuration")
     if _environment(services["api"]).get("DECAGENT_GUEST_TRIAL_ENABLED") != "false":
         raise ValueError("Guest trial entry must remain disabled until its release gate passes")
@@ -130,12 +154,13 @@ def validate_compose_config(config):
     return {
         "status": "passed",
         "project": project_name,
-        "services": sorted(_REQUIRED_SERVICES),
+        "services": sorted(SOP_REQUIRED_SERVICES),
         "api_binding": f"127.0.0.1:{api_port.get('published', 'configured')} -> 8000",
-        "mcp_resource": _MCP_RESOURCE_URL,
+        "mcp_resource": COMPOSE_INTERNAL_MCP_ENDPOINT,
         "conditional_workflows": True,
         "guest_trial": False,
         "docker_socket": False,
+        "business_readiness": True,
     }
 
 

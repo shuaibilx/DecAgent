@@ -5,13 +5,16 @@ import pytest
 from ops.deploy.sop_preflight import validate_compose_config
 
 
-def _service(*, environment=None, command=None, ports=None, networks=None, volumes=None):
+def _service(
+    *, environment=None, command=None, ports=None, networks=None, volumes=None, healthcheck=None
+):
     return {
         "environment": environment or {},
         "command": command or [],
         "ports": ports or [],
         "networks": networks or {"sop-internal": None},
         "volumes": volumes or [],
+        "healthcheck": healthcheck or {},
     }
 
 
@@ -31,6 +34,14 @@ def valid_config():
                 },
                 ports=[{"target": 8000, "published": "8000", "host_ip": "127.0.0.1"}],
                 networks={"sop-internal": None, "sop-egress": None},
+                healthcheck={
+                    "test": [
+                        "CMD",
+                        "python",
+                        "-c",
+                        "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz',timeout=3)",
+                    ]
+                },
             ),
             "worker": _service(
                 command=["worker", "--kind", "business"],
@@ -39,6 +50,16 @@ def valid_config():
                     "DECAGENT_TICKETS_MCP_URL": "http://business-mcp:8001/mcp",
                 },
                 networks={"sop-internal": None, "sop-egress": None},
+                healthcheck={
+                    "test": [
+                        "CMD",
+                        "python",
+                        "/opt/decagent/start.py",
+                        "readiness",
+                        "--role",
+                        "worker",
+                    ]
+                },
             ),
             "business-mcp": _service(
                 command=[
@@ -123,4 +144,24 @@ def test_preflight_rejects_unreviewed_repair_service(valid_config):
     )
 
     with pytest.raises(ValueError, match="service set"):
+        validate_compose_config(valid_config)
+
+
+def test_preflight_requires_business_readiness_checks_for_api_and_worker(valid_config):
+    valid_config["services"]["api"]["healthcheck"] = {
+        "test": ["CMD", "python", "-c", "health only"]
+    }
+
+    with pytest.raises(ValueError, match="API business readiness"):
+        validate_compose_config(valid_config)
+
+    valid_config["services"]["api"]["healthcheck"]["test"] = [
+        "CMD",
+        "python",
+        "-c",
+        "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz',timeout=3)",
+    ]
+    valid_config["services"]["worker"]["healthcheck"] = {"test": ["CMD", "true"]}
+
+    with pytest.raises(ValueError, match="business worker readiness"):
         validate_compose_config(valid_config)

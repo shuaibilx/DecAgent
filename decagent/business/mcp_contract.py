@@ -15,6 +15,7 @@ TRUSTED_CONNECTION = {
     "protocol_version": "2026-07-28",
     "endpoint_ref": "DECAGENT_TICKETS_MCP_URL",
 }
+COMPOSE_INTERNAL_MCP_ENDPOINT = "http://business-mcp:8001/mcp"
 RECOVERY_CONTRACT = {
     "version": "2.0.0",
     "prepare_prefix": "tickets_prepare_",

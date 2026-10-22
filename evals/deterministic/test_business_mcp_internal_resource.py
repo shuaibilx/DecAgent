@@ -37,3 +37,14 @@ def test_internal_mcp_resource_must_match_service_port_and_path():
             port=8001,
             resource_url="http://business-mcp:9999/not-mcp",
         )
+
+
+def test_internal_mcp_resource_rejects_unregistered_service_identity():
+    with pytest.raises(ValueError, match="internal resource URL"):
+        create_mcp_app(
+            _Database(),
+            _EmployeeAuth(),
+            host="0.0.0.0",
+            port=8001,
+            resource_url="http://other-service:8001/mcp",
+        )

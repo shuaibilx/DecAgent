@@ -18,7 +18,12 @@ from mcp.types import INTERNAL_ERROR
 from decagent.business import access
 from decagent.business.codec import strict_json
 from decagent.business.contracts import PluginSpec
-from decagent.business.mcp_contract import READ_COMMANDS, TRUSTED_CONNECTION, WRITE_COMMANDS
+from decagent.business.mcp_contract import (
+    COMPOSE_INTERNAL_MCP_ENDPOINT,
+    READ_COMMANDS,
+    TRUSTED_CONNECTION,
+    WRITE_COMMANDS,
+)
 from decagent.business.tickets import builtin_manifest
 
 MODERN_PROTOCOL_VERSION = "2026-07-28"
@@ -74,13 +79,17 @@ def _checked_endpoint(url):
         or parts.hostname is None
     ):
         raise ValueError("Business MCP endpoint must be a local /mcp HTTP URL")
+    if url == COMPOSE_INTERNAL_MCP_ENDPOINT:
+        return url
     try:
         address = ipaddress.ip_address(parts.hostname)
         port = parts.port
     except ValueError as exc:
         raise ValueError("Business MCP endpoint must have a loopback IP and port") from exc
     if not address.is_loopback or parts.hostname != "127.0.0.1" or port is None:
-        raise ValueError("Business MCP endpoint must use IPv4 loopback and an explicit port")
+        raise ValueError(
+            "Business MCP endpoint must use IPv4 loopback or the pinned Compose service"
+        )
     return url
 
 

@@ -19,7 +19,11 @@ from decagent.business import access
 from decagent.business.access import AccessError
 from decagent.business.codec import error
 from decagent.business.contracts import PluginSpec
-from decagent.business.mcp_contract import READ_COMMANDS, WRITE_COMMANDS
+from decagent.business.mcp_contract import (
+    COMPOSE_INTERNAL_MCP_ENDPOINT,
+    READ_COMMANDS,
+    WRITE_COMMANDS,
+)
 from decagent.business.operations import OperationService
 from decagent.business.tickets import builtin_manifest
 from decagent.business.tickets.store import TicketError, TicketStore, _json
@@ -281,6 +285,8 @@ def create_mcp_app(
             raise ValueError("Non-loopback MCP binds are restricted to 0.0.0.0")
         if resource_url is None:
             raise ValueError("Non-loopback MCP bind requires an explicit internal resource URL")
+        if resource_url != COMPOSE_INTERNAL_MCP_ENDPOINT:
+            raise ValueError("Non-loopback MCP bind requires the registered internal resource URL")
         parsed = urlsplit(resource_url)
         try:
             resource_port = parsed.port
