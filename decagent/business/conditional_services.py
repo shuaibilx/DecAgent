@@ -40,7 +40,6 @@ from decagent.decisions import JevAdapter
 from decagent.decisions.contracts import digest, json_value
 from decagent.runtime.model_calls import LedgerAttemptBudget
 from decagent.storage.safe_record import exact_safe_record
-from decagent.storage.usage import UsageLedger
 
 
 class _EmployeeSupplement(Exception):
@@ -88,7 +87,7 @@ class ConditionalBusinessServices:
             database, settings, runtime_config, task, owner, generation, mcp_client=mcp_client
         )
         self.executor, self.spec = self.legacy.executor, self.repository.spec
-        self.ledger = UsageLedger(database, task["id"])
+        self.ledger = self.legacy.ledger
         self.planner, self.adapter = planner, decision_adapter
         self.memory = TaskWorkingMemory(self.repository)
         self.policies = DecisionPolicyStore(database)

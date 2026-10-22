@@ -221,3 +221,29 @@ def test_provider_http_status_is_kept_in_the_attempt_record():
     assert result.text == "ready"
     assert primary.calls == 2 and backup.calls == 1
     assert ledger.rows[0]["provider_status"] == 503
+
+
+def test_primary_native_currency_price_and_actual_usage_are_forwarded_to_trial_ledger():
+    ledger = AttemptLedger()
+    model = BudgetedPrimary(
+        PrimaryModel(
+            SequenceClient(_success()),
+            requested_model="qwen3.8-flash",
+            endpoint="https://maas.example/v1",
+        ),
+        ledger,
+        price=TokenPrice("qwen-price-v1", Decimal("1"), Decimal("2"), currency="CNY"),
+        provider="qwen",
+        max_output_tokens=128,
+    )
+
+    result = model.respond([{"role": "user", "content": "read only plan"}])
+
+    assert result.text == "ready"
+    assert ledger.rows[0]["metadata"]["trial_cost_currency"] == "CNY"
+    assert ledger.rows[0]["metadata"]["trial_price_basis_id"] == "qwen-price-v1"
+    settlement = ledger.rows[0]
+    assert settlement["actual_input_tokens"] == 9
+    assert settlement["actual_output_tokens"] == 2
+    assert settlement["trial_actual_cost_native"] == Decimal("0.000013")
+    assert settlement["trial_actual_cost_basis"] == "frozen_rate"

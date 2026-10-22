@@ -39,6 +39,7 @@ def _client(database, tmp_path, *, public_url=LOCAL_ORIGIN, guest_trial_enabled=
         public_url=public_url,
         data_dir=tmp_path,
         guest_trial_enabled=guest_trial_enabled,
+        guest_rate_limit_hmac_key=b"G" * 32 if guest_trial_enabled else None,
     )
     return TestClient(create_app(database, settings), base_url=public_url)
 
@@ -824,6 +825,8 @@ def test_clear_during_worker_execution_waits_before_removing_late_checkpoint(
     from decagent.business.employee_auth import EmployeeIdentity
     from decagent.business.guest_auth import GuestAuth
     from decagent.business.guest_cleanup import GuestWorkspaceCleaner
+    from decagent.business.guest_queue import GuestExecutionQueue
+    from decagent.business.trial_budget import TrialBudgetLedger, TrialBudgetPolicy
     from decagent.business.worker import BusinessWorker
 
     client = _client(database, tmp_path)
@@ -846,6 +849,12 @@ def test_clear_during_worker_execution_waits_before_removing_late_checkpoint(
         workspace_id=session["workspace_id"],
     )
     task = _create_guest_task(database, identity.employee_id, identity.workspace_id)
+    with database.connect() as conn:
+        GuestExecutionQueue(
+            database, TrialBudgetLedger(database, TrialBudgetPolicy())
+        ).enqueue(
+            conn, workspace_id=identity.workspace_id, task_id=task["id"]
+        )
     entered = threading.Event()
     release = threading.Event()
     failures = []
@@ -879,7 +888,12 @@ def test_clear_during_worker_execution_waits_before_removing_late_checkpoint(
 
     worker = BusinessWorker(
         database,
-        Settings(database_url=database.url, data_dir=tmp_path),
+        Settings(
+            database_url=database.url,
+            data_dir=tmp_path,
+            guest_trial_enabled=True,
+            guest_rate_limit_hmac_key=b"G" * 32,
+        ),
         services_factory=lambda *_args: SimpleNamespace(close=lambda: None),
         graph_factory=lambda _services, saver: BlockingGraph(saver),
         heartbeat_seconds=0.02,
@@ -1060,6 +1074,7 @@ def test_guest_company_initialization_rolls_back_as_one_transaction(database, tm
             public_url=LOCAL_ORIGIN,
             data_dir=tmp_path,
             guest_trial_enabled=True,
+            guest_rate_limit_hmac_key=b"G" * 32,
         ),
     )
     with TestClient(app, base_url=LOCAL_ORIGIN, raise_server_exceptions=False) as client:

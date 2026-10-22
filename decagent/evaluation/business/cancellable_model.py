@@ -151,9 +151,19 @@ def _assign_windows_kill_job():
 
 
 def _send_frame(connection, frame):
-    payload = json.dumps(
-        frame, ensure_ascii=False, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
+    try:
+        payload = json.dumps(
+            frame, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError) as exc:
+        payload = json.dumps(
+            {
+                "ok": False,
+                "stage": "response",
+                "exception_type": type(exc).__name__,
+            },
+            separators=(",", ":"),
+        ).encode("ascii")
     if len(payload) > _MAX_RESPONSE_BYTES:
         payload = json.dumps(
             {

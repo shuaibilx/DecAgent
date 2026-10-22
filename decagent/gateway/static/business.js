@@ -5,6 +5,7 @@ const state = {
   csrf: sessionStorage.getItem("decagent.employee.csrf") || "",
   sessionKind: sessionStorage.getItem("decagent.session.kind") || "",
   guestRoles: [], guestRoleKey: "",
+  guestUsage: null,
   identity: null, plugins: [], task: null, operation: null,
   planSnapshot: null, trace: null, memories: [], memoryDependencies: null,
   selection: 0, operationSelection: 0, stream: null, cursor: new Map(),
@@ -28,6 +29,12 @@ function el(tag, text, className) {
   return node;
 }
 function notice(message) { $("notice").textContent = message; $("notice").hidden = !message; }
+function responseError(response, result, fallback) {
+  let message = result.message || fallback;
+  const retryAfter = response.headers.get("Retry-After");
+  if (response.status === 429 && retryAfter) message += `（请在 ${retryAfter} 秒后重试）`;
+  return `${result.code || "request_failed"}: ${message}`;
+}
 function details(label, value) {
   const wrapper = el("details");
   wrapper.append(el("summary", label), el("pre", JSON.stringify(value, null, 2)));
@@ -59,6 +66,9 @@ function resetWorkspace(clearHash = true) {
   $("current-identity").textContent = "";
   $("guest-role-control").hidden = true; $("guest-role").replaceChildren();
   $("clear-guest").hidden = true;
+  $("guest-resource-status").hidden = true; $("guest-resource-details").replaceChildren();
+  $("guest-queue-status").hidden = true; $("guest-queue-status").textContent = "";
+  state.guestUsage = null;
   $("workbench").hidden = true; $("logout").hidden = true; $("login-panel").hidden = false;
   if (clearHash && location.hash.startsWith("#operation=")) {
     history.replaceState(null, "", location.pathname);
@@ -83,7 +93,7 @@ async function api(path, {method = "GET", body, key} = {}) {
       state.csrf = ""; resetWorkspace();
       state.sessionKind = ""; state.guestRoleKey = ""; state.guestRoles = [];
     }
-    throw new Error(`${result.code || "request_failed"}: ${result.message || "请求失败"}`);
+    throw new Error(responseError(response, result, "请求失败"));
   }
   return result;
 }
@@ -120,7 +130,9 @@ async function loadTasks() {
   $("task-list").replaceChildren();
   if (!tasks.length) $("task-list").append(el("p", "当前员工没有任务。", "muted"));
   for (const task of tasks) {
-    const button = el("button", `${taskLabels[task.state] || task.state} · ${task.id.slice(0, 8)}\n${(task.requested_issue || "").slice(0, 80)}`,
+    const queue = task.execution_queue;
+    const queueLabel = queue?.state === "waiting" ? ` · 队列第 ${queue.position || "?"} 位` : "";
+    const button = el("button", `${taskLabels[task.state] || task.state}${queueLabel} · ${task.id.slice(0, 8)}\n${(task.requested_issue || "").slice(0, 80)}`,
       state.task?.id === task.id ? "active" : "");
     button.type = "button";
     button.addEventListener("click", () => selectTask(task.id).catch(error => notice(error.message)));
@@ -159,6 +171,23 @@ function renderTask(task) {
   $("task-title").textContent = `任务 ${task.id.slice(0, 8)}`;
   $("task-state").textContent = `${taskLabels[task.state] || task.state} · ${phaseLabels[task.phase] || task.phase}`;
   $("task-instruction").textContent = task.requested_issue || "";
+  const queueStatus = $("guest-queue-status");
+  const queue = task.execution_queue;
+  if (state.sessionKind === "guest" && queue) {
+    queueStatus.hidden = false;
+    if (queue.state === "waiting") {
+      const waitReason = queue.reason === "guest_execution_capacity"
+        ? "当前执行并发槽位暂满"
+        : "等待可用执行资源";
+      queueStatus.textContent = `执行队列：第 ${queue.position || "?"} 位等待中，${waitReason}（全站最多 ${queue.waiting_global_limit} 项等待）；每个游客空间最多同时执行 ${queue.active_per_workspace_limit} 项，全站最多 ${queue.active_global_limit} 项。`;
+    } else if (queue.state === "running") {
+      queueStatus.textContent = `执行队列：任务正在运行；每个游客空间最多同时执行 ${queue.active_per_workspace_limit} 项，全站最多 ${queue.active_global_limit} 项。`;
+    } else {
+      queueStatus.textContent = `执行队列：${queue.state}。`;
+    }
+  } else {
+    queueStatus.hidden = true; queueStatus.textContent = "";
+  }
   $("phases").replaceChildren();
   for (const [phase, text] of Object.entries(phaseLabels)) {
     $("phases").append(el("li", text, task.phase === phase ? "current" : ""));
@@ -265,8 +294,10 @@ function renderPlan(snapshot, trace, planError, traceError) {
       const item = usage.families?.[family] || {};
       const label = family === "primary" ? "主模型" : "Jev";
       const tokens = item.actual_tokens ?? (item.unknown_tokens ? "未知" : 0);
+      const cost = "已知费用 $" + (item.known_cost ?? "0") +
+        (item.unknown_cost ? "；仍有未知项" : "");
       $("plan-usage").append(el("p", label + "：请求 " + (item.actual_requests ?? 0) +
-        " 次 / token " + tokens + " / 已知费用 $" + (item.known_cost ?? "0"), "muted"));
+        " 次 / token " + tokens + " / " + cost, "muted"));
     }
     $("plan-usage").prepend(el("p", "总请求 " + (usage.actual_requests ?? 0) + " 次；预留 " +
       (usage.reservations ?? 0) + " 次；未知请求 " + (usage.unknown_requests ?? 0) + " 次。" +
@@ -654,11 +685,33 @@ async function enter() {
   $("login-panel").hidden = true; $("workbench").hidden = false; $("logout").hidden = false;
   $("clear-guest").hidden = state.sessionKind !== "guest";
   renderGuestRoles();
-  const outcomes = await Promise.allSettled([loadPlugins(), loadTasks(), loadTickets(), loadOperations()]);
+  const loads = [loadPlugins(), loadTasks(), loadTickets(), loadOperations()];
+  if (state.sessionKind === "guest") loads.push(loadGuestUsage());
+  const outcomes = await Promise.allSettled(loads);
   const failed = outcomes.filter(item => item.status === "rejected");
   if (failed.length) notice(`${failed.length} 个业务视图暂不可用：${failed[0].reason.message}`);
   const selected = new URLSearchParams(location.hash.slice(1)).get("operation");
   if (selected) await selectOperation(selected);
+}
+
+async function loadGuestUsage() {
+  const panel = $("guest-resource-status");
+  if (state.sessionKind !== "guest") {
+    state.guestUsage = null; panel.hidden = true; $("guest-resource-details").replaceChildren();
+    return;
+  }
+  const response = await fetch("/api/v3/guest/usage", {credentials: "same-origin"});
+  const result = await response.json();
+  if (!response.ok) throw new Error(responseError(response, result, "读取游客额度失败"));
+  state.guestUsage = result;
+  const count = value => new Intl.NumberFormat("zh-CN").format(value);
+  const global = result.global || {}, guest = result.guest || {};
+  $("guest-resource-details").replaceChildren(
+    el("p", `预算日（北京时间）：${result.budget_date || "—"}`, "muted"),
+    el("p", `全站抵扣前费用占用：$${global.cost_reserved_usd || "0"} / $${global.daily_cost_limit_usd || "0"}；Qwen Token：${count(global.qwen_tokens_reserved || 0)} / ${count(global.daily_qwen_token_limit || 0)}。`),
+    el("p", `当前游客空间已准入任务：${count(guest.tasks_admitted || 0)} / ${count(guest.daily_task_limit || 0)}；Qwen Token：${count(guest.qwen_tokens_reserved || 0)} / ${count(guest.daily_qwen_token_limit || 0)}。费用占用包含尚未核实请求的预留。`, "muted"),
+  );
+  panel.hidden = false;
 }
 
 bind("login-form", "submit", async () => {
@@ -711,7 +764,7 @@ bind("start-guest", "click", async buttonEvent => {
       method: "POST", credentials: "same-origin",
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(`${result.code || "guest_start_failed"}: ${result.message || "游客体验暂不可用"}`);
+    if (!response.ok) throw new Error(responseError(response, result, "游客体验暂不可用"));
     state.csrf = result.csrf_token;
     state.sessionKind = "guest"; state.guestRoles = result.roles || [];
     state.guestRoleKey = result.current_role_key || "";
@@ -756,6 +809,7 @@ bind("refresh", "click", async () => {
     await selectTask(selectedTaskId);
   }
 });
+bind("refresh-guest-usage", "click", loadGuestUsage);
 bind("refresh-tickets", "click", loadTickets);
 bind("refresh-operations", "click", async () => {
   await loadOperations(); if (state.operation) await selectOperation(state.operation.operation_id);
@@ -772,6 +826,7 @@ bind("business-form", "submit", async () => {
         max_tokens: Number($("max-tokens").value), max_active_seconds: Number($("max-active").value),
         max_cost: $("max-cost").value.trim() || null}};
     const task = await api("/tasks", {method: "POST", body});
+    if (state.sessionKind === "guest") await loadGuestUsage();
     await selectTask(task.id);
   } finally { button.disabled = false; }
 });

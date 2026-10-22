@@ -34,8 +34,25 @@ from decagent.business.guest_auth import (
     GuestAuth,
 )
 from decagent.business.guest_cleanup import GuestWorkspaceCleaner
+from decagent.business.guest_queue import GuestExecutionQueue, GuestQueueFull
+from decagent.business.guest_rate_limit import (
+    MANUAL_REPLY_LIMIT,
+    MANUAL_REPLY_WINDOW_SECONDS,
+    SESSION_CREATE_LIMIT,
+    SESSION_CREATE_WINDOW_SECONDS,
+    TASK_SUBMIT_LIMIT,
+    TASK_SUBMIT_WINDOW_SECONDS,
+    GuestAdmissionRateLimiter,
+    GuestRateLimitKeyRotationPending,
+    TrustedProxyHeadersMiddleware,
+)
 from decagent.business.mcp_client import MCPToolError
 from decagent.business.operations import OperationService
+from decagent.business.trial_budget import (
+    TrialBudgetExceeded,
+    TrialBudgetLedger,
+    TrialBudgetPolicy,
+)
 from decagent.policy import (
     Action,
     ApprovalKind,
@@ -96,9 +113,10 @@ class GatewayCallbacks:
 
 
 class ApiError(Exception):
-    def __init__(self, status, code, message, *, task_id=None, details=None):
+    def __init__(self, status, code, message, *, task_id=None, details=None, headers=None):
         self.status, self.code, self.message = status, code, message
         self.task_id, self.details = task_id, details or {}
+        self.headers = headers or {}
 
 
 class ScopedDatabase:
@@ -138,6 +156,12 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     )
     guest_auth = GuestAuth(database, auth.origin, auth.secure)
     guest_cleaner = GuestWorkspaceCleaner(database)
+    guest_trial_budget = TrialBudgetLedger(database, TrialBudgetPolicy.from_settings(settings))
+    guest_execution_queue = GuestExecutionQueue(database, guest_trial_budget)
+    guest_rate_limiter = GuestAdmissionRateLimiter(
+        database,
+        hmac_key=settings.guest_rate_limit_hmac_key,
+    )
     redactor = GatewayRedactor(
         known_secrets=tuple(
             filter(
@@ -183,6 +207,40 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
                 }
             ),
             status_code=exc.status,
+            headers=exc.headers,
+        )
+
+    async def enforce_guest_rate_limit(request, *, scope, limit, window_seconds):
+        try:
+            decision = await asyncio.to_thread(
+                guest_rate_limiter.check,
+                scope=scope,
+                client_ip=getattr(request.state, "guest_client_ip", "unknown"),
+                limit=limit,
+                window_seconds=window_seconds,
+            )
+        except GuestRateLimitKeyRotationPending as exc:
+            retry_after = exc.retry_after_seconds
+            return error(
+                ApiError(
+                    503,
+                    "guest_rate_limit_key_rotation_pending",
+                    "游客限流密钥变更仍在安全等待期内，请稍后重试",
+                    details={"retry_after_seconds": retry_after},
+                    headers={"Retry-After": str(retry_after)},
+                )
+            )
+        if decision.allowed:
+            return None
+        retry_after = decision.retry_after_seconds
+        return error(
+            ApiError(
+                429,
+                "guest_rate_limited",
+                "游客请求过于频繁，请在等待后重试",
+                details={"retry_after_seconds": retry_after, "limit": limit},
+                headers={"Retry-After": str(retry_after)},
+            )
         )
 
     @app.middleware("http")
@@ -218,29 +276,33 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
                     return error(
                         ApiError(403, "origin", "Exact configured loopback Origin required")
                     )
+                existing_guest = await asyncio.to_thread(guest_auth.authenticate_browser, request)
+                if existing_guest is None:
+                    limited = await enforce_guest_rate_limit(
+                        request,
+                        scope="guest_create",
+                        limit=SESSION_CREATE_LIMIT,
+                        window_seconds=SESSION_CREATE_WINDOW_SECONDS,
+                    )
+                    if limited is not None:
+                        return limited
             else:
                 guest = await asyncio.to_thread(guest_auth.authenticate_browser, request)
                 if guest is None:
                     clear_replay = (
                         request.url.path == "/api/v3/guest/workspace"
                         and request.method == "DELETE"
-                        and await asyncio.to_thread(
-                            guest_auth.valid_clear_replay, request
-                        )
+                        and await asyncio.to_thread(guest_auth.valid_clear_replay, request)
                     )
                     if not clear_replay:
-                        return error(
-                            ApiError(401, "unauthenticated", "Guest session required")
-                        )
+                        return error(ApiError(401, "unauthenticated", "Guest session required"))
                     request.state.guest_clear_replay = True
                     guest = None
                 if guest is not None:
                     request.state.guest = guest
                     guest_activity = guest
                     if request.method not in {"GET", "HEAD", "OPTIONS"}:
-                        valid = await asyncio.to_thread(
-                            guest_auth.valid_mutation, request, guest
-                        )
+                        valid = await asyncio.to_thread(guest_auth.valid_mutation, request, guest)
                         if not valid:
                             return error(
                                 ApiError(403, "csrf_origin", "CSRF or Origin validation failed")
@@ -263,17 +325,37 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
                 if employee is None:
                     return error(ApiError(401, "unauthenticated", "Employee login required"))
                 request.state.employee = employee
+                request.state.guest_session = guest_session
                 if guest_session:
                     guest_activity = employee
                 if request.method not in {"GET", "HEAD", "OPTIONS"}:
                     mutation_auth = guest_auth if guest_session else employee_auth
-                    valid = await asyncio.to_thread(
-                        mutation_auth.valid_mutation, request, employee
-                    )
+                    valid = await asyncio.to_thread(mutation_auth.valid_mutation, request, employee)
                     if not valid:
                         return error(
                             ApiError(403, "csrf_origin", "CSRF or Origin validation failed")
                         )
+                    if guest_session and request.method == "POST":
+                        if request.url.path == "/api/v2/business/tasks":
+                            limited = await enforce_guest_rate_limit(
+                                request,
+                                scope="guest_task_submit",
+                                limit=TASK_SUBMIT_LIMIT,
+                                window_seconds=TASK_SUBMIT_WINDOW_SECONDS,
+                            )
+                        elif request.url.path.startswith(
+                            "/api/v2/business/"
+                        ) and request.url.path.endswith("/reply"):
+                            limited = await enforce_guest_rate_limit(
+                                request,
+                                scope="guest_manual_reply",
+                                limit=MANUAL_REPLY_LIMIT,
+                                window_seconds=MANUAL_REPLY_WINDOW_SECONDS,
+                            )
+                        else:
+                            limited = None
+                        if limited is not None:
+                            return limited
         response = await call_next(request)
         if (
             guest_activity is not None
@@ -297,8 +379,7 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
                     )
                 existing_cookies = response.headers.getlist("set-cookie")
                 csrf_cookie_set = any(
-                    cookie.startswith(GUEST_CSRF_COOKIE_NAME + "=")
-                    for cookie in existing_cookies
+                    cookie.startswith(GUEST_CSRF_COOKIE_NAME + "=") for cookie in existing_cookies
                 )
                 if csrf_token and not csrf_cookie_set:
                     response.set_cookie(
@@ -320,6 +401,11 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
         if auth.secure:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response
+
+    app.add_middleware(
+        TrustedProxyHeadersMiddleware,
+        trusted_proxies=settings.guest_trusted_proxies,
+    )
 
     @app.exception_handler(ApiError)
     async def api_error(request, exc):
@@ -558,6 +644,10 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     def guest_trial_status():
         return {"enabled": settings.guest_trial_enabled}
 
+    @app.get("/api/v3/guest/usage")
+    def guest_trial_usage(request: Request):
+        return guest_trial_budget.usage_status(workspace_id=request.state.guest.workspace_id)
+
     @app.post("/api/v1/auth/session")
     def login(body: SessionInput):
         issued = auth.session(body.token)
@@ -623,9 +713,7 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
     @app.get("/api/v3/guest/session")
     def guest_session_restore(request: Request):
         identity = request.state.guest
-        csrf_token = guest_auth.csrf_for(
-            identity, request.cookies.get(GUEST_CSRF_COOKIE_NAME, "")
-        )
+        csrf_token = guest_auth.csrf_for(identity, request.cookies.get(GUEST_CSRF_COOKIE_NAME, ""))
         with database.connect() as conn:
             row = conn.execute(
                 "SELECT expires_at FROM business.guest_sessions WHERE token_hash=%s "
@@ -670,9 +758,7 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
         if not is_clear_replay and not guest_auth.clear_workspace(request.state.guest):
             raise ApiError(404, "not_found", "Guest workspace is unavailable")
         if not is_clear_replay:
-            await asyncio.to_thread(
-                guest_cleaner.clean_workspace, request.state.guest.workspace_id
-            )
+            await asyncio.to_thread(guest_cleaner.clean_workspace, request.state.guest.workspace_id)
         response = JSONResponse({"cleared": True})
         response.delete_cookie(
             GUEST_COOKIE_NAME,
@@ -777,26 +863,30 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
 
     def employee_task_view(conn, row):
         record = task_view(conn, row)
-        return safe(
-            {
-                key: record[key]
-                for key in (
-                    "id",
-                    "kind",
-                    "state",
-                    "phase",
-                    "created_at",
-                    "event_seq",
-                    "budget",
-                    "requested_issue",
-                    "business_result",
-                    "waiting",
-                    "approvals",
-                    "decisions",
-                    "actions",
-                )
-            }
+        view = {
+            key: record[key]
+            for key in (
+                "id",
+                "kind",
+                "state",
+                "phase",
+                "created_at",
+                "event_seq",
+                "budget",
+                "requested_issue",
+                "business_result",
+                "waiting",
+                "approvals",
+                "decisions",
+                "actions",
+            )
+        }
+        queue_status = guest_execution_queue.status(
+            conn, workspace_id=row["workspace_id"], task_id=row["id"]
         )
+        if queue_status is not None:
+            view["execution_queue"] = queue_status
+        return safe(view)
 
     def browser_operation(employee, operation_id, *, known=None):
         view = operations.get(employee, operation_id)
@@ -875,21 +965,33 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
         with database.connect() as conn:
             rows = conn.execute(
                 "SELECT id,kind,state,phase,created_at,event_seq,budget,"
-                "authorization_snapshot FROM app.tasks WHERE kind='business' AND employee_id=%s "
+                "authorization_snapshot,workspace_id FROM app.tasks "
+                "WHERE kind='business' AND employee_id=%s "
                 "AND workspace_id=%s "
                 "ORDER BY created_at DESC,id LIMIT 100",
                 (request.state.employee.employee_id, request.state.employee.workspace_id),
             ).fetchall()
-        return safe(
-            [
-                {
+            items = []
+            for row in rows:
+                item = {
                     key: row[key]
-                    for key in ("id", "kind", "state", "phase", "created_at", "event_seq", "budget")
-                }
-                | {"requested_issue": row["authorization_snapshot"].get("instruction", "")}
-                for row in rows
-            ]
-        )
+                    for key in (
+                        "id",
+                        "kind",
+                        "state",
+                        "phase",
+                        "created_at",
+                        "event_seq",
+                        "budget",
+                    )
+                } | {"requested_issue": row["authorization_snapshot"].get("instruction", "")}
+                queue_status = guest_execution_queue.status(
+                    conn, workspace_id=row["workspace_id"], task_id=row["id"]
+                )
+                if queue_status is not None:
+                    item["execution_queue"] = queue_status
+                items.append(item)
+        return safe(items)
 
     @app.get("/api/v2/business/tasks/{task_id}")
     def employee_task(task_id: UUID, request: Request):
@@ -912,6 +1014,34 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
             issued = employee_auth.issue_mcp(employee)
             created_refs.append(UUID(issued["credential_ref"]))
             task = business.submit_employee(conn, body, employee, created_refs[-1])
+            workspace = conn.execute(
+                "SELECT kind FROM business.workspaces WHERE id=%s FOR SHARE",
+                (employee.workspace_id,),
+            ).fetchone()
+            if workspace and workspace["kind"] == "guest":
+                if not settings.guest_trial_enabled:
+                    raise ApiError(404, "not_found", "Guest trial is not enabled")
+                try:
+                    guest_execution_queue.enqueue(
+                        conn,
+                        workspace_id=employee.workspace_id,
+                        task_id=task["id"],
+                    )
+                except GuestQueueFull as exc:
+                    raise ApiError(
+                        429,
+                        "guest_queue_full",
+                        str(exc),
+                        details={"max_waiting": 20},
+                        headers={"Retry-After": "30"},
+                    ) from exc
+                except TrialBudgetExceeded as exc:
+                    raise ApiError(
+                        429,
+                        exc.code,
+                        str(exc),
+                        headers={"Retry-After": "86400"},
+                    ) from exc
             append_event(
                 conn,
                 task,

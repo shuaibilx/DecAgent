@@ -2,7 +2,9 @@ import asyncio
 import json
 from dataclasses import replace
 from decimal import Decimal
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from types import SimpleNamespace
 
 import pytest
@@ -248,6 +250,135 @@ def test_cny_cost_is_reserved_and_settled_without_a_guessed_usd_conversion(tmp_p
     assert billing["cost_records"][0]["basis"] == "frozen_rate"
     assert billing["cost_records"][0]["cached_input_tokens"] == 4
     ledger.close()
+
+
+def test_local_primary_http_response_is_reserved_parsed_and_settled_in_cny(tmp_path):
+    from decagent.evaluation.business.public_models import OneShotPrimaryModel
+
+    requests = []
+
+    class OpenAICompatibleHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers["Content-Length"])
+            payload = json.loads(self.rfile.read(length))
+            requests.append(
+                {
+                    "path": self.path,
+                    "model": payload.get("model"),
+                    "authorization": self.headers.get("Authorization"),
+                    "messages": payload.get("messages"),
+                }
+            )
+            body = json.dumps(
+                {
+                    "id": "chatcmpl-local-ledger-1",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": "qwen3.8-flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": "local-ok"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 3,
+                        "total_tokens": 13,
+                    },
+                }
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("x-request-id", "request-local-ledger-1")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), OpenAICompatibleHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    model = None
+    ledger = None
+    try:
+        plan = _plan_with_cny_model_prices()
+        profile = replace(plan.profiles.primary)
+        object.__setattr__(
+            profile,
+            "endpoint",
+            f"http://127.0.0.1:{server.server_port}/v1",
+        )
+        plan = replace(plan, profiles=replace(plan.profiles, primary=profile))
+        ledger, trial_id, route = _started_ledger(tmp_path, plan)
+        model = OneShotPrimaryModel(profile, api_key="local-test-secret")
+        dispatched_states = []
+
+        def callback(request, *, timeout_seconds):
+            assert timeout_seconds > 0
+            attempt = ledger._connection.execute(
+                "SELECT status FROM model_attempts"
+            ).fetchone()
+            dispatched_states.append(attempt["status"])
+            turn = model.respond(request["messages"], timeout_seconds=timeout_seconds)
+            return ModelReply(
+                turn.text,
+                tokens=turn.usage.total_tokens,
+                cost_usd=None,
+                model=turn.model,
+                input_tokens=turn.usage.input_tokens,
+                output_tokens=turn.usage.output_tokens,
+                profile=profile,
+                provider=profile.provider,
+                provider_request_id=turn.server_request_id,
+            )
+
+        measured = LedgeredModelCallback(
+            callback,
+            ledger,
+            profile=profile,
+            trial_id=trial_id,
+            route=route,
+            input_token_upper_bound=lambda _request: profile.max_input_tokens,
+            route_remaining_seconds=lambda: ledger.route_remaining_seconds(
+                trial_id, route.value
+            ),
+        )
+        reply = measured({"messages": [{"role": "user", "content": "offline"}]})
+
+        attempt = ledger._connection.execute(
+            "SELECT attempt_id,status FROM model_attempts"
+        ).fetchone()
+        snapshot = ledger.model_attempt_snapshot(attempt["attempt_id"])
+        assert reply.value == "local-ok"
+        assert len(requests) == 1
+        assert requests[0]["path"].endswith("/chat/completions")
+        assert requests[0]["model"] == profile.model
+        assert requests[0]["authorization"] == "Bearer local-test-secret"
+        assert requests[0]["messages"] == [
+            {"role": "user", "content": "offline"}
+        ]
+        assert attempt["status"] == "settled"
+        assert snapshot["actual_input_tokens"] == 10
+        assert snapshot["actual_output_tokens"] == 3
+        assert snapshot["actual_model"] == profile.model
+        assert snapshot["actual_provider"] == profile.provider
+        assert snapshot["provider_request_id"] == "request-local-ledger-1"
+        assert snapshot["actual_cost_currency"] == "CNY"
+        assert Decimal(snapshot["actual_cost_amount"]) == Decimal("0.0000161")
+        assert snapshot["actual_cost_source"] == "frozen_profile"
+        assert dispatched_states == ["dispatched"]
+    finally:
+        if model is not None:
+            model.close()
+        if ledger is not None:
+            ledger.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_model_callback_respects_caller_deadline_ceiling(tmp_path):

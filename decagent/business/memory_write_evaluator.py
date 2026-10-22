@@ -14,11 +14,12 @@ from decagent.business.decision_policy import DecisionSnapshot, PolicyContext, g
 from decagent.business.memory import PREFERENCE_SUBJECTS, BusinessMemoryStore
 from decagent.business.policy_store import DecisionPolicyStore
 from decagent.business.questions import BusinessDecisionContext
+from decagent.business.trial_budget import make_task_usage_ledger
+from decagent.config import Settings
 from decagent.decisions.adapter import DEFAULT_MODEL, JevAdapter
 from decagent.decisions.contracts import QUESTIONS, DecisionRequest, digest, validate_answers
 from decagent.runtime.model_calls import LedgerAttemptBudget
 from decagent.storage.safe_record import exact_safe_record
-from decagent.storage.usage import UsageLedger
 
 MAX_CANDIDATES = 8
 CANDIDATE_SOURCE = "business_memories.current@1"
@@ -65,6 +66,7 @@ class BusinessMemoryWriteEvaluator:
         adapter_factory=JevAdapter,
         before_dispatch=None,
         clock=None,
+        settings=None,
     ):
         if not _text(dataset_version, 200):
             raise ValueError("A pinned memory evaluation dataset version is required")
@@ -75,6 +77,8 @@ class BusinessMemoryWriteEvaluator:
         self.adapter_factory, self.before_dispatch = adapter_factory, before_dispatch
         self.adapter_options = {"api_key": api_key, "model": model, "provider": provider}
         self.reservation_usd = reservation_usd
+        # Without explicit runtime settings, guest dispatch remains disabled by default.
+        self.settings = settings or Settings()
 
     def _current(self, identity, context, task_id):
         # This call performs ACL, source, TTL and all version checks before any
@@ -164,7 +168,7 @@ class BusinessMemoryWriteEvaluator:
                 raise AccessError("stale", "Memory evidence or policy changed before dispatch")
 
         budget = LedgerAttemptBudget(
-            UsageLedger(self.database, task_id),
+            make_task_usage_ledger(self.database, self.settings, task_id),
             reservation_usd=self.reservation_usd,
             before_dispatch=guard,
             purpose="memory_write_screening",

@@ -1,5 +1,6 @@
 """Control-service configuration; never forward this object to a task executor."""
 
+import ipaddress
 import os
 from dataclasses import dataclass, field
 from datetime import date
@@ -21,6 +22,8 @@ class Settings:
     fallback_api_key: str = field(default="", repr=False)
     fallback_enabled: bool = False
     guest_trial_enabled: bool = False
+    guest_trusted_proxies: tuple[str, ...] = ()
+    guest_rate_limit_hmac_key: bytes | None = field(default=None, repr=False)
     guest_trial_daily_cost_usd: Decimal = Decimal("5.000000")
     guest_trial_daily_qwen_tokens: int = 5_000_000
     guest_trial_daily_tasks_per_guest: int = 30
@@ -42,6 +45,29 @@ class Settings:
             raise ValueError("DECAGENT_MAIN_FALLBACK_ENABLED must be a boolean")
         if type(self.guest_trial_enabled) is not bool:
             raise ValueError("DECAGENT_GUEST_TRIAL_ENABLED must be a boolean")
+        if self.guest_rate_limit_hmac_key is not None and (
+            not isinstance(self.guest_rate_limit_hmac_key, bytes)
+            or len(self.guest_rate_limit_hmac_key) != 32
+        ):
+            raise ValueError("Guest rate-limit HMAC secret must be exactly 32 bytes")
+        if self.guest_trial_enabled and self.guest_rate_limit_hmac_key is None:
+            raise ValueError("DECAGENT_GUEST_RATE_LIMIT_HMAC_KEY must be a 64-character hex secret")
+        if not isinstance(self.guest_trusted_proxies, (tuple, list)):
+            raise ValueError("Guest trusted proxy configuration must be a sequence of CIDRs")
+        if any(
+            not isinstance(value, str) or not value.strip() for value in self.guest_trusted_proxies
+        ):
+            raise ValueError("Guest trusted proxy configuration must contain nonempty CIDRs")
+        try:
+            trusted_proxies = tuple(
+                str(ipaddress.ip_network(value, strict=False))
+                for value in self.guest_trusted_proxies
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "DECAGENT_GUEST_TRUSTED_PROXIES contains an invalid trusted proxy CIDR"
+            ) from exc
+        object.__setattr__(self, "guest_trusted_proxies", trusted_proxies)
         try:
             daily_cost = Decimal(str(self.guest_trial_daily_cost_usd))
         except (InvalidOperation, TypeError, ValueError) as exc:
@@ -124,13 +150,25 @@ class Settings:
         guest_trial_enabled = os.getenv("DECAGENT_GUEST_TRIAL_ENABLED", "false").strip().lower()
         if guest_trial_enabled not in {"true", "false"}:
             raise ValueError("DECAGENT_GUEST_TRIAL_ENABLED must be true or false")
+        guest_trusted_proxies = tuple(
+            value.strip()
+            for value in os.getenv("DECAGENT_GUEST_TRUSTED_PROXIES", "").split(",")
+            if value.strip()
+        )
+        guest_rate_limit_key_text = os.getenv("DECAGENT_GUEST_RATE_LIMIT_HMAC_KEY", "").strip()
+        try:
+            guest_rate_limit_hmac_key = (
+                bytes.fromhex(guest_rate_limit_key_text) if guest_rate_limit_key_text else None
+            )
+        except ValueError as exc:
+            raise ValueError(
+                "DECAGENT_GUEST_RATE_LIMIT_HMAC_KEY must be a 64-character hex secret"
+            ) from exc
         try:
             guest_trial_daily_cost_usd = Decimal(
                 os.getenv("DECAGENT_GUEST_TRIAL_DAILY_COST_USD", "5.00")
             )
-            guest_trial_fx_rate_text = os.getenv(
-                "DECAGENT_GUEST_TRIAL_FX_CNY_PER_USD", ""
-            ).strip()
+            guest_trial_fx_rate_text = os.getenv("DECAGENT_GUEST_TRIAL_FX_CNY_PER_USD", "").strip()
             guest_trial_fx_rate = (
                 Decimal(guest_trial_fx_rate_text) if guest_trial_fx_rate_text else None
             )
@@ -179,6 +217,8 @@ class Settings:
             fallback_api_key=fallback_key,
             fallback_enabled=fallback_enabled == "true",
             guest_trial_enabled=guest_trial_enabled == "true",
+            guest_trusted_proxies=guest_trusted_proxies,
+            guest_rate_limit_hmac_key=guest_rate_limit_hmac_key,
             guest_trial_daily_cost_usd=guest_trial_daily_cost_usd,
             guest_trial_daily_qwen_tokens=guest_trial_daily_qwen_tokens,
             guest_trial_daily_tasks_per_guest=guest_trial_daily_tasks_per_guest,

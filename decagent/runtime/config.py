@@ -93,7 +93,7 @@ class RuntimeConfig:
 
     @classmethod
     def from_env(cls):
-        def read_price(prefix):
+        def read_price(prefix, default_currency):
             version = os.getenv(f"DECAGENT_{prefix}_PRICE_VERSION", "")
             if not version:
                 return None
@@ -101,10 +101,16 @@ class RuntimeConfig:
                 version,
                 Decimal(os.environ[f"DECAGENT_{prefix}_INPUT_PER_MILLION"]),
                 Decimal(os.environ[f"DECAGENT_{prefix}_OUTPUT_PER_MILLION"]),
+                currency=os.getenv(
+                    f"DECAGENT_{prefix}_PRICE_CURRENCY", default_currency
+                ),
             )
 
-        price = read_price("MAIN")
-        fallback_price = read_price("MAIN_FALLBACK")
+        main_provider = os.getenv("DECAGENT_MAIN_PROVIDER", "primary")
+        price = read_price(
+            "MAIN", "CNY" if main_provider.casefold() in {"qwen", "dashscope"} else "USD"
+        )
+        fallback_price = read_price("MAIN_FALLBACK", "USD")
         unknown = os.getenv("DECAGENT_MAIN_UNKNOWN_RESERVATION", "")
         unknown_fallback = os.getenv("DECAGENT_MAIN_FALLBACK_UNKNOWN_RESERVATION", "")
         calibration = os.getenv("DECAGENT_CALIBRATION_FILE", "")
@@ -128,7 +134,7 @@ class RuntimeConfig:
             author_email=os.getenv("DECAGENT_GIT_AUTHOR_EMAIL", ""),
             strategy=os.getenv("DECAGENT_DECISION_STRATEGY", "jev"),
             calibrations=Path(calibration) if calibration else None,
-            main_provider=os.getenv("DECAGENT_MAIN_PROVIDER", "primary"),
+            main_provider=main_provider,
             main_price=price,
             fallback_price=fallback_price,
             unknown_main_reservation=Decimal(unknown) if unknown else None,

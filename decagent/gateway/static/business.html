@@ -30,6 +30,16 @@
     <div id="workbench" hidden>
       <div class="intro"><p class="eyebrow">CONTRACT → DECISION → VERIFIED ACTION</p>
         <h1>业务任务与操作待办</h1><p class="muted">Agent 和独立 MCP 客户端共用员工身份、具体确认与服务端回执。</p></div>
+      <section id="guest-resource-status" class="card guest-resource-status" hidden aria-live="polite">
+        <div class="row spread"><h2>今日游客体验额度</h2><button id="refresh-guest-usage" class="quiet" type="button">刷新额度</button></div>
+        <div id="guest-resource-details"></div>
+        <details class="guest-cost-disclosure"><summary>费用口径与未知请求</summary>
+          <p>费用按模型 API 抵扣前金额计入；代金券只影响实付，不降低 API 费用。只有取得供应商账单证据时，才分别记录券额和现金支出。</p>
+          <p>额度卡显示统一的美元等值占用：美元请求记美元，Qwen 人民币费用使用当天冻结的 CFETS 汇率快照换算，并加入至少 10% 安全余量。美元等值和预留不是供应商账单。</p>
+          <p>请求先预留再派发。用量或费用未知时继续保留预留；只有能证明请求没有发送时才释放。缺少可靠费率或有效汇率时，请求会在发送前拒绝。</p>
+          <p>游客 Jev 请求目前在完成可验证的费用上界前，会在派发前拒绝。</p>
+        </details>
+      </section>
       <div class="layout">
         <aside>
           <section class="card"><h2>发起 Agent 任务</h2><form id="business-form">
@@ -61,6 +71,7 @@
           <section id="operation-detail" class="card" hidden><h2 id="operation-title">操作详情</h2>
             <div id="operation-body"></div><div id="operation-actions"></div></section>
           <section class="card"><div class="row spread"><h2 id="task-title">选择一个任务</h2><span id="task-state" class="badge">—</span></div>
+            <p id="guest-queue-status" class="guest-queue-status" hidden aria-live="polite"></p>
             <p id="task-instruction"></p><ol id="phases" class="phases" aria-label="业务任务执行阶段"></ol>
             <p id="connection" class="muted">进度尚未连接</p><div id="waiting" class="waiting" hidden></div>
             <div class="row"><button id="cancel-task" class="danger" hidden>取消任务</button><button id="resume-task" hidden>核实并恢复</button></div>

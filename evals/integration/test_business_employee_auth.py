@@ -29,13 +29,22 @@ ORIGIN = "http://127.0.0.1:8000"
 
 
 @pytest.fixture
-def employee_api(database, tmp_path):
+def employee_api(database, tmp_path, request):
     assert TicketStore(database.url).execute("seed", {}, "employee-auth-seed")["ok"]
     directory = tmp_path / "demo-auth"
     seed_employee_accounts(database, directory)
     scope = PluginRegistry(database).register(builtin_manifest())
     owner_token = initialize_owner(database, tmp_path / "owner.token").read_text().strip()
-    app = create_app(database, Settings(database_url=database.url, data_dir=tmp_path))
+    guest_trial_enabled = bool(getattr(request, "param", False))
+    app = create_app(
+        database,
+        Settings(
+            database_url=database.url,
+            data_dir=tmp_path,
+            guest_trial_enabled=guest_trial_enabled,
+            guest_rate_limit_hmac_key=b"G" * 32 if guest_trial_enabled else None,
+        ),
+    )
     return (
         database,
         TestClient(app),
@@ -270,6 +279,7 @@ def test_credential_resolver_requires_matching_task_employee_and_current_credent
         auth.resolve_credential_ref(task["id"])
 
 
+@pytest.mark.parametrize("employee_api", [True], indirect=True)
 def test_authenticated_employee_workspace_is_database_bound_and_request_cannot_override(
     employee_api,
 ):

@@ -46,6 +46,36 @@ jobs:
       fail-fast: true
       matrix:
         python-version: ["3.11", "3.13"]
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install locked project and development dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Check Python style
+        run: python -m ruff check decagent evals ops
+
+      - name: Run deterministic tests
+        run: python -m pytest evals/deterministic -q -rs
+
+  integration:
+    name: Python ${{ matrix.python-version }} integration shard ${{ matrix.shard }}/2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        python-version: ["3.11", "3.13"]
+        shard: [1, 2]
     services:
       postgres:
         image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
@@ -75,14 +105,15 @@ jobs:
       - name: Install locked project and development dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Check Python style
-        run: python -m ruff check decagent evals ops
-
-      - name: Run deterministic tests
-        run: python -m pytest evals/deterministic -q -rs
-
       - name: Run database integration tests
-        run: python -m pytest evals/integration -n 4 --dist=worksteal -q -rs --durations=25
+        env:
+          CI_SHARD_INDEX: ${{ matrix.shard }}
+        run: >-
+          python -m pytest evals/integration -n 4 --dist=worksteal
+          -p ops.testing.pytest_ci_shard
+          --ci-shard-index $(($CI_SHARD_INDEX - 1))
+          --ci-shard-count 2
+          -q -rs --durations=25
 
   executor-boundary:
     name: Disposable Docker executor and repair boundaries

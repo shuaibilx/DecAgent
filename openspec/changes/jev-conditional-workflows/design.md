@@ -6,11 +6,21 @@
 
 worker 诊断仍不能把两个 τ retail ValueError 区分为本地构造阶段错误或提供方收到请求后的错误；三个 Plan timeout 也没有 provider request ID/usage。`dispatched` 仅说明本机进入派发尝试，不证明提供方已接收。不得重放这些 attempts。四域首波质量门槛没有通过，9.6.F/G 与 10.3–10.6 继续未完成；公开完整比较仍 0/286，尚无 Jev 收益结论。下一步先做不含请求正文的离线根因分析及安全阶段诊断回归，再决定是否冻结新 cohort。
 
+后续离线复核新增完整 `PublicTauModelCallback` 本机 HTTP 回环，包含真实 one-shot 子进程、工具 schema/参数校验、回复用量与 model/request identity 解析；公开 callback、route、ledger 四组定向回归 `128 passed in 25.90s`，Ruff 通过，未调用模型/MCP/官方评分器。该回环验证当前 callback 的可执行路径，但不能解释历史 `model_worker_target/ValueError`，也不能勾选 9.6.F；真实模型和官方评分闭环仍未通过。
+
+### 2026-10-22 HTTP 请求标识优先级回归
+
+loopback 客户端和 ledger 集成测试同时返回 `x-request-id` 与兼容响应体 `id` 后，新增断言先复现旧逻辑把响应体 ID 记成 `provider_request_id` 的问题，再修复为优先采用 HTTP 请求头、缺少请求头时回退响应体 ID。Qwen Chat Completions 没有可核验的 Jev-style `generation_id` 时保持空值。四个公开 callback/route/ledger 定向套件重跑 `128 passed in 25.43s`，Ruff 通过，没有调用提供方或官方评分器。该修复只提高未来 attempt 的身份可追溯性，不回填或改写历史 v9 账本；9.6.F 仍需真实模型、MCP 和官方评分闭环。
+
 ### 2026-10-22 后续离线诊断分层
 
 `_one_shot_primary_dispatch()` 现在将 `PrimaryModel.from_evaluation_profile()` 的构造期异常映射为 `not_dispatched/input_invalid`，因为该边界在调用 `respond()` 前，不会发送模型请求；`respond()` 中未分类异常映射为 `worker_outcome_unknown/model_call`，父进程转成诊断白名单阶段 `model_worker_model_call`；模型调用已返回但本地结果封帧失败则映射到 `worker_outcome_unknown/response` 和 `model_worker_response`。后两类仍保留未知 usage/业务终态。异常文本、请求体和凭证不跨进程返回。已知的响应拒绝、未派发和提供方失败仍由原 typed contract 处理。
 
 四个新回归场景均先复现失败，再实现最小修复。v9 账本显示三次 Plan 输入上界分别为 51,653、60,124、62,435 Token，输出预留均为 8,192；三者低于 profile 的 65,536 输入上限，最大输入约为上限的 95.3%。这些请求均在约 60 秒超时；仅凭上界不能归因到输入大小，且不证明服务商是否收到请求。完整 deterministic `1,982 passed, 18 skipped`，Ruff 和 OpenSpec strict 通过。v9 两个 τ retail attempt 的旧 `target/ValueError` 无法由事后代码改写来追溯；历史 route、attempt、预留和报告保持不变。代码 commit `812bf62359c2b8dc11658fbb66cc9874e6a6ea80` 已在远端，同 SHA [CI run 39649117340](https://github.com/shuaibilx/DecAgent/actions/runs/39649117340) 五个 job 全部通过；总耗时 22 分 34 秒。没有重跑公开评测。
+
+### 2026-10-22 Jev/Qwen 语义输入配对回归
+
+新增 `test_jev_and_primary_callbacks_receive_identical_semantic_state_and_options`，在同一个冻结请求上分别执行两种 callback，并直接比较 Jev Decisions wire payload 与 Qwen function-call 消息正文中的 `state` 和 `questions`。测试证明候选、`no_match`、问题说明及实际工具状态相同；provider worker 均为本地 mock，不发生模型或业务工具请求。语义 callback、路线执行与比较三个定向文件共 `101 passed`；Ruff 通过。该测试验证工程层的输入配对，不证明模型输出相等、真实配对质量或 Jev 性能收益；9.6.D 仍等待获得授权的真实配对试次。
 
 ## 执行边界快照（2026-10-21 02:43 UTC；历史状态）
 

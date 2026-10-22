@@ -598,9 +598,18 @@ class PrimaryModel:
             response_headers = metadata.get("headers") if type(metadata) is dict else None
             request_identifier = metadata.get("id") if type(metadata) is dict else None
             if type(response_headers) is dict:
-                request_identifier = request_identifier or response_headers.get(
-                    "x-request-id"
+                # Prefer the HTTP trace ID; the compatible body ID remains a fallback.
+                header_request_id = next(
+                    (
+                        value
+                        for key, value in response_headers.items()
+                        if type(key) is str
+                        and key.casefold() in {"x-request-id", "request-id"}
+                        and value
+                    ),
+                    None,
                 )
+                request_identifier = header_request_id or request_identifier
             request_id = _safe_request_identifier(
                 request_identifier, self.redactor
             )

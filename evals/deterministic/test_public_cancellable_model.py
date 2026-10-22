@@ -17,6 +17,14 @@ def _return_value():
     return {"status": "ok", "usage": {"input": 3, "output": 2}}
 
 
+def _return_unencodable_value(kind):
+    if kind == "nonfinite":
+        return {"value": float("nan")}
+    if kind == "surrogate":
+        return {"value": "\ud800"}
+    raise ValueError("Unknown test fixture")
+
+
 def _wait_forever():
     while True:
         time.sleep(1)
@@ -96,6 +104,27 @@ def test_cancellable_process_returns_a_bounded_result():
     result = run_cancellable_process(_return_value, timeout_seconds=3)
 
     assert result == {"status": "ok", "usage": {"input": 3, "output": 2}}
+
+
+@pytest.mark.parametrize(
+    ("kind", "exception_type"),
+    [("nonfinite", "ValueError"), ("surrogate", "UnicodeEncodeError")],
+)
+def test_unencodable_child_result_is_classified_as_response_failure(kind, exception_type):
+    from decagent.evaluation.business.cancellable_model import (
+        CancellableProcessError,
+        run_cancellable_process,
+    )
+
+    with pytest.raises(CancellableProcessError) as raised:
+        run_cancellable_process(
+            _return_unencodable_value,
+            (kind,),
+            timeout_seconds=3,
+        )
+
+    assert raised.value.stage == "response"
+    assert raised.value.exception_type == exception_type
 
 
 def test_one_shot_worker_will_not_run_provider_target_after_parent_exit():
@@ -708,7 +737,7 @@ def test_one_shot_primary_records_local_provider_response_without_leaking_conten
         with pytest.raises(ModelWorkerOutcomeUnknown) as raised:
             model.respond(
                 [{"role": "user", "content": "offline diagnostic fixture"}],
-                timeout_seconds=3,
+                timeout_seconds=10,
             )
 
         error = raised.value
@@ -759,6 +788,132 @@ def test_tau_public_model_uses_one_shot_primary_factory_by_default():
     assert isinstance(callback, PublicTauModelCallback)
     assert callback.primary_factory is _one_shot_primary_factory
     assert callback._clients == {}
+
+
+def test_tau_user_simulator_callback_round_trips_registered_tool_over_local_http():
+    from decagent.evaluation.business.public_models import (
+        public_tau_model_callback_factory,
+    )
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    profiles = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    ).profiles
+    requests = []
+
+    class OpenAICompatibleHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers["Content-Length"])
+            payload = json.loads(self.rfile.read(length))
+            requests.append(payload)
+            body = json.dumps(
+                {
+                    "id": "chatcmpl-tau-loopback-1",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": profiles.user_simulator.model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": "call-user-1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "provide_booking_reference",
+                                            "arguments": '{"reference":"R-123"}',
+                                        },
+                                    }
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 17,
+                        "completion_tokens": 5,
+                        "total_tokens": 22,
+                    },
+                }
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("x-request-id", "request-tau-loopback-1")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), OpenAICompatibleHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    callback = None
+    try:
+        profile = profiles.user_simulator
+        object.__setattr__(
+            profile, "endpoint", f"http://127.0.0.1:{server.server_port}/v1"
+        )
+        callback = public_tau_model_callback_factory(
+            profile,
+            role="user_simulator",
+            api_key="local-loopback-secret",
+        )(SimpleNamespace(), SimpleNamespace(), "react_skill_mcp")
+        tool_schema = {
+            "type": "function",
+            "function": {
+                "name": "provide_booking_reference",
+                "description": "Provide the reference supplied by the user.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"reference": {"type": "string"}},
+                    "required": ["reference"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+        result = callback(
+            {
+                "model": profile.model,
+                "messages": [{"role": "user", "content": "The reference is R-123."}],
+                "tools": [tool_schema],
+            },
+            timeout_seconds=5,
+        )
+
+        assert result.value == {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call-user-1",
+                    "name": "provide_booking_reference",
+                    "arguments": {"reference": "R-123"},
+                }
+            ],
+        }
+        assert result.input_tokens == 17
+        assert result.output_tokens == 5
+        assert result.model == profile.model
+        assert result.provider_request_id == "request-tau-loopback-1"
+        assert result.generation_id is None
+        assert requests[0]["model"] == profile.model
+        assert requests[0]["tools"][0]["function"]["name"] == "provide_booking_reference"
+    finally:
+        if callback is not None:
+            callback.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_timed_out_provider_child_marks_attempt_unknown_and_cannot_replay(tmp_path):

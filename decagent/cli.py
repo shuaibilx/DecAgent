@@ -134,7 +134,12 @@ def main(argv=None):
 
         from decagent.runtime.application import create_workbench
 
-        uvicorn.run(create_workbench(settings), host=args.host, port=args.port)
+        uvicorn.run(
+            create_workbench(settings),
+            host=args.host,
+            port=args.port,
+            proxy_headers=False,
+        )
     elif args.command == "business-server":
         import uvicorn
 

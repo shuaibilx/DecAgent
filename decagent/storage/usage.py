@@ -59,9 +59,36 @@ def _identifier(value, name):
 
 
 class UsageLedger:
-    def __init__(self, database, task_id):
+    def __init__(
+        self,
+        database,
+        task_id,
+        *,
+        trial_budget=None,
+        guest_workspace_id=None,
+        guest_dispatch_disabled=False,
+    ):
+        if (trial_budget is None) != (guest_workspace_id is None):
+            raise ValueError("Guest workspace and trial budget must be configured together")
+        if type(guest_dispatch_disabled) is not bool:
+            raise ValueError("Guest dispatch gate must be boolean")
         self.database = database
         self.task_id = task_id
+        self.trial_budget = trial_budget
+        self.guest_workspace_id = guest_workspace_id
+        self.guest_dispatch_disabled = guest_dispatch_disabled
+
+    def _trial_reservation_id(self, conn, usage_record_id):
+        row = conn.execute(
+            "SELECT id FROM business.guest_trial_usage_reservations "
+            "WHERE usage_record_id=%s AND task_id=%s AND workspace_id=%s FOR UPDATE",
+            (usage_record_id, self.task_id, self.guest_workspace_id),
+        ).fetchone()
+        if not row:
+            raise BudgetExceeded(
+                "Guest trial reservation history is missing", code="guest_trial_ledger_missing"
+            )
+        return row["id"]
 
     def charge_active(self, seconds):
         if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds < 0:
@@ -362,6 +389,9 @@ class UsageLedger:
         requested_model=None,
         endpoint=None,
         requested_output_tokens=None,
+        trial_cost_currency=None,
+        trial_cost_native=None,
+        trial_price_basis_id=None,
     ):
         if (
             type(tokens) is not int
@@ -401,12 +431,74 @@ class UsageLedger:
         node_ids = attribution["node_ids"]
         with self.database.connect() as conn:
             task = self._task(conn)
+            if self.guest_dispatch_disabled:
+                raise BudgetExceeded(
+                    "Guest trial model dispatch is disabled", code="guest_trial_disabled"
+                )
+            if (
+                self.trial_budget is not None
+                and task.get("workspace_id") != self.guest_workspace_id
+            ):
+                raise BudgetExceeded(
+                    "Guest trial ledger does not match task workspace",
+                    code="guest_trial_workspace_mismatch",
+                )
+            if self.trial_budget is not None and model_family == "jev":
+                raise BudgetExceeded(
+                    "Guest Jev dispatch requires a verified provider fee upper bound",
+                    code="guest_jev_fee_bound_required",
+                )
+
+            def reserve_trial(receipt_id):
+                if self.trial_budget is None:
+                    return None
+                if (
+                    trial_cost_currency is None
+                    or trial_cost_native is None
+                    or trial_price_basis_id is None
+                ):
+                    raise BudgetExceeded(
+                        "Guest dispatch requires a versioned native-currency price",
+                        code="guest_trial_price_required",
+                    )
+                from decagent.business.trial_budget import (
+                    BudgetPolicyError,
+                    TrialBudgetExceeded,
+                )
+
+                try:
+                    return self.trial_budget.reserve_request(
+                        workspace_id=self.guest_workspace_id,
+                        task_id=self.task_id,
+                        request_key=key,
+                        attempt=attempt,
+                        provider=provider,
+                        model=requested_model or provider,
+                        cost_currency=trial_cost_currency,
+                        reserved_cost=trial_cost_native,
+                        reserved_qwen_tokens=(
+                            tokens if provider.casefold() in {"qwen", "dashscope"} else 0
+                        ),
+                        price_basis_id=trial_price_basis_id,
+                        usage_record_id=receipt_id,
+                        connection=conn,
+                    )
+                except TrialBudgetExceeded as exc:
+                    raise BudgetExceeded(str(exc), code=exc.code) from exc
+                except BudgetPolicyError as exc:
+                    raise BudgetExceeded(
+                        str(exc), code="guest_trial_policy_unavailable"
+                    ) from exc
+
             prior = conn.execute(
                 "SELECT * FROM app.usage_records WHERE task_id=%s AND reservation_key=%s "
                 "AND attempt=%s",
                 (self.task_id, key, attempt),
             ).fetchone()
             if prior:
+                if self.trial_budget is not None:
+                    prior_trial = reserve_trial(prior["id"])
+                    cost = prior_trial["reserved_cost_usd"]
                 if (
                     prior["requested_tokens"] != tokens
                     or prior["reserved_cost"] != cost
@@ -436,6 +528,14 @@ class UsageLedger:
                     "Unknown price requires a bounded fee reservation", code="unknown_model_price"
                 )
             rows = self._rows(conn)
+            if self.trial_budget is not None and self._unknown_cost_rows(rows):
+                raise BudgetExceeded(
+                    "Guest task has unresolved provider usage", code="unknown_model_cost"
+                )
+            receipt_id = uuid4()
+            trial_reservation = reserve_trial(receipt_id)
+            if trial_reservation is not None:
+                cost = trial_reservation["reserved_cost_usd"]
             if recovery_of is not None and not self._valid_recovery(recovery_of, rows):
                 raise BudgetExceeded(
                     "Unknown request is not eligible for recovery", code="unknown_model_cost"
@@ -487,7 +587,7 @@ class UsageLedger:
                 "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
                 "RETURNING id",
                 (
-                    uuid4(),
+                    receipt_id,
                     self.task_id,
                     key,
                     attempt,
@@ -524,8 +624,20 @@ class UsageLedger:
             ).fetchone()
             if receipt is None:
                 raise ValueError("Unknown model reservation")
+            if self.guest_dispatch_disabled:
+                raise BudgetExceeded(
+                    "Guest trial model dispatch is disabled", code="guest_trial_disabled"
+                )
+            rows = self._rows(conn)
+            if self.trial_budget is not None and any(
+                str(row["id"]) != str(receipt_id)
+                for row in self._unknown_cost_rows(rows)
+            ):
+                raise BudgetExceeded(
+                    "Guest task has unresolved provider usage", code="unknown_model_cost"
+                )
             if task["graph_version"] == "business-3":
-                bounds, rows = self._bounds(task), self._rows(conn)
+                bounds = self._bounds(task)
                 self._overall(
                     task,
                     rows,
@@ -559,6 +671,10 @@ class UsageLedger:
                     raise BudgetExceeded(
                         "Reserved cost exceeds current model budget", code="cost_budget_exhausted"
                     )
+            if self.trial_budget is not None:
+                self.trial_budget.mark_dispatched(
+                    self._trial_reservation_id(conn, receipt_id), connection=conn
+                )
             row = conn.execute(
                 "UPDATE app.usage_records SET dispatch_state='dispatching' "
                 "WHERE id=%s AND task_id=%s AND status='reserved' "
@@ -585,11 +701,21 @@ class UsageLedger:
             ).fetchone()
             if not row:
                 raise ValueError("Unknown or completed dispatch cannot be released as not sent")
+            if self.trial_budget is not None:
+                self.trial_budget.mark_not_sent(
+                    self._trial_reservation_id(conn, receipt_id),
+                    reason=reason,
+                    after_local_preflight=after_local_preflight,
+                    connection=conn,
+                )
 
     def settle_model(
         self, receipt_id, tokens, cost, *, response_state, error_code=None,
         resolved_model=None, server_request_id=None, latency_ms=None, error_category=None,
-        provider_status=None,
+        provider_status=None, actual_input_tokens=None, actual_output_tokens=None,
+        trial_actual_cost_native=None, trial_actual_cost_basis=None,
+        trial_voucher_credit_native=None, trial_cash_paid_native=None,
+        trial_billing_evidence_source=None,
     ):
         return self.settle(
             receipt_id,
@@ -602,12 +728,22 @@ class UsageLedger:
             latency_ms=latency_ms,
             error_category=error_category,
             provider_status=provider_status,
+            actual_input_tokens=actual_input_tokens,
+            actual_output_tokens=actual_output_tokens,
+            trial_actual_cost_native=trial_actual_cost_native,
+            trial_actual_cost_basis=trial_actual_cost_basis,
+            trial_voucher_credit_native=trial_voucher_credit_native,
+            trial_cash_paid_native=trial_cash_paid_native,
+            trial_billing_evidence_source=trial_billing_evidence_source,
         )
 
     def settle(
         self, receipt_id, tokens, cost, *, response_state=None, error_code=None,
         resolved_model=None, server_request_id=None, latency_ms=None, error_category=None,
-        provider_status=None,
+        provider_status=None, actual_input_tokens=None, actual_output_tokens=None,
+        trial_actual_cost_native=None, trial_actual_cost_basis=None,
+        trial_voucher_credit_native=None, trial_cash_paid_native=None,
+        trial_billing_evidence_source=None,
     ):
         if tokens is not None and (type(tokens) is not int or tokens < 0):
             raise ValueError("Usage cannot be negative or noninteger")
@@ -635,6 +771,24 @@ class UsageLedger:
             ).fetchone()
             if not row or row["status"] == "settled":
                 raise ValueError("Unknown reservation or already settled")
+            if self.trial_budget is not None:
+                trial_row = self.trial_budget.settle_request(
+                    self._trial_reservation_id(conn, receipt_id),
+                    response_state=response_state or "unknown",
+                    actual_input_tokens=actual_input_tokens,
+                    actual_output_tokens=actual_output_tokens,
+                    actual_cost_native=trial_actual_cost_native,
+                    actual_cost_basis=trial_actual_cost_basis,
+                    voucher_credit_native=trial_voucher_credit_native,
+                    cash_paid_native=trial_cash_paid_native,
+                    billing_evidence_source=trial_billing_evidence_source,
+                    server_request_id=server_request_id,
+                    latency_ms=latency_ms,
+                    error_category=error_category,
+                    provider_status=provider_status,
+                    connection=conn,
+                )
+                cost = trial_row["actual_cost_usd"]
             tokens = (
                 max(tokens, row["actual_tokens"] or 0)
                 if tokens is not None
@@ -645,7 +799,11 @@ class UsageLedger:
                 if cost is not None
                 else row["actual_cost"]
             )
-            status = "settled" if tokens is not None and cost is not None else "unknown"
+            status = (
+                "settled"
+                if response_state != "unknown" and tokens is not None and cost is not None
+                else "unknown"
+            )
             dispatch_state = None
             if row["model_family"] is not None:
                 dispatch_state = response_state or (

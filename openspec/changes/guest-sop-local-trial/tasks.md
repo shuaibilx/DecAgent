@@ -1,6 +1,6 @@
 # Tasks
 
-本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；workspace 隔离、游客会话创建/恢复、角色切换、7 天无活动失效、空间停用与受限物理清理已完成。游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭，公开域名/隧道不在本轮开通。清理遇在途 Worker 或含歧义的操作证据时保持 pending，不删除恢复材料。当前 12/28 项完成；模型账单结算、限流/队列、SOP Compose 与私有 CD 仍未实施。
+本 change 承接已批准游客与本机交付计划。公开评测首波仍未形成有效评分闭环，真实路线不重放；workspace 隔离、游客生命周期、预算账本、持久队列及匿名限流/受信代理边界已实现并通过相应隔离验证。模型预留与结算已部分实现，但 Jev 的固定预留尚未证明是供应商费用上界，3.2 保持未完成；游客入口由 `DECAGENT_GUEST_TRIAL_ENABLED` 控制且默认关闭，公开域名/隧道不在本轮开通。清理遇在途 Worker 或含歧义的操作证据时保持 pending，不删除恢复材料。当前 15/28 项完成；尚无真实供应商调用验收；SOP Compose 与私有 CD 仍未完成。
 
 ## 1. Workspace 数据与身份边界
 
@@ -23,10 +23,11 @@
 ## 3. 资源准入与试用预算
 
 - [x] 3.1 实现独立 trial 日账本和配置，按北京时间全站 $5 美元等值抵扣前 API 费用/500万 Qwen token、每游客30任务/50万 Qwen token；CNY 账单使用冻结的 CFETS USD/CNY 中间价快照并按 10% 安全余量保守换算，报价超 7 天拒绝 CNY 预留，含代金券的抵扣前 API 费用照计；原子并发测试证明不超额，公开评测 Jev 账本不受影响。实现证据：[预算账本验证记录](../../../evals/integration/evidence/trial-budget-ledger-20261022.md)、migration `026_guest_trial_budget.sql`、`TrialBudgetLedger`、`TrialBudgetPolicy` 和配置项。隔离 PostgreSQL 测试覆盖并发全站费用、全站/单游客 Qwen token、单游客 30 个任务、幂等准入/请求、额度/汇率快照漂移、旧汇率拒绝、未知价格拒绝及非游客拒绝；账本不调用模型，派发与实际结算留在 3.2。
-- [ ] 3.2 将模型派发接入任务/游客/全站原子预留与实际结算，unknown 保留；测试免费额度、无可靠价格拒发、超时、跨日和重启不能释放未知占用。
-- [ ] 3.3 实现游客1/全站2的持久执行准入及20等待队列，任务计数在入队成功后占用；测试满载拒绝、取消、租约回收、公平领取和恢复不双执行。
-- [ ] 3.4 实现创建/提交/回复限流与受信代理解析，UI显示额度/等待/429；测试清Cookie仍受全站限制、不可信转发头无效和队列边界。
-- [ ] 3.5 交付资源与费用说明及预留/结算状态图；说明每日汇率快照/来源日期/安全余量、抵扣前费用、券后实付和跨币种换算；用测试账本核对零费用、unknown 和拒绝派发显示口径。
+- [ ] 3.2 将模型派发接入任务/游客/全站原子预留与实际结算，unknown 保留；测试免费额度、无可靠价格拒发、超时、跨日和重启不能释放未知占用。已实现部分：[游客模型预留与结算验证记录](../../../evals/integration/evidence/guest-model-settlement-20261022.md)、migration `027_guest_trial_model_settlement.sql`、`UsageLedger`、`TrialBudgetLedger` 与 Qwen/Jev attempt adapter。任务/试用预留与实际 settle 共用事务，Qwen CNY 费率及 Jev/OpenRouter USD 用量分币种记录；unknown 会封锁游客 task 后续模型请求并保留原日额度，免费额度仍计 Qwen tokens。隔离 PostgreSQL 的五组游客账本/业务服务/Jev mock 集成此前 `63 passed in 204.79s`，相关确定性回归 `43 passed`。2026-10-22 修复 provider error taxonomy 不兼容：应用总账保留原始错误类别/HTTP 状态，trial 账本将已派发 unknown 分类映射到受限枚举并提交事务；完整 `test_business_guest_trial_budget.py` 由此前 28 项增至 `34 passed in 17.22s`，其中 6 项覆盖 connection、HTTP 408/429/401/503 和未分类传输异常；Qwen 主路由回归 `11 passed`，Ruff 通过。新增 `UsageLedger` guest Jev 门禁在没有可靠费用上界时于预留前拒发，回归验证 mock provider 请求数为 0、task/trial 账本行数为 0。见[guest Jev 费用上界门禁证据](../../../evals/integration/evidence/guest-jev-fee-bound-20261022.md)。OpenRouter 专属 Decisions API 契约虽声明通用 `provider` 对象，但未明确承诺 `max_price` 为该端点硬费用上限，故不据此开放 Jev；见[接口审查记录](../../../evals/integration/evidence/openrouter-decisions-cost-bound-20261022.md)和[本次结算回归证据](../../../evals/integration/evidence/guest-model-settlement-20261022.md)。全程没有真实供应商调用或费用。**仍未完成原因：** 游客 Jev 真实计价路径尚未开放；固定 `$0.01` 不是可证明上界。需要官方端点契约及服务端约束提供可验证上限，或在维持拒发的前提下完成其余验收。游客入口仍默认关闭。
+  - 2026-10-22 代码审查发现 `UsageLedger`/运行时已把 `dashscope` 视为 Qwen provider，但 `TrialBudgetLedger` 的派发前校验仅接受 `qwen`；现将别名纳入同一校验，并将预留与 settlement 集成测试参数化覆盖 `qwen`/`dashscope`。隔离 PostgreSQL `test_business_guest_trial_budget.py` 当前 `36 passed`；这修复 provider alias 一致性，不改变 3.2 因游客 Jev 费用上界未证实而保持未完成的状态。
+- [x] 3.3 实现游客1/全站2的持久执行准入及20等待队列，任务计数在入队成功后占用；测试满载拒绝、取消、租约回收、公平领取和恢复不双执行。证据：[游客持久任务队列验证记录](../../../evals/integration/evidence/guest-task-queue-20261022.md)、migration `028_guest_execution_queue.sql`、`GuestExecutionQueue`、Worker领取和游客Gateway队列信息。队列 admission 与日任务计数在提交事务中原子写入；DB state trigger 同步暂停/恢复/取消，领取以 advisory transaction lock 序列化并核对 lease generation。队列、网关满载回滚和恢复定向测试 6 passed；Worker/Gateway/Workbench/游客预算回归 64 passed，Ruff、严格 OpenSpec 校验通过。全程无 Qwen/Jev 供应商调用；游客入口仍默认关闭。
+- [x] 3.4 实现创建/提交/回复限流与受信代理解析，UI显示额度/等待/429；测试清Cookie仍受全站限制、不可信转发头无效和队列边界。证据：[游客限流验证记录](../../../evals/integration/evidence/guest-rate-limit-20261022.md)、[浏览器验证记录](../../../evals/integration/evidence/guest-rate-limit-browser-20261022.md)、[HMAC 密钥存储审查与修复](../../../evals/integration/evidence/guest-rate-limit-hmac-secret-20261022.md)、迁移 `029_guest_rate_limits.sql` 与 `030_guest_rate_limit_secret_external.sql`。共享 PostgreSQL 滑动窗口按 HMAC IP 摘要限额，proxy header 默认不受信；session/task/reply 超限返回 429/Retry-After，轮换等待返回 503/Retry-After；额度卡与队列 UI 显示当前用量。首次验证记录中的确定性 3 项、PostgreSQL 84 项及浏览器证据保留；安全复核后新跑确定性 4 项、游客限流/会话/队列/预算 PostgreSQL 62 项通过，确认数据库无 HMAC 密钥表且轮换等待不可绕过；Ruff 通过。未调用 Qwen/Jev，游客入口仍默认关闭。
+- [x] 3.5 交付资源与费用说明及预留/结算状态图；说明每日汇率快照/来源日期/安全余量、抵扣前费用、券后实付和跨币种换算；用测试账本核对零费用、unknown 和拒绝派发显示口径。说明：[游客预算与模型费用口径](../../../generated/261022/0951_游客预算与模型费用口径.md)。工作台披露额度/抵扣前价格/未知费用与派发拒绝；`evals/deterministic/guest_workbench.cjs` 核验真实页面渲染零费用与未知项，集成测试 `39 passed` 核验账本预留/结算/unknown 和无 Jev 价格上界时零派发、零预留。汇率换算采用验证过的 CFETS 6.7200 -> 6.04、¥2 -> $0.331126 示例。见[验收记录](../../../evals/integration/evidence/guest-cost-disclosure-20261022.md)、[预算账本验证记录](../../../evals/integration/evidence/trial-budget-ledger-20261022.md)、[游客模型预留与结算记录](../../../evals/integration/evidence/guest-model-settlement-20261022.md)及[费用上界审查](../../../evals/integration/evidence/openrouter-decisions-cost-bound-20261022.md)。
 
 ## 4. SOP 本机部署
 
@@ -37,9 +38,9 @@
 
 ## 5. 公共 CI 与私有 CD
 
-- [ ] 5.1 优化公共CI分层、独立job并行与锁定缓存，保留Python3.11/3.13、Ruff、确定性、PostgreSQL、核心E2E、wheel/MCP、Compose；比较各job与总耗时，列出skip原因。
+- [ ] 5.1 优化公共CI分层、独立job并行与锁定缓存，保留Python3.11/3.13、Ruff、确定性、PostgreSQL、核心E2E、wheel/MCP、Compose；比较各job与总耗时，列出skip原因。2026-10-22 进展：[CI 关键路径与分片验证](../../../evals/integration/evidence/ci-sharding-20261022.md)：已据 run 39691794406 量出 14:54 墙钟与 10–11 分钟 PostgreSQL 集成关键路径；新增稳定 node-id 分片及 2×2 Python/分片矩阵。本地 Python 3.13 确定性套件 2023 passed、18 skipped；全量 integration 的两个 shard 覆盖 707 个 node ids，合计 680 passed、27 skipped、0 failed，skip 原因已归类。workflow 的 Node job 不是浏览器 E2E，真实浏览器 job 尚缺；还待完整 Python 3.11/3.13 GitHub Actions 全绿与墙钟、runner-minutes 对比。本项未验收，保持未勾选。
 - [ ] 5.2 实现私有部署仓库的发布验证器和最小输入工作流；离线测试拒绝错误repo/SHA/tag/main/CI/run attempt/digest和任意脚本路径，不在本机执行未验证代码。
-- [ ] 5.3 创建/配置私有 DecAgent-deploy，迁移本机Runner，公共发布仅最小凭证触发固定workflow；验证公共PR/Actions无法调度本机，私有凭证最小且不打印密钥。2026-10-22 复核：GitHub 公共仓库 Runner API 返回 `total_count=0`；默认分支只有 CI 和 release workflow。release 文件的 job 全部运行在 GitHub-hosted `ubuntu-latest` 并只发布 GHCR 镜像，不含 `self-hosted` 或本机 deploy job；已合并 [安全 PR #1](https://github.com/shuaibilx/DecAgent/pull/1)。本机 `DecAgentLocalDeployRunner` 计划任务为 Disabled，Runner 服务/进程为 0。因此当前公共路径不能调度本机；但私有部署仓库、最小触发凭证、Runner 迁移和验证仍未完成，本项保持未勾选。GitHub workflow 列表仍显示旧名称 “Release and local deployment”，与当前 GHCR-only job 不符；建议下次经过受审 PR 修正名称。
+- [ ] 5.3 创建/配置私有 DecAgent-deploy，迁移本机Runner，公共发布仅最小凭证触发固定workflow；验证公共PR/Actions无法调度本机，私有凭证最小且不打印密钥。2026-10-22 复核：[公共 Runner 边界证据](../../../evals/integration/evidence/public-runner-boundary-20261022.md)：GitHub Runner API 返回 `total_count=0`，账号无组织；默认分支 CI/release 均使用 GitHub-hosted `ubuntu-latest`，没有本机 deploy job。已合并[安全 PR #1](https://github.com/shuaibilx/DecAgent/pull/1)。本机 `DecAgentLocalDeployRunner` 计划任务为 `Disabled`，Runner 服务/进程均不存在；候选 `f994fdc` 的五个 CI job 全部成功，且 `test_public_release_boundary.py` 锁定 tag-only GHCR release、GitHub-hosted runner 和无本机调度，Python 3.13 两个本地环境均 `9 passed`。候选分支已把 workflow 名称改为 `Release image publishing (GHCR only)`；远端默认分支仍显示 `Release and local deployment`，需后续将已验证分支变更合入默认分支。私有部署仓库、最小触发凭证、Runner 迁移和部署演练仍未完成，本项保持未勾选。
 - [ ] 5.4 完成一次可信版本GHCR发布至本机SOP服务的全链路演练及失败演练；保存commit/run/digest/健康/回滚证据，任务串行无互相覆盖。
 - [ ] 5.5 分别更新代码仓库、CI、CD操作指南与导航，提供发布时序/信任边界图；核对真实仓库/命令，不把公网与独立Linux标为完成。
 

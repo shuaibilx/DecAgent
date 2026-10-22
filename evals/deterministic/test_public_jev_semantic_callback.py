@@ -404,6 +404,68 @@ def test_primary_semantic_callback_uses_the_same_trusted_state_and_question():
     assert captured["closed"] is True
 
 
+def test_jev_and_primary_callbacks_receive_identical_semantic_state_and_options(monkeypatch):
+    plan, jev_profile, trial = _profile_and_trial()
+    request = _request()
+    captured = {}
+
+    def jev_worker(_profile, _api_key, wire_request, _timeout, _guard):
+        captured["jev"] = wire_request
+        return _response_frame()
+
+    class Primary:
+        def respond(self, messages, *, timeout_seconds):
+            captured["primary"] = json.loads(messages[1]["content"])
+            captured["timeout_seconds"] = timeout_seconds
+            return ModelTurn(
+                "",
+                (
+                    ToolProposal(
+                        "call-1",
+                        "decagent_semantic_choice",
+                        {
+                            "choice": "article:7",
+                            "probabilities": {"article:7": 0.99, "no_match": 0.01},
+                        },
+                    ),
+                ),
+                ModelUsage(83, 12, 95),
+                plan.profiles.primary.model,
+                "primary-request-123",
+            )
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "decagent.evaluation.business.public_models._run_jev_cancellable_worker",
+        jev_worker,
+    )
+    jev = PublicJevSemanticCallback(
+        jev_profile,
+        api_key="server-side-test-key",
+        registry=ReviewedRegistry(),
+        trial=trial,
+    )
+    primary = PublicPrimarySemanticCallback(
+        Primary(), plan.profiles.primary, registry=ReviewedRegistry(), trial=trial
+    )
+
+    jev(request, timeout_seconds=0.5)
+    primary(request, timeout_seconds=0.5)
+
+    jev_wire = captured["jev"]
+    assert captured["primary"] == {
+        "state": jev_wire["state"],
+        "questions": jev_wire["questions"],
+    }
+    assert jev_wire["state"] == request["state"]
+    assert captured["primary"]["questions"] == {
+        request["question_id"]: request["question"]
+    }
+    assert captured["timeout_seconds"] == 0.5
+
+
 def test_primary_semantic_callback_rejects_invalid_candidate_and_unmeasured_usage():
     plan, _jev_profile, trial = _profile_and_trial()
 

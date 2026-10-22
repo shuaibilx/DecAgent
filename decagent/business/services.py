@@ -28,6 +28,7 @@ from decagent.business.registry import PluginRegistry
 from decagent.business.rules import CREATE_PARAMETER_MARKERS, simple_read_params
 from decagent.business.rules import proposal as rule_proposal
 from decagent.business.tickets import builtin_manifest
+from decagent.business.trial_budget import make_task_usage_ledger
 from decagent.decisions import JevAdapter
 from decagent.decisions.contracts import digest, evaluation, json_value, validate_answers
 from decagent.models.primary import (
@@ -39,7 +40,6 @@ from decagent.runtime.model_calls import LedgerAttemptBudget
 from decagent.runtime.model_factory import build_budgeted_primary
 from decagent.storage.budget import BudgetExceeded
 from decagent.storage.safe_record import exact_safe_record
-from decagent.storage.usage import UsageLedger
 
 UUID_PATTERN = r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}"
 
@@ -69,7 +69,7 @@ class BusinessServices:
         self.executor = BusinessExecutor(
             database, self.spec, task, owner, generation, mcp_client=mcp_client
         )
-        self.ledger = UsageLedger(database, task["id"])
+        self.ledger = make_task_usage_ledger(database, settings, task)
         self.protocol = PlannerProtocol(self.spec)
         self.primary_factory, self._primary, self._jev = primary_factory, None, None
         self.profile, self.profile_error = None, None

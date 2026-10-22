@@ -2,7 +2,7 @@
 
 ## 当前状态（2026-10-22，v9 首波已执行且质量门槛未通过）
 
-主 change 为 **72/79，7 项待完成**；Guest change 为 10/28。候选 `126fe5a3dc9edcb3d595d0aa40fa1a5d8713af41` 的同 SHA GitHub Actions [CI run 39639666250](https://github.com/shuaibilx/DecAgent/actions/runs/39639666250) 全部通过。
+主 change 为 **72/79，7 项待完成**；`guest-sop-local-trial` 为 15/28。候选 `126fe5a3dc9edcb3d595d0aa40fa1a5d8713af41` 的同 SHA GitHub Actions [CI run 39639666250](https://github.com/shuaibilx/DecAgent/actions/runs/39639666250) 全部通过。
 
 v9 固定首波执行了 4 个任务/8 条 ReAct/Plan 路线，结果为 2 failed、6 unknown、0 succeeded；两条官方评分均为 0.0，清理 8/8 verified。Qwen 共 14 次请求，其中 5 次 usage unknown（3 次 Plan primary 超时、2 次 τ retail user simulator worker ValueError），保留 252,296 Token 与 ¥0.2796608 冻结费率预留上界。账本没有逐请求 provider invoice/voucher/cash 证据；¥0.0610926 settled 成本估算和 ¥0.3407534 总上界都不是供应商账单或实付。完整公开比较仍为 0/286；没有 Jev 或裁判请求。详细证据见[首波报告](../../../generated/261022/0133_公开评测首波报告_v9.md)与[机器数据](../../../evals/benchmarks/evidence/public-first-wave-live-20261022-v9-126fe5a.json)。旧 unknown 不重放。
 

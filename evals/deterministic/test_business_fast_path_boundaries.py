@@ -140,6 +140,10 @@ def test_unreadable_or_invalid_profile_preserves_the_main_planner_fallback(
         lambda database: SimpleNamespace(get=lambda *args: spec),
     )
     monkeypatch.setattr("decagent.business.services.BusinessExecutor", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "decagent.business.services.make_task_usage_ledger",
+        lambda *_args: object(),
+    )
     service = BusinessServices(
         object(),
         object(),

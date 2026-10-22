@@ -9,6 +9,7 @@ function makeElement(tag = "div") {
     tag, children: [], listeners: {}, value: "", hidden: false, disabled: false,
     textContent: "", className: "",
     append(...items) { this.children.push(...items); },
+    prepend(...items) { this.children.unshift(...items); },
     replaceChildren(...items) { this.children = items; },
     addEventListener(name, callback) { this.listeners[name] = callback; },
     setAttribute() {}, removeAttribute() {},
@@ -29,7 +30,13 @@ function response(body, status = 200) {
   return {ok: status >= 200 && status < 300, status, json: async () => body};
 }
 
-async function boot(enabled) {
+async function boot(enabled, guestUsage = {
+  budget_date: "2026-10-22",
+  global: {daily_cost_limit_usd: "5.000000", cost_reserved_usd: "0.331126",
+    daily_qwen_token_limit: 5000000, qwen_tokens_reserved: 10000},
+  guest: {daily_task_limit: 30, tasks_admitted: 1,
+    daily_qwen_token_limit: 500000, qwen_tokens_reserved: 10000},
+}) {
   const elements = new Map();
   const storage = new Map();
   const calls = [];
@@ -63,6 +70,7 @@ async function boot(enabled) {
     async fetch(url, options = {}) {
       calls.push({url, options});
       if (url === "/api/v3/guest/status") return response({enabled});
+      if (url === "/api/v3/guest/usage") return response(guestUsage);
       if (url === "/api/v3/guest/session" && (options.method || "GET") === "GET") {
         return enabled ? response({is_guest: true, identity: identityFor(roleKey), csrf_token: csrf,
           roles, current_role_key: roleKey}) : response({code: "not_found"}, 404);
@@ -104,6 +112,15 @@ async function boot(enabled) {
     "enabled guest trial is discoverable");
   assert.equal(app.elements.get("guest-role-control").hidden, false,
     "restored guest identity exposes the fixed role selector");
+  const resourceCopy = app.elements.get("guest-resource-details").children
+    .map(item => item.textContent).join(" ");
+  const html = fs.readFileSync("decagent/gateway/static/business.html", "utf8");
+  assert.match(html, /模型 API 抵扣前金额/);
+  assert.match(html, /代金券只影响实付/);
+  assert.match(html, /不是供应商账单/);
+  assert.match(html, /用量或费用未知时继续保留预留/);
+  assert.match(html, /游客 Jev 请求目前在完成可验证的费用上界前/);
+  assert.match(resourceCopy, /费用占用包含尚未核实请求的预留/);
   assert.equal(app.elements.get("guest-role").value, "employee-it");
   assert.match(app.elements.get("current-identity").textContent, /employee-it/);
 
@@ -140,6 +157,29 @@ async function boot(enabled) {
   "the previous employee ticket detail is removed from the page");
   assert.ok(app.calls.some(call => call.url === "/api/v3/guest/role"));
 
+  const renderUsage = usage => {
+    app.context.testSnapshot = {legacy: true, usage};
+    vm.runInContext("renderPlan(testSnapshot, null, null, null)", app.context);
+    return app.elements.get("plan-usage").children.map(item => item.textContent).join(" ");
+  };
+  const zeroFee = renderUsage({actual_requests: 1, reservations: 1, unknown_requests: 0,
+    unknown_cost: false, actual_cost: "0", known_cost: "0", families: {
+      primary: {actual_requests: 1, actual_tokens: 0, known_cost: "0", unknown_cost: false},
+      jev: {},
+    }, requests: []});
+  assert.match(zeroFee, /已知总费用 \$0/,
+    "a settled zero-fee response is distinguishable from missing usage");
+  const unknownFee = renderUsage({actual_requests: 1, reservations: 1, unknown_requests: 1,
+    unknown_cost: true, actual_cost: null, known_cost: "0", families: {
+      primary: {actual_requests: 1, actual_tokens: null, unknown_tokens: true,
+        known_cost: "0", unknown_cost: true}, jev: {},
+    }, requests: []});
+  assert.match(unknownFee, /总费用仍有未知项，按预留额度保留/);
+  assert.match(unknownFee, /已知费用 \$0；仍有未知项/);
+  const rejectedBeforeDispatch = renderUsage(null);
+  assert.match(rejectedBeforeDispatch, /暂无模型用量记录/,
+    "a dispatch rejected before reservation is not represented as a zero-cost call");
+
   const clearButton = app.elements.get("clear-guest");
   await clearButton.listeners.click({currentTarget: clearButton});
   assert.equal(state.sessionKind, "", "workspace clear forgets the browser identity");
@@ -149,5 +189,5 @@ async function boot(enabled) {
   assert.equal(app.elements.get("login-panel").hidden, false);
   assert.equal(app.elements.get("clear-guest").hidden, true);
   assert.match(app.elements.get("notice").textContent, /已停用/);
-  console.log("guest trial visibility, session restore, role switch and identity-cache reset passed");
+  console.log("guest trial session, role, budget disclosure, usage and unknown-cost rendering passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -8,16 +8,26 @@ from time import sleep
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+import httpx
 import pytest
 from psycopg.errors import CheckViolation
 
+from decagent.business.registry import PluginRegistry
+from decagent.business.tickets import builtin_manifest
 from decagent.business.trial_budget import (
     BudgetPolicyError,
     FxSnapshot,
     TrialBudgetExceeded,
     TrialBudgetLedger,
     TrialBudgetPolicy,
+    make_task_usage_ledger,
 )
+from decagent.config import Settings
+from decagent.decisions import DecisionContext, JevAdapter, build_request
+from decagent.models.primary import PrimaryProviderFailure
+from decagent.runtime.model_calls import BudgetedPrimary, LedgerAttemptBudget, TokenPrice
+from decagent.storage.budget import BudgetExceeded
+from decagent.storage.usage import UsageLedger
 
 pytestmark = pytest.mark.integration
 FIXED_NOW = datetime(2026, 10, 22, 12, tzinfo=ZoneInfo("Asia/Shanghai"))
@@ -52,6 +62,23 @@ def _workspace(database, slug):
 
 def _ledger(database, **policy):
     return TrialBudgetLedger(database, _policy(**policy), clock=lambda: FIXED_NOW)
+
+
+def _guest_business_task(database, workspace_id, *, budget=None, graph_version="business-2"):
+    registry = PluginRegistry(database)
+    scope = registry.register(builtin_manifest())
+    spec = registry.get(scope["id"])
+    return database.create_business_task(
+        scope["id"],
+        {
+            "instruction": "Read the ticket directory",
+            "plugin_digest": spec.digest,
+            "provenance": {"owner_id": "guest-test", "authenticated": True},
+        },
+        budget,
+        graph_version=graph_version,
+        workspace_id=workspace_id,
+    )
 
 
 def _reserve(ledger, workspace_id, *, request_key, cost=Decimal("3"), currency="USD", tokens=0):
@@ -373,6 +400,768 @@ def test_unknown_price_and_non_guest_workspace_are_rejected(database):
         )
     with pytest.raises(BudgetPolicyError):
         ledger.admit_task(workspace_id=uuid4(), task_id=uuid4())
+
+
+def test_each_provider_retry_gets_its_own_reservation(database):
+    workspace_id = _workspace(database, "budget-retry-attempts")
+    ledger = _ledger(database)
+    task_id = uuid4()
+    common = {
+        "workspace_id": workspace_id,
+        "task_id": task_id,
+        "request_key": "same-logical-model-call",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "cost_currency": "USD",
+        "reserved_cost": Decimal("0.10"),
+        "reserved_qwen_tokens": 0,
+        "price_basis_id": "fixture-price-v1",
+    }
+
+    first = ledger.reserve_request(**common, attempt=1)
+    retry = ledger.reserve_request(**common, attempt=2)
+
+    assert first["id"] != retry["id"]
+    with database.connect() as conn:
+        rows = conn.execute(
+            "SELECT attempt,status FROM business.guest_trial_usage_reservations "
+            "WHERE workspace_id=%s AND request_key=%s ORDER BY attempt",
+            (workspace_id, common["request_key"]),
+        ).fetchall()
+    assert rows == [
+        {"attempt": 1, "status": "reserved"},
+        {"attempt": 2, "status": "reserved"},
+    ]
+
+
+def test_settlement_charges_gross_fee_and_keeps_voucher_payment_separate(database):
+    workspace_id = _workspace(database, "budget-settlement-voucher")
+    ledger = _ledger(database)
+    reservation = ledger.reserve_request(
+        workspace_id=workspace_id,
+        task_id=uuid4(),
+        request_key="settlement-voucher",
+        attempt=1,
+        provider="qwen",
+        model="fixture-model",
+        cost_currency="CNY",
+        reserved_cost=Decimal("2.00"),
+        reserved_qwen_tokens=10_000,
+        price_basis_id="qwen-tariff-v1",
+    )
+    ledger.mark_dispatched(reservation["id"])
+
+    settled = ledger.settle_request(
+        reservation["id"],
+        response_state="responded",
+        actual_input_tokens=700,
+        actual_output_tokens=300,
+        actual_cost_native=Decimal("1.00"),
+        actual_cost_basis="provider_billed",
+        voucher_credit_native=Decimal("1.00"),
+        cash_paid_native=Decimal("0.00"),
+        billing_evidence_source="invoice",
+        server_request_id="server-request-1",
+        latency_ms=240,
+    )
+
+    assert settled["status"] == "settled"
+    assert settled["actual_cost_native"] == Decimal("1.000000000000")
+    assert settled["actual_cost_usd"] == Decimal("0.165563")
+    assert settled["voucher_credit_native"] == Decimal("1.000000000000")
+    assert settled["cash_paid_native"] == Decimal("0E-12")
+    with database.connect() as conn:
+        day = conn.execute(
+            "SELECT reserved_cost_usd,qwen_tokens_reserved "
+            "FROM business.guest_trial_budget_days WHERE budget_date=%s",
+            (FIXED_NOW.date(),),
+        ).fetchone()
+        guest = conn.execute(
+            "SELECT qwen_tokens_reserved FROM business.guest_trial_workspace_usage "
+            "WHERE budget_date=%s AND workspace_id=%s",
+            (FIXED_NOW.date(), workspace_id),
+        ).fetchone()
+    assert day == {"reserved_cost_usd": Decimal("0.165563"), "qwen_tokens_reserved": 1000}
+    assert guest == {"qwen_tokens_reserved": 1000}
+
+
+def test_unknown_dispatched_request_keeps_full_reservation_after_restart(database):
+    workspace_id = _workspace(database, "budget-unknown-restart")
+    ledger = _ledger(database)
+    reservation = ledger.reserve_request(
+        workspace_id=workspace_id,
+        task_id=uuid4(),
+        request_key="unknown-restart",
+        attempt=1,
+        provider="qwen",
+        model="fixture-model",
+        cost_currency="CNY",
+        reserved_cost=Decimal("2.00"),
+        reserved_qwen_tokens=10_000,
+        price_basis_id="qwen-tariff-v1",
+    )
+    ledger.mark_dispatched(reservation["id"])
+
+    unknown = ledger.settle_request(
+        reservation["id"],
+        response_state="unknown",
+        error_category="timeout",
+        latency_ms=30_000,
+    )
+    restarted = TrialBudgetLedger(
+        database,
+        _policy(),
+        clock=lambda: datetime(2026, 10, 23, 1, tzinfo=ZoneInfo("Asia/Shanghai")),
+    )
+
+    assert unknown["status"] == "unknown"
+    with database.connect() as conn:
+        saved = conn.execute(
+            "SELECT status,reserved_cost_usd,reserved_qwen_tokens,error_category "
+            "FROM business.guest_trial_usage_reservations WHERE id=%s",
+            (reservation["id"],),
+        ).fetchone()
+        old_day = conn.execute(
+            "SELECT reserved_cost_usd,qwen_tokens_reserved "
+            "FROM business.guest_trial_budget_days WHERE budget_date=%s",
+            (FIXED_NOW.date(),),
+        ).fetchone()
+        restarted.admit_task(workspace_id=workspace_id, task_id=uuid4())
+        new_day = conn.execute(
+            "SELECT budget_date FROM business.guest_trial_budget_days "
+            "WHERE budget_date=%s",
+            (date(2026, 10, 23),),
+        ).fetchone()
+    assert saved == {
+        "status": "unknown",
+        "reserved_cost_usd": Decimal("0.331126"),
+        "reserved_qwen_tokens": 10_000,
+        "error_category": "timeout",
+    }
+    assert old_day == {"reserved_cost_usd": Decimal("0.331126"), "qwen_tokens_reserved": 10_000}
+    assert new_day is not None
+
+
+def test_not_sent_attempt_requires_local_proof_and_releases_reservation(database):
+    workspace_id = _workspace(database, "budget-not-sent")
+    ledger = _ledger(database)
+    reservation = ledger.reserve_request(
+        workspace_id=workspace_id,
+        task_id=uuid4(),
+        request_key="not-sent",
+        attempt=1,
+        provider="qwen",
+        model="fixture-model",
+        cost_currency="CNY",
+        reserved_cost=Decimal("2.00"),
+        reserved_qwen_tokens=10_000,
+        price_basis_id="qwen-tariff-v1",
+    )
+    ledger.mark_dispatched(reservation["id"])
+
+    with pytest.raises(BudgetPolicyError, match="proof"):
+        ledger.mark_not_sent(
+            reservation["id"], reason="before_dispatch_guard", after_local_preflight=False
+        )
+    released = ledger.mark_not_sent(
+        reservation["id"], reason="before_dispatch_guard", after_local_preflight=True
+    )
+
+    assert released["status"] == "not_sent"
+    with database.connect() as conn:
+        day = conn.execute(
+            "SELECT reserved_cost_usd,qwen_tokens_reserved "
+            "FROM business.guest_trial_budget_days WHERE budget_date=%s",
+            (FIXED_NOW.date(),),
+        ).fetchone()
+        guest = conn.execute(
+            "SELECT qwen_tokens_reserved FROM business.guest_trial_workspace_usage "
+            "WHERE budget_date=%s AND workspace_id=%s",
+            (FIXED_NOW.date(), workspace_id),
+        ).fetchone()
+    assert day == {"reserved_cost_usd": Decimal("0.000000"), "qwen_tokens_reserved": 0}
+    assert guest == {"qwen_tokens_reserved": 0}
+
+
+@pytest.mark.parametrize("provider", ["qwen", "dashscope"], ids=["qwen", "dashscope"])
+def test_guest_model_request_reserves_task_and_trial_budget_in_one_transaction(
+    database, provider
+):
+    workspace_id = _workspace(database, "budget-task-atomic")
+    task = _guest_business_task(
+        database,
+        workspace_id,
+        budget={"max_calls": 5, "max_tokens": 20_000, "max_cost": "1.00"},
+    )
+    usage = UsageLedger(
+        database,
+        task["id"],
+        trial_budget=_ledger(database),
+        guest_workspace_id=workspace_id,
+    )
+
+    receipt_id = usage.reserve_model(
+        "task-atomic-qwen",
+        1,
+        provider,
+        10_000,
+        Decimal("2.00"),
+        model_family="primary",
+        purpose="plan",
+        request_role="planning",
+        requested_model="qwen3.8-flash",
+        endpoint="https://maas.qianwenaiapi.com/compatible-mode/v1",
+        requested_output_tokens=1024,
+        trial_cost_currency="CNY",
+        trial_cost_native=Decimal("2.00"),
+        trial_price_basis_id="qwen-price-v1",
+    )
+
+    with database.connect() as conn:
+        task_row = conn.execute(
+            "SELECT id,reserved_cost FROM app.usage_records WHERE id=%s", (receipt_id,)
+        ).fetchone()
+        trial_row = conn.execute(
+            "SELECT usage_record_id,reserved_cost_usd,reserved_qwen_tokens "
+            "FROM business.guest_trial_usage_reservations WHERE usage_record_id=%s",
+            (receipt_id,),
+        ).fetchone()
+    assert task_row == {"id": receipt_id, "reserved_cost": Decimal("0.331126")}
+    assert trial_row == {
+        "usage_record_id": receipt_id,
+        "reserved_cost_usd": Decimal("0.331126"),
+        "reserved_qwen_tokens": 10_000,
+    }
+
+
+def test_guest_trial_reservation_rolls_back_when_task_budget_rejects(database):
+    workspace_id = _workspace(database, "budget-task-rollback")
+    task = _guest_business_task(database, workspace_id, budget={"max_calls": 0})
+    usage = UsageLedger(
+        database,
+        task["id"],
+        trial_budget=_ledger(database),
+        guest_workspace_id=workspace_id,
+    )
+
+    with pytest.raises(BudgetExceeded, match="Call budget"):
+        usage.reserve_model(
+            "task-budget-reject",
+            1,
+            "qwen",
+            10_000,
+            Decimal("2.00"),
+            model_family="primary",
+            purpose="plan",
+            request_role="planning",
+            requested_model="qwen3.8-flash",
+            endpoint="https://maas.qianwenaiapi.com/compatible-mode/v1",
+            requested_output_tokens=1024,
+            trial_cost_currency="CNY",
+            trial_cost_native=Decimal("2.00"),
+            trial_price_basis_id="qwen-price-v1",
+        )
+
+    with database.connect() as conn:
+        trial_rows = conn.execute(
+            "SELECT count(*) AS n FROM business.guest_trial_usage_reservations "
+            "WHERE workspace_id=%s",
+            (workspace_id,),
+        ).fetchone()["n"]
+        budget_days = conn.execute(
+            "SELECT count(*) AS n FROM business.guest_trial_budget_days "
+            "WHERE budget_date=%s",
+            (FIXED_NOW.date(),),
+        ).fetchone()["n"]
+    assert trial_rows == 0
+    assert budget_days == 0
+
+
+@pytest.mark.parametrize("provider", ["qwen", "dashscope"], ids=["qwen", "dashscope"])
+def test_guest_model_settlement_commits_actual_native_cost_and_usage_atomically(
+    database, provider
+):
+    workspace_id = _workspace(database, "budget-task-settlement")
+    task = _guest_business_task(
+        database,
+        workspace_id,
+        budget={"max_calls": 5, "max_tokens": 20_000, "max_cost": "1.00"},
+    )
+    usage = UsageLedger(
+        database,
+        task["id"],
+        trial_budget=_ledger(database),
+        guest_workspace_id=workspace_id,
+    )
+    receipt_id = usage.reserve_model(
+        "task-settlement-qwen",
+        1,
+        provider,
+        10_000,
+        Decimal("2.00"),
+        model_family="primary",
+        purpose="plan",
+        request_role="planning",
+        requested_model="qwen3.8-flash",
+        endpoint="https://maas.qianwenaiapi.com/compatible-mode/v1",
+        requested_output_tokens=1024,
+        trial_cost_currency="CNY",
+        trial_cost_native=Decimal("2.00"),
+        trial_price_basis_id="qwen-price-v1",
+    )
+
+    usage.mark_dispatched(receipt_id)
+    usage.settle_model(
+        receipt_id,
+        1000,
+        Decimal("0.165563"),
+        response_state="responded",
+        actual_input_tokens=700,
+        actual_output_tokens=300,
+        trial_actual_cost_native=Decimal("1.00"),
+        trial_actual_cost_basis="frozen_rate",
+        server_request_id="qwen-req-1",
+    )
+
+    with database.connect() as conn:
+        app_row = conn.execute(
+            "SELECT status,actual_tokens,actual_cost FROM app.usage_records WHERE id=%s",
+            (receipt_id,),
+        ).fetchone()
+        trial_row = conn.execute(
+            "SELECT status,actual_input_tokens,actual_output_tokens,actual_cost_native,"
+            "actual_cost_usd,reservation_exceeded,server_request_id "
+            "FROM business.guest_trial_usage_reservations WHERE usage_record_id=%s",
+            (receipt_id,),
+        ).fetchone()
+        day = conn.execute(
+            "SELECT reserved_cost_usd,qwen_tokens_reserved "
+            "FROM business.guest_trial_budget_days WHERE budget_date=%s",
+            (FIXED_NOW.date(),),
+        ).fetchone()
+
+    assert app_row == {
+        "status": "settled",
+        "actual_tokens": 1000,
+        "actual_cost": Decimal("0.165563"),
+    }
+    assert trial_row == {
+        "status": "settled",
+        "actual_input_tokens": 700,
+        "actual_output_tokens": 300,
+        "actual_cost_native": Decimal("1.000000000000"),
+        "actual_cost_usd": Decimal("0.165563"),
+        "reservation_exceeded": False,
+        "server_request_id": "qwen-req-1",
+    }
+    assert day == {
+        "reserved_cost_usd": Decimal("0.165563"),
+        "qwen_tokens_reserved": 1000,
+    }
+
+
+def test_guest_model_dispatch_factory_fails_closed_when_trial_is_disabled(database):
+    workspace_id = _workspace(database, "budget-task-disabled")
+    task = _guest_business_task(database, workspace_id)
+    usage = make_task_usage_ledger(database, Settings(), task)
+
+    with pytest.raises(BudgetExceeded) as caught:
+        usage.reserve_model(
+            "disabled-guest-qwen",
+            1,
+            "qwen",
+            10_000,
+            Decimal("2.00"),
+            trial_cost_currency="CNY",
+            trial_cost_native=Decimal("2.00"),
+            trial_price_basis_id="qwen-price-v1",
+        )
+
+    assert caught.value.code == "guest_trial_disabled"
+
+
+def test_guest_model_dispatch_factory_attaches_real_trial_ledger(database):
+    workspace_id = _workspace(database, "budget-task-enabled")
+    task = _guest_business_task(database, workspace_id)
+    settings = Settings(
+        guest_trial_enabled=True,
+        guest_rate_limit_hmac_key=b"B" * 32,
+        guest_trial_fx_source_date=FX.source_date,
+        guest_trial_fx_cny_per_usd=FX.cny_per_usd,
+        guest_trial_fx_source_url=FX.source_url,
+    )
+    usage = make_task_usage_ledger(database, settings, task)
+
+    receipt_id = usage.reserve_model(
+        "enabled-guest-qwen",
+        1,
+        "qwen",
+        10_000,
+        Decimal("2.00"),
+        trial_cost_currency="CNY",
+        trial_cost_native=Decimal("2.00"),
+        trial_price_basis_id="qwen-price-v1",
+    )
+
+    with database.connect() as conn:
+        reservation = conn.execute(
+            "SELECT usage_record_id,reserved_cost_usd FROM "
+            "business.guest_trial_usage_reservations WHERE usage_record_id=%s",
+            (receipt_id,),
+        ).fetchone()
+    assert reservation == {
+        "usage_record_id": receipt_id,
+        "reserved_cost_usd": Decimal("0.331126"),
+    }
+
+
+def test_guest_model_request_without_a_reliable_price_is_rejected(database):
+    workspace_id = _workspace(database, "budget-task-unpriced")
+    task = _guest_business_task(database, workspace_id)
+    settings = Settings(
+        guest_trial_enabled=True,
+        guest_rate_limit_hmac_key=b"B" * 32,
+        guest_trial_fx_source_date=FX.source_date,
+        guest_trial_fx_cny_per_usd=FX.cny_per_usd,
+        guest_trial_fx_source_url=FX.source_url,
+    )
+    usage = make_task_usage_ledger(database, settings, task)
+
+    with pytest.raises(BudgetExceeded) as caught:
+        usage.reserve_model(
+            "unpriced-guest-qwen",
+            1,
+            "qwen",
+            10_000,
+            Decimal("0.01"),
+            model_family="primary",
+            purpose="plan",
+        )
+
+    assert caught.value.code == "guest_trial_price_required"
+    with database.connect() as conn:
+        reservations = conn.execute(
+            "SELECT count(*) AS n FROM business.guest_trial_usage_reservations "
+            "WHERE workspace_id=%s",
+            (workspace_id,),
+        ).fetchone()["n"]
+    assert reservations == 0
+
+
+def test_guest_model_timeout_stops_retry_and_keeps_unknown_reservation(database):
+    workspace_id = _workspace(database, "budget-task-timeout")
+    task = _guest_business_task(
+        database,
+        workspace_id,
+        budget={"max_calls": 10, "max_tokens": 50_000, "max_cost": "5.00"},
+        graph_version="business-3",
+    )
+    settings = Settings(
+        guest_trial_enabled=True,
+        guest_rate_limit_hmac_key=b"B" * 32,
+        guest_trial_fx_source_date=FX.source_date,
+        guest_trial_fx_cny_per_usd=FX.cny_per_usd,
+        guest_trial_fx_source_url=FX.source_url,
+    )
+    usage = make_task_usage_ledger(database, settings, task)
+    claimed = database.claim(task["id"], "guest-budget-timeout", seconds=120)
+    assert claimed["state"] == "running"
+
+    class TimedOutModel:
+        requested_model = "qwen3.8-flash"
+        endpoint = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+        schema_bytes = 0
+        calls = 0
+
+        def respond(self, _messages, *, stream=False):
+            self.calls += 1
+            raise PrimaryProviderFailure(category="timeout")
+
+    provider_model = TimedOutModel()
+    model = BudgetedPrimary(
+        provider_model,
+        usage,
+        price=TokenPrice("qwen-price-v1", Decimal("1"), Decimal("2"), currency="CNY"),
+        provider="qwen",
+        purpose="plan",
+        max_output_tokens=32,
+        retry_sleep=lambda _delay: None,
+    )
+
+    with pytest.raises(BudgetExceeded) as caught:
+        model.respond([{"role": "user", "content": "read only plan"}])
+    assert caught.value.code == "unknown_model_cost"
+    assert provider_model.calls == 1
+
+    with database.connect() as conn:
+        trial_rows = conn.execute(
+            "SELECT attempt,status,reserved_cost_usd,reserved_qwen_tokens,error_category "
+            "FROM business.guest_trial_usage_reservations WHERE workspace_id=%s "
+            "ORDER BY attempt",
+            (workspace_id,),
+        ).fetchall()
+        day = conn.execute(
+            "SELECT reserved_cost_usd,qwen_tokens_reserved "
+            "FROM business.guest_trial_budget_days WHERE budget_date=%s",
+            (FIXED_NOW.date(),),
+        ).fetchone()
+        app_rows = conn.execute(
+            "SELECT status,dispatch_state FROM app.usage_records WHERE task_id=%s",
+            (task["id"],),
+        ).fetchall()
+
+    assert len(trial_rows) == 1
+    assert [row["attempt"] for row in trial_rows] == [1]
+    assert all(row["status"] == "unknown" for row in trial_rows)
+    assert all(row["error_category"] == "timeout" for row in trial_rows)
+    assert all(row["reserved_cost_usd"] > 0 for row in trial_rows)
+    assert all(row["reserved_qwen_tokens"] > 0 for row in trial_rows)
+    assert day["reserved_cost_usd"] == sum(
+        row["reserved_cost_usd"] for row in trial_rows
+    )
+    assert day["qwen_tokens_reserved"] == sum(
+        row["reserved_qwen_tokens"] for row in trial_rows
+    )
+    assert app_rows == [{"status": "unknown", "dispatch_state": "unknown"}]
+
+
+@pytest.mark.parametrize(
+    ("category", "status_code", "trial_category"),
+    [
+        ("connection", None, "network_error"),
+        ("permanent_http", 401, "provider_error"),
+        ("transient_http", 408, "timeout"),
+        ("transient_http", 429, "rate_limited"),
+        ("transient_http", 503, "provider_error"),
+    ],
+)
+def test_guest_provider_failures_commit_unknown_settlement(
+    database, category, status_code, trial_category
+):
+    slug_category = category.replace("_", "-")
+    workspace_id = _workspace(database, f"bp-{slug_category}-{status_code or 'none'}")
+    task = _guest_business_task(
+        database,
+        workspace_id,
+        budget={"max_calls": 10, "max_tokens": 50_000, "max_cost": "5.00"},
+        graph_version="business-3",
+    )
+    settings = Settings(
+        guest_trial_enabled=True,
+        guest_rate_limit_hmac_key=b"B" * 32,
+        guest_trial_fx_source_date=FX.source_date,
+        guest_trial_fx_cny_per_usd=FX.cny_per_usd,
+        guest_trial_fx_source_url=FX.source_url,
+    )
+    usage = make_task_usage_ledger(database, settings, task)
+    claimed = database.claim(task["id"], f"bp-worker-{slug_category}", seconds=120)
+    assert claimed["state"] == "running"
+
+    class FailedModel:
+        requested_model = "qwen3.8-flash"
+        endpoint = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+        schema_bytes = 0
+
+        def respond(self, _messages, *, stream=False):
+            raise PrimaryProviderFailure(category=category, status_code=status_code)
+
+    model = BudgetedPrimary(
+        FailedModel(),
+        usage,
+        price=TokenPrice("qwen-price-v1", Decimal("1"), Decimal("2"), currency="CNY"),
+        provider="qwen",
+        purpose="plan",
+        max_output_tokens=32,
+        max_same_provider_attempts=1,
+    )
+
+    with pytest.raises(PrimaryProviderFailure):
+        model.respond([{"role": "user", "content": "read only plan"}])
+
+    with database.connect() as conn:
+        trial_row = conn.execute(
+            "SELECT status,reserved_cost_usd,reserved_qwen_tokens,error_category "
+            "FROM business.guest_trial_usage_reservations WHERE workspace_id=%s",
+            (workspace_id,),
+        ).fetchone()
+        usage_row = conn.execute(
+            "SELECT status,dispatch_state,error_category,provider_status "
+            "FROM app.usage_records WHERE task_id=%s",
+            (task["id"],),
+        ).fetchone()
+
+    assert trial_row["status"] == "unknown"
+    assert trial_row["error_category"] == trial_category
+    assert trial_row["reserved_cost_usd"] > 0
+    assert trial_row["reserved_qwen_tokens"] > 0
+    assert usage_row == {
+        "status": "unknown",
+        "dispatch_state": "unknown",
+        "error_category": category,
+        "provider_status": status_code,
+    }
+
+
+def test_guest_unclassified_transport_failure_commits_unknown_settlement(database):
+    workspace_id = _workspace(database, "budget-transport-error")
+    task = _guest_business_task(
+        database,
+        workspace_id,
+        budget={"max_calls": 10, "max_tokens": 50_000, "max_cost": "5.00"},
+        graph_version="business-3",
+    )
+    settings = Settings(
+        guest_trial_enabled=True,
+        guest_rate_limit_hmac_key=b"B" * 32,
+        guest_trial_fx_source_date=FX.source_date,
+        guest_trial_fx_cny_per_usd=FX.cny_per_usd,
+        guest_trial_fx_source_url=FX.source_url,
+    )
+    usage = make_task_usage_ledger(database, settings, task)
+    claimed = database.claim(task["id"], "transport-worker", seconds=120)
+    assert claimed["state"] == "running"
+
+    class BrokenTransport:
+        requested_model = "qwen3.8-flash"
+        endpoint = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+        schema_bytes = 0
+
+        def respond(self, _messages, *, stream=False):
+            raise RuntimeError("sanitized transport failure")
+
+    model = BudgetedPrimary(
+        BrokenTransport(),
+        usage,
+        price=TokenPrice("qwen-price-v1", Decimal("1"), Decimal("2"), currency="CNY"),
+        provider="qwen",
+        purpose="plan",
+        max_output_tokens=32,
+        max_same_provider_attempts=1,
+    )
+
+    with pytest.raises(RuntimeError, match="sanitized transport failure"):
+        model.respond([{"role": "user", "content": "read only plan"}])
+
+    with database.connect() as conn:
+        trial_row = conn.execute(
+            "SELECT status,reserved_cost_usd,reserved_qwen_tokens,error_category "
+            "FROM business.guest_trial_usage_reservations WHERE workspace_id=%s",
+            (workspace_id,),
+        ).fetchone()
+        usage_row = conn.execute(
+            "SELECT status,dispatch_state,error_category "
+            "FROM app.usage_records WHERE task_id=%s",
+            (task["id"],),
+        ).fetchone()
+
+    assert trial_row["status"] == "unknown"
+    assert trial_row["error_category"] == "unknown_error"
+    assert trial_row["reserved_cost_usd"] > 0
+    assert trial_row["reserved_qwen_tokens"] > 0
+    assert usage_row == {
+        "status": "unknown",
+        "dispatch_state": "unknown",
+        "error_category": "transport_error",
+    }
+
+
+def test_free_quota_still_consumes_guest_qwen_token_budget(database):
+    workspace_id = _workspace(database, "budget-free-qwen")
+    ledger = _ledger(database)
+    reservation = ledger.reserve_request(
+        workspace_id=workspace_id,
+        task_id=uuid4(),
+        request_key="free-quota-qwen",
+        provider="qwen",
+        model="fixture-free-model",
+        cost_currency="CNY",
+        reserved_cost=Decimal("0"),
+        reserved_qwen_tokens=400,
+        price_basis_id="free-quota-v1",
+    )
+    ledger.mark_dispatched(reservation["id"])
+    settled = ledger.settle_request(
+        reservation["id"],
+        response_state="responded",
+        actual_input_tokens=300,
+        actual_output_tokens=100,
+        actual_cost_native=Decimal("0"),
+        actual_cost_basis="frozen_rate",
+    )
+
+    assert settled["status"] == "settled"
+    with database.connect() as conn:
+        day = conn.execute(
+            "SELECT reserved_cost_usd,qwen_tokens_reserved "
+            "FROM business.guest_trial_budget_days WHERE budget_date=%s",
+            (FIXED_NOW.date(),),
+        ).fetchone()
+    assert day == {"reserved_cost_usd": Decimal("0.000000"), "qwen_tokens_reserved": 400}
+
+
+def test_guest_jev_request_is_rejected_before_dispatch_without_fee_bound(database):
+    workspace_id = _workspace(database, "budget-guest-jev")
+    task = _guest_business_task(
+        database,
+        workspace_id,
+        budget={"max_calls": 10, "max_tokens": 50_000, "max_cost": "5.00"},
+        graph_version="business-3",
+    )
+    settings = Settings(guest_trial_enabled=True, guest_rate_limit_hmac_key=b"B" * 32)
+    usage_ledger = make_task_usage_ledger(database, settings, task)
+    claimed = database.claim(task["id"], "guest-budget-jev", seconds=120)
+    assert claimed["state"] == "running"
+    request = build_request(
+        ["memory_read_needed"],
+        {"task_summary": "route a service task", "current_version": "3"},
+        DecisionContext(str(task["id"]), "guest-scope", "1", "1", "1", "1"),
+    )
+
+    provider_requests = []
+
+    def respond(request):
+        provider_requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "model": "typesafe/jev-1.13-20260917",
+                "usage": {"input_tokens": 10, "output_tokens": 4, "cost": 0.0001},
+                "answers": {"memory_read_needed": {"type": "noul", "noul": 0.9}},
+            },
+        )
+
+    budget = LedgerAttemptBudget(
+        usage_ledger,
+        reservation_usd=Decimal("0.01"),
+        provider="openrouter",
+        purpose="memory_read",
+    )
+    with JevAdapter(
+        api_key="fixture",
+        provider="openrouter",
+        model="jev-latest",
+        budget=budget,
+        cache_ttl=0,
+        client=httpx.Client(transport=httpx.MockTransport(respond)),
+    ) as adapter:
+        result = adapter.evaluate(request)
+
+    assert not result.available
+    assert result.error == "budget_exceeded"
+    assert provider_requests == []
+    with database.connect() as conn:
+        app_row = conn.execute(
+            "SELECT count(*) AS total FROM app.usage_records WHERE task_id=%s",
+            (task["id"],),
+        ).fetchone()
+        trial_row = conn.execute(
+            "SELECT count(*) AS total FROM business.guest_trial_usage_reservations "
+            "WHERE task_id=%s",
+            (task["id"],),
+        ).fetchone()
+
+    assert app_row == {"total": 0}
+    assert trial_row == {"total": 0}
 
 
 def test_workspace_deactivation_serializes_before_guest_admission(database):

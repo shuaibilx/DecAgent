@@ -12,6 +12,8 @@ from uuid import uuid4
 import uvicorn
 from psycopg import sql
 
+from decagent.business.registry import PluginRegistry
+from decagent.business.tickets import builtin_manifest
 from decagent.config import Settings
 from decagent.gateway import GatewayCallbacks, create_app
 from decagent.storage.database import Database
@@ -27,11 +29,13 @@ def build_fixture():
         conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
     database = Database(administrator.url.rsplit("/", 1)[0] + "/" + name)
     database.migrate()
+    PluginRegistry(database).register(builtin_manifest())
     settings = Settings(
         database_url=database.url,
         public_url=f"http://{HOST}:{PORT}",
         data_dir=Path("output/playwright/guest-browser-fixture").resolve(),
         guest_trial_enabled=True,
+        guest_rate_limit_hmac_key=b"B" * 32,
     )
     callbacks = GatewayCallbacks(
         business_employee_read=lambda _identity, command, _params: (

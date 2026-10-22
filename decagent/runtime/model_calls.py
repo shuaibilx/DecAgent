@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 import time
 from dataclasses import dataclass
 from decimal import Decimal
@@ -60,6 +61,7 @@ class TokenPrice:
     version: str
     input_per_million: Decimal
     output_per_million: Decimal
+    currency: str = "USD"
 
     def __post_init__(self):
         if not self.version or any(
@@ -67,6 +69,8 @@ class TokenPrice:
             for rate in (self.input_per_million, self.output_per_million)
         ):
             raise ValueError("Versioned, finite nonnegative token prices are required")
+        if not isinstance(self.currency, str) or re.fullmatch(r"[A-Z]{3}", self.currency) is None:
+            raise ValueError("Token price currency must be a three-letter uppercase code")
 
     def cost(self, input_tokens, output_tokens):
         return (
@@ -193,6 +197,9 @@ class BudgetedPrimary:
                 "requested_model": requested_model,
                 "endpoint": endpoint,
                 "requested_output_tokens": self.max_output_tokens,
+                "trial_cost_currency": price.currency if price is not None else None,
+                "trial_cost_native": cost if price is not None else None,
+                "trial_price_basis_id": price.version if price is not None else None,
             }
             if recovery_of is not None:
                 if not getattr(self.ledger, "reserve_model", None):
@@ -245,6 +252,10 @@ class BudgetedPrimary:
                     resolved_model=rejected.model,
                     server_request_id=rejected.server_request_id,
                     latency_ms=max(0, round((time.monotonic() - started) * 1000)),
+                    actual_input_tokens=usage.input_tokens if usage is not None else None,
+                    actual_output_tokens=usage.output_tokens if usage is not None else None,
+                    trial_actual_cost_native=actual_cost,
+                    trial_actual_cost_basis="frozen_rate" if actual_cost is not None else None,
                 )
                 raise
             except PrimaryProviderFailure as failure:
@@ -290,6 +301,10 @@ class BudgetedPrimary:
                 resolved_model=getattr(result, "model", None),
                 server_request_id=getattr(result, "server_request_id", None),
                 latency_ms=max(0, round((time.monotonic() - started) * 1000)),
+                actual_input_tokens=usage.input_tokens if usage is not None else None,
+                actual_output_tokens=usage.output_tokens if usage is not None else None,
+                trial_actual_cost_native=actual_cost,
+                trial_actual_cost_basis="frozen_rate" if actual_cost is not None else None,
             )
             return result, None, receipt
 
@@ -407,6 +422,9 @@ class LedgerAttemptBudget:
                 node_id=self.node_id,
                 node_ids=self.node_ids,
                 question_count=len(request.questions),
+                trial_cost_currency="USD",
+                trial_cost_native=self.reservation_usd,
+                trial_price_basis_id="jev-reservation-v1",
             )
         except BudgetExceeded:
             return None
@@ -434,4 +452,8 @@ class LedgerAttemptBudget:
             cost,
             response_state="responded" if record.status_code is not None else "unknown",
             error_code=record.error,
+            actual_input_tokens=record.usage.input_tokens if record.usage else None,
+            actual_output_tokens=record.usage.output_tokens if record.usage else None,
+            trial_actual_cost_native=cost,
+            trial_actual_cost_basis="provider_billed" if cost is not None else None,
         )

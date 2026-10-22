@@ -101,20 +101,14 @@ class BusinessWorker(Worker):
                 raise ValueError("Database is not initialized; run decagent migrate") from exc
             if [row["version"] for row in versions] != list(range(1, SCHEMA_VERSION + 1)):
                 raise ValueError("Incompatible database schema; migration/upgrade required")
-            return conn.execute(
-                "WITH candidate AS (SELECT t.id FROM app.tasks t JOIN business.workspaces w "
-                "ON w.id=t.workspace_id AND w.active WHERE t.kind='business' "
-                "AND t.employee_id IS NOT NULL AND t.credential_ref IS NOT NULL "
-                "AND NOT t.business_migration_pending "
-                "AND (t.state='queued' OR (t.state='running' AND "
-                "(t.lease_until IS NULL OR t.lease_until<=clock_timestamp()))) "
-                "ORDER BY t.created_at,t.id FOR UPDATE OF t SKIP LOCKED LIMIT 1) "
-                "UPDATE app.tasks t SET state='running',lease_owner=%s,"
-                "lease_generation=lease_generation+1,"
-                "lease_until=clock_timestamp()+%s*interval '1 second' "
-                "FROM candidate c WHERE t.id=c.id RETURNING t.*",
-                (self.owner, self.lease_seconds),
-            ).fetchone()
+            from decagent.business.guest_queue import GuestExecutionQueue
+
+            return GuestExecutionQueue.claim_in_transaction(
+                conn,
+                owner=self.owner,
+                lease_seconds=self.lease_seconds,
+                guest_enabled=self.settings.guest_trial_enabled,
+            )
 
     def _input(self, graph, config, task):
         snapshot = graph.get_state(config)

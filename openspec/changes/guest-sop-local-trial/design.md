@@ -1,5 +1,9 @@
 # Design
 
+### 2026-10-22 DashScope provider alias 预留修复
+
+Qwen token 额度按模型服务语义计数。运行时和 `UsageLedger` 已把 `dashscope` provider 标识作为 Qwen 服务别名，但 trial ledger 的 reservation 校验未保持一致。现让准入校验接受 `qwen` 与 `dashscope`，并以参数化 PostgreSQL 集成测试覆盖两个 provider 标识的原子预留及本币结算。该兼容修复不改变费率配置和实际账单边界；游客 Jev 费用上界未证明，任务 3.2 继续保持未完成。
+
 ## Context
 
 动机见 proposal。当前 `EmployeeIdentity` 无 workspace，BusinessScope 是全局插件注册而不是租户；人员/工单等表共享，supervisor 可查询全库，记忆强制 local-company。现有员工 Cookie、CSRF、MCP 员工凭证、prepare/确认/commit 和原子任务预算可复用。当前 Compose 默认 repair Worker；失败没有自动回滚，不能直接开放游客。公共 Runner dispatch 已暂停：远端仓库没有 self-hosted Runner 或部署 job，本机 Runner 计划任务禁用；公共 release 只发布 GHCR。后续 CD 必须先迁入私有部署仓库。
@@ -38,7 +42,25 @@ Non-Goals：真实公司 API、付费订阅、注册邮箱/GitHub 绑定、跨�
 
 独立 trial 账本采用北京时间自然日 bucket；全站每日费用上限为 $5 美元等值抵扣前 API 费用，另限 5,000,000 Qwen token；每游客每日 30 个任务/500,000 Qwen token。所有供应商费用按抵扣前 API 费用计入预算，代金券只改变券后实付，不降低模型资源消耗或预算记账值。对人民币费用，受信部署配置提供 CFETS 官方 USD/CNY 汇率中间价、来源日期及 URL；运行时不抓取网页，且每个北京时间预算日第一次初始化时将快照持久化，此后同一天不可更改。配置报价必须来自该日开始前最新已公布工作日报价，最多允许旧 7 个日历日，超期时停止 CNY 派发并要求更新。首版保守换算使用原汇率的 90%，向下截断至 0.01 CNY/USD，以避免把人民币费用低估为美元费用。可核验示例：[CFETS 官方页面](https://www.chinamoney.com.cn/english/)于 2026-10-20 显示 6.7200，应用 10% 安全余量后冻结为 6.04 CNY/USD，人民币账单以 `CNY / 6.04` 折为美元等值；$5 对应的 Qwen 单币种预算上界为 ¥30.20。额度预留用十进制运算并向上取整，不用浮点数；缺少可核验汇率/费率或不能构造可靠费用上界时拒绝派发。Qwen 5,000,000 token 上限独立于费用上限；即使免费或使用代金券，也照计 token 与抵扣前 API 费用。评测 `$1` Jev ledger 保持独立，不从游客试用预算扣除。
 
-持久准入记录约束游客并行1、全站2、排队20；按入队顺序领取，租约/CAS防止多 Worker 重领。取消排队释放排队槽，已发生模型用量不回退；进程重启不重置日额度。初始游客创建每 IP 每小时最多5次、任务提交每分钟10次、人工回复每分钟30次；响应429/Retry-After。代理地址只从显式受信代理解析，本地无代理直接使用连接地址。匿名 IP 不是个人身份；全站预算和有界排队为最后保护，公网开通前另验证入口防滥用。
+持久准入记录约束游客并行1、全站2、排队20。Migration 028 将 `queue_state`、入队时间和最近领取时间放进每日 task admission ledger；任务状态触发器同步 `queued/running/awaiting/terminal` 与 `waiting/running/paused/terminal`，暂停后重新入队时排到队尾，取消立即释放等待名额。任务创建、全局队列容量检查、每日任务计数和入队记录共享同一 API 数据库事务；满队列返回429且回滚任务、凭证和每日计数。Worker 以 PostgreSQL advisory transaction lock 串行计算 guest active lease 和领取任务，`FOR UPDATE SKIP LOCKED` 只领取最早的可运行项；同一 workspace 有有效运行租约时跳过其后任务，其他 workspace 可以继续。租约过期后只对同一 task 做 generation fencing，不重置队列或账本；状态/等待位置/等待原因由任务 detail/list 返回。全站排队20指等待项，不含当前最多2个执行项。隔离 PostgreSQL 覆盖满队列、取消、FIFO可运行公平性、1/2并发约束、租约回收与旧代次拒绝；用户模型调用入口保持关闭。
+
+Migration 029/030 与 `GuestAdmissionRateLimiter` 使用 PostgreSQL 滑动窗口，按可信客户端地址限制游客新建 5 次/小时、任务提交 10 次/分钟、人工回复 30 次/分钟。成功认证的现有游客 session 恢复或 CSRF 修复不占用新建额度。部署级随机 32 字节 HMAC key 从 secret/env 注入，所有 API 实例必须使用同一稳定值；数据库只保存 HMAC 地址摘要和独立用途的 HMAC key 指纹，不存原始 IP 或 HMAC key。游客开关开启时缺 key 会被配置校验拒绝。Key 需跨重启保持；变更会重置当前 IP 窗口，因此应先关闭游客准入并等待最近一条限流事件超过 2 小时。数据库指纹门禁在已有旧窗口时拒绝新 key，返回 503 和剩余等待时间，且不写入新限流事件；窗口过期后才登记新指纹。每次校验在事务内取得全局指纹锁和 scope+地址 advisory lock，因此多 worker、进程重启及清 Cookie 都共享同一限额。常规用户限额超限返回 429、`Retry-After` 和可读错误；轮换等待返回 503；队列满及日额度耗尽也向客户端提供有界重试提示。
+
+`DECAGENT_GUEST_TRUSTED_PROXIES` 只接受显式 IP/CIDR。ASGI 代理中间件默认将 TCP 对端作为主体；仅当对端落入配置 CIDR 时，才从右向左解析 `X-Forwarded-For`，并接受单值 `X-Forwarded-Proto`。无效链退回代理对端地址；不可信代理头忽略。CLI 启动 Uvicorn 时关闭其默认代理头改写，避免 loopback 被隐式信任。反向代理必须覆盖或追加实际上游连接地址。客户端 IP 仅作为可伪名化的限流信号，不代表个人身份或账号。
+
+游客工作台的额度卡片从只读 `/api/v3/guest/usage` 读取北京时间预算日、全站抵扣前费用与 Qwen token 占用、当前空间任务与 token 占用，并显示固定上限；游客任务详情展示执行状态、队列位置、并发/等待限制。`429` 的 `Retry-After` 以秒数展示给用户。数据包含未知调用预留，不将券后支付误作抵扣前费用。
+
+#### 4.1 模型请求预留、结算与 unknown
+
+业务模型共用既有 `UsageLedger` 与 provider wrapper。每次 Qwen/备用模型/Jev attempt 先在一个 PostgreSQL 事务里写任务级 `app.usage_records` 并写 trial attempt，二者通过 `usage_record_id` 关联；预算检查、费用预留、token 预留和记录写入同事务提交，拒绝时全部回滚。每个 provider attempt 有独立编号与预留；guest attempt 一旦 unknown，后续 retry/fallback 会被 unknown 门禁拒绝。
+
+`TokenPrice` 明确价格币种及版本：Qwen/DashScope 默认 CNY，OpenRouter 备用模型默认 USD。Qwen 派发上界按实际请求输入上限与最大输出 token 计算；响应带齐输入/输出 token 后，使用冻结费率计算抵扣前本币费用，并以 `frozen_rate` 记录依据。OpenRouter Jev 响应若包含确定的 `usage.cost`，按 USD provider-billed 保存；只得到 token 或状态、不足以确认总费用时，保留整个预留。任务账本保存美元等值以应用既有单任务预算，trial 账本额外保存 native currency、费率版本、实际 token、成本依据、请求 ID、延迟与错误类别。Voucher/cash 不由差额推算；缺少供应商响应或 invoice 证明时保持空值。
+
+`BusinessServices`、条件工作流和 memory-write evaluator 通过 task ledger factory 自动绑定 guest workspace 的 TrialBudgetPolicy；员工 workspace 继续使用原任务账本。guest flag 关闭、workspace 已停用、无版本费率或 CNY 汇率不可用时，在模型请求发送前失败关闭。任何已派发模型请求进入 unknown 后，保留原预算日费用和 token 预留并阻止游客任务后续模型请求，包含 wrapper 自动 retry/fallback；重启、跨日或换 workspace state 路径不释放该占用。可信本地预检可证明请求未发送时，task/trial 两个预留在同事务标为 not-sent 并释放。
+
+`UsageLedger` 保留上游 provider 的原始错误类别和 HTTP 状态以供审计；调用 guest trial ledger 时，把 provider taxonomy 映射到受限的持久化枚举：connection→`network_error`，HTTP 408→`timeout`，429→`rate_limited`，其他已分类 HTTP 错误→`provider_error`，未分类传输异常→`unknown_error`。这样已派发但 usage 未知的请求仍可在同一事务中将任务级和 trial 级记录置为 unknown 并保留预留，不因错误类别不兼容而回滚结算。
+
+Jev 当前的 `$0.01` 仅是固定记账预留，不是可证明的单请求费用上界；`jev-latest` 是可变模型别名，128 KB 状态字节限制也没有限制 provider 输出 token。OpenRouter 通用 Provider Selection 文档描述 `provider.max_price`，而 Decisions API 专属请求契约仅声明 `provider` 为通用 object/null，未明确列出 `max_price` 的字段结构或对 Decisions 端点的硬上限保证；该通用路由说明不足以证明游客请求有可执行总费用上界。因此 `UsageLedger.reserve()` 对 guest `model_family=jev` 在创建任何 task/trial 预留之前返回 `guest_jev_fee_bound_required`，`LedgerAttemptBudget` 将其作为预算拒绝，DecisionAdapter 不发送 HTTP 请求。员工 Jev 路径不受此 guest-only 门禁影响。只有冻结可核验的 provider 费率并强制输入/输出 token 上限、确保计算所得单次费用上界不超过预留后，才可开放游客 Jev。审查证据：[OpenRouter Decisions API 费用上界契约审查](../../../evals/integration/evidence/openrouter-decisions-cost-bound-20261022.md)。
 
 ### 5. SOP Compose 与私有部署控制面
 
@@ -66,7 +88,7 @@ Non-Goals：真实公司 API、付费订阅、注册邮箱/GitHub 绑定、跨�
 
 1. 先完成/核验原执行器与评测门槛；未通过的真实评测保持待办，可继续本 change 的离线实现。
 2. 追加 workspace 迁移，在隔离数据库验证旧身份/任务/审批/未知回执恢复，入口关闭。
-3. 完成游客生命周期、ACL/MCP/记忆隔离、日额度/队列和浏览器核心链路，再启用本机游客入口。
+3. 完成游客生命周期、ACL/MCP/记忆隔离、日额度/队列/请求限流和浏览器核心链路，再启用本机游客入口。
 4. 创建私有部署库与最小凭证配置，迁移 Runner；确认公共任务无法使用本机 Runner 后启用受信发布触发。
 5. 发布新版本到本机SOP拓扑，演练兼容升级、失败回滚、不兼容停止和重启恢复；备份保留。
 6. 分区文档同步验收。购买域名和公网开放另行实施；本轮不自动开通隧道或公开数据库/MCP。

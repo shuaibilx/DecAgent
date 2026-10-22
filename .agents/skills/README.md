@@ -30,7 +30,7 @@
 
 其中两项补充 Jev/评测方法，五项将当前会话已有框架/MCP 参考固定到项目内，另补一项 CI 专用诊断。不会重复安装此前已有的项目技能。
 
-截至本次复核，项目内有 15 项官方开发参考（136 个文件）、2 项 GitHub 组织仓库收录的社区贡献工作流参考（11 个文件）、6 项 OpenSpec 工作流及 1 项 TypeSafe 补充参考；合计 24 个技能目录、155 个技能文件。其中 17 项 GitHub 来源的官方/社区参考（147 个文件）记录于 [skill-sources.json](../skill-sources.json)，包含固定提交、逐文件 SHA-256 与许可证；本地生成的 OpenSpec 工作流和 TypeSafe 副本不在该上游来源清单中，来源边界见下文。更新 GitHub 来源技能时必须审阅并固定提交，不跟随浮动 main 自动升级。
+截至本次复核，项目内有 15 项官方开发参考（136 个文件）、2 项 GitHub 组织仓库收录的社区贡献工作流参考（11 个文件）、6 项 OpenSpec 工作流、1 项 TypeSafe 补充参考，以及 1 项 DecAgent 自有 OpenRouter Decisions 集成参考；合计 25 个技能目录、157 个技能文件。其中 17 项 GitHub 来源的官方/社区参考（147 个文件）记录于 [skill-sources.json](../skill-sources.json)，包含固定提交、逐文件 SHA-256 与许可证；本地生成的 OpenSpec 工作流、TypeSafe 副本及 DecAgent 自有参考不在该上游来源清单中，来源边界见下文。更新 GitHub 来源技能时必须审阅并固定提交，不跟随浮动 main 自动升级。
 
 ## 本次新增的工作流与安全参考
 
@@ -42,7 +42,11 @@
 
 ### TypeSafe / Jev 补充参考
 
-项目还包含 [typesafe-ai](typesafe-ai/SKILL.md)，它从用户现有的全局技能复制到项目，便于后续 Jev 开发使用。未找到可核验的上游技能仓库，因此不把它计入上述 14 项官方技能，也不声称该技能文件由 TypeSafe 官方发布；其 MIT 标记是该本地技能自身的声明，未纳入 GitHub 上游来源清单。该指南要求以 [TypeSafe 官方文档索引](https://docs.typesafe.ai/llms.txt)和当前 API/SDK 文档为准；项目仍使用已实现的 OpenRouter Decisions 适配，不因这份参考自动切换到 TypeSafe SDK 或直连 API。
+项目还包含 [typesafe-ai](typesafe-ai/SKILL.md)，它从用户现有的全局技能复制到项目，便于后续 Jev 开发使用。未找到可核验的上游技能仓库，因此不把它计入上述 15 项官方技能，也不声称该技能文件由 TypeSafe 官方发布；其 MIT 标记是该本地技能自身的声明，未纳入 GitHub 上游来源清单。该指南要求以 [TypeSafe 官方文档索引](https://docs.typesafe.ai/llms.txt)和当前 API/SDK 文档为准；项目仍使用已实现的 OpenRouter Decisions 适配，不因这份参考自动切换到 TypeSafe SDK 或直连 API。
+
+### OpenRouter Decisions 集成边界
+
+项目自有参考：[decagent-openrouter-decisions](decagent-openrouter-decisions/SKILL.md)。它总结 DecAgent 的预算门禁、Jev 身份与 unknown 处理，不是 OpenRouter 发布的技能。OpenRouterTeam 官方 [openrouter-decisions skill](https://github.com/OpenRouterTeam/skills/tree/33597a44e38b0cdc38ea1256ef8bcf50c2704e3d/skills/openrouter-decisions) 已审阅并固定到签名验证通过的提交；仓库未声明许可证，因此未复制上游文件。上游内容仅作为官方接口参考入口，不纳入来源 manifest。对游客 Jev 费用上限的官方契约判断见[费用上界审查](../../evals/integration/evidence/openrouter-decisions-cost-bound-20261022.md)。
 
 补充说明：GitHub awesome-copilot 属 GitHub 组织维护的公开仓库，但其内容自述为社区贡献。本项目安装了两项高采用率 workflow 参考并明确标作社区实践，不称为 GitHub 官方规范；Actions 行为、Runner 安全与权限结论仍以 [GitHub 官方安全文档](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions)和实际 workflow 验证为准。Cloudflare 的官方安全审计 skill 不覆盖 Tunnel 配置；检索到的专用 Tunnel skills 均为非官方社区作品，因此没有安装，Tunnel 后续按 [Cloudflare 官方连接器文档](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)实施。在已检查的 OpenAI、Anthropic、LangChain 官方技能目录中，也未找到专门覆盖 Python 进程树取消/监督、SQLite 持久预算并发或 τ-Bench/EnterpriseOps-Gym 官方适配的技能；这几项继续依据 Python/SQLite 官方文档、上游 benchmark 原始代码与项目的隔离故障测试验收，不用泛化社区技能代替。
 
