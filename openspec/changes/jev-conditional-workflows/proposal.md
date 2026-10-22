@@ -1,14 +1,16 @@
 # Proposal
 
-## 当前状态（2026-10-22，v9 首波已执行且质量门槛未通过）
+## 当前状态（2026-10-22，manifest v9 / candidate f1a4a70 首波已执行且质量门槛未通过）
 
-主 change 为 **72/79，7 项待完成**；`guest-sop-local-trial` 为 15/28。候选 `126fe5a3dc9edcb3d595d0aa40fa1a5d8713af41` 的同 SHA GitHub Actions [CI run 39639666250](https://github.com/shuaibilx/DecAgent/actions/runs/39639666250) 全部通过。
+主 change 为 **72/79，7 项待完成**；`guest-sop-local-trial` 为 15/28。候选 `f1a4a704fe2c36b22127006fe0bc9860733923d5` 的同 SHA GitHub Actions [CI run 39731158534](https://github.com/shuaibilx/DecAgent/actions/runs/39731158534) 全部通过。
 
-v9 固定首波执行了 4 个任务/8 条 ReAct/Plan 路线，结果为 2 failed、6 unknown、0 succeeded；两条官方评分均为 0.0，清理 8/8 verified。Qwen 共 14 次请求，其中 5 次 usage unknown（3 次 Plan primary 超时、2 次 τ retail user simulator worker ValueError），保留 252,296 Token 与 ¥0.2796608 冻结费率预留上界。账本没有逐请求 provider invoice/voucher/cash 证据；¥0.0610926 settled 成本估算和 ¥0.3407534 总上界都不是供应商账单或实付。完整公开比较仍为 0/286；没有 Jev 或裁判请求。详细证据见[首波报告](../../../generated/261022/0133_公开评测首波报告_v9.md)与[机器数据](../../../evals/benchmarks/evidence/public-first-wave-live-20261022-v9-126fe5a.json)。旧 unknown 不重放。
+候选 f1a4 固定首波执行了 4 个任务/8 条 ReAct/Plan 路线，结果为 4 failed、4 unknown、0 succeeded；两条官方评分均为 0.0，清理 8/8 verified。Qwen 15 次派发请求（Agent 11、用户模拟器 4），另有 2 次用户模拟器请求在本地预检被拒发；3 次 Plan primary 超时的用量 unknown，保留 198,176 Token 与 ¥0.2052352 冻结费率费用预留。已知 101,110 tokens 的抵扣前 API 费用冻结费率估算为 ¥0.0853511；没有 provider invoice 证据，不能据此推断实际账单或实付。完整公开比较仍为 0/286；没有 Jev 或裁判请求。详细证据见[首波执行报告](../../../generated/261022/1426_公开评测首波执行报告_f1a4a70.md)与[机器数据](../../../evals/benchmarks/evidence/public-first-wave-live-20261022-f1a4a70.json)。旧 unknown 不重放。
 
 用户确认没有在项目外查看 τ-Bench 官方 test 80 条；v9 manifest 按精确案例冻结暴露分组。not_exposed 不等同独立 holdout，也不能排除模型预训练污染。首波门槛未过前，剩余 smoke、206+80 全量和 Jev 配对均暂停。
 
-2026-10-22 的离线诊断切片已把客户端构造错误标为可验证的 `not_dispatched`，把 `respond()` 内未分类异常保留为 unknown (`model_worker_model_call`)，把返回结果的本地封帧错误单列为 `model_worker_response`。v9 账本中三个 Plan 请求的输入上界为 51,653/60,124/62,435，均低于 65,536 profile 上限；各预留 8,192 输出 Token，最大输入上界占 profile 上限约 95.3%。它们均约 60 秒超时，但没有证据可判定输入接近上限是否导致超时或服务商是否收到请求。回归先红后绿；完整 deterministic `1,982 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过。代码无法揭示已终结 v9 `target/ValueError` 的根因，也没有修改历史账本。代码 commit `812bf62359c2b8dc11658fbb66cc9874e6a6ea80` 已推至功能分支，同 SHA [CI run 39649117340](https://github.com/shuaibilx/DecAgent/actions/runs/39649117340) 全部五个 job 通过；总耗时 22 分 34 秒，其中 Python 3.13 PostgreSQL job 为 22 分 28 秒。新 cohort、额度和真实派发须另行冻结与授权。
+2026-10-22 的离线诊断切片已将客户端构造错误标为可验证的 `not_dispatched`，将 `respond()` 内未分类异常保留为 unknown (`model_worker_model_call`)，将返回结果的本地封帧错误单列为 `model_worker_response`。此前候选上的三个 Plan 请求及 f1a4 本次首波的三个 Plan 请求都约 60 秒超时，但没有证据能判定输入大小是否导致超时或服务商是否收到请求。τ retail 的 `not_sent` 已离线复现并找到空工具列表校验器缺失的原因；CSM/ReAct 的 MCP attempt 仍为 unknown。首波前完整 deterministic 为 `2,024 passed, 18 skipped`；加入修复及 loopback 回归后，当前完整 deterministic 为 `2,025 passed, 18 skipped`，新增 callback 文件 `25 passed`，Ruff 与 OpenSpec strict 通过。PostgreSQL 集成先前 `682 passed, 27 skipped`；新修复不涉及数据库层。候选同 SHA GitHub Actions CI 全部 job 通过，但那是修复前 SHA；当前改动仍需新 SHA CI。历史终态路线及账本不改写、不重放；下一批真实试次仍暂停。
+
+首波后的离线复现已定位并修复 τ retail 本地拒发的一个可复现原因：τ train case 0 的用户模拟器可合法返回空工具目录；此前空目录产生 `validator=None`，与显式 `tool_definitions=[]` 的成对契约冲突，导致 one-shot client 本地拒发。现在空目录保留拒绝任何工具调用的校验器。`test_public_cancellable_model.py` 定向文件 `25 passed`，全量 deterministic `2,025 passed, 18 skipped`，Ruff 与 OpenSpec strict 通过；新 SHA 的 GitHub CI 仍待运行，历史路线保持不变。三个 Plan 超时与 CSM MCP unknown 仍未找到可核验根因。
 
 ## 历史实施快照（2026-10-21 及更早）
 

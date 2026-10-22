@@ -916,6 +916,100 @@ def test_tau_user_simulator_callback_round_trips_registered_tool_over_local_http
         thread.join(timeout=2)
 
 
+def test_tau_user_simulator_callback_accepts_empty_tool_list_over_local_http():
+    from decagent.evaluation.business.public_models import (
+        public_tau_model_callback_factory,
+    )
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    profiles = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    ).profiles
+    requests = []
+
+    class OpenAICompatibleHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers["Content-Length"])
+            requests.append(json.loads(self.rfile.read(length)))
+            body = json.dumps(
+                {
+                    "id": "chatcmpl-tau-text-only-1",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": profiles.user_simulator.model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "I can help with that.",
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 13,
+                        "completion_tokens": 6,
+                        "total_tokens": 19,
+                    },
+                }
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("x-request-id", "request-tau-text-only-1")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), OpenAICompatibleHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    callback = None
+    try:
+        profile = profiles.user_simulator
+        object.__setattr__(
+            profile, "endpoint", f"http://127.0.0.1:{server.server_port}/v1"
+        )
+        callback = public_tau_model_callback_factory(
+            profile,
+            role="user_simulator",
+            api_key="local-loopback-secret",
+        )(SimpleNamespace(), SimpleNamespace(), "react_skill_mcp")
+
+        result = callback(
+            {
+                "model": profile.model,
+                "messages": [{"role": "user", "content": "I need help."}],
+                "tools": [],
+            },
+            timeout_seconds=5,
+        )
+
+        assert result.value == {
+            "content": "I can help with that.",
+            "tool_calls": [],
+        }
+        assert result.input_tokens == 13
+        assert result.output_tokens == 6
+        assert result.provider_request_id == "request-tau-text-only-1"
+        assert len(requests) == 1
+        assert requests[0].get("tools") in (None, [])
+    finally:
+        if callback is not None:
+            callback.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
 def test_timed_out_provider_child_marks_attempt_unknown_and_cannot_replay(tmp_path):
     from decagent.evaluation.business.cancellable_model import (
         run_cancellable_process,

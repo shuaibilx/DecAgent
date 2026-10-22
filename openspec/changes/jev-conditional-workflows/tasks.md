@@ -3,7 +3,7 @@
 ## 当前状态（2026-10-22）
 
 - **完成：72/79。** 未完成的 7 项：9.6.D、9.6.F、9.6.G、10.3、10.4、10.5、10.6。
-- 首波 v9 的 4 个任务、8 条路线结果为 2 failed、6 unknown、0 success；两条已评分路线均为 0.0，清理 8/8 verified。不得重放 unknown，也不得将工程测试说成公开基准成功。
+- manifest v9 的候选 `f1a4a704fe2c36b22127006fe0bc9860733923d5` 首波已实际执行：4 个任务、8 条路线为 4 failed、4 unknown、0 success；两条已评分路线均为 0.0，清理 8/8 verified。Qwen 3 次 Plan 请求用量 unknown，保留 198,176 Token 与 ¥0.2052352 费用预留；已知用量冻结费率估算 ¥0.0853511，不是供应商账单。不得重放 unknown，也不得把本次失败尝试说成基准成功。详见[首波执行报告](../../../generated/261022/1426_公开评测首波执行报告_f1a4a70.md)和[机器证据](../../../evals/benchmarks/evidence/public-first-wave-live-20261022-f1a4a70.json)。候选同 SHA [CI run 39731158534](https://github.com/shuaibilx/DecAgent/actions/runs/39731158534) 全部通过。首波后离线复现并修复 τ retail 空工具列表造成的本地拒发；定向 callback 文件 `25 passed`、全量 deterministic `2,025 passed, 18 skipped`、Ruff 与 OpenSpec strict 通过。当前改动的新 SHA CI 和真实闭环仍待验证，故不更改历史路线状态。
 - 游客与本机交付 change 当前为 15/28；该 change 的待办见其自己的 tasks.md。
 - [整理前逐字快照](../../../generated/261022/任务整理/1202_jev任务完整快照_整理前.md)保留本文件的完整原文、所有验收细节和逐次历史。SHA-256：4f623e1ec66314eab4715e33b06794777f49fc2c961504f6421129185960a484。
 - 详细证据入口：[实现与工作台](../../../generated/261021/任务整理/1434_实现与工作台证据.md)、[评测基础](../../../generated/261021/任务整理/1434_评测基础证据.md)、[模型与真实评测](../../../generated/261021/任务整理/1434_模型与真实评测证据.md)、[整体验收](../../../generated/261021/任务整理/1434_整体验收证据.md)、[当前计划](../../../generated/261022/0920_后续实施计划与验收顺序.md)。
@@ -90,8 +90,8 @@
 - [x] 9.6.C 通过 τ 子进程桥记录 transcript，再使用官方 evaluator；ReAct/Plan 均支持模拟用户澄清。
 - [ ] 9.6.D 审核并冻结自然适用的 Jev 模板；在同一状态输入下配对 Jev 与固定通用模型。结构化条件走规则，无适用节点标 N/A。
 - [x] 9.6.E 冻结公开 manifest、暴露组、profile、预算、复用/记忆消融与计时；标签和私有评分材料不得进入 Agent 输入。完成仅表示设计冻结，不代表真实评测通过。
-- [ ] 9.6.F 接通真实模型/MCP callback、三路线调度、τ 模拟器与官方裁判、最终回复、unknown/评分失败分类和环境清理；unknown 后不得继续派发该路线。[离线监督与 callback 回归](../../../evals/integration/evidence/public-cancellable-supervision-20261022.md)；当前完整确定性回归 `2024 passed, 18 skipped`，真实模型/评分闭环仍待完成。
-- [ ] 9.6.G 先完成 CSM、ITSM、τ retail、τ telecom 各一例的 ReAct/Plan 八路线官方评分与清理闭环，再补齐固定 24 例 smoke；只对自然适用且审核通过的节点做 Jev 配对。
+- [ ] 9.6.F 接通并验收真实模型/MCP callback、三路线调度、τ 模拟器与官方裁判、最终回复、unknown/评分失败分类和环境清理；unknown 后不得继续派发该路线。[离线监督与 callback 回归](../../../evals/integration/evidence/public-cancellable-supervision-20261022.md)；候选 f1a4 首波 8/8 清理完成，但出现 3 条 primary 超时、2 条 τ 用户模型本地拒发及 1 条 MCP unknown，只有 2 条评分且均为 0.0。τ retail 空工具列表拒发缺陷已离线复现并修复；当前完整 deterministic `2,025 passed, 18 skipped`、定向 callback 文件 `25 passed`、Ruff 与 OpenSpec strict 通过。超时与 MCP unknown 仍未解释，新 SHA CI 和真实闭环验收待完成。
+- [ ] 9.6.G 首波固定的 CSM、ITSM、τ retail、τ telecom 四域八路线已尝试，但官方评分与成功门槛未通过：4 failed、4 unknown、0 success，仅两条评分且均为 0.0。先离线修复/回归并重新冻结候选，再完成四域有效评分闭环；通过后才补齐固定 24 例 smoke。只对自然适用且审核通过的节点做 Jev 配对。
 - [x] 9.7 持久化 Jev 累计 1 美元预留/结算/unknown 停止账本；历史费用不可重置。
 - [x] 9.8 对计划路线实现证据约束的确定性最终回复及有界 Qwen 总结；总结失败/unknown 受账本约束。
 
@@ -99,7 +99,7 @@
 
 - [x] 10.1 完成主模型 readiness 检查与放行记录；旧 2026-10-18 unknown 不重试。
 - [x] 10.2 按每决策族至少 100 个自动样本及 95% 正确率门槛评估阈值资格；样本不足时不选生产阈值、不用 holdout 补样。
-- [ ] 10.3 完成冻结四域首波、每域至少一个官方评分及清理闭环，然后补齐 24 例 smoke；通过后再决定是否运行 206+80 全量。报告任务分母、成功/失败/unknown 与区间；不得冒充全量。
+- [ ] 10.3 完成冻结四域首波、每域至少一个有效官方评分及清理闭环，然后补齐 24 例 smoke；通过后再决定是否运行 206+80 全量。候选 f1a4 的 8 条路线均已终态、清理 8/8，但只有 ITSM/ReAct 和 τ telecom/ReAct 两条到达评分器且得分均为 0.0；首波门槛未通过，剩余 smoke 与全量暂停。报告任务分母、成功/失败/unknown 与区间；不得冒充全量。
 - [ ] 10.4 在相同任务、状态、权限、工具及隔离条件下比较 ReAct、一次规划确定性执行和一次规划加 Jev；报告质量、副作用、调用、成本、延迟及配对差异。仅自然适用语义节点参与 Jev 比较。
 - [ ] 10.5 分开报告标签 oracle、τ 官方模拟器与真实员工交互；冻结 profile、分别计量角色用量，模拟用户不得冒充真实审批者。
 - [ ] 10.6 发布带准确分母、统计区间、可复现命令和成本/延迟/自动覆盖图的报告；证据不足时不宣称 Jev 收益。

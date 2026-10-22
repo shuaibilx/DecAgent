@@ -340,7 +340,7 @@ def _schema_only_tool_validator(definitions):
             validate_schema(schema, arguments)
             return deepcopy(arguments)
 
-    return Validator() if schemas else None
+    return Validator() if definitions is not None else None
 
 
 def _primary_result_frame(turn):

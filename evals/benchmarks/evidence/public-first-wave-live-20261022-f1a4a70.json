@@ -1,0 +1,1701 @@
+{
+  "batch": {
+    "by_role": {
+      "judge": {
+        "actual_tokens": 0,
+        "requests": 0,
+        "reserved_tokens": 0,
+        "tokens": 0
+      },
+      "primary": {
+        "actual_tokens": 84390,
+        "requests": 11,
+        "reserved_tokens": 198176,
+        "tokens": 282566
+      },
+      "user_simulator": {
+        "actual_tokens": 16720,
+        "requests": 4,
+        "reserved_tokens": 0,
+        "tokens": 16720
+      }
+    },
+    "deadline_at_utc": "2026-10-22T10:15:37.752230+00:00",
+    "limits": {
+      "agent_qwen_requests": 300,
+      "agent_qwen_tokens": 3000000,
+      "judge_qwen_requests": 40,
+      "judge_qwen_tokens": 400000,
+      "qwen_requests": 500,
+      "qwen_tokens": 5000000,
+      "tool_calls": 1600,
+      "user_simulator_qwen_requests": 160,
+      "user_simulator_qwen_tokens": 1600000,
+      "wall_seconds": 14400
+    },
+    "qwen_actual_tokens": 101110,
+    "qwen_requests": 15,
+    "qwen_reserved_tokens": 198176,
+    "qwen_tokens": 299286,
+    "remaining_wall_seconds": 14073.252164,
+    "started_at_utc": "2026-10-22T06:15:37.752230+00:00",
+    "stopped_at_utc": null,
+    "stopped_reason": null,
+    "tool_calls": 5
+  },
+  "candidate_sha": "f1a4a704fe2c36b22127006fe0bc9860733923d5",
+  "completed_route_count": 0,
+  "dry_run": false,
+  "ledger_status": {
+    "attempted_route_count": 8,
+    "route_denominator": 48,
+    "routes_by_status": {
+      "failed": 4,
+      "pending": 40,
+      "unknown": 4
+    },
+    "task_denominator": 24
+  },
+  "manifest_digest": "f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604",
+  "model_profiles_digest": "abfa2d06c4be59580726711a5d9325f9e063daff34e2fb83dad75b5e479e50a4",
+  "phase": "first-wave",
+  "route_denominator": 48,
+  "route_status_counts": {
+    "failed": 4,
+    "unknown": 4
+  },
+  "route_success_rate": 0.0,
+  "routes": {
+    "41bf7b951bd408fa6da7184af2b12d959db1c87b1ed5806e2ae74530ce9bb1d0:plan_mcp": {
+      "billing": {
+        "by_currency": {},
+        "cost_by_currency": {},
+        "cost_records": [],
+        "evidence_attempts": 0,
+        "missing_cost_attempts": 0,
+        "missing_evidence_attempts": 0,
+        "records": [],
+        "settled_attempts": 0
+      },
+      "execution_receipt": {
+        "cleanup_verified": true,
+        "error_category": "environment_failure",
+        "exception_type": "PublicModelNotDispatched",
+        "failure_stage": "tau_worker_user_model_callback",
+        "machine_seconds": 0.0,
+        "result_digest": "70628dbe8d0bcbf92d93f30c431a3713fc801d3867b26cbcabe857a9b9373ed4",
+        "route": "plan_mcp",
+        "score_digest": null,
+        "score_status": "not_attempted",
+        "status": "failed",
+        "tau_steps": 1,
+        "trial_id": "41bf7b951bd408fa6da7184af2b12d959db1c87b1ed5806e2ae74530ce9bb1d0"
+      },
+      "lifecycle": {
+        "cleanup_evidence_digest": "eedd49afa2a2050a8e2dd76c9073df9f8872b7fab502c395686fdd4b726fa9c1",
+        "cleanup_status": "verified",
+        "error_category": "environment_failure",
+        "exception_type": "PublicModelNotDispatched",
+        "failure_stage": "tau_worker_user_model_callback",
+        "score_digest": null,
+        "score_evidence": null,
+        "score_status": "not_attempted",
+        "status": "failed"
+      },
+      "model_attempts": [
+        {
+          "actual_cost_source": null,
+          "actual_cost_usd": null,
+          "actual_input_tokens": null,
+          "actual_model": null,
+          "actual_output_tokens": null,
+          "actual_provider": null,
+          "attempt_id": "bc98c5a6e63a4e118fe37c46563c89cc",
+          "attempt_seconds": null,
+          "error_category": "verified_model_preflight_failure",
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": null,
+          "role": "user_simulator",
+          "status": "not_sent"
+        }
+      ],
+      "resources": {
+        "actual_agent_machine_seconds": 0.0,
+        "reserved_agent_machine_seconds": 0,
+        "tau_steps": 1,
+        "tool_calls": 0,
+        "unknown_machine_time_reservations": 0,
+        "unknown_tool_calls": 0
+      },
+      "route": "plan_mcp",
+      "tool_attempts": [],
+      "trial_id": "41bf7b951bd408fa6da7184af2b12d959db1c87b1ed5806e2ae74530ce9bb1d0",
+      "usage": {
+        "agent": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "jev": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "judge": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "primary": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "user_simulator": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        }
+      }
+    },
+    "41bf7b951bd408fa6da7184af2b12d959db1c87b1ed5806e2ae74530ce9bb1d0:react_skill_mcp": {
+      "billing": {
+        "by_currency": {},
+        "cost_by_currency": {},
+        "cost_records": [],
+        "evidence_attempts": 0,
+        "missing_cost_attempts": 0,
+        "missing_evidence_attempts": 0,
+        "records": [],
+        "settled_attempts": 0
+      },
+      "execution_receipt": {
+        "cleanup_verified": true,
+        "error_category": "environment_failure",
+        "exception_type": "PublicModelNotDispatched",
+        "failure_stage": "tau_worker_user_model_callback",
+        "machine_seconds": 0.0,
+        "result_digest": "00a3c28e0d20766af272ed6e381f94b98e9882b9d0078bbbe22a6a8fbe4b730d",
+        "route": "react_skill_mcp",
+        "score_digest": null,
+        "score_status": "not_attempted",
+        "status": "failed",
+        "tau_steps": 1,
+        "trial_id": "41bf7b951bd408fa6da7184af2b12d959db1c87b1ed5806e2ae74530ce9bb1d0"
+      },
+      "lifecycle": {
+        "cleanup_evidence_digest": "eedd49afa2a2050a8e2dd76c9073df9f8872b7fab502c395686fdd4b726fa9c1",
+        "cleanup_status": "verified",
+        "error_category": "environment_failure",
+        "exception_type": "PublicModelNotDispatched",
+        "failure_stage": "tau_worker_user_model_callback",
+        "score_digest": null,
+        "score_evidence": null,
+        "score_status": "not_attempted",
+        "status": "failed"
+      },
+      "model_attempts": [
+        {
+          "actual_cost_source": null,
+          "actual_cost_usd": null,
+          "actual_input_tokens": null,
+          "actual_model": null,
+          "actual_output_tokens": null,
+          "actual_provider": null,
+          "attempt_id": "60079295ce934a5183642fede31b4bbe",
+          "attempt_seconds": null,
+          "error_category": "verified_model_preflight_failure",
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": null,
+          "role": "user_simulator",
+          "status": "not_sent"
+        }
+      ],
+      "resources": {
+        "actual_agent_machine_seconds": 0.0,
+        "reserved_agent_machine_seconds": 0,
+        "tau_steps": 1,
+        "tool_calls": 0,
+        "unknown_machine_time_reservations": 0,
+        "unknown_tool_calls": 0
+      },
+      "route": "react_skill_mcp",
+      "tool_attempts": [],
+      "trial_id": "41bf7b951bd408fa6da7184af2b12d959db1c87b1ed5806e2ae74530ce9bb1d0",
+      "usage": {
+        "agent": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "jev": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "judge": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "primary": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "user_simulator": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        }
+      }
+    },
+    "77b783f49a0b5492cdb2002fc13ef5d0eb34c2324679d1430cb85b92b25bd50b:plan_mcp": {
+      "billing": {
+        "by_currency": {},
+        "cost_by_currency": {
+          "CNY": {
+            "attempts": 1,
+            "frozen_rate": "0",
+            "frozen_rate_upper_bound": "0.003516",
+            "provider_billed": "0"
+          }
+        },
+        "cost_records": [
+          {
+            "amount": "0.003516",
+            "attempt_id": "cfd1617f65d944b8a7756280e16e0b40",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 3963,
+            "output_tokens": 128,
+            "role": "user_simulator",
+            "source": "frozen_profile"
+          }
+        ],
+        "evidence_attempts": 0,
+        "missing_cost_attempts": 0,
+        "missing_evidence_attempts": 1,
+        "records": [],
+        "settled_attempts": 1
+      },
+      "execution_receipt": {
+        "cleanup_verified": true,
+        "error_category": null,
+        "exception_type": "TimeoutError",
+        "failure_stage": "model_callback",
+        "machine_seconds": 60.307335400022566,
+        "result_digest": null,
+        "route": "plan_mcp",
+        "score_digest": null,
+        "score_status": "not_attempted",
+        "status": "unknown",
+        "tau_steps": 1,
+        "trial_id": "77b783f49a0b5492cdb2002fc13ef5d0eb34c2324679d1430cb85b92b25bd50b"
+      },
+      "lifecycle": {
+        "cleanup_evidence_digest": "eedd49afa2a2050a8e2dd76c9073df9f8872b7fab502c395686fdd4b726fa9c1",
+        "cleanup_status": "verified",
+        "error_category": "model_dispatch_error",
+        "exception_type": "TimeoutError",
+        "failure_stage": "model_callback",
+        "score_digest": null,
+        "score_evidence": null,
+        "score_status": "not_attempted",
+        "status": "unknown"
+      },
+      "model_attempts": [
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 3963,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 128,
+          "actual_provider": "qwen",
+          "attempt_id": "cfd1617f65d944b8a7756280e16e0b40",
+          "attempt_seconds": 7.581786699942313,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "f13d7de3-839a-9d37-98f8-28a856cc2413",
+          "role": "user_simulator",
+          "status": "settled"
+        },
+        {
+          "actual_cost_source": null,
+          "actual_cost_usd": null,
+          "actual_input_tokens": null,
+          "actual_model": null,
+          "actual_output_tokens": null,
+          "actual_provider": null,
+          "attempt_id": "c65b7711caa74472aa4e415c9b22f685",
+          "attempt_seconds": 60.29137600003742,
+          "error_category": "model_dispatch_error",
+          "exception_type": "TimeoutError",
+          "failure_stage": "model_callback",
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": null,
+          "role": "primary",
+          "status": "unknown"
+        }
+      ],
+      "resources": {
+        "actual_agent_machine_seconds": 60.307335400022566,
+        "reserved_agent_machine_seconds": 0,
+        "tau_steps": 1,
+        "tool_calls": 0,
+        "unknown_machine_time_reservations": 0,
+        "unknown_tool_calls": 0
+      },
+      "route": "plan_mcp",
+      "tool_attempts": [],
+      "trial_id": "77b783f49a0b5492cdb2002fc13ef5d0eb34c2324679d1430cb85b92b25bd50b",
+      "usage": {
+        "agent": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 0,
+          "cost_complete": false,
+          "requests": 1,
+          "reserved_cost_by_currency": {
+            "CNY": "0.0715768"
+          },
+          "reserved_cost_complete": false,
+          "reserved_cost_usd": null,
+          "reserved_fee_complete": true,
+          "reserved_tokens": 70015,
+          "unknown_requests": 1,
+          "usage_complete": false
+        },
+        "jev": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "judge": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "primary": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 0,
+          "cost_complete": false,
+          "requests": 1,
+          "reserved_cost_by_currency": {
+            "CNY": "0.0715768"
+          },
+          "reserved_cost_complete": false,
+          "reserved_cost_usd": null,
+          "reserved_fee_complete": true,
+          "reserved_tokens": 70015,
+          "unknown_requests": 1,
+          "usage_complete": false
+        },
+        "user_simulator": {
+          "actual_cost_by_currency": {
+            "CNY": "0.003516"
+          },
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 4091,
+          "cost_complete": true,
+          "requests": 1,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        }
+      }
+    },
+    "77b783f49a0b5492cdb2002fc13ef5d0eb34c2324679d1430cb85b92b25bd50b:react_skill_mcp": {
+      "billing": {
+        "by_currency": {},
+        "cost_by_currency": {
+          "CNY": {
+            "attempts": 9,
+            "frozen_rate": "0",
+            "frozen_rate_upper_bound": "0.0661232",
+            "provider_billed": "0"
+          }
+        },
+        "cost_records": [
+          {
+            "amount": "0.0034944",
+            "attempt_id": "a01dfe3320a2414c96fdca8b0c8ca460",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 3963,
+            "output_tokens": 120,
+            "role": "user_simulator",
+            "source": "frozen_profile"
+          },
+          {
+            "amount": "0.0079352",
+            "attempt_id": "4ad01be404304f23b97948ea2df7dc87",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 9379,
+            "output_tokens": 160,
+            "role": "primary",
+            "source": "frozen_profile"
+          },
+          {
+            "amount": "0.0034837",
+            "attempt_id": "ac5e7155c0644e22806561138167a992",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 4061,
+            "output_tokens": 87,
+            "role": "user_simulator",
+            "source": "frozen_profile"
+          },
+          {
+            "amount": "0.0078722",
+            "attempt_id": "10dd70b0896c4febb5292dad01ee8801",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 9577,
+            "output_tokens": 78,
+            "role": "primary",
+            "source": "frozen_profile"
+          },
+          {
+            "amount": "0.0091024",
+            "attempt_id": "531187890321428a90f4a919fb2afdd8",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 10460,
+            "output_tokens": 272,
+            "role": "primary",
+            "source": "frozen_profile"
+          },
+          {
+            "amount": "0.009541",
+            "attempt_id": "bed101b63063455c9240543426d01e3f",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 11015,
+            "output_tokens": 270,
+            "role": "primary",
+            "source": "frozen_profile"
+          },
+          {
+            "amount": "0.0101429",
+            "attempt_id": "47844bf333db49dc953d65eca29b2928",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 11602,
+            "output_tokens": 319,
+            "role": "primary",
+            "source": "frozen_profile"
+          },
+          {
+            "amount": "0.0106834",
+            "attempt_id": "76f4d00b0dab41cabe5b8559b56d938a",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 11957,
+            "output_tokens": 414,
+            "role": "primary",
+            "source": "frozen_profile"
+          },
+          {
+            "amount": "0.003868",
+            "attempt_id": "672972f879a24bbf959e16e0bc6410b9",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 4214,
+            "output_tokens": 184,
+            "role": "user_simulator",
+            "source": "frozen_profile"
+          }
+        ],
+        "evidence_attempts": 0,
+        "missing_cost_attempts": 0,
+        "missing_evidence_attempts": 9,
+        "records": [],
+        "settled_attempts": 9
+      },
+      "execution_receipt": {
+        "cleanup_verified": true,
+        "error_category": "task_failure",
+        "exception_type": null,
+        "failure_stage": null,
+        "machine_seconds": 64.7406926000258,
+        "result_digest": "7c05fba5e96ae47457b6289c700663c95fa13eea2cda41d1332c92b84cd79039",
+        "route": "react_skill_mcp",
+        "score_digest": "0c5089efcf00598e9cbf21209ce41da4bd66f30601cab40e175d8fa3d001143b",
+        "score_status": "scored",
+        "status": "failed",
+        "tau_steps": 13,
+        "trial_id": "77b783f49a0b5492cdb2002fc13ef5d0eb34c2324679d1430cb85b92b25bd50b"
+      },
+      "lifecycle": {
+        "cleanup_evidence_digest": "eedd49afa2a2050a8e2dd76c9073df9f8872b7fab502c395686fdd4b726fa9c1",
+        "cleanup_status": "verified",
+        "error_category": "task_failure",
+        "exception_type": null,
+        "failure_stage": null,
+        "score_digest": "0c5089efcf00598e9cbf21209ce41da4bd66f30601cab40e175d8fa3d001143b",
+        "score_evidence": {
+          "forbidden_side_effects": null,
+          "source": "tau2-bench-original-evaluate-simulation",
+          "success": false,
+          "value": 0.0
+        },
+        "score_status": "scored",
+        "status": "failed"
+      },
+      "model_attempts": [
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 3963,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 120,
+          "actual_provider": "qwen",
+          "attempt_id": "a01dfe3320a2414c96fdca8b0c8ca460",
+          "attempt_seconds": 8.895214100019075,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "b87f4f22-d969-99ef-82f1-741b4ad8ed2c",
+          "role": "user_simulator",
+          "status": "settled"
+        },
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 9379,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 160,
+          "actual_provider": "qwen",
+          "attempt_id": "4ad01be404304f23b97948ea2df7dc87",
+          "attempt_seconds": 7.462457700050436,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "f7ed9deb-539d-9cf3-9e08-cc55ef569183",
+          "role": "primary",
+          "status": "settled"
+        },
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 4061,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 87,
+          "actual_provider": "qwen",
+          "attempt_id": "ac5e7155c0644e22806561138167a992",
+          "attempt_seconds": 5.825751600088552,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "c2eab8a2-a115-927c-9730-53f4007046d5",
+          "role": "user_simulator",
+          "status": "settled"
+        },
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 9577,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 78,
+          "actual_provider": "qwen",
+          "attempt_id": "10dd70b0896c4febb5292dad01ee8801",
+          "attempt_seconds": 4.693704599980265,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "bb5edd33-61ea-907a-aea9-7c5b7de0cd04",
+          "role": "primary",
+          "status": "settled"
+        },
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 10460,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 272,
+          "actual_provider": "qwen",
+          "attempt_id": "531187890321428a90f4a919fb2afdd8",
+          "attempt_seconds": 9.318709600018337,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "e830c2b3-e798-98d2-92a9-4b96693df2d5",
+          "role": "primary",
+          "status": "settled"
+        },
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 11015,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 270,
+          "actual_provider": "qwen",
+          "attempt_id": "bed101b63063455c9240543426d01e3f",
+          "attempt_seconds": 8.327704500057735,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "3ee43b39-edeb-953e-a03d-0679dfd30683",
+          "role": "primary",
+          "status": "settled"
+        },
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 11602,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 319,
+          "actual_provider": "qwen",
+          "attempt_id": "47844bf333db49dc953d65eca29b2928",
+          "attempt_seconds": 9.861423599999398,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "d9e4318f-6df1-90af-870b-f44e8bed2e53",
+          "role": "primary",
+          "status": "settled"
+        },
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 11957,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 414,
+          "actual_provider": "qwen",
+          "attempt_id": "76f4d00b0dab41cabe5b8559b56d938a",
+          "attempt_seconds": 10.590782000101171,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "7c4539d0-338f-9259-ad11-120d3fa99e81",
+          "role": "primary",
+          "status": "settled"
+        },
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 4214,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 184,
+          "actual_provider": "qwen",
+          "attempt_id": "672972f879a24bbf959e16e0bc6410b9",
+          "attempt_seconds": 8.508503500022925,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "3e30fa46-bd65-968d-a706-2a1c780cfd6e",
+          "role": "user_simulator",
+          "status": "settled"
+        }
+      ],
+      "resources": {
+        "actual_agent_machine_seconds": 64.7406926000258,
+        "reserved_agent_machine_seconds": 0,
+        "tau_steps": 13,
+        "tool_calls": 4,
+        "unknown_machine_time_reservations": 0,
+        "unknown_tool_calls": 0
+      },
+      "route": "react_skill_mcp",
+      "tool_attempts": [
+        {
+          "command": "get_customer_by_phone",
+          "duration_seconds": 0.009651900036260486,
+          "effect": "read",
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "http_status": null,
+          "result_digest": "32ead0c00fee911afe416fe6c46b073126f3f03c3c3729285211afc599b4bdfd",
+          "status": "settled",
+          "tool_attempt_id": "e8fd4988c22a488c80714c7492936b57"
+        },
+        {
+          "command": "get_details_by_id",
+          "duration_seconds": 0.00798450002912432,
+          "effect": "read",
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "http_status": null,
+          "result_digest": "df57d4b6401fdfbc09fed472d75b7c0edea1904b1729d21fbaf825c21b59ffbb",
+          "status": "settled",
+          "tool_attempt_id": "f7be1025e0364eda87ad6799b60bfb3e"
+        },
+        {
+          "command": "get_details_by_id",
+          "duration_seconds": 0.008115599979646504,
+          "effect": "read",
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "http_status": null,
+          "result_digest": "f36b51369c7e66f55e21625565440f713eaa71efc94fa73e7a0e37f968f96c23",
+          "status": "settled",
+          "tool_attempt_id": "4b82934fdc724eee9e607b9e1c264b16"
+        },
+        {
+          "command": "get_data_usage",
+          "duration_seconds": 0.00864499993622303,
+          "effect": "read",
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "http_status": null,
+          "result_digest": "5496ba5d9db4dbe1ba7984f973d61361a5503939b3c090be99d8241d5aaaee07",
+          "status": "settled",
+          "tool_attempt_id": "c01561d308b4445b9406dd7a806b79ad"
+        }
+      ],
+      "trial_id": "77b783f49a0b5492cdb2002fc13ef5d0eb34c2324679d1430cb85b92b25bd50b",
+      "usage": {
+        "agent": {
+          "actual_cost_by_currency": {
+            "CNY": "0.0552771"
+          },
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 65503,
+          "cost_complete": true,
+          "requests": 6,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "jev": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "judge": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "primary": {
+          "actual_cost_by_currency": {
+            "CNY": "0.0552771"
+          },
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 65503,
+          "cost_complete": true,
+          "requests": 6,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "user_simulator": {
+          "actual_cost_by_currency": {
+            "CNY": "0.0108461"
+          },
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 12629,
+          "cost_complete": true,
+          "requests": 3,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        }
+      }
+    },
+    "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78:plan_mcp": {
+      "billing": {
+        "by_currency": {},
+        "cost_by_currency": {},
+        "cost_records": [],
+        "evidence_attempts": 0,
+        "missing_cost_attempts": 0,
+        "missing_evidence_attempts": 0,
+        "records": [],
+        "settled_attempts": 0
+      },
+      "execution_receipt": {
+        "cleanup_verified": true,
+        "error_category": null,
+        "exception_type": "TimeoutError",
+        "failure_stage": "model_callback",
+        "machine_seconds": 60.32044159993529,
+        "result_digest": null,
+        "route": "plan_mcp",
+        "score_digest": null,
+        "score_status": "not_attempted",
+        "status": "unknown",
+        "tau_steps": 0,
+        "trial_id": "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78"
+      },
+      "lifecycle": {
+        "cleanup_evidence_digest": "eedd49afa2a2050a8e2dd76c9073df9f8872b7fab502c395686fdd4b726fa9c1",
+        "cleanup_status": "verified",
+        "error_category": "model_dispatch_error",
+        "exception_type": "TimeoutError",
+        "failure_stage": "model_callback",
+        "score_digest": null,
+        "score_evidence": null,
+        "score_status": "not_attempted",
+        "status": "unknown"
+      },
+      "model_attempts": [
+        {
+          "actual_cost_source": null,
+          "actual_cost_usd": null,
+          "actual_input_tokens": null,
+          "actual_model": null,
+          "actual_output_tokens": null,
+          "actual_provider": null,
+          "attempt_id": "0aefa621f9904543a2374d4df2e348be",
+          "attempt_seconds": 60.298802500008605,
+          "error_category": "model_dispatch_error",
+          "exception_type": "TimeoutError",
+          "failure_stage": "model_callback",
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": null,
+          "role": "primary",
+          "status": "unknown"
+        }
+      ],
+      "resources": {
+        "actual_agent_machine_seconds": 60.32044159993529,
+        "reserved_agent_machine_seconds": 0,
+        "tau_steps": 0,
+        "tool_calls": 0,
+        "unknown_machine_time_reservations": 0,
+        "unknown_tool_calls": 0
+      },
+      "route": "plan_mcp",
+      "tool_attempts": [],
+      "trial_id": "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78",
+      "usage": {
+        "agent": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 0,
+          "cost_complete": false,
+          "requests": 1,
+          "reserved_cost_by_currency": {
+            "CNY": "0.0702176"
+          },
+          "reserved_cost_complete": false,
+          "reserved_cost_usd": null,
+          "reserved_fee_complete": true,
+          "reserved_tokens": 68316,
+          "unknown_requests": 1,
+          "usage_complete": false
+        },
+        "jev": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "judge": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "primary": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 0,
+          "cost_complete": false,
+          "requests": 1,
+          "reserved_cost_by_currency": {
+            "CNY": "0.0702176"
+          },
+          "reserved_cost_complete": false,
+          "reserved_cost_usd": null,
+          "reserved_fee_complete": true,
+          "reserved_tokens": 68316,
+          "unknown_requests": 1,
+          "usage_complete": false
+        },
+        "user_simulator": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        }
+      }
+    },
+    "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78:react_skill_mcp": {
+      "billing": {
+        "by_currency": {},
+        "cost_by_currency": {
+          "CNY": {
+            "attempts": 1,
+            "frozen_rate": "0",
+            "frozen_rate_upper_bound": "0.0097097",
+            "provider_billed": "0"
+          }
+        },
+        "cost_records": [
+          {
+            "amount": "0.0097097",
+            "attempt_id": "f38d1efc1a2f4a41b33039b30d2f55dd",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 11749,
+            "output_tokens": 115,
+            "role": "primary",
+            "source": "frozen_profile"
+          }
+        ],
+        "evidence_attempts": 0,
+        "missing_cost_attempts": 0,
+        "missing_evidence_attempts": 1,
+        "records": [],
+        "settled_attempts": 1
+      },
+      "execution_receipt": {
+        "cleanup_verified": true,
+        "error_category": "agent_failure",
+        "exception_type": "ModelCallError",
+        "failure_stage": "agent_execution",
+        "machine_seconds": 5.88776469998993,
+        "result_digest": "fe36dd7056eb56b249760986e35e42ff0bbd02d7f7ae0c3f77e52fd785966f72",
+        "route": "react_skill_mcp",
+        "score_digest": "3d7ee0ff55fc42b7a7a9e408cad74bdb25503f7c722a2777a74404ed2bb5fe3d",
+        "score_status": "scored",
+        "status": "failed",
+        "tau_steps": 0,
+        "trial_id": "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78"
+      },
+      "lifecycle": {
+        "cleanup_evidence_digest": "eedd49afa2a2050a8e2dd76c9073df9f8872b7fab502c395686fdd4b726fa9c1",
+        "cleanup_status": "verified",
+        "error_category": "agent_failure",
+        "exception_type": "ModelCallError",
+        "failure_stage": "agent_execution",
+        "score_digest": "3d7ee0ff55fc42b7a7a9e408cad74bdb25503f7c722a2777a74404ed2bb5fe3d",
+        "score_evidence": {
+          "forbidden_side_effects": null,
+          "source": "enterpriseops-gym-original-verifier",
+          "success": false,
+          "value": 0.0
+        },
+        "score_status": "scored",
+        "status": "failed"
+      },
+      "model_attempts": [
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 11749,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 115,
+          "actual_provider": "qwen",
+          "attempt_id": "f38d1efc1a2f4a41b33039b30d2f55dd",
+          "attempt_seconds": 5.878027300001122,
+          "error_category": "model_response_error",
+          "exception_type": "ModelCallError",
+          "failure_stage": "model_response_validation",
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "07997830-864e-9bd8-961b-d87d3e8359a7",
+          "role": "primary",
+          "status": "settled"
+        }
+      ],
+      "resources": {
+        "actual_agent_machine_seconds": 5.88776469998993,
+        "reserved_agent_machine_seconds": 0,
+        "tau_steps": 0,
+        "tool_calls": 0,
+        "unknown_machine_time_reservations": 0,
+        "unknown_tool_calls": 0
+      },
+      "route": "react_skill_mcp",
+      "tool_attempts": [],
+      "trial_id": "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78",
+      "usage": {
+        "agent": {
+          "actual_cost_by_currency": {
+            "CNY": "0.0097097"
+          },
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 11864,
+          "cost_complete": true,
+          "requests": 1,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "jev": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "judge": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "primary": {
+          "actual_cost_by_currency": {
+            "CNY": "0.0097097"
+          },
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 11864,
+          "cost_complete": true,
+          "requests": 1,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "user_simulator": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        }
+      }
+    },
+    "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5:plan_mcp": {
+      "billing": {
+        "by_currency": {},
+        "cost_by_currency": {},
+        "cost_records": [],
+        "evidence_attempts": 0,
+        "missing_cost_attempts": 0,
+        "missing_evidence_attempts": 0,
+        "records": [],
+        "settled_attempts": 0
+      },
+      "execution_receipt": {
+        "cleanup_verified": true,
+        "error_category": null,
+        "exception_type": "TimeoutError",
+        "failure_stage": "model_callback",
+        "machine_seconds": 60.31278909998946,
+        "result_digest": null,
+        "route": "plan_mcp",
+        "score_digest": null,
+        "score_status": "not_attempted",
+        "status": "unknown",
+        "tau_steps": 0,
+        "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+      },
+      "lifecycle": {
+        "cleanup_evidence_digest": "eedd49afa2a2050a8e2dd76c9073df9f8872b7fab502c395686fdd4b726fa9c1",
+        "cleanup_status": "verified",
+        "error_category": "model_dispatch_error",
+        "exception_type": "TimeoutError",
+        "failure_stage": "model_callback",
+        "score_digest": null,
+        "score_evidence": null,
+        "score_status": "not_attempted",
+        "status": "unknown"
+      },
+      "model_attempts": [
+        {
+          "actual_cost_source": null,
+          "actual_cost_usd": null,
+          "actual_input_tokens": null,
+          "actual_model": null,
+          "actual_output_tokens": null,
+          "actual_provider": null,
+          "attempt_id": "cefa7e326b054594a21586923d2e8414",
+          "attempt_seconds": 60.29060149996076,
+          "error_category": "model_dispatch_error",
+          "exception_type": "TimeoutError",
+          "failure_stage": "model_callback",
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": null,
+          "role": "primary",
+          "status": "unknown"
+        }
+      ],
+      "resources": {
+        "actual_agent_machine_seconds": 60.31278909998946,
+        "reserved_agent_machine_seconds": 0,
+        "tau_steps": 0,
+        "tool_calls": 0,
+        "unknown_machine_time_reservations": 0,
+        "unknown_tool_calls": 0
+      },
+      "route": "plan_mcp",
+      "tool_attempts": [],
+      "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5",
+      "usage": {
+        "agent": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 0,
+          "cost_complete": false,
+          "requests": 1,
+          "reserved_cost_by_currency": {
+            "CNY": "0.0634408"
+          },
+          "reserved_cost_complete": false,
+          "reserved_cost_usd": null,
+          "reserved_fee_complete": true,
+          "reserved_tokens": 59845,
+          "unknown_requests": 1,
+          "usage_complete": false
+        },
+        "jev": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "judge": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "primary": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 0,
+          "cost_complete": false,
+          "requests": 1,
+          "reserved_cost_by_currency": {
+            "CNY": "0.0634408"
+          },
+          "reserved_cost_complete": false,
+          "reserved_cost_usd": null,
+          "reserved_fee_complete": true,
+          "reserved_tokens": 59845,
+          "unknown_requests": 1,
+          "usage_complete": false
+        },
+        "user_simulator": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        }
+      }
+    },
+    "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5:react_skill_mcp": {
+      "billing": {
+        "by_currency": {},
+        "cost_by_currency": {
+          "CNY": {
+            "attempts": 1,
+            "frozen_rate": "0",
+            "frozen_rate_upper_bound": "0.0060022",
+            "provider_billed": "0"
+          }
+        },
+        "cost_records": [
+          {
+            "amount": "0.0060022",
+            "attempt_id": "11b8aed788444683a4f02bf6b410dea2",
+            "basis": "frozen_rate_upper_bound",
+            "cached_input_tokens": null,
+            "currency": "CNY",
+            "input_tokens": 6821,
+            "output_tokens": 202,
+            "role": "primary",
+            "source": "frozen_profile"
+          }
+        ],
+        "evidence_attempts": 0,
+        "missing_cost_attempts": 0,
+        "missing_evidence_attempts": 1,
+        "records": [],
+        "settled_attempts": 1
+      },
+      "execution_receipt": {
+        "cleanup_verified": true,
+        "error_category": null,
+        "exception_type": "NodeFailure",
+        "failure_stage": "tool_gateway",
+        "machine_seconds": 9.620843700016849,
+        "result_digest": null,
+        "route": "react_skill_mcp",
+        "score_digest": null,
+        "score_status": "not_attempted",
+        "status": "unknown",
+        "tau_steps": 0,
+        "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+      },
+      "lifecycle": {
+        "cleanup_evidence_digest": "eedd49afa2a2050a8e2dd76c9073df9f8872b7fab502c395686fdd4b726fa9c1",
+        "cleanup_status": "verified",
+        "error_category": "tool_dispatch_error",
+        "exception_type": "NodeFailure",
+        "failure_stage": "tool_gateway",
+        "score_digest": null,
+        "score_evidence": null,
+        "score_status": "not_attempted",
+        "status": "unknown"
+      },
+      "model_attempts": [
+        {
+          "actual_cost_source": "frozen_profile",
+          "actual_cost_usd": null,
+          "actual_input_tokens": 6821,
+          "actual_model": "qwen3.8-flash",
+          "actual_output_tokens": 202,
+          "actual_provider": "qwen",
+          "attempt_id": "11b8aed788444683a4f02bf6b410dea2",
+          "attempt_seconds": 9.541077600093558,
+          "error_category": null,
+          "exception_type": null,
+          "failure_stage": null,
+          "generation_id": null,
+          "http_status": null,
+          "model": "qwen3.8-flash",
+          "provider": "qwen",
+          "provider_request_id": "69f88021-d618-9aa2-9085-7dc352b83092",
+          "role": "primary",
+          "status": "settled"
+        }
+      ],
+      "resources": {
+        "actual_agent_machine_seconds": 9.620843700016849,
+        "reserved_agent_machine_seconds": 0,
+        "tau_steps": 0,
+        "tool_calls": 1,
+        "unknown_machine_time_reservations": 0,
+        "unknown_tool_calls": 1
+      },
+      "route": "react_skill_mcp",
+      "tool_attempts": [
+        {
+          "command": "find_user",
+          "duration_seconds": null,
+          "effect": "read",
+          "error_category": "tool_dispatch_error",
+          "exception_type": "NodeFailure",
+          "failure_stage": "tool_gateway",
+          "http_status": null,
+          "result_digest": null,
+          "status": "unknown",
+          "tool_attempt_id": "201f35581d9c4402ae2d44b12c0b04f5"
+        }
+      ],
+      "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5",
+      "usage": {
+        "agent": {
+          "actual_cost_by_currency": {
+            "CNY": "0.0060022"
+          },
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 7023,
+          "cost_complete": true,
+          "requests": 1,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "jev": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "judge": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "primary": {
+          "actual_cost_by_currency": {
+            "CNY": "0.0060022"
+          },
+          "actual_cost_complete": false,
+          "actual_cost_usd": null,
+          "actual_tokens": 7023,
+          "cost_complete": true,
+          "requests": 1,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        },
+        "user_simulator": {
+          "actual_cost_by_currency": {},
+          "actual_cost_complete": true,
+          "actual_cost_usd": "0",
+          "actual_tokens": 0,
+          "cost_complete": true,
+          "requests": 0,
+          "reserved_cost_by_currency": {},
+          "reserved_cost_complete": true,
+          "reserved_cost_usd": "0",
+          "reserved_fee_complete": true,
+          "reserved_tokens": 0,
+          "unknown_requests": 0,
+          "usage_complete": true
+        }
+      }
+    }
+  },
+  "schema_version": "public-evaluation-live-first-wave-v4",
+  "selected_route_slots": 8,
+  "selected_task_count": 4,
+  "skipped_routes": [],
+  "source_manifest_digest": "cd4712df4304708a6d7f95c3a0c9ec19efa524d84a563c6c0a54ef4d26c973a7",
+  "status": "report_only_no_jev_claim",
+  "successful_route_count": 0,
+  "task_denominator": 24,
+  "task_inventory_digest": "ca3075e0e1a2557e0948abbb4ce12594bbc058a7f0e94f4e902d73fee429c769",
+  "terminal_route_count": 8,
+  "working_tree_dirty": false
+}

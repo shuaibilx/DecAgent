@@ -255,7 +255,8 @@ The committed v9 digest is
 `f984ec74c9776efef0b6ba808ff035198500f1997537e01776dc2a895173a604` and
 contains 286 full tasks, 24 smoke tasks, and 4 first-wave tasks. The default
 manifest version remains v5 for compatibility. Live dispatch rejects v7/v8;
-v9 is only pre-registered and has not started a ledger or real trial. The v9
+At the time of the v9 freeze it was only pre-registered and had not started a
+ledger or real trial. The v9
 batch ceilings are 500 Qwen requests / 5,000,000 Qwen tokens / 1,600 tool calls
 and 4 hours, with separate Agent (300 / 3,000,000), user-simulator (160 /
 1,600,000), and judge (40 / 400,000) request/token caps. A persisted batch
@@ -516,3 +517,26 @@ had unknown usage and retain their reservations. These attempts are not
 replayed, and the result does not pass the per-domain score gate. Read the
 [human report](../../generated/261021/2110_公开评测首波报告_v8.md) and the
 [immutable machine report](evidence/public-first-wave-live-20261021-v8-5a21ded.json).
+
+### v9 manifest first-wave execution on candidate f1a4a70 (2026-10-22)
+
+The frozen v9 manifest was executed on candidate
+`f1a4a704fe2c36b22127006fe0bc9860733923d5` after same-SHA [CI run
+39731158534](https://github.com/shuaibilx/DecAgent/actions/runs/39731158534)
+passed. Four fixed tasks and eight ReAct/Plan routes reached terminal states:
+four failed, four unknown, zero succeeded. Cleanup was verified for all eight.
+Only ITSM/ReAct and τ telecom/ReAct reached an official scorer; both received
+0.0. Three Plan primary requests timed out with unknown usage and retain 198,176
+reserved tokens / ¥0.2052352 frozen-rate cost reservation. Two τ retail user
+simulator requests were verified not sent during local preflight. No Jev or
+judge requests were made. The estimated frozen-rate API cost for known usage is
+¥0.0853511; no provider invoice evidence is recorded. See the [human report](../../generated/261022/1426_公开评测首波执行报告_f1a4a70.md) and [immutable machine report](evidence/public-first-wave-live-20261022-f1a4a70.json).
+
+This first wave did not pass the route completion or score gate. Do not replay
+unknown routes. A later offline loopback reproduced and fixed the τ retail
+empty-tool-list preflight defect; the targeted callback test file passes 25
+tests and the full deterministic suite passes (2,025 passed, 18 skipped). Ruff
+and strict OpenSpec validation pass. Plan timeouts and the CSM MCP unknown remain
+unresolved. The new source SHA still needs same-SHA CI; remaining smoke and the
+206+80 benchmark stay paused pending that check and a newly frozen batch.
+This result does not measure Jev or establish a Jev gain.
