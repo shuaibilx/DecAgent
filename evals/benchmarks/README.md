@@ -543,3 +543,7 @@ passed all jobs in about 12.1 minutes. Plan timeouts and the CSM MCP unknown
 remain unresolved; remaining smoke and the 206+80 benchmark stay paused pending
 a newly frozen batch.
 This result does not measure Jev or establish a Jev gain.
+
+### Candidate 8b8d4c2 preflight (2026-10-22)
+
+After offline diagnostics, candidate `8b8d4c2be7d0d1cee8819f22742a9f8201328960` passed the full nine-job GitHub Actions CI in 12m39s ([run 39773178389](https://github.com/shuaibilx/DecAgent/actions/runs/39773178389)). Its no-execution `--check-images` preflight selected the same four first-wave tasks and eight ReAct/Plan slots, verified the pinned EnterpriseOps images, and reported `ledger_created=false`, `live_model_calls=0`, and `mcp_calls=0` ([machine report](evidence/public-first-wave-preflight-8b8d4c2.json), [operator note](evidence/public-first-wave-preflight-8b8d4c2.md)). The preflight does not retry historical unknowns or create a new live cohort. The previous four-hour batch window has expired; any new first-wave execution requires a separately frozen budget and same-SHA CI.
