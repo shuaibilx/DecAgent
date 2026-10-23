@@ -119,7 +119,7 @@ jobs:
           -q -rs --durations=25
 
   browser-e2e:
-    name: Python 3.13 production gateway browser E2E
+    name: Python 3.12 production gateway browser E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
@@ -148,14 +148,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-          # Avoid setup-python's pip-cache probe in the container image; the
-          # Python installer itself succeeds, but that image lacks the pip shim.
-
       - name: Install locked application and browser-test dependencies
         run: |
+          python --version
           python -m pip install -r requirements.txt
           python -m pip install -r evals/e2e/requirements.lock
 
