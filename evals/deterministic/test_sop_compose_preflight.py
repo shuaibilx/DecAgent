@@ -1,3 +1,5 @@
+import json
+import shutil
 import subprocess
 import sys
 from copy import deepcopy
@@ -145,6 +147,49 @@ def test_private_deployment_compose_matches_sop_topology_without_build_context()
 
 def test_deployment_and_application_mcp_endpoint_contracts_match():
     assert DEPLOY_COMPOSE_INTERNAL_MCP_ENDPOINT == APP_COMPOSE_INTERNAL_MCP_ENDPOINT
+
+
+@pytest.mark.parametrize("env_file_kind", ["empty", "example"])
+def test_sop_compose_uses_available_loopback_port_by_default(tmp_path, env_file_kind):
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker Compose CLI is unavailable")
+
+    project_root = Path(__file__).resolve().parents[2]
+    if env_file_kind == "empty":
+        env_file = tmp_path / "empty.env"
+        env_file.write_text("", encoding="utf-8")
+    else:
+        env_file = project_root / "ops" / "deploy" / "sop.env.example"
+
+    result = subprocess.run(
+        [
+            docker,
+            "compose",
+            "--project-directory",
+            str(project_root),
+            "--env-file",
+            str(env_file),
+            "--file",
+            str(project_root / "compose.sop.yaml"),
+            "config",
+            "--format",
+            "json",
+        ],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+    config = json.loads(result.stdout)
+    summary = validate_compose_config(config)
+    assert summary["api_binding"] == "127.0.0.1:8001 -> 8000"
+    assert config["services"]["api"]["environment"]["DECAGENT_PUBLIC_URL"] == (
+        "http://127.0.0.1:8001"
+    )
 
 
 def test_preflight_rejects_public_api_binding(valid_config):

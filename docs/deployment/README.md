@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart LR
-    Browser[本机浏览器] -->|127.0.0.1:8000| API[API / Workbench]
+    Browser[本机浏览器] -->|127.0.0.1:8001| API[API / Workbench]
     API --> MCP[business-mcp]
     Worker[业务 Worker] --> MCP
     API --> PG[(PostgreSQL 17)]
@@ -22,7 +22,7 @@ flowchart LR
     PG --- Internal
 ```
 
-`compose.sop.yaml` 有 `postgres`、`migrate`、`bootstrap`、`business-mcp`、`api` 和 `worker` 服务。PostgreSQL、MCP 和数据网络不发布到宿主机；API 仅发布 `127.0.0.1:${DECAGENT_SOP_API_PORT:-8000}`。控制容器使用只读根文件系统、移除 Linux capabilities、限制 PID/内存，并将业务数据写入专用 Docker volumes。配置默认关闭游客试用：`DECAGENT_GUEST_TRIAL_ENABLED=false`。
+`compose.sop.yaml` 有 `postgres`、`migrate`、`bootstrap`、`business-mcp`、`api` 和 `worker` 服务。PostgreSQL、MCP 和数据网络不发布到宿主机；API 默认仅发布 `127.0.0.1:8001`（可由 `DECAGENT_SOP_API_PORT` 覆盖，容器内端口仍为 8000）。控制容器使用只读根文件系统、移除 Linux capabilities、限制 PID/内存，并将业务数据写入专用 Docker volumes。配置默认关闭游客试用：`DECAGENT_GUEST_TRIAL_ENABLED=false`。
 
 ## 首次准备
 
@@ -33,7 +33,7 @@ flowchart LR
 3. `.decagent/sop-secrets/` 中已创建 `postgres_password`、`main_api_key`、`jev_api_key`。两把模型密钥仅从本机忽略的 `.env` 复制到 secret 文件，数据库密码由随机数生成；ACL 限定为当前 Windows 用户。密钥值没有写入日志、文档或 Git。
 4. 下方 `sop_preflight` 已实际运行并通过；它只渲染和检查 Compose 配置，不会创建容器，也不代表业务 readiness 已经通过。
 5. 首次安装和升级应使用受信的不可变 `ghcr.io/shuaibilx/decagent-control@sha256:…` digest 经 rollout coordinator 管理。GitHub App `DecAgent Private Deployment` 已安装且仅选择私有仓库 `shuaibilx/DecAgent-deploy`，权限为 `metadata: read` 与 `actions: write`；该私有仓库的 `decagent-local-deploy` Runner 在线，公开 `DecAgent` Runner 为 0。旧公共 Runner 计划任务已禁用，私有 Runner 计划任务正在运行。公开仓库已配置 App Client ID variable 与加密私钥 secret，但部署开关仍关闭，尚未做 App-authenticated 安装范围独立核验、workflow dispatch 或持久 SOP 服务部署。本机 Docker 首装/升级回滚演练也未完成。不要把裸 `docker compose up` 当成生产发布流程。
-6. 当前旧版 `decagent-api` 容器持续运行在 `127.0.0.1:8000`；刚才的本机静态预检确认 `ops/deploy/sop.env` 也渲染为 `127.0.0.1:8000`。因此首次启动持久 SOP 前必须确定端口切换或服务切换方案，不能直接启动并与旧服务争用该端口。Compose 支持通过 `DECAGENT_SOP_API_PORT` 指定端口，但静态预检不会检测宿主机端口占用；需在 4.4 演练中加入真实占用检查。切换现有服务前，应先完成受信版本验收和数据恢复演练。一次性 smoke 使用随机端口，没有停止或修改旧服务。
+6. 旧版 `decagent-api` 持续运行在 `127.0.0.1:8000`。为避免冲突，当前 Compose、环境模板和本机 `ops/deploy/sop.env` 的宿主机端口已改为 `8001`，2026-10-24 检查时该端口没有监听者。本机静态预检通过；它本身不会检测端口占用，所以执行 4.4 持久首装前仍须重查目标端口。切换现有服务前，应先完成受信版本验收和数据恢复演练。一次性 smoke 使用随机端口，没有停止或修改旧服务。
 
 ## 配置预检
 
@@ -66,12 +66,12 @@ $Python = 'D:\Anaconda3\envs\Agent311\python.exe'
 
 首次部署会拒绝不符合固定项目/资源状态的目标。后续 rollout 在更改前留存数据库、`/data` 和脱敏 Compose 指纹；候选应用需要通过 API 与业务 Worker/MCP readiness。候选失败时，只有旧应用版本仍兼容当前数据库 schema/graph 才回退应用镜像。schema 不兼容时会停服并保留数据库和备份，不会自动 `pg_restore` 覆盖在线数据。
 
-部署后操作者可检查 API `http://127.0.0.1:8000/readyz`、Workbench `http://127.0.0.1:8000/` 和 compose 服务状态。示例只读检查命令（未在本轮执行）：
+部署后操作者可检查 API `http://127.0.0.1:8001/readyz`、Workbench `http://127.0.0.1:8001/` 和 compose 服务状态。示例只读检查命令（未在本轮执行）：
 
 ```powershell
 docker compose --project-directory . --env-file ops/deploy/sop.env --file compose.sop.yaml ps
 docker compose --project-directory . --env-file ops/deploy/sop.env --file compose.sop.yaml logs --tail 200 api worker business-mcp
-Invoke-WebRequest -Uri 'http://127.0.0.1:8000/readyz' -TimeoutSec 5
+Invoke-WebRequest -Uri 'http://127.0.0.1:8001/readyz' -TimeoutSec 5
 ```
 
 日志可能含业务诊断信息，查看、复制或提交前先做脱敏。不要使用 `docker compose down -v`、手动删卷或删除 `.decagent/sop-backups`；这些会破坏持久状态或恢复材料。数据库备份包含敏感业务数据，目前主要靠 Windows ACL/Linux 文件权限保护；真实员工数据接入前还要确认磁盘加密、备份保留周期和恢复权限。
