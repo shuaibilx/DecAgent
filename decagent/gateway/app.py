@@ -880,6 +880,11 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
 
     def employee_task_view(conn, row):
         record = task_view(conn, row)
+        approvals = record["approvals"]
+        if row["state"] not in {"awaiting_input", "awaiting_approval"} or row[
+            "lease_owner"
+        ] is not None:
+            approvals = [approval for approval in approvals if approval["status"] != "pending"]
         view = {
             key: record[key]
             for key in (
@@ -893,11 +898,11 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
                 "requested_issue",
                 "business_result",
                 "waiting",
-                "approvals",
                 "decisions",
                 "actions",
             )
         }
+        view["approvals"] = approvals
         queue_status = guest_execution_queue.status(
             conn, workspace_id=row["workspace_id"], task_id=row["id"]
         )

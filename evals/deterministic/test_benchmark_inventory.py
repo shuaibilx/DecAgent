@@ -1,10 +1,13 @@
 import json
+import subprocess
+import sys
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
+from decagent.decisions.contracts import digest
 from decagent.evaluation.business.manifest_hashing import (
     source_manifest_sha256,
     task_inventory_sha256,
@@ -18,6 +21,18 @@ from evals.benchmarks.build_trial_manifest import build_trial_manifest
 INVENTORY_PATH = (
     Path(__file__).resolve().parents[1] / "benchmarks" / "manifests" / "task_inventory.json"
 )
+LOWER_BATCH_LIMITS = {
+    "qwen_requests": 100,
+    "qwen_tokens": 1_000_000,
+    "agent_qwen_requests": 60,
+    "agent_qwen_tokens": 600_000,
+    "user_simulator_qwen_requests": 32,
+    "user_simulator_qwen_tokens": 320_000,
+    "judge_qwen_requests": 8,
+    "judge_qwen_tokens": 80_000,
+    "tool_calls": 400,
+    "wall_seconds": 7_200,
+}
 
 
 def test_frozen_manifest_digests_are_independent_of_git_line_endings():
@@ -192,6 +207,153 @@ def test_manifest_v10_freezes_longer_primary_timeout_without_changing_scope():
         "smoke_trials": 24,
         "initial_smoke_wave": 4,
     }
+    assert built == json.loads(
+        (INVENTORY_PATH.parent / "comparison_trial_manifest_v10.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+
+def test_manifest_builder_accepts_only_lower_frozen_batch_limits(tmp_path):
+    root = Path(__file__).resolve().parents[2]
+    profile_path = INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json"
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(profile_path.read_text(encoding="utf-8"))
+    )
+    built = build_trial_manifest(
+        root,
+        model_profiles=profiles,
+        manifest_version=10,
+        batch_limits=LOWER_BATCH_LIMITS,
+    )
+    assert built["batch_limits"] == LOWER_BATCH_LIMITS
+    assert built["manifest_digest"] == digest(
+        {key: value for key, value in built.items() if key != "manifest_digest"}
+    )
+
+    limits_path = tmp_path / "batch-limits.json"
+    limits_path.write_text(json.dumps(LOWER_BATCH_LIMITS), encoding="utf-8")
+    output_path = tmp_path / "custom-manifest.json"
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "evals.benchmarks.build_trial_manifest",
+            "--output",
+            str(output_path),
+            "--model-profiles",
+            str(profile_path),
+            "--manifest-version",
+            "10",
+            "--batch-limits",
+            str(limits_path),
+        ],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert json.loads(output_path.read_text(encoding="utf-8"))["batch_limits"] == (
+        LOWER_BATCH_LIMITS
+    )
+    for version in (6, 7, 8):
+        with pytest.raises(ValueError, match="version 9 or newer"):
+            build_trial_manifest(
+                root,
+                model_profiles=profiles,
+                manifest_version=version,
+                batch_limits=LOWER_BATCH_LIMITS,
+            )
+
+
+def test_manifest_loader_accepts_lower_limits_and_rejects_limits_above_ceiling(tmp_path):
+    from decagent.evaluation.business.public_trials import (
+        canonical_public_trial_ledger_path,
+        load_public_run_plan,
+    )
+
+    root = Path(__file__).resolve().parents[2]
+    profile_path = INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json"
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(profile_path.read_text(encoding="utf-8"))
+    )
+    manifest = build_trial_manifest(
+        root,
+        model_profiles=profiles,
+        manifest_version=10,
+        batch_limits=LOWER_BATCH_LIMITS,
+    )
+    manifest_path = tmp_path / "lower-limits.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    plan = load_public_run_plan(
+        root,
+        mode="smoke",
+        manifest_path=manifest_path,
+        profiles_path=profile_path,
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    assert plan.batch_limits == LOWER_BATCH_LIMITS
+
+    default_manifest_path = tmp_path / "default-limits.json"
+    default_manifest_path.write_text(
+        json.dumps(build_trial_manifest(root, model_profiles=profiles, manifest_version=10)),
+        encoding="utf-8",
+    )
+    default_plan = load_public_run_plan(
+        root,
+        mode="smoke",
+        manifest_path=default_manifest_path,
+        profiles_path=profile_path,
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    assert plan.cohort_digest != default_plan.cohort_digest
+    candidate_sha = "a" * 40
+    assert canonical_public_trial_ledger_path(
+        root, cohort_digest=plan.cohort_digest, candidate_sha=candidate_sha
+    ) != canonical_public_trial_ledger_path(
+        root, cohort_digest=default_plan.cohort_digest, candidate_sha=candidate_sha
+    )
+
+    invalid_manifests = (
+        ("above-ceiling", {**LOWER_BATCH_LIMITS, "tool_calls": 1_601}, "exceed approved ceilings"),
+        (
+            "inconsistent-role-sum",
+            {**LOWER_BATCH_LIMITS, "agent_qwen_requests": 61},
+            "role limits must sum",
+        ),
+        (
+            "boolean-is-not-an-integer",
+            {**LOWER_BATCH_LIMITS, "tool_calls": True},
+            "positive integers",
+        ),
+    )
+    for name, limits, expected_error in invalid_manifests:
+        invalid = json.loads(json.dumps(manifest))
+        invalid["batch_limits"] = limits
+        invalid.pop("manifest_digest")
+        invalid["manifest_digest"] = digest(invalid)
+        invalid_path = tmp_path / f"{name}.json"
+        invalid_path.write_text(json.dumps(invalid), encoding="utf-8")
+        with pytest.raises(ValueError, match=expected_error):
+            load_public_run_plan(
+                root,
+                mode="smoke",
+                manifest_path=invalid_path,
+                profiles_path=profile_path,
+                check_images=False,
+                check_runtime=False,
+                check_source_files=False,
+            )
 
 
 def test_public_trial_loader_accepts_reviewed_v9_exposure_manifest(tmp_path):

@@ -668,7 +668,19 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 
 ### Requirement: First-wave batch-wide resource ceilings
 
-固定首波 4 个任务、ReAct/Plan 共 8 个基础路线试次 MUST 在持久批次账本中共同受限于最多 500 次 Qwen 请求、累计 5,000,000 输入与输出 token、14,400 秒总墙钟时间及 1,600 次工具调用。角色请求/token 上限 MUST 分别为 Agent 300 次/3,000,000 token、官方用户模拟器 160 次/1,600,000 token、官方裁判 40 次/400,000 token。所有重试、格式修复与受控总结均计入实际角色和批次额度。预算跨路线、进程恢复持续累计；达到任一停止线时禁止新派发，未知用量保留对应预留。每路线原有 200 次 Agent 请求、200 次工具、1,000,000 token 和 1,800 秒机器时间，以及 τ 官方步数限制继续独立生效。后续 24 例、全量及额外语义/消融试次 MUST 使用另行估算与冻结的预算，不得复制首波上限作为已授权额度。
+固定首波四任务、八条 ReAct/Plan 路线 MUST 在持久账本执行冻结 manifest 额度。Qwen 批次最大值为 500 请求、5,000,000 token、14,400 秒及 1,600 次工具调用；Agent、用户模拟器、裁判的最大请求/token 分配分别为 300/3,000,000、160/1,600,000、40/400,000。新 live-capable cohort MAY 冻结更低的正整数额度，但 MUST NOT 超限，角色请求与 token 配额 MUST 分别加总至批次总额。自定义额度 MUST 使用支持派发的 v9 或更新版本。额度须进入 manifest digest 与 cohort identity，由账本按冻结值执行；历史 v7-v10 默认 manifest 不变。预算跨路线和恢复累计；未知用量保留预留。
+
+#### Scenario: A fresh cohort freezes lower batch limits
+- **WHEN** 新四域 cohort 的 manifest 冻结了不高于已批准最大值的批次与角色上限
+- **THEN** manifest 校验角色分配精确加总且各值为正整数后，将这些较低额度写入 digest、cohort identity 与持久账本；该 cohort 只可按冻结的较低值派发，不能继承旧 cohort 的额度或 unknown 预留
+
+#### Scenario: Retry and per-route limits remain independently accounted
+- **WHEN** 路线执行重试、格式修复、受控总结或下一次 Agent/tool/τ action
+- **THEN** 模型请求按实际角色累计至批次额度；每路线 200 次 Agent 请求、200 次工具、1,000,000 token、1,800 秒与冻结 τ 步数仍分别生效；达到任一上限即拒绝新派发，未知用量保留预留
+
+#### Scenario: Later benchmark phases receive separately frozen budgets
+- **WHEN** 运行剩余 24 个 smoke 任务、206+80 正式集或额外语义/消融试次
+- **THEN** 使用经估算并单独冻结的批次额度，不复制首波额度作为授权
 
 #### Scenario: First-wave role or aggregate ceiling is reached
 - **WHEN** 新请求会超过任一角色或首波批次请求、token、工具、墙钟上限

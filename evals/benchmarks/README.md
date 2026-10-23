@@ -282,15 +282,15 @@ The current v10 digest is
 `1096d0515168eab71b06cb6b9bde558a0fa2a5269ec723aef996886a342b2fed`, and its
 profile-set digest is
 `4fa091d2840928bfb6a00dccfbd452a2dee8c42c465512955fd63923eb0a6721`. The v10
-cohort is pre-registered but has not created a ledger or started a live route.
-Rebuild v10 explicitly with a new output path:
+manifest remains immutable, but its cohort has already run; its route states
+are terminal and must not be resumed or replayed. See the [v10 run report](evidence/public-first-wave-live-20261023-v10-9d61688.md).
+Rebuild v10 only for historical verification, using a new output path:
 
 ```powershell
 .venv\Scripts\python.exe evals/benchmarks/build_trial_manifest.py --manifest-version 10 --model-profiles evals/benchmarks/manifests/evaluation_model_profiles_v5.json --output .decagent/evaluation-closeout/rebuilt-v10.json
 ```
 
-The v10
-batch ceilings are 500 Qwen requests / 5,000,000 Qwen tokens / 1,600 tool calls
+The frozen v10 default batch ceilings are 500 Qwen requests / 5,000,000 Qwen tokens / 1,600 tool calls
 and 4 hours, with separate Agent (300 / 3,000,000), user-simulator (160 /
 1,600,000), and judge (40 / 400,000) request/token caps. A persisted batch
 ledger carries these limits and its deadline across resume; a stop line keeps
@@ -300,7 +300,15 @@ previously selected token envelope implies an estimated pre-voucher CNY upper
 bound of about ¥13.50 at the highest frozen Qwen rate (5,000,000 × ¥2.7/M).
 This is a profile-derived guardrail, not an expected charge or provider invoice;
 voucher credits only change cash paid, not gross API cost, and this ceiling is
-not a new live-batch authorization.
+not a new live-batch authorization. A separately approved diagnostic cohort may
+freeze lower limits with the manifest builder's `--batch-limits` JSON input.
+That input must set all batch and role fields, use positive integers no higher
+than these maxima, and allocate role request/token values that sum exactly to
+their batch totals. Its changed manifest digest creates a distinct cohort
+ledger; the v10 ledger and unknown reservations remain untouched. The default
+builder output continues to match the historical v10 manifest. Creating a
+manifest is offline preparation and does not authorize dispatch; see the
+[next-cohort estimate](evidence/next-public-cohort-budget-estimate-20261024.md).
 
 The command uses exclusive file creation, so choose a new output path. Earlier
 profile and manifest versions remain as historical evidence; they are not overwritten.

@@ -19,7 +19,7 @@ These eight unsuccessful routes cannot provide a defensible per-success estimate
 
 ## Proposed next diagnostic cohort
 
-If separately authorized, create a **new independent cohort** on the same four fixed cases, with new cohort and trial identities, and clean isolated state. Do not resume, mutate, or release reservations from any v10 route; v10's five unknowns remain terminal. Run the same eight ReAct/Plan slots so each domain receives an official-score opportunity. Jev and cross-model fallback remain off. This is a diagnostic cohort, not a continuation of v10 and not a performance claim. The executable base `c2dad71ba3f4ac658a70851aa16b829d59ad9bae` has passing same-SHA CI, but this evidence-note commit will create a new repository SHA; the actual cohort candidate must be that new clean SHA after its own CI passes.
+If separately authorized, create a **new independent cohort** on the same four fixed cases, with a new manifest/cohort digest, a new candidate-scoped ledger, and clean isolated state. Task `trial_id` values are stable hashes of each fixed benchmark case and may match v10; the distinct cohort digest and ledger isolate all new route state and attempt IDs. Do not resume, mutate, or release reservations from any v10 route; v10's five unknowns remain terminal. Run the same eight ReAct/Plan slots so each domain receives an official-score opportunity. Jev and cross-model fallback remain off. This is a diagnostic cohort, not a continuation of v10 and not a performance claim. The previously verified executable base `c2dad71ba3f4ac658a70851aa16b829d59ad9bae` is not the current candidate; subsequent code/documentation changes require a newly selected clean SHA and passing same-SHA CI before dispatch.
 
 Proposed hard stops for that cohort:
 

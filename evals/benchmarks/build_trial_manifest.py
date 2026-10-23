@@ -16,7 +16,10 @@ from decagent.evaluation.business.manifest_hashing import (
     task_inventory_sha256,
 )
 from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
-from decagent.evaluation.business.public_limits import FIRST_WAVE_BATCH_LIMITS
+from decagent.evaluation.business.public_limits import (
+    FIRST_WAVE_BATCH_LIMITS,
+    validate_public_batch_limits,
+)
 from decagent.evaluation.business.public_trials import (
     DEVELOPMENT_EXPOSED_ENTERPRISEOPS_CASES,
     EXPOSURE_REVIEW_EVIDENCE,
@@ -76,12 +79,19 @@ def _assign_reviewed_case_exposure(trials):
 
 def build_trial_manifest(
     root: Path, *, model_profiles: EvaluationModelProfiles | None = None,
-    manifest_version: int = 5,
+    manifest_version: int = 5, batch_limits: dict | None = None,
 ) -> dict:
     if manifest_version not in {5, 6, 7, 8, 9, 10}:
         raise ValueError("Supported public trial manifest versions are 5, 6, 7, 8, 9 and 10")
     if model_profiles is not None and not isinstance(model_profiles, EvaluationModelProfiles):
         raise TypeError("model_profiles must use the frozen evaluation profile contract")
+    if batch_limits is not None and manifest_version < 9:
+        raise ValueError("Custom batch limits require manifest version 9 or newer")
+    batch_limit_profile = (
+        validate_public_batch_limits(batch_limits)
+        if batch_limits is not None
+        else dict(FIRST_WAVE_BATCH_LIMITS)
+    )
     if manifest_version >= 9 and (
         model_profiles is None
         or model_profiles.jev is None
@@ -335,7 +345,7 @@ def build_trial_manifest(
         },
     }
     if manifest_version >= 7:
-        payload["batch_limits"] = dict(FIRST_WAVE_BATCH_LIMITS)
+        payload["batch_limits"] = batch_limit_profile
     payload["manifest_digest"] = digest(payload)
     return payload
 
@@ -352,6 +362,11 @@ def main(argv=None):
         type=Path,
         help="Secret-free, fingerprinted evaluation model profiles JSON file",
     )
+    parser.add_argument(
+        "--batch-limits",
+        type=Path,
+        help="JSON stop lines no larger than the reviewed first-wave ceilings",
+    )
     parser.add_argument("--manifest-version", type=int, choices=(5, 6, 7, 8, 9, 10), default=5)
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[2]
@@ -360,8 +375,12 @@ def main(argv=None):
         if args.model_profiles
         else None
     )
+    batch_limits = _read_json(args.batch_limits) if args.batch_limits else None
     manifest = build_trial_manifest(
-        root, model_profiles=profiles, manifest_version=args.manifest_version
+        root,
+        model_profiles=profiles,
+        manifest_version=args.manifest_version,
+        batch_limits=batch_limits,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("x", encoding="utf-8", newline="\n") as handle:

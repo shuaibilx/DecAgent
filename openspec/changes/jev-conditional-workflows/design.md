@@ -1,5 +1,9 @@
 # Design
 
+### 2026-10-24 Per-cohort lower batch ceilings
+
+The first-wave limits remain hard maximum ceilings, while a new live-capable cohort may freeze lower positive integer limits for total Qwen requests/tokens, Agent/simulator/judge allocations, tool calls, and wall time. Role allocations must exactly sum to their aggregate request and token caps. The manifest builder validates and digests these values; the run-plan loader rejects malformed allocations and any value above the approved maxima. Default manifest generation remains byte-for-byte equivalent to the frozen v10 manifest, and custom caps require manifest v9 or newer because historical v7/v8 cohorts cannot be dispatched. This allows a separately approved smaller diagnostic cohort without reusing v10's ledger, changing historical limits, or raising any cap. It does not authorize model dispatch or create the proposed cohort.
+
 ## 当前执行状态（2026-10-24）
 
 v10 真实首波运行在候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 上完成：4 个任务/8 条 ReAct/Plan 路线终态为 3 failed、5 unknown、0 success，清理 8/8 verified；只有 τ telecom/ReAct 获得官方评分且为 0.0。Qwen 共 30 次请求，220,086 Token 已结算，另有 257,347 Token 上界预留处于 unknown；Jev 与裁判均未调用。质量门槛未通过，历史 unknown 不重放，24 例 smoke 与 206+80 全量暂停。公开 benchmark 仍为 0/286 个已评分任务。详情见[人读报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.md)和[机器报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.json)。

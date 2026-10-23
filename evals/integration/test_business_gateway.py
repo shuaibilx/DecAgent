@@ -184,6 +184,40 @@ def pending_action(api):
     return task, ticket, action, approval
 
 
+def test_employee_view_hides_pending_action_until_task_is_released_to_wait(business_api):
+    db, client, _, _ = business_api
+    task, _, _, approval = pending_action(business_api)
+    path = "/api/v2/business/tasks/" + task["id"]
+
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE app.tasks SET state='running',lease_owner='test-worker',"
+            "lease_until=clock_timestamp()+interval '30 seconds' WHERE id=%s",
+            (task["id"],),
+        )
+    running = client.get(path).json()
+    assert running["state"] == "running"
+    assert not any(item["status"] == "pending" for item in running["approvals"])
+
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE app.tasks SET state='awaiting_approval' WHERE id=%s", (task["id"],)
+        )
+    leased_wait = client.get(path).json()
+    assert leased_wait["state"] == "awaiting_approval"
+    assert not any(item["status"] == "pending" for item in leased_wait["approvals"])
+
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE app.tasks SET lease_owner=NULL,lease_until=NULL WHERE id=%s", (task["id"],)
+        )
+    released_wait = client.get(path).json()
+    assert released_wait["state"] == "awaiting_approval"
+    assert [item["id"] for item in released_wait["approvals"] if item["status"] == "pending"] == [
+        str(approval["id"])
+    ]
+
+
 def test_business_confirmation_is_authenticated_exact_and_duplicate_safe(business_api):
     db, client, _, _ = business_api
     task, _, action, approval = pending_action(business_api)

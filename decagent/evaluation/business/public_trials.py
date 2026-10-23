@@ -19,7 +19,7 @@ from .ledger import GlobalJevLedger
 from .manifest_hashing import source_manifest_sha256, task_inventory_sha256
 from .model_profiles import EvaluationModelProfiles
 from .public_diagnostics import validate_diagnostic
-from .public_limits import FIRST_WAVE_BATCH_LIMITS
+from .public_limits import validate_public_batch_limits
 from .public_supervisor import canonical_public_supervisor_lock_path
 
 _LEDGER_SCHEMA = "public-trial-ledger-v6"
@@ -513,8 +513,10 @@ def load_public_run_plan(
     if manifest.get("resource_profile_digest") != digest(limits):
         raise ValueError("Public evaluation resource profile digest mismatch")
     batch_limits = manifest.get("batch_limits")
-    if type(batch_limits) is not dict or batch_limits != FIRST_WAVE_BATCH_LIMITS:
-        raise ValueError("Public first-wave batch limits differ from the approved stop lines")
+    try:
+        batch_limits = validate_public_batch_limits(batch_limits)
+    except ValueError as exc:
+        raise ValueError(f"Public first-wave batch limits are invalid: {exc}") from exc
     general_profiles = (profiles.primary, profiles.user_simulator, profiles.judge)
     if (
         profiles.jev is None
