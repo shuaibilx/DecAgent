@@ -330,6 +330,7 @@ denominator remains 24 tasks / 48 route slots. See the [operator report](evidenc
 and [machine evidence](evidence/public-first-wave-preflight-20261024-edd30f1.json).
 The v10 live first wave remains 3 failed, 5 unknown and 0 successful routes;
 the dry-run did not change those outcomes or authorize another batch.
+After the exact-SHA CI passed for candidate `9a28504439c28bbd35006e860c78801ac4183c82`, the same preflight was repeated successfully with no ledger, model, or MCP dispatch. See the [candidate preflight report](evidence/public-first-wave-preflight-9a28504.md) and [machine report](evidence/public-first-wave-preflight-9a28504.json).
 Route pairs must carry the same exposure assignment, model-profile and
 resource-profile digests. Structured branches use code rules; a Jev semantic
 comparison is marked not-applicable until the benchmark contains a naturally
