@@ -48,3 +48,12 @@ This verifies a disposable, locally built image and readiness/fault-recovery beh
 - The host publishes the legacy repair application on `127.0.0.1:8000`; the initial SOP environment also selected that port. The SOP local configuration, example, public Compose file, and image-only private Compose copy now default the host API port and public URL to `8001` (container port remains 8000).
 - A regression ran real `docker compose config` with both an empty env file and the SOP example. It failed first on the observed `8000` binding, then passed after the default change: `16 passed` in `evals/deterministic/test_sop_compose_preflight.py`.
 - The current local `ops/deploy/sop.env` was moved to `8001`; `sop_preflight` passed and a host listener query showed no process on 8001 while the legacy API remained healthy on 8000. No persistent SOP service was started. Port availability must be checked again immediately before 4.4 because another process can claim it later.
+
+## Disposable smoke recheck (2026-10-24 06:28 Asia/Shanghai)
+
+- Source revision: `8521a1509d106e5f1d9d3c79d19ebdc55ea3f3c6`; the smoke ran before the later uncommitted CLI-help guard edit.
+- Command: `D:\Anaconda3\envs\Agent311\python.exe -m ops.deploy.offline_sop_smoke`.
+- Result: exit code 0; project `decagent-sop-smoke-b11d41a38c53`; all six services reached their expected state. API, MCP and business-worker readiness passed; stopping the worker made business readiness fail while API liveness remained healthy, and restarting it restored readiness. The script reported `model_requests=0`, `guest_trial=false`, and `docker_socket=false`.
+- Cleanup verification found no containers, volumes, networks or image with this run's project/tag. The old API remained on `127.0.0.1:8000`; port 8001 remained unbound.
+- A preceding exploratory `--help` invocation unexpectedly started another disposable smoke because the script did not parse arguments. Its process ended and its project resources were absent at follow-up, but its exit status was not retained and is not counted as validation. The CLI now uses `argparse`; regressions assert `--help` and unknown arguments exit before port/temp-directory setup. The focused file passed `8` tests, Ruff passed, and the explicit `--help` command now prints usage without starting Docker.
+- This remains disposable-only evidence. It does not complete task 4.4's persistent first install, same-digest recovery, upgrade, rollback, schema stop, or startup-recovery exercises.

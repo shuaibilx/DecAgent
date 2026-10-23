@@ -1,11 +1,41 @@
 import json
 
+import pytest
+
+from ops.deploy import offline_sop_smoke
 from ops.deploy.offline_sop_smoke import (
     _safe_command_diagnostic,
     _safe_health_diagnostic,
     _safe_probe_output,
     _wait_for_readiness,
 )
+
+
+def test_help_exits_without_allocating_ports_tempdirs_or_running_docker(monkeypatch, capsys):
+    def unexpected_side_effect(*_args, **_kwargs):
+        pytest.fail("CLI help must exit before preparing or running the smoke test")
+
+    monkeypatch.setattr(offline_sop_smoke, "_port", unexpected_side_effect)
+    monkeypatch.setattr(offline_sop_smoke.tempfile, "TemporaryDirectory", unexpected_side_effect)
+
+    with pytest.raises(SystemExit) as exc_info:
+        offline_sop_smoke.main(["--help"])
+
+    assert exc_info.value.code == 0
+    assert "usage:" in capsys.readouterr().out.lower()
+
+
+def test_unknown_arguments_are_rejected_before_smoke_preparation(monkeypatch):
+    def unexpected_side_effect(*_args, **_kwargs):
+        pytest.fail("Unknown CLI arguments must be rejected before smoke preparation")
+
+    monkeypatch.setattr(offline_sop_smoke, "_port", unexpected_side_effect)
+    monkeypatch.setattr(offline_sop_smoke.tempfile, "TemporaryDirectory", unexpected_side_effect)
+
+    with pytest.raises(SystemExit) as exc_info:
+        offline_sop_smoke.main(["--typo"])
+
+    assert exc_info.value.code == 2
 
 
 def test_smoke_failure_diagnostic_keeps_only_component_status_and_discards_raw_output():

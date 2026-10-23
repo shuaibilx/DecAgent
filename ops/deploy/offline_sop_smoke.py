@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -128,7 +129,16 @@ def _start_stack(compose):
     compose("up", "--build", "--detach", "--wait", "--wait-timeout", "180")
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Build and run an isolated, disposable SOP Compose smoke test.",
+        epilog=(
+            "The smoke creates temporary containers, volumes, networks, and an image; "
+            "it removes them before exiting and makes no model requests."
+        ),
+    )
+    parser.parse_args(argv)
+
     root = Path(__file__).resolve().parents[2]
     instance = "decagent-sop-smoke-" + uuid4().hex[:12]
     image_tag = "decagent-sop:offline-" + instance.removeprefix("decagent-sop-smoke-")

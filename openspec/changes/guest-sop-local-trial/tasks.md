@@ -35,6 +35,7 @@
 - [x] 4.2 实现含 Worker/MCP 的业务健康探针及专用可清理空间、零付费脚本模型冒烟；故障注入证明 API 健康不能掩盖业务故障。
 - [x] 4.3 支持安全首次安装与后续升级：首次安装只允许固定 SOP Compose 项目完全无容器/卷/网络时创建；持久记录 image digest 和 Compose 指纹（含 secret 文件摘要），失败后仅允许同一 digest/配置恢复，不删除数据。确定性回归覆盖首次安装状态拒绝、同 digest/config 恢复及密钥轮换指纹变化；真实 Docker 验收保留在 4.4。
 - [ ] 4.4 在真实本机 Docker 上演练首次安装、失败后同 digest/Compose/secret 恢复且保留数据库、正常升级、健康失败兼容回滚及 schema 不兼容停服；核验 Windows 登录启动、Docker Desktop、Runner 和服务重启恢复，交付本机部署子目录指南、拓扑/恢复图及实测证据。不得仅以离线测试关闭本项。2026-10-24 已将 SOP 默认宿主机端口调整为 8001，与仍运行的 `decagent-api` 8000 分开；当前端口查询及静态预检通过，但真实首装前仍须重查端口占用。此前候选 SHA `d7e8b0e79df5c443a756beb76f1094c799c28f1a` 的一次性本地 smoke 验证六服务 readiness、Worker 故障检测/恢复和资源清理；端口修正后的候选尚未进行持久首装、升级或回滚验收。证据：[启动竞态修复与隔离 smoke](../../../evals/integration/evidence/local-sop-smoke-startup-race-20261024.md)。
+  - **2026-10-24 再验：** 在 `8521a1509d106e5f1d9d3c79d19ebdc55ea3f3c6` 上运行 Agent311 的 `python -m ops.deploy.offline_sop_smoke`，退出码 0；六服务、业务 readiness、Worker 故障检测/恢复通过，0 模型请求，项目和本次镜像/卷/网络已清理，旧 8000 服务未受影响，8001 仍空闲。随后新增 CLI 参数解析，回归确认 `--help` 和未知参数不会开始 Docker 操作（8 tests passed，Ruff passed）。该增量仍不覆盖持久安装、恢复、升级、回滚、schema 停服和启动恢复，因此本任务保持未验收。见[隔离 smoke 证据](../../../evals/integration/evidence/local-sop-smoke-startup-race-20261024.md)。
 
 ## 5. 公共 CI 与私有 CD
 
