@@ -53,3 +53,12 @@
 
 - 域名购买、正式公网入口与入口防滥用验证、跨设备账号绑定、独立 Linux 服务保证后续再实施；本轮不自动开通。
 - 按用户另行请求再归档和同步主规格，不隐式归档旧 change。
+
+## CI task 5.1 验收更新（2026-10-23）
+
+本节覆盖并取代本文前面仍将 task 5.1 标记为未验收的历史快照，不删除或改写其原始状态记录。
+
+- [x] 5.1 最终候选 `9743e1a6d303e41cd88175a97d3b386e7edfefd6` 的 [GitHub Actions run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425) 12/12 jobs 通过。覆盖 Python 3.11/3.13 主矩阵、Ruff、deterministic、六个 PostgreSQL shards、Python 3.12 Playwright 生产 Gateway E2E、Docker 执行边界、wheel/MCP 与 Compose。
+- 墙钟 8:19、累计 Runner 时间 52:05；基线 run `39940453829` 为 12:27、51:39。增加 26 秒累计 Runner 时间的同时减少 4:08 墙钟，并增加核心浏览器 E2E，不宣称 Runner 费用下降。digest 固定的 Playwright Python 镜像将浏览器 job 从前一 run 的 11:21 降到 1:26；浏览器流程耗时 28 秒。
+- 两个 Python 版本各自 deterministic `2,164 passed, 18 skipped`；各自三个 PostgreSQL shards 合计 `678 passed, 33 skipped`。Windows 专属语义、未配置的 pinned τ runtime、Docker fixture、opt-in readiness/repair、外部 MCP CLI 和上游缓存 skip 仍是未验证项，按具体原因记录于[CI 验收报告](../../../evals/integration/evidence/ci-browser-sharding-20261023.md)。
+- 同 digest 镜像的两个早期实验 run `39949424100`、`39950636276` 分别因 pip cache shim 缺失及 Python 3.13 SSL 模块缺失而未通过；非浏览器的其余 11 jobs 均通过。最终使用镜像内 Python 3.12（项目要求 `>=3.11`），保留 3.11/3.13 主矩阵后全绿。

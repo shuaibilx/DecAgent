@@ -1,6 +1,6 @@
 # Tasks
 
-当前状态（2026-10-23）：19/28 项验收完成；未验收项继续保持未完成。
+当前状态（2026-10-23）：20/28 项验收完成；未验收项继续保持未完成。
 本文件保留全部任务编号、复选状态和验收目标。逐项实现记录、历史测试输出及旧状态原文完整归档于 [tasks-history-20261023.md](tasks-history-20261023.md)。
 
 ## 1. Workspace 数据与身份边界
@@ -38,7 +38,7 @@
 
 ## 5. 公共 CI 与私有 CD
 
-- [ ] 5.1 优化公共CI分层、独立job并行与锁定缓存，保留Python3.11/3.13、Ruff、确定性、PostgreSQL、核心E2E、wheel/MCP、Compose；比较各job与总耗时，列出skip原因。
+- [x] 5.1 优化公共CI分层、独立job并行与锁定缓存，保留Python3.11/3.13、Ruff、确定性、PostgreSQL、核心E2E、wheel/MCP、Compose；比较各job与总耗时，列出skip原因。最终候选 `9743e1a6d303e41cd88175a97d3b386e7edfefd6` 的 [CI run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425) 12/12 jobs 通过，墙钟 8:19、累计 Runner 52:05；确定性与 PostgreSQL 集成 skip 已分类，明细及基线比较见[CI 验收报告](../../../evals/integration/evidence/ci-browser-sharding-20261023.md)。
 - [x] 5.2 实现私有部署仓库的发布验证器和最小输入工作流；离线测试拒绝错误 repo/SHA/tag/main/CI/run attempt/digest 和任意脚本路径，不在本机执行未验证代码。审查确认发布验证先于 rollout，且只传验证器输出；真实 dispatch 留在 5.3/5.4。
 - [ ] 5.3 配置私有 DecAgent-deploy，迁移本机 Runner，公共发布仅用最小凭证触发固定 workflow；验证公共 PR/Actions 无法调度本机，私有凭证最小且不打印密钥。
 - [ ] 5.4 完成一次可信版本GHCR发布至本机SOP服务的全链路演练及失败演练；保存commit/run/digest/健康/回滚证据，任务串行无互相覆盖。
@@ -53,6 +53,7 @@
 
 - **4.3 首装/恢复（离线实现验收）：** 首次安装编排、同 digest/Compose/secret 内容指纹恢复、项目容器/卷/网络状态拒绝、Python 3.11+ 解释器校验已实现。全量 deterministic `2,160 passed, 18 skipped`，包含 secret 轮换指纹回归；Ruff 通过。真实 Docker 首装、失败恢复、升级和回滚演练属于 4.4，尚未执行。
 - **5.2 私有发布验证（实现验收）：** 私有仓库有固定输入 workflow 与 verifier；只允许 `contents: read`，GHCR public control image 匿名拉取。工作流顺序测试核验 verifier 在 rollout 前运行，且只传 verifier 输出。远端 dispatch 与 Runner 属于 5.3/5.4，尚未验收。
+- **5.1 公共 CI（验收完成，2026-10-23）：** 最终 SHA `9743e1a6d303e41cd88175a97d3b386e7edfefd6` 的 GitHub Actions [run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425) 12/12 jobs 通过。相较旧基线 run `39940453829`，墙钟由 12:27 降至 8:19；累计 Runner 时间由 51:39 变为 52:05（增加 26 秒），主要新增了浏览器 E2E 覆盖，故不宣称资源费用下降。E2E 使用 digest 固定的 Playwright Python 镜像；Python 3.11/3.13 主矩阵保持不变。完整 job 时间和 skip 理由见[CI 验收报告](../../../evals/integration/evidence/ci-browser-sharding-20261023.md)。
 - **5.3/5.4 私有交付仍待办：** DecAgent-deploy main `362a00d1604bc2daa7dcdf90d9c7b58a89e36a34` 已同步审查后的 11 文件部署包，manifest 中 10 个文件哈希逐一远端核对通过；Actions 仅允许 SHA 固定的 `actions/checkout`，`decagent-local-production` 仅允许 main。尚无 Runner、本机 SOP 配置和 secrets，GitHub App 触发器未配置，未做真实 dispatch 或容器部署。公共发布边界改动已推送到 `feat/conditional-evaluation`，没有创建 release tag，也没有派发 CD。详见[私有部署边界证据](../../../evals/integration/evidence/private-deployment-boundary-20261023.md)。
 - **尚未开通：** 本机 sop.env/secret files 和 Runner 不存在；公有 release 到私有 workflow 的 GitHub App 凭证及启用变量尚未配置。私有仓库分支保护受当前 GitHub 计划限制；环境分支规则仍约束部署到 main。
-- **验证边界：** v10 首波报告记录指定候选 8 路线终态为 3 failed、5 unknown、0 success；这不是通过结果，unknown 不重放。后续代码/文档修正未重发模型请求。当前 deterministic 为 `2,164 passed, 18 skipped`，Ruff 与两个 change 的 OpenSpec strict 通过；guest budget PostgreSQL 集成模块 `36 passed`。旧 CI run `39935184424` 在 `4e932ce` 上因测试日期错位失败，已修复。修复提交 `14ffd1fe238306cdd858673bb786ac2c3bd581ff` 的同 SHA CI [run 39940453829](https://github.com/shuaibilx/DecAgent/actions/runs/39940453829) 9/9 jobs 全绿。私有 bundle `-B -S` 导入 smoke 已通过。
+- **验证边界：** v10 首波报告记录指定候选 8 路线终态为 3 failed、5 unknown、0 success；这不是通过结果，unknown 不重放。后续代码/文档修正未重发模型请求。最终 CI 中每个 Python 版本 deterministic 为 `2,164 passed, 18 skipped`，每个版本三个 PostgreSQL 分片合计 `678 passed, 33 skipped`；所有 skip 仍表示相应运行时、平台或 opt-in fixture 未在这些 job 中验证。旧 CI run `39935184424` 在 `4e932ce` 上因测试日期错位失败，已修复。修复提交 `14ffd1fe238306cdd858673bb786ac2c3bd581ff` 的同 SHA CI [run 39940453829](https://github.com/shuaibilx/DecAgent/actions/runs/39940453829) 9/9 jobs 全绿；task 5.1 的最新扩展覆盖见 [run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425)。私有 bundle `-B -S` 导入 smoke 已通过。
