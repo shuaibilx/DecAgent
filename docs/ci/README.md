@@ -12,7 +12,7 @@ flowchart TD
     Start --> Py311[Python 3.11 Ruff + deterministic]
     Start --> Py313[Python 3.13 Ruff + deterministic]
     Start --> PG[PostgreSQL 集成：3 shards × 2 Python]
-    Start --> Browser[Playwright 生产 Gateway E2E]
+    Start --> Browser[Playwright 生产 Gateway E2E：员工流程 + 游客生命周期]
     Start --> Docker[Docker executor / repair 边界]
     Start --> Artifact[Wheel、MCP 协议、镜像与 Compose smoke]
     UI --> Gate{所有必需 job 通过}
@@ -26,7 +26,7 @@ flowchart TD
     Gate -->|失败| Repair[修复后重新验证同一新 SHA]
 ```
 
-当前 pipeline 有 12 个 job：Workbench JavaScript 1 个、Python 3.11/3.13 检查 2 个、PostgreSQL 分片 6 个、Chromium 浏览器 E2E 1 个、Docker 边界 1 个、包和镜像构建 1 个。六个 PostgreSQL 分片并行运行，Playwright 浏览器使用 digest 固定的官方 Python 镜像；主 Python 兼容矩阵仍为 3.11 和 3.13。
+当前 pipeline 有 12 个 job：Workbench JavaScript 1 个、Python 3.11/3.13 检查 2 个、PostgreSQL 分片 6 个、Chromium 浏览器 E2E 1 个、Docker 边界 1 个、包和镜像构建 1 个。Chromium job 顺序运行两个浏览器链路：员工提交任务并确认已验证的业务操作；游客开始体验、切换角色、刷新恢复并清空空间。游客链路使用独立 PostgreSQL 数据库，不启动 Agent worker，也不调用模型或业务写工具。六个 PostgreSQL 分片并行运行，Playwright 浏览器使用 digest 固定的官方 Python 镜像；主 Python 兼容矩阵仍为 3.11 和 3.13。
 
 Ruff 的 CI 命令明确检查 `decagent`、`evals`、`ops`。本地 `ruff check .` 也通过 `pyproject.toml` 排除 `.agents`，因为这里保存的是外部工程 skill 与其示例代码，不属于 DecAgent 产品源码；这不会降低上述 CI 路径的检查范围。
 

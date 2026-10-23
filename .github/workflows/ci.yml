@@ -160,6 +160,9 @@ jobs:
       - name: Run synthetic production gateway lifecycle in Chromium
         run: python -m evals.e2e.business_workbench
 
+      - name: Run guest trial lifecycle in Chromium
+        run: python -m evals.e2e.business_guest_workbench
+
   executor-boundary:
     name: Disposable Docker executor and repair boundaries
     runs-on: ubuntu-latest
