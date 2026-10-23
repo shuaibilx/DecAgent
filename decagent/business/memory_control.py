@@ -69,11 +69,9 @@ class BusinessMemoryControl:
 
     def _current(self, conn, identity, task_id, *, browser=False):
         store = self._store(conn)
-        store.operations._identity(conn, identity, lock=True, browser_only=browser)
-        task = conn.execute(
-            "SELECT * FROM app.tasks WHERE id=%s AND kind='business' AND employee_id=%s FOR UPDATE",
-            (UUID(str(task_id)), identity.employee_id),
-        ).fetchone()
+        task, _actor = store.operations.lock_employee_task(
+            conn, identity, UUID(str(task_id)), browser_only=browser
+        )
         if task is None:
             raise AccessError("not_found", "Original employee memory task unavailable")
         scope = conn.execute(
@@ -140,15 +138,21 @@ class BusinessMemoryControl:
     def history(self, identity, *, task_id=None, limit=50):
         with self.database.connect() as conn:
             store = self._store(conn)
-            store.operations._identity(conn, identity, lock=True, browser_only=True)
-            context = self._current(conn, identity, task_id, browser=True)[2] if task_id else None
+            if task_id:
+                context = self._current(conn, identity, task_id, browser=True)[2]
+            else:
+                store.operations._identity(conn, identity, lock=True, browser_only=True)
+                context = None
             return store.list_own(identity, context=context, limit=limit)
 
     def get(self, identity, memory_id, *, task_id=None):
         with self.database.connect() as conn:
             store = self._store(conn)
-            store.operations._identity(conn, identity, lock=True, browser_only=True)
-            context = self._current(conn, identity, task_id, browser=True)[2] if task_id else None
+            if task_id:
+                context = self._current(conn, identity, task_id, browser=True)[2]
+            else:
+                store.operations._identity(conn, identity, lock=True, browser_only=True)
+                context = None
             return store.get(identity, memory_id, context=context)
 
     @staticmethod

@@ -233,6 +233,42 @@ def test_mcp_token_has_independent_audience_lifetime_and_revocation(employee_api
         )
 
 
+def test_rolled_back_mcp_issue_removes_orphaned_token_file(employee_api):
+    from decagent.business.employee_auth import EmployeeIdentity
+
+    database, client, auth, directory, _, _ = employee_api
+    signed_in = _login(client, directory)
+    assert signed_in.status_code == 200, signed_in.text
+    token_hash = hashlib.sha256(client.cookies["decagent_employee_session"].encode()).hexdigest()
+    with database.connect() as conn:
+        row = conn.execute(
+            "SELECT a.* FROM business.employee_accounts a "
+            "JOIN business.employee_sessions s ON s.employee_id=a.id "
+            "AND s.workspace_id=a.workspace_id WHERE s.token_hash=%s",
+            (token_hash,),
+        ).fetchone()
+    identity = EmployeeIdentity(
+        row["id"],
+        row["person_id"],
+        row["login"],
+        row["role"],
+        row["credential_revision"],
+        "employee_session",
+        token_hash,
+        workspace_id=row["workspace_id"],
+    )
+
+    with pytest.raises(RuntimeError, match="abort outer transaction"):
+        with database.connect() as conn:
+            issued = auth.issue_mcp(identity, conn=conn)
+            raise RuntimeError("abort outer transaction")
+
+    path = issued["credential_path"]
+    assert os.path.exists(path)
+    assert auth.revoke_mcp(identity, issued["credential_ref"]) is False
+    assert not os.path.exists(path)
+
+
 def test_credential_resolver_requires_matching_task_employee_and_current_credential(employee_api):
     database, client, auth, directory, scope, _ = employee_api
     login = _login(client, directory)

@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import os
 import secrets
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
@@ -170,7 +171,7 @@ class EmployeeAuth:
                 (identity.token_hash, identity.workspace_id),
             )
 
-    def issue_mcp(self, identity):
+    def issue_mcp(self, identity, *, conn=None):
         from decagent.gateway.auth import _protect_file
 
         if identity.source != "employee_session":
@@ -180,8 +181,9 @@ class EmployeeAuth:
         path = self._path(credential_ref)
         created = False
         try:
-            with self.database.connect() as conn:
-                session = conn.execute(
+            connection = self.database.connect() if conn is None else nullcontext(conn)
+            with connection as active_conn:
+                session = active_conn.execute(
                     "SELECT s.employee_id FROM business.employee_sessions s "
                     "JOIN business.employee_accounts a ON a.id=s.employee_id "
                     "AND a.workspace_id=s.workspace_id "
@@ -194,7 +196,7 @@ class EmployeeAuth:
                     "AND s.workspace_id=%s AND s.revoked_at IS NULL "
                     "AND s.expires_at>now() AND a.active "
                     "AND s.account_revision=a.credential_revision "
-                    "AND a.credential_revision=%s FOR UPDATE OF s,a",
+                    "AND a.credential_revision=%s FOR SHARE OF s,a",
                     (
                         GUEST_INACTIVITY_SECONDS,
                         identity.token_hash,
@@ -205,7 +207,7 @@ class EmployeeAuth:
                 ).fetchone()
                 if not session:
                     raise ValueError("Employee session unavailable")
-                row = conn.execute(
+                row = active_conn.execute(
                     "INSERT INTO business.mcp_credentials"
                     "(id,token_hash,employee_id,workspace_id,account_revision,expires_at) "
                     "SELECT %s,%s,a.id,a.workspace_id,a.credential_revision,"
@@ -292,7 +294,13 @@ class EmployeeAuth:
                 "WHERE id=%s AND employee_id=%s AND workspace_id=%s RETURNING id",
                 (ref, identity.employee_id, identity.workspace_id),
             ).fetchone()
+            if not row:
+                existing = conn.execute(
+                    "SELECT 1 FROM business.mcp_credentials WHERE id=%s", (ref,)
+                ).fetchone()
         if not row:
+            if not existing:
+                self._path(ref).unlink(missing_ok=True)
             return False
         self._path(ref).unlink(missing_ok=True)
         return True

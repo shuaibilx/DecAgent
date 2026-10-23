@@ -693,11 +693,7 @@ class WorkflowRegistry:
             return self._match(conn, identity, scope_id, inputs, workflow_id, version, goal_id)
 
     def _task(self, conn, identity, task_id):
-        actor = self.operations._identity(conn, identity, lock=True)
-        task = conn.execute(
-            "SELECT * FROM app.tasks WHERE id=%s AND kind='business' AND employee_id=%s FOR UPDATE",
-            (task_id, actor["id"]),
-        ).fetchone()
+        task, actor = self.operations.lock_employee_task(conn, identity, task_id)
         if not task:
             raise AccessError("not_found", "Original employee workflow task unavailable")
         return task, actor

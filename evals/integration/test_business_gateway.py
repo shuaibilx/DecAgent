@@ -1,6 +1,8 @@
 """Employee API and real graph regressions use the shared operation boundary."""
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
@@ -204,6 +206,89 @@ def test_business_confirmation_is_authenticated_exact_and_duplicate_safe(busines
             ]
             == "running"
         )
+
+
+def test_employee_approval_and_memory_read_share_identity_then_task_lock_order(
+    business_api, monkeypatch
+):
+    """Concurrent browser approval and task memory reads must not deadlock PostgreSQL."""
+    from decagent.business.memory_control import BusinessMemoryControl
+    from decagent.business.operations import OperationService
+    from decagent.gateway.business import BusinessControl
+
+    db, client, _, _ = business_api
+    task, _, _, approval = pending_action(business_api)
+    memory_client = TestClient(client.app)
+    memory_client.cookies.update(client.cookies)
+    memory_client.headers.update(client.headers)
+
+    reply_started = threading.Event()
+    allow_reply = threading.Event()
+    identity_before_reply = threading.Event()
+    memory_identity_locked = threading.Event()
+    approval_identity_attempted = threading.Event()
+    request_role = threading.local()
+
+    original_identity = OperationService._identity
+    original_reply = BusinessControl.reply_employee
+    original_history = BusinessMemoryControl.history
+
+    def tracked_identity(self, conn, identity, **kwargs):
+        role = getattr(request_role, "value", None)
+        if not reply_started.is_set():
+            identity_before_reply.set()
+        if role == "approval":
+            approval_identity_attempted.set()
+        actor = original_identity(self, conn, identity, **kwargs)
+        if role == "memory":
+            memory_identity_locked.set()
+            if not identity_before_reply.is_set():
+                approval_identity_attempted.wait(timeout=10)
+        return actor
+
+    def held_reply(self, conn, task_row, approval_row, body, identity, operation_id):
+        request_role.value = "approval"
+        reply_started.set()
+        if not allow_reply.wait(timeout=10):
+            raise AssertionError("Test did not release the approval request")
+        try:
+            return original_reply(self, conn, task_row, approval_row, body, identity, operation_id)
+        finally:
+            request_role.value = None
+
+    def tracked_history(self, identity, *, task_id=None, limit=50):
+        request_role.value = "memory"
+        try:
+            return original_history(self, identity, task_id=task_id, limit=limit)
+        finally:
+            request_role.value = None
+
+    monkeypatch.setattr(OperationService, "_identity", tracked_identity)
+    monkeypatch.setattr(BusinessControl, "reply_employee", held_reply)
+    monkeypatch.setattr(BusinessMemoryControl, "history", tracked_history)
+
+    reply_path = f"/api/v2/business/tasks/{task['id']}/approvals/{approval['id']}/reply"
+    reply_body = {"expected_digest": approval["digest"], "decision": "approve"}
+    memory_path = f"/api/v2/business/memories?task_id={task['id']}"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        reply_future = pool.submit(
+            client.post,
+            reply_path,
+            json=reply_body,
+            headers={"Idempotency-Key": "lock-order-reply"},
+        )
+        assert reply_started.wait(timeout=10)
+        memory_future = pool.submit(memory_client.get, memory_path)
+        if not identity_before_reply.is_set():
+            assert memory_identity_locked.wait(timeout=10)
+        allow_reply.set()
+        reply_response = reply_future.result(timeout=15)
+        memory_response = memory_future.result(timeout=15)
+
+    assert reply_response.status_code == 200, reply_response.text
+    assert memory_response.status_code in {200, 409}, memory_response.text
+    assert db.get_task(task["id"])["state"] == "queued"
 
 
 def test_noop_edit_does_not_consume_or_orphan_the_current_approval(business_api):

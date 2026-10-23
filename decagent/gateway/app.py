@@ -862,9 +862,16 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
         return {"revoked": True}
 
     def employee_task_row(conn, employee, task_id, *, lock=False):
+        if lock:
+            row, _actor = business.operations.lock_employee_task(
+                conn, employee, task_id, browser_only=True
+            )
+            if row is None:
+                raise ApiError(404, "not_found", "Business task unavailable")
+            return row
         row = conn.execute(
             "SELECT * FROM app.tasks WHERE id=%s AND kind='business' AND employee_id=%s "
-            "AND workspace_id=%s" + (" FOR UPDATE" if lock else ""),
+            "AND workspace_id=%s",
             (task_id, employee.employee_id, employee.workspace_id),
         ).fetchone()
         if row is None:
@@ -1169,7 +1176,7 @@ def create_app(database, settings, *, callbacks=None, session_seconds=43200, run
                 cost = Decimal(budget["max_cost"])
                 if not cost.is_finite() or cost <= 0:
                     raise ApiError(422, "invalid_input", "Budget cost must be positive")
-            issued = employee_auth.issue_mcp(employee)
+            issued = employee_auth.issue_mcp(employee, conn=conn)
             created_refs.append(UUID(issued["credential_ref"]))
             task = business.reauthenticate(conn, task, employee, created_refs[-1])
             task = conn.execute(

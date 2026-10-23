@@ -67,6 +67,16 @@ class OperationService:
             raise AccessError("unauthorized", "Employee credential unavailable")
         return actor
 
+    def lock_employee_task(self, conn, identity, task_id, *, browser_only=False):
+        """Lock employee identity before its task to keep a global row-lock order."""
+        actor = self._identity(conn, identity, lock=True, browser_only=browser_only)
+        task = conn.execute(
+            "SELECT * FROM app.tasks WHERE id=%s AND kind='business' AND employee_id=%s "
+            "AND workspace_id=%s FOR UPDATE",
+            (task_id, actor["id"], actor["workspace_id"]),
+        ).fetchone()
+        return task, actor
+
     def _scope(self, conn):
         scope = conn.execute(
             "SELECT * FROM app.business_scopes WHERE plugin_id=%s FOR SHARE", (self.spec.id,)
