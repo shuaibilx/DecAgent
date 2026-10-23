@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
@@ -32,6 +33,17 @@ from evals.integration.business_support import FixtureTickets
 
 HOST, PORT = "127.0.0.1", 8856
 PASSWORD = "Offline-Lifecycle-Acceptance-2026"
+
+
+@dataclass(frozen=True)
+class LifecycleFixture:
+    administrator: Database
+    database_name: str
+    database: Database
+    app: object
+    metadata: dict[str, object]
+    mcp_service: tuple
+    temporary: tempfile.TemporaryDirectory
 
 
 def _start_mcp(database, employee_auth):
@@ -73,115 +85,153 @@ def build_fixture():
     name = "workbench_lifecycle_" + uuid4().hex
     with administrator.connect(autocommit=True) as conn:
         conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
-    target = conninfo_to_dict(source_url)
-    target["dbname"] = name
-    database = Database(make_conninfo(**target))
-    database.migrate()
+    mcp_service = None
+    temporary = None
+    try:
+        target = conninfo_to_dict(source_url)
+        target["dbname"] = name
+        database = Database(make_conninfo(**target))
+        database.migrate()
 
-    backend = FixtureTickets(database, login="supervisor")
-    with database.connect() as conn:
-        conn.execute(
-            "UPDATE business.employee_accounts SET password_hash=%s WHERE id=%s",
-            (hash_employee_password(PASSWORD), backend.identity.employee_id),
+        backend = FixtureTickets(database, login="supervisor")
+        with database.connect() as conn:
+            conn.execute(
+                "UPDATE business.employee_accounts SET password_hash=%s WHERE id=%s",
+                (hash_employee_password(PASSWORD), backend.identity.employee_id),
+            )
+        directory = backend.read("directory", {})
+        category_id = next(
+            item["id"] for item in directory["categories"] if item["name"] == "Network"
         )
-    directory = backend.read("directory", {})
-    category_id = next(
-        item["id"] for item in directory["categories"] if item["name"] == "Network"
-    )
-    created = backend.execute(
-        "create",
-        {"title": "Browser lifecycle acceptance", "category_id": category_id},
-        "fixture-workbench-lifecycle-create",
-    )
-    if not created["ok"]:
-        raise RuntimeError("Could not seed the synthetic acceptance ticket")
-    ticket_id = created["data"]["ticket"]["id"]
-    scope = PluginRegistry(database).list()[0]
+        created = backend.execute(
+            "create",
+            {"title": "Browser lifecycle acceptance", "category_id": category_id},
+            "fixture-workbench-lifecycle-create",
+        )
+        if not created["ok"]:
+            raise RuntimeError("Could not seed the synthetic acceptance ticket")
+        ticket_id = created["data"]["ticket"]["id"]
+        scope = PluginRegistry(database).list()[0]
 
-    temporary = tempfile.TemporaryDirectory(prefix="decagent-workbench-lifecycle-")
-    public_url = f"http://{HOST}:{PORT}"
-    settings = Settings(
-        database_url=database.url,
-        public_url=public_url,
-        data_dir=Path(temporary.name),
-    )
-    app = create_app(
-        database,
-        settings,
-        callbacks=GatewayCallbacks(
-            business_employee_read=lambda _identity, command, params: backend.read(command, params)
-        ),
-        runtime_config=RuntimeConfig(conditional_workflows_enabled=False),
-    )
-    employee_auth = app.state.employee_auth
-    mcp_service = _start_mcp(database, employee_auth)
-    stop = threading.Event()
-    worker_thread = None
-    worker = None
+        temporary = tempfile.TemporaryDirectory(prefix="decagent-workbench-lifecycle-")
+        public_url = f"http://{HOST}:{PORT}"
+        settings = Settings(
+            database_url=database.url,
+            public_url=public_url,
+            data_dir=Path(temporary.name),
+        )
+        app = create_app(
+            database,
+            settings,
+            callbacks=GatewayCallbacks(
+                business_employee_read=lambda _identity, command, params: backend.read(
+                    command, params
+                )
+            ),
+            runtime_config=RuntimeConfig(conditional_workflows_enabled=False),
+        )
+        employee_auth = app.state.employee_auth
+        mcp_service = _start_mcp(database, employee_auth)
+        stop = threading.Event()
+        worker_thread = None
+        worker = None
 
-    def consume():
-        while not stop.is_set():
+        def consume():
+            while not stop.is_set():
+                try:
+                    claimed = worker.run_once()
+                except Exception as exc:  # surfaced in the fixture server log for diagnosis
+                    print(f"offline worker error: {type(exc).__name__}: {exc}", flush=True)
+                    stop.wait(0.2)
+                else:
+                    if not claimed:
+                        stop.wait(0.1)
+
+        @asynccontextmanager
+        async def lifespan(_app):
+            nonlocal worker, worker_thread
+            runtime = RuntimeConfig(
+                tickets_mcp_url=f"http://127.0.0.1:{mcp_service[3]}/mcp",
+                strategy="rule",
+                conditional_workflows_enabled=False,
+            )
+            worker = BusinessWorker(database, settings, runtime, employee_auth=employee_auth)
+            worker_thread = threading.Thread(
+                target=consume, daemon=True, name="workbench-lifecycle-worker"
+            )
+            worker_thread.start()
             try:
-                claimed = worker.run_once()
-            except Exception as exc:  # surfaced in the fixture server log for diagnosis
-                print(f"offline worker error: {type(exc).__name__}: {exc}", flush=True)
-                stop.wait(0.2)
-            else:
-                if not claimed:
-                    stop.wait(0.1)
+                yield
+            finally:
+                stop.set()
+                worker_thread.join(10)
+                worker.close()
 
-    @asynccontextmanager
-    async def lifespan(_app):
-        nonlocal worker, worker_thread
-        runtime = RuntimeConfig(
-            tickets_mcp_url=f"http://127.0.0.1:{mcp_service[3]}/mcp",
-            strategy="rule",
-            conditional_workflows_enabled=False,
+        app.router.lifespan_context = lifespan
+        instruction = json.dumps(
+            {
+                "command": "set_priority",
+                "params": {
+                    "ticket_id": ticket_id,
+                    "expected_revision": 1,
+                    "priority": "high",
+                },
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
         )
-        worker = BusinessWorker(database, settings, runtime, employee_auth=employee_auth)
-        worker_thread = threading.Thread(
-            target=consume, daemon=True, name="workbench-lifecycle-worker"
+        metadata = {
+            "url": public_url,
+            "login": backend.identity.login,
+            "password": PASSWORD,
+            "scope_id": str(scope["id"]),
+            "workspace_id": str(backend.identity.workspace_id),
+            "ticket_id": ticket_id,
+            "instruction": instruction,
+            "expected_final_priority": "high",
+            "fixture": "temporary PostgreSQL + production gateway/worker/MCP; synthetic data only",
+        }
+        return LifecycleFixture(
+            administrator,
+            name,
+            database,
+            app,
+            metadata,
+            mcp_service,
+            temporary,
         )
-        worker_thread.start()
+    except BaseException:
+        # Setup can fail after creating the isolated database. Keep failed local
+        # runs as clean as CI runs by releasing any started sidecars and the DB.
         try:
-            yield
+            if mcp_service is not None:
+                try:
+                    _stop_mcp(mcp_service)
+                except Exception as cleanup_error:
+                    print(f"offline MCP cleanup error: {cleanup_error}", flush=True)
         finally:
-            stop.set()
-            worker_thread.join(10)
-            worker.close()
-
-    app.router.lifespan_context = lifespan
-    instruction = json.dumps(
-        {
-            "command": "set_priority",
-            "params": {"ticket_id": ticket_id, "expected_revision": 1, "priority": "high"},
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
-    metadata = {
-        "url": public_url,
-        "login": backend.identity.login,
-        "password": PASSWORD,
-        "scope_id": str(scope["id"]),
-        "ticket_id": ticket_id,
-        "instruction": instruction,
-        "expected_final_priority": "high",
-        "paid_requests": 0,
-        "fixture": "temporary PostgreSQL + production gateway/worker/MCP; synthetic data only",
-    }
-    return administrator, name, app, metadata, mcp_service, temporary
+            if temporary is not None:
+                temporary.cleanup()
+            with administrator.connect(autocommit=True) as conn:
+                conn.execute(
+                    sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
+                        sql.Identifier(name)
+                    )
+                )
+        raise
 
 
 if __name__ == "__main__":
-    administrator, name, app, metadata, mcp_service, temporary = build_fixture()
-    print(json.dumps(metadata, ensure_ascii=False), flush=True)
+    fixture = build_fixture()
+    print(json.dumps(fixture.metadata, ensure_ascii=False), flush=True)
     try:
-        uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
+        uvicorn.run(fixture.app, host=HOST, port=PORT, log_level="warning")
     finally:
-        _stop_mcp(mcp_service)
-        temporary.cleanup()
-        with administrator.connect(autocommit=True) as conn:
+        _stop_mcp(fixture.mcp_service)
+        fixture.temporary.cleanup()
+        with fixture.administrator.connect(autocommit=True) as conn:
             conn.execute(
-                sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name))
+                sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
+                    sql.Identifier(fixture.database_name)
+                )
             )
