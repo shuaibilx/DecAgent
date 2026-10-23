@@ -122,6 +122,9 @@ jobs:
     name: Python 3.13 production gateway browser E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.64.0-noble@sha256:684df257a1fa0ef3fa288239819984008f560e8f8db5b635ee9e2a50cbcd2e23
+      options: --ipc=host
     permissions:
       contents: read
     services:
@@ -139,7 +142,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DECAGENT_TEST_DATABASE_URL: postgresql://decagent:decagent_ci_only@127.0.0.1:5432/decagent_ci
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      DECAGENT_TEST_DATABASE_URL: postgresql://decagent:decagent_ci_only@postgres:5432/decagent_ci
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v7
@@ -159,8 +163,8 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r evals/e2e/requirements.lock
 
-      - name: Install headless Chromium and Linux dependencies
-        run: python -m playwright install --with-deps --only-shell chromium
+      - name: Verify locked Playwright matches the preinstalled browser image
+        run: python -m playwright --version
 
       - name: Run synthetic production gateway lifecycle in Chromium
         run: python -m evals.e2e.business_workbench
