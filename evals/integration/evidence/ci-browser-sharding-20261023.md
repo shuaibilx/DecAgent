@@ -33,7 +33,7 @@ flowchart LR
 
 `integration` 使用固定 node-id 分片、`pytest-xdist -n 4` 与 `--dist=worksteal`，同一 Python 版本的三个 shard 并行；两版本合计最多六个 shard 并行。Ruff 与 deterministic 分别在 3.11、3.13 运行。pip 缓存依赖 `requirements.lock`、`requirements.txt`、`pyproject.toml`；浏览器 job 使用镜像预装的系统 Python，因此不调用 `setup-python` pip-cache hook。其余 job 的 pip 缓存保持开启。
 
-浏览器 job 固定为 `mcr.microsoft.com/playwright/python:v1.64.0-noble@sha256:684df257a1fa0ef3fa288239819984008f560e8f8db5b635ee9e2a50cbcd2e23`，并用 `/ms-playwright` 查找浏览器。它使用镜像内 Python 3.12；项目声明 Python `>=3.11`，主兼容矩阵仍明确覆盖 3.11 和 3.13。PostgreSQL service 以 `postgres` 主机名连接。Playwright 版本通过 [锁文件](../e2e/requirements.lock) 固定并在 job 中核验。Playwright 官方说明该 Python 镜像包含浏览器及其系统依赖，项目仍需单独安装对应版本的 Playwright Python 包；镜像版本与项目 Playwright 版本必须匹配。[官方 Docker 文档](https://github.com/microsoft/playwright.dev/blob/main/python/docs/docker.mdx)
+浏览器 job 固定为 `mcr.microsoft.com/playwright/python:v1.64.0-noble@sha256:684df257a1fa0ef3fa288239819984008f560e8f8db5b635ee9e2a50cbcd2e23`，并用 `/ms-playwright` 查找浏览器。它使用镜像内 Python 3.12；项目声明 Python `>=3.11`，主兼容矩阵仍明确覆盖 3.11 和 3.13。PostgreSQL service 以 `postgres` 主机名连接。Playwright 版本通过 [锁文件](../../e2e/requirements.lock) 固定并在 job 中核验。Playwright 官方说明该 Python 镜像包含浏览器及其系统依赖，项目仍需单独安装对应版本的 Playwright Python 包；镜像版本与项目 Playwright 版本必须匹配。[官方 Docker 文档](https://github.com/microsoft/playwright.dev/blob/main/python/docs/docker.mdx)
 
 ## 最终 run 的 job 时间
 
