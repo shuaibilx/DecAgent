@@ -692,8 +692,11 @@ class WorkflowRegistry:
         with self.database.connect() as conn:
             return self._match(conn, identity, scope_id, inputs, workflow_id, version, goal_id)
 
-    def _task(self, conn, identity, task_id):
-        task, actor = self.operations.lock_employee_task(conn, identity, task_id)
+    def _task(self, conn, identity, task_id, *, lock=True):
+        read_task = (
+            self.operations.lock_employee_task if lock else self.operations.read_employee_task
+        )
+        task, actor = read_task(conn, identity, task_id)
         if not task:
             raise AccessError("not_found", "Original employee workflow task unavailable")
         return task, actor
@@ -819,10 +822,10 @@ class WorkflowRegistry:
                 raise AccessError("not_found", "Workflow instance unavailable")
             return _instance(row)
 
-    def check_instance(self, identity, task_id):
+    def check_instance(self, identity, task_id, *, lock_task=True):
         """Signal applicability at a safe boundary; preserve independent operation queries."""
         with self.database.connect() as conn:
-            task, actor = self._task(conn, identity, task_id)
+            task, actor = self._task(conn, identity, task_id, lock=lock_task)
             instance = conn.execute(
                 "SELECT * FROM app.workflow_instances WHERE task_id=%s", (task_id,)
             ).fetchone()

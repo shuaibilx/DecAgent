@@ -67,11 +67,12 @@ class BusinessMemoryControl:
     def _store(self, conn):
         return BusinessMemoryStore(_ConnectionDatabase(self.database, conn))
 
-    def _current(self, conn, identity, task_id, *, browser=False):
+    def _current(self, conn, identity, task_id, *, browser=False, lock=True):
         store = self._store(conn)
-        task, _actor = store.operations.lock_employee_task(
-            conn, identity, UUID(str(task_id)), browser_only=browser
+        read_task = (
+            store.operations.lock_employee_task if lock else store.operations.read_employee_task
         )
+        task, _actor = read_task(conn, identity, UUID(str(task_id)), browser_only=browser)
         if task is None:
             raise AccessError("not_found", "Original employee memory task unavailable")
         scope = conn.execute(
@@ -118,7 +119,7 @@ class BusinessMemoryControl:
         plan_fingerprint = plan.digest
         if instance:
             workflows = WorkflowRegistry(_ConnectionDatabase(self.database, conn))
-            resolution = workflows.check_instance(identity, task["id"])
+            resolution = workflows.check_instance(identity, task["id"], lock_task=lock)
             if not resolution.matched:
                 raise AccessError(resolution.reason, "Current workflow memory binding unavailable")
             plan_fingerprint = instance["definition_digest"]
@@ -139,9 +140,9 @@ class BusinessMemoryControl:
         with self.database.connect() as conn:
             store = self._store(conn)
             if task_id:
-                context = self._current(conn, identity, task_id, browser=True)[2]
+                context = self._current(conn, identity, task_id, browser=True, lock=False)[2]
             else:
-                store.operations._identity(conn, identity, lock=True, browser_only=True)
+                store.operations._identity(conn, identity, browser_only=True)
                 context = None
             return store.list_own(identity, context=context, limit=limit)
 
@@ -149,9 +150,9 @@ class BusinessMemoryControl:
         with self.database.connect() as conn:
             store = self._store(conn)
             if task_id:
-                context = self._current(conn, identity, task_id, browser=True)[2]
+                context = self._current(conn, identity, task_id, browser=True, lock=False)[2]
             else:
-                store.operations._identity(conn, identity, lock=True, browser_only=True)
+                store.operations._identity(conn, identity, browser_only=True)
                 context = None
             return store.get(identity, memory_id, context=context)
 
@@ -259,7 +260,7 @@ class BusinessMemoryControl:
         if type(include_frozen) is not bool:
             raise ValueError("Frozen dependency checking must be an explicit boolean")
         with self.database.connect() as conn:
-            task, plan, context = self._current(conn, identity, task_id)
+            task, plan, context = self._current(conn, identity, task_id, lock=False)
             store = self._store(conn)
             published = conn.execute(
                 "SELECT w.status FROM app.workflow_instances i JOIN app.business_workflows w "

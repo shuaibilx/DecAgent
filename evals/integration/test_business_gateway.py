@@ -200,9 +200,7 @@ def test_employee_view_hides_pending_action_until_task_is_released_to_wait(busin
     assert not any(item["status"] == "pending" for item in running["approvals"])
 
     with db.connect() as conn:
-        conn.execute(
-            "UPDATE app.tasks SET state='awaiting_approval' WHERE id=%s", (task["id"],)
-        )
+        conn.execute("UPDATE app.tasks SET state='awaiting_approval' WHERE id=%s", (task["id"],))
     leased_wait = client.get(path).json()
     assert leased_wait["state"] == "awaiting_approval"
     assert not any(item["status"] == "pending" for item in leased_wait["approvals"])
@@ -323,6 +321,32 @@ def test_employee_approval_and_memory_read_share_identity_then_task_lock_order(
     assert reply_response.status_code == 200, reply_response.text
     assert memory_response.status_code in {200, 409}, memory_response.text
     assert db.get_task(task["id"])["state"] == "queued"
+
+
+def test_read_only_task_memory_lookup_does_not_wait_on_running_worker_task(business_api):
+    """A memory GET must not invert the worker's task-to-employee lock order."""
+    db, client, _, _ = business_api
+    task = submit_business(business_api)
+    memory_client = TestClient(client.app)
+    memory_client.cookies.update(client.cookies)
+    memory_client.headers.update(client.headers)
+    memory_path = f"/api/v2/business/memories?task_id={task['id']}"
+
+    with db.connect() as worker_connection:
+        worker_connection.execute("SELECT id FROM app.tasks WHERE id=%s FOR UPDATE", (task["id"],))
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(memory_client.get, memory_path)
+            try:
+                response = pending.result(timeout=3)
+            except TimeoutError as error:
+                worker_connection.rollback()
+                pending.result(timeout=10)
+                raise AssertionError(
+                    "Read-only task memory lookup waited on the worker lock"
+                ) from error
+
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "contract_changed"
 
 
 def test_noop_edit_does_not_consume_or_orphan_the_current_approval(business_api):

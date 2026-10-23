@@ -77,6 +77,16 @@ class OperationService:
         ).fetchone()
         return task, actor
 
+    def read_employee_task(self, conn, identity, task_id, *, browser_only=False):
+        """Read an employee task without row locks for read-only projections."""
+        actor = self._identity(conn, identity, browser_only=browser_only)
+        task = conn.execute(
+            "SELECT * FROM app.tasks WHERE id=%s AND kind='business' AND employee_id=%s "
+            "AND workspace_id=%s",
+            (task_id, actor["id"], actor["workspace_id"]),
+        ).fetchone()
+        return task, actor
+
     def _scope(self, conn):
         scope = conn.execute(
             "SELECT * FROM app.business_scopes WHERE plugin_id=%s FOR SHARE", (self.spec.id,)
