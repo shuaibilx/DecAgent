@@ -1,6 +1,12 @@
 # Proposal
 
-## 当前实施状态（2026-10-22，v10 timeout-recovery cohort 已冻结，尚未 live 执行）
+## 当前实施状态（2026-10-23，v10 首波已 live 执行，验收门槛未通过）
+
+主 change 为 **72/79，仍有 7 项待完成**：9.6.D、9.6.F、9.6.G、10.3–10.6；`guest-sop-local-trial` 为 17/28。候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 的同 SHA GitHub Actions [CI run 39784378797](https://github.com/shuaibilx/DecAgent/actions/runs/39784378797) 9/9 jobs 成功。冻结 v10 四域首波已运行 4 个任务、8 条 ReAct/Plan 路线：3 failed、5 unknown、0 success；清理 8/8 verified，仅 τ telecom/ReAct 获得官方评分且为 0.0。Plan 路线均遇到 120 秒 Qwen timeout；CSM/ReAct MCP dispatch 为 unknown。批次没有 Jev 或 LLM judge 请求，公开基准仍为 0/286，不支持质量或 Jev 收益结论。
+
+本批记录 30 次 Qwen 请求、220,086 个已结算 Token、257,347 个 unknown Token 上界预留（输入部分按 UTF-8 字节安全上界估算，不是服务端 usage）、13 次 MCP 工具调用（其中 2 次已结算调用按注册工具元数据标记为 write-effect）及 772.246 秒墙钟。已结算请求按冻结费率估算抵扣前费用 ¥0.1884416；4 次 Qwen unknown 保留 ¥0.2681368 费用预留，无供应商逐请求账单凭证，实际账单金额不得据此判为零。禁用副作用数量未测得；清理通过不等于副作用为零。首波之后剩余 smoke 和 206+80 全量暂停；不得重放本批或历史 unknown。详见[首波人读报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.md)和[机器报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.json)。
+
+## 2026-10-22 v10 执行前快照（历史）
 
 主 change 为 **72/79，7 项待完成**：9.6.D、9.6.F、9.6.G、10.3–10.6；`guest-sop-local-trial` 为 **17/28**。公开基准仍为 **0/286**。历史 v9 首波的 4 个任务/8 条路线全部结束，但结果是 4 failed、4 unknown、0 success；两条官方评分均为 0.0，清理 8/8 verified。历史 unknown 不重放。
 

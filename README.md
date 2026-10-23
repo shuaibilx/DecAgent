@@ -25,7 +25,7 @@ DecAgent 是基于 LangGraph 的业务 Agent，通过 **MCP + Skill** 接入业�
 - [项目开发技能与来源](.agents/skills/README.md)：15 项官方参考覆盖 Jev/LangGraph、评测、MCP、PostgreSQL、浏览器、安全、Docker 与 CI 定位；另保留社区工作流参考、六项 OpenSpec 工作流及 DecAgent 自有 OpenRouter Decisions 集成指南。对应任务和适配边界见[技能对照](generated/261021/开发技能/1502_官方技能与任务对照.md)，来源提交与文件摘要单独保留。
 - [模型费率核验](generated/261021/模型计费/1441_千问平台费率核验.md)：Qwen/DeepSeek 适用的人民币公开标准价已绑定到版本化评测 profile；供应商逐笔账单和代金券/实付尚未核验，不能据此与美元 Jev 费率直接比较。
 - [游客本机试用文档索引](generated/261021/游客使用/1135_游客使用索引.md)：游客会话、角色切换、7 天过期、清理与权限边界；当前入口默认关闭，文档不代表公网开放或真实 Jev 验收。
-- [游客预算与模型费用口径](generated/261022/0951_游客预算与模型费用口径.md)：每日额度、Qwen/Jev 计价、汇率快照、预留/结算/unknown 状态图；游客 Jev 仍在费用上界未验证前拒绝派发。
+- [游客预算与模型费用口径](generated/261022/0951_游客预算与模型费用口径.md)：每日额度、Qwen/Jev 计价、汇率快照和 unknown 状态图，并更新 v10 首波费用估算及账单缺失证据；游客 Jev 仍在费用上界未验证前拒绝派发。
 - [Jev 使用场景与真实请求上下文](generated/261019/智能体说明/1027_Jev使用场景与请求上下文.md)：区分当前 SOP、旧 repair、组件未接线和评测场景，列出 Choice/Noul/Score 的选项、尺子及代码构造的请求示例。
 
 - [项目构建与交付入门](generated/261016/1938_项目构建与交付索引.md)：分别说明代码仓库、GitHub Actions CI、GHCR 镜像和本机 Docker Compose 部署。`v0.1.4` 的本机 Runner 发布是历史验收；当前公开仓库 Runner 数量为 0，公开 release 只构建并发布 GHCR，不直接部署本机服务。私有部署仓库与自动 CD 仍待实施。

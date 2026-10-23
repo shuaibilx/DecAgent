@@ -2340,12 +2340,15 @@ class PublicTrialLedger:
                         "frozen_rate": Decimal(0),
                         "frozen_rate_upper_bound": Decimal(0),
                         "provider_billed": Decimal(0),
+                        "provider_billed_attempts": 0,
                         "attempts": 0,
                     },
                 )
                 if basis not in group or basis == "attempts":
                     raise ValueError("Settled model cost has an unsupported billing basis")
                 group[basis] += amount
+                if basis == "provider_billed":
+                    group["provider_billed_attempts"] += 1
                 group["attempts"] += 1
                 cost_records.append(
                     {
@@ -2427,6 +2430,24 @@ class PublicTrialLedger:
                 "cash_paid_partial": str(group["known_cash_paid"]),
                 "cash_paid_missing": group["cash_paid_missing"],
             }
+        serialized_costs = {}
+        for currency, group in sorted(costs_by_currency.items()):
+            serialized_group = {
+                key: str(value) if isinstance(value, Decimal) else value
+                for key, value in group.items()
+            }
+            billed_is_complete = (
+                group["provider_billed_attempts"] == group["attempts"]
+            )
+            if not billed_is_complete:
+                serialized_group["provider_billed"] = None
+            serialized_group["provider_billed_partial"] = str(
+                group["provider_billed"]
+            )
+            serialized_group["provider_billed_missing_attempts"] = (
+                group["attempts"] - group["provider_billed_attempts"]
+            )
+            serialized_costs[currency] = serialized_group
         return {
             "settled_attempts": len(rows),
             "evidence_attempts": len(records),
@@ -2434,13 +2455,7 @@ class PublicTrialLedger:
             "missing_cost_attempts": len(rows) - len(cost_records),
             "by_currency": result,
             "records": records,
-            "cost_by_currency": {
-                currency: {
-                    key: str(value) if isinstance(value, Decimal) else value
-                    for key, value in group.items()
-                }
-                for currency, group in sorted(costs_by_currency.items())
-            },
+            "cost_by_currency": serialized_costs,
             "cost_records": cost_records,
         }
 

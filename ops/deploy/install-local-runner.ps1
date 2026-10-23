@@ -1,11 +1,15 @@
 [CmdletBinding()]
 param(
-    [string]$Repository = 'shuaibilx/DecAgent',
-    [string]$RunnerDirectory = (Join-Path $env:USERPROFILE 'DecAgentRunner\actions-runner')
+    [string]$Repository = 'shuaibilx/DecAgent-deploy',
+    [string]$RunnerDirectory = (Join-Path $env:USERPROFILE 'DecAgentPrivateDeployRunner\actions-runner')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$ApprovedRepository = 'shuaibilx/DecAgent-deploy'
+if ($Repository -cne $ApprovedRepository) {
+    throw 'The local Runner may only target the private DecAgent deployment repository.'
+}
 
 $projectDirectory = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $envFile = Join-Path $projectDirectory '.env'
@@ -30,16 +34,51 @@ if ($LASTEXITCODE -ne 0) {
     throw 'GitHub CLI is not authenticated; sign in before installing the Runner.'
 }
 
+$repositoryPrivateOutput = & gh api "repos/$Repository" --jq .private 2>$null
+$repositoryPrivateExitCode = $LASTEXITCODE
+$repositoryPrivate = ([string]$repositoryPrivateOutput).Trim()
+if ($repositoryPrivateExitCode -ne 0 -or $repositoryPrivate -cne 'true') {
+    throw 'The approved deployment repository must exist and be private; refusing to register a Runner.'
+}
+$registeredRunnersJson = & gh api "repos/$Repository/actions/runners"
+if ($LASTEXITCODE -ne 0) {
+    throw 'Could not verify Runner registrations in the private deployment repository.'
+}
+$registeredRunners = @((($registeredRunnersJson | ConvertFrom-Json).runners))
+$runnerName = 'decagent-local-deploy'
+$registeredRunnerByName = @($registeredRunners | Where-Object { $_.name -eq $runnerName })
+
 $runnerRoot = [System.IO.Path]::GetFullPath($RunnerDirectory)
-New-Item -ItemType Directory -Path $runnerRoot -Force | Out-Null
 $runnerMarker = Join-Path $runnerRoot '.runner'
-if (-not (Test-Path -LiteralPath $runnerMarker -PathType Leaf)) {
-    $legacyRunnerRoot = Join-Path $env:LOCALAPPDATA 'DecAgent\actions-runner'
-    if (Test-Path -LiteralPath (Join-Path $legacyRunnerRoot '.runner') -PathType Leaf) {
-        Get-ChildItem -LiteralPath $legacyRunnerRoot -Force | Copy-Item -Destination $runnerRoot -Recurse -Force
+if (Test-Path -LiteralPath $runnerMarker -PathType Leaf) {
+    try {
+        $runnerConfig = Get-Content -LiteralPath $runnerMarker -Raw | ConvertFrom-Json
+    } catch {
+        throw 'Existing Runner configuration is unreadable; refusing to start it.'
+    }
+    if ($runnerConfig.gitHubUrl -cne "https://github.com/$Repository" -or $runnerConfig.agentName -cne $runnerName) {
+        throw 'Existing Runner configuration does not target the approved private repository.'
+    }
+    $registeredRunnerById = @(
+        $registeredRunners | Where-Object { [string]$_.id -eq [string]$runnerConfig.agentId }
+    )
+    if ($registeredRunnerById.Count -ne 1 -or $registeredRunnerById[0].name -ne $runnerName) {
+        throw 'Existing Runner ID is not registered in the approved private repository.'
+    }
+} else {
+    if ($registeredRunnerByName.Count -gt 0) {
+        throw 'A private deployment Runner with this name already exists; refusing to replace it.'
+    }
+    if (Test-Path -LiteralPath $runnerRoot -PathType Container) {
+        $unexpectedEntry = Get-ChildItem -LiteralPath $runnerRoot -Force | Select-Object -First 1
+        if ($null -ne $unexpectedEntry) {
+            throw 'Runner directory must be empty; refusing to reuse unverified local files.'
+        }
     }
 }
+
 if (-not (Test-Path -LiteralPath $runnerMarker -PathType Leaf)) {
+    New-Item -ItemType Directory -Path $runnerRoot -Force | Out-Null
     $releaseJson = & gh api repos/actions/runner/releases/latest
     if ($LASTEXITCODE -ne 0) {
         throw 'Could not read the official GitHub Actions Runner release metadata.'
@@ -80,8 +119,7 @@ if (-not (Test-Path -LiteralPath $runnerMarker -PathType Leaf)) {
             '--token', $registrationToken,
             '--name', 'decagent-local-deploy',
             '--labels', 'decagent-deploy',
-            '--work', '_work',
-            '--replace'
+            '--work', '_work'
         )
         $process = Start-Process -FilePath $configScript -ArgumentList $configArguments -WorkingDirectory $runnerRoot -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
         if ($process.ExitCode -ne 0) {
@@ -102,9 +140,10 @@ if (-not (Test-Path -LiteralPath $runnerMarker -PathType Leaf)) {
 
 $runnerStartScript = Join-Path $runnerRoot 'start-runner.ps1'
 $projectDirectoryFile = Join-Path $runnerRoot 'project-directory.txt'
-$existingTask = Get-ScheduledTask -TaskName 'DecAgentLocalDeployRunner' -ErrorAction SilentlyContinue
+$runnerTaskName = 'DecAgentPrivateDeployRunner'
+$existingTask = Get-ScheduledTask -TaskName $runnerTaskName -ErrorAction SilentlyContinue
 if ($null -ne $existingTask) {
-    Stop-ScheduledTask -TaskName 'DecAgentLocalDeployRunner' -ErrorAction SilentlyContinue
+    Stop-ScheduledTask -TaskName $runnerTaskName -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'start-runner.ps1') -Destination $runnerStartScript -Force
@@ -121,8 +160,8 @@ $taskWorkingDirectory = Join-Path $env:SystemRoot 'System32'
 $taskAction = New-ScheduledTaskAction -Execute $windowsPowerShell -Argument $actionArguments -WorkingDirectory $taskWorkingDirectory
 $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $identity
 $taskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName 'DecAgentLocalDeployRunner' -Action $taskAction -Trigger $taskTrigger -Settings $taskSettings -User $identity -RunLevel Limited -Description 'Runs the repository-scoped DecAgent release deployment Runner after this user signs in.' -Force | Out-Null
-Start-ScheduledTask -TaskName 'DecAgentLocalDeployRunner'
+Register-ScheduledTask -TaskName $runnerTaskName -Action $taskAction -Trigger $taskTrigger -Settings $taskSettings -User $identity -RunLevel Limited -Description 'Runs the private-repository DecAgent deployment Runner after this user signs in.' -Force | Out-Null
+Start-ScheduledTask -TaskName $runnerTaskName
 
 $isOnline = $false
 for ($attempt = 0; $attempt -lt 24; $attempt++) {
@@ -130,7 +169,7 @@ for ($attempt = 0; $attempt -lt 24; $attempt++) {
     $runnersJson = & gh api "repos/$Repository/actions/runners"
     if ($LASTEXITCODE -eq 0) {
         $runners = ($runnersJson | ConvertFrom-Json).runners
-        $runner = $runners | Where-Object { $_.name -eq 'decagent-local-deploy' } | Select-Object -First 1
+        $runner = $runners | Where-Object { $_.name -eq $runnerName } | Select-Object -First 1
         if ($null -ne $runner -and $runner.status -eq 'online') {
             $isOnline = $true
             break
@@ -143,7 +182,7 @@ if (-not $isOnline) {
 
 [pscustomobject]@{
     repository = $Repository
-    runner = 'decagent-local-deploy'
+    runner = $runnerName
     label = 'decagent-deploy'
     startup = 'current-user logon task; waits for Docker Desktop Linux engine'
     status = 'online'

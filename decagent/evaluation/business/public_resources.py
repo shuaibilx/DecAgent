@@ -209,7 +209,7 @@ class LedgeredToolGateway:
                 attempt,
                 duration_seconds=max(0.0, perf_counter() - started),
                 error_category="tool_dispatch_error",
-                failure_stage="tool_gateway",
+                failure_stage=safe_failure_stage(exc, default="tool_gateway"),
                 exception_type=safe_chained_exception_type(exc),
                 http_status=safe_chained_http_status(exc),
             )

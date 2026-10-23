@@ -322,6 +322,132 @@ def test_unknown_upstream_plan_write_waits_and_is_never_replayed(tmp_path):
         resumed.close()
 
 
+def test_invalid_upstream_output_is_tagged_without_persisting_schema_details(tmp_path):
+    from decagent.business.plans.runtime import NodeFailure
+    from decagent.evaluation.business.public_diagnostics import (
+        safe_chained_exception_type,
+        safe_failure_stage,
+    )
+
+    facts = {
+        key: digest(key)
+        for key in (
+            "initial_state_digest",
+            "goal_digest",
+            "actor_profile_digest",
+            "permission_digest",
+            "tool_adapter_digest",
+        )
+    }
+    trial = trial_for(facts)
+    tools = tool_catalog()
+    tools[0]["outputSchema"] = {
+        "type": "object",
+        "properties": {"case_id": {"type": "string"}},
+        "required": ["case_id"],
+    }
+
+    class InvalidOutputEnvironment:
+        cleanup_verified = True
+
+        def call_tool(self, _command, _arguments):
+            return {
+                "content": [{"type": "text", "text": '{"case_id": 17}'}],
+                "isError": False,
+            }
+
+    with EvaluationScope(trial.dataset, trial.dataset_version, trial.case_id) as scope:
+        catalog = EvaluationCatalog.from_mcp_tools(
+            scope, tools, benchmark_version="96a3ef9", result_contract_version="1"
+        )
+        session = EvaluationPlanSession(
+            InvalidOutputEnvironment(),
+            catalog,
+            trial=trial,
+            isolation_id="invalid-output-diagnostic",
+            journal_root=tmp_path,
+            actor_id="eval:retail-17",
+            task_input={"instruction": "Look up case C-17"},
+            skill="Use only the original benchmark tools.",
+            boundary_facts=facts,
+            scorer=lambda _environment: TaskScore(False, 0),
+        )
+        try:
+            with pytest.raises(NodeFailure) as captured:
+                session.call("lookup_case", {"user_id": "u-17"})
+
+            assert safe_failure_stage(captured.value, default="tool_gateway") == (
+                "tool_output_validation"
+            )
+            assert safe_chained_exception_type(captured.value) == "ValidationError"
+            assert "case_id" not in repr(
+                (
+                    safe_failure_stage(captured.value, default="tool_gateway"),
+                    safe_chained_exception_type(captured.value),
+                )
+            )
+        finally:
+            session.close()
+
+
+def test_unexpected_observer_runtime_error_keeps_generic_tool_stage(tmp_path):
+    from decagent.business.plans.runtime import NodeFailure
+    from decagent.evaluation.business.public_diagnostics import (
+        safe_chained_exception_type,
+        safe_failure_stage,
+    )
+
+    facts = {
+        key: digest(key)
+        for key in (
+            "initial_state_digest",
+            "goal_digest",
+            "actor_profile_digest",
+            "permission_digest",
+            "tool_adapter_digest",
+        )
+    }
+    trial = trial_for(facts)
+
+    class Environment:
+        cleanup_verified = True
+
+        def call_tool(self, _command, _arguments):
+            return {"content": [], "isError": False}
+
+    with EvaluationScope(trial.dataset, trial.dataset_version, trial.case_id) as scope:
+        catalog = EvaluationCatalog.from_mcp_tools(
+            scope, tool_catalog(), benchmark_version="96a3ef9", result_contract_version="1"
+        )
+
+        def unexpected_observer_failure(_command, _raw):
+            raise RuntimeError("private implementation failure")
+
+        catalog.observe = unexpected_observer_failure
+        session = EvaluationPlanSession(
+            Environment(),
+            catalog,
+            trial=trial,
+            isolation_id="unexpected-observer-failure",
+            journal_root=tmp_path,
+            actor_id="eval:retail-17",
+            task_input={"instruction": "Look up case C-17"},
+            skill="Use only the original benchmark tools.",
+            boundary_facts=facts,
+            scorer=lambda _environment: TaskScore(False, 0),
+        )
+        try:
+            with pytest.raises(NodeFailure) as captured:
+                session.call("lookup_case", {"user_id": "u-17"})
+
+            assert safe_failure_stage(captured.value, default="tool_gateway") == (
+                "tool_gateway"
+            )
+            assert safe_chained_exception_type(captured.value) == "RuntimeError"
+        finally:
+            session.close()
+
+
 @pytest.mark.parametrize("write", [False, True])
 @pytest.mark.parametrize("route", [Route.PLAN_MCP, Route.REACT_SKILL_MCP])
 def test_known_upstream_tool_error_is_durable_and_preserves_original_recovery(

@@ -20,6 +20,7 @@ FAILURE_STAGES = frozenset(
         "model_worker_target",
         "model_worker_response",
         "tool_gateway",
+        "tool_output_validation",
         "environment_setup",
         "agent_execution",
         "official_scoring",
@@ -90,16 +91,19 @@ def safe_chained_exception_type(error: BaseException | None) -> str | None:
 
 
 def safe_failure_stage(error: BaseException | None, *, default="model_callback") -> str:
-    """Keep an explicitly attached stage only when it belongs to the allowlist."""
+    """Keep the first explicitly attached allowlisted stage in a bounded chain."""
     if type(default) is not str or default not in FAILURE_STAGES:
         default = "model_callback"
     if error is None:
         return default
-    try:
-        stage = getattr(error, "failure_stage", None)
-    except Exception:
-        return default
-    return stage if type(stage) is str and stage in FAILURE_STAGES else default
+    for item in _exception_chain(error):
+        try:
+            stage = getattr(item, "failure_stage", None)
+        except Exception:
+            continue
+        if type(stage) is str and stage in FAILURE_STAGES:
+            return stage
+    return default
 
 
 def safe_http_status(error: BaseException | None) -> int | None:

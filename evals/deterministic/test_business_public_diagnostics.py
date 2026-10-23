@@ -75,6 +75,22 @@ def test_chained_diagnostics_follow_implicit_context_without_reading_messages():
     assert "private wrapper message" not in repr(diagnostic)
 
 
+def test_failure_stage_propagates_from_a_wrapped_safe_cause():
+    class OutputValidationFailure(ValueError):
+        failure_stage = "tool_output_validation"
+
+    try:
+        try:
+            raise OutputValidationFailure("private invalid response detail")
+        except OutputValidationFailure as exc:
+            raise RuntimeError("private wrapper detail") from exc
+    except RuntimeError as wrapped:
+        stage = safe_failure_stage(wrapped, default="tool_gateway")
+
+    assert stage == "tool_output_validation"
+    assert "private invalid response detail" not in repr(stage)
+
+
 def test_suppressed_exception_context_is_not_exposed_in_diagnostics():
     class UpstreamHttpFailure(Exception):
         status_code = 504

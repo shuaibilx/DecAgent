@@ -242,7 +242,10 @@ def test_cny_cost_is_reserved_and_settled_without_a_guessed_usd_conversion(tmp_p
         "CNY": {
             "frozen_rate": "0.0000133",
             "frozen_rate_upper_bound": "0",
-            "provider_billed": "0",
+            "provider_billed": None,
+            "provider_billed_partial": "0",
+            "provider_billed_attempts": 0,
+            "provider_billed_missing_attempts": 1,
             "attempts": 1,
         }
     }
@@ -1106,6 +1109,15 @@ def test_provider_billing_keeps_gross_fee_voucher_and_cash_as_separate_evidence(
         "cash_paid": "0",
         "cash_paid_partial": "0",
         "cash_paid_missing": 0,
+    }
+    assert billing["cost_by_currency"]["USD"] == {
+        "frozen_rate": "0",
+        "frozen_rate_upper_bound": "0",
+        "provider_billed": "0.0125",
+        "provider_billed_partial": "0.0125",
+        "provider_billed_attempts": 1,
+        "provider_billed_missing_attempts": 0,
+        "attempts": 1,
     }
     ledger.close()
 

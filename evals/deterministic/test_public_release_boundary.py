@@ -29,3 +29,22 @@ def test_public_release_workflow_is_ghcr_only_and_cannot_dispatch_to_local_runne
                 continue
             labels = runner if isinstance(runner, list) else [runner]
             assert labels == ["ubuntu-latest"]
+
+
+def test_local_runner_installer_only_targets_the_private_deployment_repository():
+    installer = (ROOT / "ops/deploy/install-local-runner.ps1").read_text(encoding="utf-8")
+    bootstrap = (ROOT / "ops/deploy/start-runner.ps1").read_text(encoding="utf-8")
+
+    assert "$Repository = 'shuaibilx/DecAgent-deploy'" in installer
+    assert "$ApprovedRepository = 'shuaibilx/DecAgent-deploy'" in installer
+    assert "if ($Repository -cne $ApprovedRepository)" in installer
+    assert '& gh api "repos/$Repository" --jq .private' in installer
+    assert installer.index('$repositoryPrivateOutput = & gh api') < installer.index(
+        'New-Item -ItemType Directory -Path $runnerRoot -Force'
+    )
+    assert ".gitHubUrl -cne \"https://github.com/$Repository\"" in installer
+    assert "DecAgentPrivateDeployRunner" in installer
+    assert "--replace" not in installer
+    assert "legacyRunnerRoot" not in installer
+    private_target = "$runnerConfig.gitHubUrl -cne 'https://github.com/shuaibilx/DecAgent-deploy'"
+    assert private_target in bootstrap

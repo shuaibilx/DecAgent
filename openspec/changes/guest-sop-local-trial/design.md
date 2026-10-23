@@ -95,6 +95,10 @@ Jev 当前的 `$0.01` 仅是固定记账预留，不是可证明的单请求费�
 - 部署备份包含数据库与 `/data` 业务内容；当前仅使用 Windows 用户 ACL/Linux 文件权限保护，未做应用层加密。保存真实敏感业务数据前，主机磁盘加密、备份保留期限和恢复权限需确认并记录。
 - 公共基准未完成 → 与游客功能验收分离，性能结论仍由原 change 管理。
 
+### 2026-10-23 Public-to-private Runner fail-closed hardening
+
+The public repository still reports zero registered self-hosted runners; the legacy local scheduled task is disabled and no Runner process/service is active. GitHub returns 404 for the planned private `shuaibilx/DecAgent-deploy`, while two old local Runner directories remain configured for the public repository. Their credentials were neither read nor removed. The installer now allows only the private deployment repository, checks that GitHub marks it private before creating local Runner state, and verifies any existing local Runner marker/ID against that repository's registered Runner list. It refuses old/partial directories and duplicate registrations rather than copying legacy state or using `--replace`. The startup script checks the fixed private repository URL and Runner name again before executing `run.cmd`. Focused regression, Windows PowerShell parsing, and explicit public-target rejection passed; public-boundary tests were `2 passed`, release-verifier tests `44 passed`, the full deterministic suite `2,123 passed, 18 skipped`, Ruff passed, and OpenSpec strict passed. These are uncommitted source safeguards only; they do not create the private repository, migrate the Runner, or complete task 5.3.
+
 ## Migration Plan
 
 1. 先完成/核验原执行器与评测门槛；未通过的真实评测保持待办，可继续本 change 的离线实现。

@@ -3,7 +3,7 @@ title: DecAgent GitHub Actions 持续集成与镜像发布
 type: tutorial
 audience: [A1, A4]
 runs: yes
-verified_on: 2026-10-21
+verified_on: 2026-10-23
 sources:
   - .github/workflows/ci.yml
   - .github/workflows/release.yml
@@ -22,6 +22,10 @@ sources:
 # DecAgent GitHub Actions 持续集成与镜像发布
 
 **状态更新（2026-10-20）：** PR [#1](https://github.com/shuaibilx/DecAgent/pull/1) 已合并至 `main`（merge commit `0c747a396a360cc168d62c261f5d3dcd329cfb82`），删除了公共 release workflow 中的 `deploy-local` self-hosted job。现在版本标签只会在 GitHub-hosted Ubuntu 上完成 CI 和 GHCR 镜像发布，不会调度本机部署。GitHub 仓库 Runner 数量为 0，本机也没有 Runner 服务或进程；既有 v0.1.4 容器保持运行且未被本次改动触碰。下文关于 v0.1.4 本机自动部署的内容是历史记录，不能作为当前自动 CD 能力说明。
+
+**边界复核（2026-10-23）：** 公共 Runner API 仍为 0，本机旧 `DecAgentLocalDeployRunner` 任务为 Disabled，且没有活动 Runner 服务/进程；计划中的私有 `DecAgent-deploy` 仓库当前返回 404。旧 Runner 配置目录仍在磁盘上，元数据指向公开仓库；凭据未读取。工作区中的安装器已改为只允许先验证为 private 的 `DecAgent-deploy`，并拒绝复用公开/不匹配的本地 Runner 状态；启动脚本再次验证私有仓库目标。此修正尚未提交或迁入私有仓库，不等于私有 CD 已部署。详见[公共 Runner 边界核验证据](../../../evals/integration/evidence/public-runner-boundary-20261022.md)。
+
+该边界修改在本机通过 public-boundary 回归 `2 passed`、release-verifier `44 passed`、完整 deterministic `2,123 passed, 18 skipped`、Ruff、OpenSpec strict 和 Windows PowerShell 5.1 语法检查；传入公开仓库的安装目标被 fail-closed 拒绝。这些是工作区验证，不代表远端 CI 已验证或私有部署已运行。
 
 持续集成（CI）在代码推送或 Pull Request 时检查项目。版本标签触发的发布工作流（CD）会先复用完整 CI；检查通过后构建三类镜像并推送到 GHCR。当前本机部署与可信发布执行器尚未重新设计和验收。
 

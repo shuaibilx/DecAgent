@@ -22,6 +22,12 @@ from .journal import EvaluationJournalRepository
 from .routes import TaskScore, TrialBoundary
 
 
+class _ToolOutputValidationFailure(ValueError):
+    """A benchmark result failed local parsing or its frozen output contract."""
+
+    failure_stage = "tool_output_validation"
+
+
 class EvaluationPlanSession:
     """One evaluator-owned upstream environment and its durable local journal.
 
@@ -344,7 +350,12 @@ class EvaluationPlanSession:
             raw = self.environment.call_tool(
                 command, deepcopy(params), **call_kwargs
             )
-            observed = self.spec.observe(command, raw)
+            try:
+                observed = self.spec.observe(command, raw)
+            except ValueError as exc:
+                raise _ToolOutputValidationFailure(
+                    "Benchmark tool output failed its frozen result contract"
+                ) from exc
             self._official_tool_calls.append(
                 {"name": command, "args": deepcopy(params)}
             )

@@ -21,6 +21,14 @@ try {
     }
     $ProjectDirectory = (Get-Content -LiteralPath $projectDirectoryFile -Raw -Encoding UTF8).Trim()
     $ProjectDirectory = (Resolve-Path -LiteralPath $ProjectDirectory).Path
+    $runnerConfigPath = Join-Path $RunnerDirectory '.runner'
+    if (-not (Test-Path -LiteralPath $runnerConfigPath -PathType Leaf)) {
+        throw 'Runner registration is missing.'
+    }
+    $runnerConfig = Get-Content -LiteralPath $runnerConfigPath -Raw | ConvertFrom-Json
+    if ($runnerConfig.gitHubUrl -cne 'https://github.com/shuaibilx/DecAgent-deploy' -or $runnerConfig.agentName -cne 'decagent-local-deploy') {
+        throw 'Runner must be registered to the private DecAgent deployment repository.'
+    }
     $runnerCommand = Join-Path $RunnerDirectory 'run.cmd'
     if (-not (Test-Path -LiteralPath $runnerCommand -PathType Leaf)) {
         throw 'Runner command file is missing.'
