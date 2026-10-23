@@ -68,10 +68,11 @@ report linked below.
   transport boundaries; model-call-only deadlines map to generic
   `model_worker_timeout`. Regressions cover a real stalled child, HTTP 200
   response headers, persisted unknown attempt/route status, and replay blocking.
-- The current worktree's deterministic suite passes (`2,164 passed, 18 skipped`),
-  the guest-budget PostgreSQL module passes (`36 passed`), Ruff and strict
-  validation for both active changes pass. The correction has not been pushed,
-  so same-SHA CI remains pending. This evidence does not
+- Commit `14ffd1fe238306cdd858673bb786ac2c3bd581ff` passed same-SHA GitHub Actions
+  [run 39940453829](https://github.com/shuaibilx/DecAgent/actions/runs/39940453829),
+  all 9 jobs in 12m31s. The current worktree's deterministic suite passes
+  (`2,164 passed, 18 skipped`), the guest-budget PostgreSQL module passes
+  (`36 passed`), Ruff and strict validation for both active changes pass. This evidence does not
   claim passing CI for the current worktree, private workflow dispatch, a
   self-hosted deployment, or an end-to-end CD run.
 - The authorized v10 public first-wave run on the same candidate finished with 3
@@ -79,7 +80,8 @@ report linked below.
   was made; unknown requests remain reserved and were not replayed. See
   [`public-first-wave-live-20261023-v10-9d61688.md`](../../benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.md)
   for exact route, usage, and cost-estimate evidence.
-- The current local worktree passed the complete deterministic suite (`2,164
+- The current code commit passed same-SHA CI run `39940453829`; the local worktree
+  passed the complete deterministic suite (`2,164
   passed, 18 skipped`), Ruff, strict validation for both active changes, and the
   guest-budget integration module (`36 passed`) against disposable local
   PostgreSQL. This does not substitute for full same-SHA public CI, browser E2E,
