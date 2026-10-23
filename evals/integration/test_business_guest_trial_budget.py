@@ -1,5 +1,6 @@
 """Atomic guest trial budget reservations in isolated PostgreSQL."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from decimal import Decimal
@@ -1099,7 +1100,7 @@ def test_free_quota_still_consumes_guest_qwen_token_budget(database):
     assert day == {"reserved_cost_usd": Decimal("0.000000"), "qwen_tokens_reserved": 400}
 
 
-def test_guest_jev_request_is_rejected_before_dispatch_without_fee_bound(database):
+def test_guest_jev_request_uses_pinned_model_and_verified_fee_bound(database):
     workspace_id = _workspace(database, "budget-guest-jev")
     task = _guest_business_task(
         database,
@@ -1126,24 +1127,109 @@ def test_guest_jev_request_is_rejected_before_dispatch_without_fee_bound(databas
         return httpx.Response(
             200,
             json={
-                "model": "typesafe/jev-1.13-20260917",
-                "usage": {"input_tokens": 10, "output_tokens": 4, "cost": 0.0001},
+                "model": "typesafe/jev-1.14-20261014",
+                "usage": {"input_tokens": 2500, "output_tokens": 4, "cost": 0.000105},
                 "answers": {"memory_read_needed": {"type": "noul", "noul": 0.9}},
             },
         )
 
     budget = LedgerAttemptBudget(
         usage_ledger,
-        reservation_usd=Decimal("0.01"),
+        reservation_usd=Decimal("0.02"),
         provider="openrouter",
+        purpose="memory_read",
+        requested_model="typesafe/jev-1.14",
+    )
+    with JevAdapter(
+        api_key="fixture",
+        provider="openrouter",
+        model="typesafe/jev-1.14",
+        budget=budget,
+        cache_ttl=0,
+        client=httpx.Client(transport=httpx.MockTransport(respond)),
+    ) as adapter:
+        result = adapter.evaluate(request)
+
+    assert result.available
+    assert result.actual_model == "typesafe/jev-1.14-20261014"
+    assert len(provider_requests) == 1
+    assert json.loads(provider_requests[0].read())["model"] == "typesafe/jev-1.14"
+    with database.connect() as conn:
+        app_row = conn.execute(
+            "SELECT status,requested_model,provider,endpoint FROM app.usage_records "
+            "WHERE task_id=%s",
+            (task["id"],),
+        ).fetchone()
+        trial_row = conn.execute(
+            "SELECT status,reserved_cost_native,actual_cost_native,price_basis_id,model,provider "
+            "FROM business.guest_trial_usage_reservations WHERE task_id=%s",
+            (task["id"],),
+        ).fetchone()
+
+    assert app_row == {
+        "status": "settled",
+        "requested_model": "typesafe/jev-1.14",
+        "provider": "openrouter",
+        "endpoint": "https://openrouter.ai/api/alpha/decisions",
+    }
+    assert trial_row == {
+        "status": "settled",
+        "reserved_cost_native": Decimal("0.020000000000"),
+        "actual_cost_native": Decimal("0.000105000000"),
+        "price_basis_id": "openrouter-typesafe-jev-1.14-2026-10-23",
+        "model": "typesafe/jev-1.14",
+        "provider": "openrouter",
+    }
+
+
+@pytest.mark.parametrize(
+    ("requested_model", "reservation_usd"),
+    [
+        ("~typesafe/jev-latest", Decimal("0.02")),
+        ("typesafe/jev-1.14", Decimal("0.01")),
+    ],
+)
+def test_guest_jev_rejects_unpinned_or_underfunded_profile_before_dispatch(
+    database, requested_model, reservation_usd
+):
+    workspace_id = _workspace(database, f"budget-guest-jev-reject-{uuid4().hex[:8]}")
+    task = _guest_business_task(
+        database,
+        workspace_id,
+        budget={"max_calls": 10, "max_tokens": 50_000, "max_cost": "5.00"},
+        graph_version="business-3",
+    )
+    settings = Settings(guest_trial_enabled=True, guest_rate_limit_hmac_key=b"C" * 32)
+    usage_ledger = make_task_usage_ledger(
+        database, settings, task, clock=lambda: FIXED_NOW
+    )
+    claimed = database.claim(task["id"], "guest-budget-jev-reject", seconds=120)
+    assert claimed["state"] == "running"
+    request = build_request(
+        ["memory_read_needed"],
+        {"task_summary": "route a service task", "current_version": "3"},
+        DecisionContext(str(task["id"]), "guest-scope", "1", "1", "1", "1"),
+    )
+    provider_requests = []
+
+    def respond(request):
+        provider_requests.append(request)
+        return httpx.Response(200, json={})
+
+    budget = LedgerAttemptBudget(
+        usage_ledger,
+        reservation_usd=reservation_usd,
+        provider="openrouter",
+        requested_model=requested_model,
         purpose="memory_read",
     )
     with JevAdapter(
         api_key="fixture",
         provider="openrouter",
-        model="jev-latest",
+        model=requested_model,
         budget=budget,
         cache_ttl=0,
+        max_retries=0,
         client=httpx.Client(transport=httpx.MockTransport(respond)),
     ) as adapter:
         result = adapter.evaluate(request)
@@ -1152,18 +1238,17 @@ def test_guest_jev_request_is_rejected_before_dispatch_without_fee_bound(databas
     assert result.error == "budget_exceeded"
     assert provider_requests == []
     with database.connect() as conn:
-        app_row = conn.execute(
+        app_rows = conn.execute(
             "SELECT count(*) AS total FROM app.usage_records WHERE task_id=%s",
             (task["id"],),
         ).fetchone()
-        trial_row = conn.execute(
+        trial_rows = conn.execute(
             "SELECT count(*) AS total FROM business.guest_trial_usage_reservations "
             "WHERE task_id=%s",
             (task["id"],),
         ).fetchone()
-
-    assert app_row == {"total": 0}
-    assert trial_row == {"total": 0}
+    assert app_rows == {"total": 0}
+    assert trial_rows == {"total": 0}
 
 
 def test_workspace_deactivation_serializes_before_guest_admission(database):

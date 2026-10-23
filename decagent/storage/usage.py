@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from psycopg.types.json import Jsonb
 
+from decagent.business.guest_jev_pricing import guest_jev_profile_is_bounded
 from decagent.storage.budget import BudgetExceeded
 
 MODEL_BUDGET_VERSION = "1"
@@ -22,7 +23,7 @@ CONDITIONAL_MODEL_DEFAULTS = {
     "max_actions": 128,
 }
 IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
-SAFE_MODEL_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}\Z")
+SAFE_MODEL_VALUE = re.compile(r"[A-Za-z0-9~][A-Za-z0-9._:/~-]{0,254}\Z")
 
 
 def _safe_model_value(value, name):
@@ -444,10 +445,19 @@ class UsageLedger:
                     code="guest_trial_workspace_mismatch",
                 )
             if self.trial_budget is not None and model_family == "jev":
-                raise BudgetExceeded(
-                    "Guest Jev dispatch requires a verified provider fee upper bound",
-                    code="guest_jev_fee_bound_required",
-                )
+                if not guest_jev_profile_is_bounded(
+                    provider=provider,
+                    endpoint=endpoint,
+                    model=requested_model,
+                    tokens=tokens,
+                    cost_currency=trial_cost_currency,
+                    reserved_cost=trial_cost_native,
+                    price_basis_id=trial_price_basis_id,
+                ):
+                    raise BudgetExceeded(
+                        "Guest Jev dispatch requires the pinned, fully funded fee profile",
+                        code="guest_jev_fee_bound_required",
+                    )
 
             def reserve_trial(receipt_id):
                 if self.trial_budget is None:

@@ -18,6 +18,7 @@ from decagent.business.actions import (
 from decagent.business.calibration import BusinessCalibration
 from decagent.business.codec import strict_json
 from decagent.business.execution import BusinessExecutor, BusinessReadError
+from decagent.business.guest_jev_pricing import select_jev_profile
 from decagent.business.planner import PlannerProtocol
 from decagent.business.questions import (
     BusinessQuestionsUnavailable,
@@ -202,6 +203,15 @@ class BusinessServices:
         return self._typed_route(data)
 
     def _typed_route(self, data):
+        jev_profile = select_jev_profile(
+            is_guest=self.ledger.trial_budget is not None,
+            model=self.settings.jev_model,
+            provider=self.settings.jev_provider,
+            reservation_usd=self.config.jev_reservation,
+        )
+        if jev_profile is None:
+            return {"route": "plan", "reason": "guest_jev_profile_unavailable"}
+        jev_model, jev_provider, jev_reservation = jev_profile
         try:
             request = build_business_request(
                 self.spec,
@@ -241,12 +251,12 @@ class BusinessServices:
                             key,
                             unavailable.context.question_version,
                             unavailable.context.policy_version,
-                            self.settings.jev_model,
+                            jev_model,
                             Jsonb(exact_safe_record(snapshot, self.database.redactor)),
                         ),
                     )
             return {"route": "plan", "reason": reason}
-        key = request.cache_key(self.settings.jev_model)
+        key = request.cache_key(jev_model)
         with self.database.connect() as conn:
             prior = conn.execute(
                 "SELECT * FROM app.decision_records WHERE task_id=%s "
@@ -257,7 +267,7 @@ class BusinessServices:
             saved = prior["result"]["evaluation"]
             answers = validate_answers(saved["answers"], request) if saved["answers"] else {}
         else:
-            if not self.profile or not self.profile.compatible(request, self.settings.jev_model):
+            if not self.profile or not self.profile.compatible(request, jev_model):
                 unavailable = self.profile_error or "missing_compatible_calibration_or_credentials"
             elif not any(
                 self.profile.thresholds.get(question.id) is not None
@@ -272,20 +282,22 @@ class BusinessServices:
                 result = evaluation(
                     request,
                     "hybrid",
-                    self.settings.jev_model,
+                    jev_model,
                     error=unavailable,
                 )
             else:
                 if self._jev is None:
                     self._jev = JevAdapter(
                         api_key=self.settings.jev_api_key,
-                        model=self.settings.jev_model,
-                        provider=self.settings.jev_provider,
+                        model=jev_model,
+                        provider=jev_provider,
                         cache_ttl=0,
                         max_retries=0,
                         budget=LedgerAttemptBudget(
                             self.ledger,
-                            reservation_usd=self.config.jev_reservation,
+                            reservation_usd=jev_reservation,
+                            provider=jev_provider,
+                            requested_model=jev_model,
                             before_dispatch=self.guard,
                         ),
                     )
@@ -327,7 +339,7 @@ class BusinessServices:
                         key,
                         request.context.question_version,
                         request.context.policy_version,
-                        self.settings.jev_model,
+                        jev_model,
                         saved["actual_model"],
                         Jsonb(exact_safe_record(snapshot, self.database.redactor)),
                         route,

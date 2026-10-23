@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 
 from decagent.business.access import AccessError
 from decagent.business.decision_policy import DecisionSnapshot, PolicyContext, gate_decision
+from decagent.business.guest_jev_pricing import select_jev_profile
 from decagent.business.memory import PREFERENCE_SUBJECTS, BusinessMemoryStore
 from decagent.business.policy_store import DecisionPolicyStore
 from decagent.business.questions import BusinessDecisionContext
@@ -167,13 +168,34 @@ class BusinessMemoryWriteEvaluator:
             ):
                 raise AccessError("stale", "Memory evidence or policy changed before dispatch")
 
-        budget = LedgerAttemptBudget(
-            make_task_usage_ledger(self.database, self.settings, task_id),
+        ledger = make_task_usage_ledger(self.database, self.settings, task_id)
+        jev_profile = select_jev_profile(
+            is_guest=ledger.trial_budget is not None,
+            model=(
+                self.settings.jev_model
+                if ledger.trial_budget is not None
+                else self.adapter_options.get("model", self.settings.jev_model)
+            ),
+            provider=(
+                self.settings.jev_provider
+                if ledger.trial_budget is not None
+                else self.adapter_options.get("provider", self.settings.jev_provider)
+            ),
             reservation_usd=self.reservation_usd,
+        )
+        if jev_profile is None:
+            return _result("manual", reason="guest_jev_profile_unavailable")
+        model, provider, reservation_usd = jev_profile
+        budget = LedgerAttemptBudget(
+            ledger,
+            reservation_usd=reservation_usd,
+            provider=provider,
+            requested_model=model,
             before_dispatch=guard,
             purpose="memory_write_screening",
         )
-        adapter = self.adapter_factory(**self.adapter_options, budget=budget, cache_ttl=0)
+        adapter_options = {**self.adapter_options, "model": model, "provider": provider}
+        adapter = self.adapter_factory(**adapter_options, budget=budget, cache_ttl=0)
         if getattr(adapter, "budget", None) is not budget:
             raise ValueError("Memory adapter must use this task's shared attempt budget")
         try:

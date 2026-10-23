@@ -3,7 +3,7 @@ title: DecAgent — 员工身份与可恢复业务执行
 type: explanation
 audience: [A1, A2, A3, A4, A5]
 runs: no
-verified_on: 2026-10-22
+verified_on: 2026-10-23
 sources: [decagent/business, decagent/gateway, decagent/runtime, decagent/storage, ops/local/start.py, generated/261021/游客使用]
 ---
 # DecAgent
@@ -19,6 +19,8 @@ DecAgent 是基于 LangGraph 的业务 Agent，通过 **MCP + Skill** 接入业�
 仓库修复保留在独立入口。
 
 ## 使用与理解
+
+- [代码仓库、CI/CD 与本机部署文档](docs/README.md)：分别说明公共/私有仓库、CI 流水线、GHCR 发布和 Windows 本机 SOP；标明未配置的 Runner、GitHub App、部署密钥、公网入口及验收边界。
 
 - [当前评测与本机交付规划索引](generated/261021/计划/1157_后续规划索引.md)：核对已完成工作、旧首波故障和运行版本，安排四域闭环、游客资源准入与私有 CD；分区计划包含门槛、验收与待输入事项。
 - [v9 四域首波真实评测报告](generated/261022/0133_公开评测首波报告_v9.md)：记录 4 任务/8 路线结果、5 次 Qwen usage unknown、费用预留和不重放边界；不将小样本解释为模型可靠性概率。

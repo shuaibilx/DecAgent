@@ -47,8 +47,12 @@
 - **THEN** 系统拒绝派发，且不创建可计为 provider 已发送的 attempt
 
 #### Scenario: Jev guest request has no verified fee ceiling
-- **WHEN** 游客任务请求 Jev，而配置中没有冻结且可核验的费率上界与强制请求/响应 token 上限
+- **WHEN** 游客任务请求 Jev，而配置缺少固定模型版本、可核验费率、模型输入上限或足额预留
 - **THEN** 系统在模型派发前拒绝该调用，不发送 provider 请求，也不写入 task 或 trial 模型预留
+
+#### Scenario: Jev guest request uses the pinned OpenRouter fee profile
+- **WHEN** 游客请求使用固定的 typesafe/jev-1.14 OpenRouter 模型版本、请求计数不超过其 262,144 token 上下文上限，且 USD 预留不少于 $0.02
+- **THEN** 系统按冻结费率 $0.042/百万输入 token、输出 $0 计算最坏费用不超过 $0.011010048；以 openrouter-typesafe-jev-1.14-2026-10-23 费率依据原子预留 task/trial 账本。模型别名、错误路由、超限输入或费率依据不符时必须在派发前拒绝
 
 #### Scenario: Generic routing price preference is not an endpoint fee guarantee
 - **WHEN** 游客 Jev 费用上界仅依据通用 Provider Routing 文档中的 `provider.max_price`，而 Decisions API 专属契约没有明确保证该端点执行这个上限

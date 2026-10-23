@@ -2,7 +2,9 @@
 
 ## 当前实施状态（2026-10-23，v10 首波已 live 执行，验收门槛未通过）
 
-主 change 为 **72/79，仍有 7 项待完成**：9.6.D、9.6.F、9.6.G、10.3–10.6；`guest-sop-local-trial` 为 19/28。候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 的同 SHA GitHub Actions [CI run 39784378797](https://github.com/shuaibilx/DecAgent/actions/runs/39784378797) 9/9 jobs 成功。冻结 v10 四域首波已运行 4 个任务、8 条 ReAct/Plan 路线：3 failed、5 unknown、0 success；清理 8/8 verified，仅 τ telecom/ReAct 获得官方评分且为 0.0。Plan 路线均遇到 120 秒 Qwen timeout；CSM/ReAct MCP dispatch 为 unknown。批次没有 Jev 或 LLM judge 请求，公开基准仍为 0/286，不支持质量或 Jev 收益结论。
+主 change 为 **72/79，仍有 7 项待完成**：9.6.D、9.6.F、9.6.G、10.3–10.6；`guest-sop-local-trial` 为 22/28。候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 的同 SHA GitHub Actions [CI run 39784378797](https://github.com/shuaibilx/DecAgent/actions/runs/39784378797) 9/9 jobs 成功。冻结 v10 四域首波已运行 4 个任务、8 条 ReAct/Plan 路线：3 failed、5 unknown、0 success；清理 8/8 verified，仅 τ telecom/ReAct 获得官方评分且为 0.0。Plan 路线均遇到 120 秒 Qwen timeout；CSM/ReAct MCP dispatch 为 unknown。批次没有 Jev 或 LLM judge 请求，公开基准仍为 0/286，不支持质量或 Jev 收益结论。
+
+首波后的 CSM 离线只读探针在新建 pinned 环境中通过了合成 `find_user` 查询，未复现历史 `ValidationError`；原始调用参数与响应未留存，故根因仍未确认，9.6.F 保持未完成，unknown 不重放。详见[诊断记录](../../../evals/benchmarks/evidence/csm-find-user-readonly-diagnostic-20261023.md)。
 
 ### Latest verification after the v10 first wave (2026-10-23)
 

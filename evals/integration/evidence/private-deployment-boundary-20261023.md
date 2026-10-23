@@ -1,10 +1,10 @@
 # Private deployment boundary check — 2026-10-23
 
 This records the private deployment repository state after the reviewed deployment
-bundle was published. It is configuration evidence only; no Runner was registered
-and no SOP image was deployed. The separately authorized public evaluation first
-wave did call Qwen; its complete route and billing evidence is in the benchmark
-report linked below.
+bundle was published and the deployment GitHub App was prepared. The App is not yet
+installed on a repository, no Runner is registered, and no SOP image was deployed.
+The separately authorized public evaluation first wave did call Qwen; its complete
+route and billing evidence is in the benchmark report linked below.
 
 ## Repository and bundle
 
@@ -44,11 +44,22 @@ report linked below.
   `docker/login-action`, `packages: read`, or a package access grant. The screenshot
   supplied earlier showed `DecAgent` as Admin in Manage Actions access; the private
   deployment workflow does not require adding `DecAgent-deploy` to that list.
-- The release-to-deployment GitHub App credentials and enablement variable are not
-  configured. The dispatch job in the public repository remains local and
-  default-off until those settings are deliberately completed.
-- Local `sop.env` and secret files are not configured, so the Runner installer
-  correctly refuses registration. No credential values were read or copied.
+- GitHub App `DecAgent Private Deployment` (`decagent-private-deployment`, app ID
+  `5443230`) exists with webhook delivery disabled and only `Actions: write` plus
+  GitHub's mandatory metadata permission. Its Client ID is stored in the public
+  `DecAgent` Actions variable `DECAGENT_DEPLOY_APP_CLIENT_ID`; its private key is
+  stored in `DECAGENT_DEPLOY_APP_PRIVATE_KEY`. The key was parsed locally and its
+  signed App JWT received HTTP 200 from GitHub's `/app` endpoint. No key value or
+  JWT was logged.
+- The App installation screen is prepared with **Only select repositories** and
+  exactly `shuaibilx/DecAgent-deploy`; final installation awaits user confirmation.
+  The public `DECAGENT_PRIVATE_CD_ENABLED` variable remains absent, and no release
+  tag or dispatch was created.
+- Local `sop.env` and all three Compose secret files are present; Docker reports
+  the Linux engine and the project Python runtime is 3.13. The Runner installer
+  preconditions are met but the installer has not been run. The downloaded PEM
+  remains in Downloads because local file deletion was blocked by the automatic
+  safety review; it is not present in the repository.
 
 ## Application repository and verification boundary
 
@@ -71,7 +82,7 @@ report linked below.
 - Commit `14ffd1fe238306cdd858673bb786ac2c3bd581ff` passed same-SHA GitHub Actions
   [run 39940453829](https://github.com/shuaibilx/DecAgent/actions/runs/39940453829),
   all 9 jobs in 12m31s. The current worktree's deterministic suite passes
-  (`2,164 passed, 18 skipped`), the guest-budget PostgreSQL module passes
+  (`2,169 passed, 18 skipped`), the guest-budget PostgreSQL module passes
   (`36 passed`), Ruff and strict validation for both active changes pass. This evidence does not
   claim passing CI for the current worktree, private workflow dispatch, a
   self-hosted deployment, or an end-to-end CD run.
@@ -81,9 +92,9 @@ report linked below.
   [`public-first-wave-live-20261023-v10-9d61688.md`](../../benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.md)
   for exact route, usage, and cost-estimate evidence.
 - The current code commit passed same-SHA CI run `39940453829`; the local worktree
-  passed the complete deterministic suite (`2,164
+  passed the complete deterministic suite (`2,169
   passed, 18 skipped`), Ruff, strict validation for both active changes, and the
-  guest-budget integration module (`36 passed`) against disposable local
+  guest-budget integration module (`38 passed`) against disposable local
   PostgreSQL. This does not substitute for full same-SHA public CI, browser E2E,
   Docker rollout, Runner, or private CD acceptance.
 
@@ -91,3 +102,21 @@ report linked below.
 
 - [GitHub package access and visibility](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
 - [GitHub Container registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+
+## Follow-up state verification
+
+The following read-only checks were performed after local SOP preparation and the disposable smoke:
+
+- GitHub reports public `main` at `0c747a3`; its release workflow has no `dispatch_private_deploy` job and no self-hosted runner target. Public and private repository Runner APIs both report zero registrations.
+- The public repository does not have the `DECAGENT_PRIVATE_CD_ENABLED` Actions
+  variable. Its `DECAGENT_DEPLOY_APP_CLIENT_ID` variable and
+  `DECAGENT_DEPLOY_APP_PRIVATE_KEY` secret are configured; only names were
+  verified after writing. No secret value was read back.
+- No local `DecAgentPrivateDeployRunner` scheduled task, Runner process, or Runner directory exists. The private deployment repository remains the only approved Runner target in the installer.
+- The current local `sop_preflight` was rerun successfully. A separate disposable Compose smoke passed and cleaned its random project containers, volumes, networks, and locally built smoke image; details are in [`local-sop-disposable-smoke-20261023.md`](local-sop-disposable-smoke-20261023.md).
+- The existing `decagent-api` container remains running and healthy on `127.0.0.1:8000`, using the v0.1.4 image built from commit `089cd02715a5b0ae4934db953f412086988b09f4`. The v0.1.4 tag does not contain `compose.sop.yaml`; the current local SOP work therefore has no matching immutable published image. Do not treat this older app container as the SOP deployment.
+
+The public-to-private dispatch is frozen on public `main`. The gated dispatch
+implementation remains on the feature branch. The GitHub App and credentials are
+prepared, but its repository installation is pending confirmation; there is still
+no Runner, release tag, dispatch, or persistent SOP deployment.

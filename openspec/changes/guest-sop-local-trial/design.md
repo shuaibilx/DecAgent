@@ -2,7 +2,7 @@
 
 ### 2026-10-22 DashScope provider alias 预留修复
 
-Qwen token 额度按模型服务语义计数。运行时和 `UsageLedger` 已把 `dashscope` provider 标识作为 Qwen 服务别名，但 trial ledger 的 reservation 校验未保持一致。现让准入校验接受 `qwen` 与 `dashscope`，并以参数化 PostgreSQL 集成测试覆盖两个 provider 标识的原子预留及本币结算。该兼容修复不改变费率配置和实际账单边界；游客 Jev 费用上界未证明，任务 3.2 继续保持未完成。
+Qwen token 额度按模型服务语义计数。运行时和 `UsageLedger` 已把 `dashscope` provider 标识作为 Qwen 服务别名，但 trial ledger 的 reservation 校验未保持一致。现让准入校验接受 `qwen` 与 `dashscope`，并以参数化 PostgreSQL 集成测试覆盖两个 provider 标识的原子预留及本币结算。该兼容修复不改变费率配置和实际账单边界。该记录撰写时游客 Jev 费用上界尚未证明；2026-10-23 的固定费率模型 profile 后续补上了该边界，3.2 当前已完成。
 
 ## Context
 
@@ -60,7 +60,7 @@ Migration 029/030 与 `GuestAdmissionRateLimiter` 使用 PostgreSQL 滑动窗口
 
 `UsageLedger` 保留上游 provider 的原始错误类别和 HTTP 状态以供审计；调用 guest trial ledger 时，把 provider taxonomy 映射到受限的持久化枚举：connection→`network_error`，HTTP 408→`timeout`，429→`rate_limited`，其他已分类 HTTP 错误→`provider_error`，未分类传输异常→`unknown_error`。这样已派发但 usage 未知的请求仍可在同一事务中将任务级和 trial 级记录置为 unknown 并保留预留，不因错误类别不兼容而回滚结算。
 
-Jev 当前的 `$0.01` 仅是固定记账预留，不是可证明的单请求费用上界；`jev-latest` 是可变模型别名，128 KB 状态字节限制也没有限制 provider 输出 token。OpenRouter 通用 Provider Selection 文档描述 `provider.max_price`，而 Decisions API 专属请求契约仅声明 `provider` 为通用 object/null，未明确列出 `max_price` 的字段结构或对 Decisions 端点的硬上限保证；该通用路由说明不足以证明游客请求有可执行总费用上界。因此 `UsageLedger.reserve()` 对 guest `model_family=jev` 在创建任何 task/trial 预留之前返回 `guest_jev_fee_bound_required`，`LedgerAttemptBudget` 将其作为预算拒绝，DecisionAdapter 不发送 HTTP 请求。员工 Jev 路径不受此 guest-only 门禁影响。只有冻结可核验的 provider 费率并强制输入/输出 token 上限、确保计算所得单次费用上界不超过预留后，才可开放游客 Jev。审查证据：[OpenRouter Decisions API 费用上界契约审查](../../../evals/integration/evidence/openrouter-decisions-cost-bound-20261022.md)。
+OpenRouter 当前为 Jev 1.14 公布的费率是每百万输入 token $0.042、输出免费，模型上下文为 262,144 token；在该冻结费率下，完整上下文的输入费用为 $0.011010048。游客路径使用固定模型 ID typesafe/jev-1.14，不使用可变 jev-latest 别名；每个 attempt 预留至少 $0.02，超过上下文的估算请求和不匹配的 provider、model、费率 basis 会在 HTTP 派发与账本写入前拒绝。Jev 输出价格为零，因此输入上下文上限已界定该费率 profile 下的模型费用上界；实现不依赖 OpenRouter 通用 provider.max_price，Decisions API 对该字段也没有单独的硬上限承诺。实际费用仍以 OpenRouter usage.cost 结算，unknown 保留完整预留；员工 Jev 配置和公开评测账本保持独立。此费率 profile 需在上游费率或模型上下文变化时更新并重新验收。证据：[游客 Jev 固定费率与预留验收](../../../evals/integration/evidence/guest-jev-priced-bound-20261023.md)、[OpenRouter Decisions API 费用上界契约审查](../../../evals/integration/evidence/openrouter-decisions-cost-bound-20261022.md)。
 
 ### 5. SOP Compose 与私有部署控制面
 
@@ -117,7 +117,9 @@ The first-install path is implemented by `first_install()` and `deploy_candidate
 
 The private repository `shuaibilx/DecAgent-deploy` is private. Its current main commit and bundle manifest are recorded in the linked boundary evidence. GitHub Actions is enabled, only pinned `actions/checkout` is allowed, SHA pinning is required, and the `decagent-local-production` Environment allows only `main`. `decagent-control` is public, so the private workflow uses anonymous GHCR pulls and does not request `packages: read` or a package access grant.
 
-GitHub rejected repository branch protection with HTTP 403 because the current plan does not provide that feature for this private repository. The environment branch policy still restricts deployments to `main`, but repository writers can still change `main`; restrict write access to trusted maintainers. No Runner is registered, local SOP config/secrets are absent, and the App credentials plus public release enablement variable are not configured. The corresponding public release trigger remains in the local worktree and has not received same-SHA remote CI. See [private deployment boundary evidence](../../../evals/integration/evidence/private-deployment-boundary-20261023.md).
+GitHub rejected repository branch protection with HTTP 403 because the current plan does not provide that feature for this private repository. The environment branch policy still restricts deployments to `main`, but repository writers can still change `main`; restrict write access to trusted maintainers. At the time of this boundary snapshot, no Runner was registered, local SOP config/secrets were absent, and App credentials plus the public release enablement variable were not configured. The public release trigger had not yet received same-SHA remote CI. See [private deployment boundary evidence](../../../evals/integration/evidence/private-deployment-boundary-20261023.md).
+
+Later on 2026-10-23, the local SOP env and secret files were prepared with restrictive Windows ACLs and the static Compose preflight passed. No container was started. This updates only the local-configuration state; the GitHub App, private Runner, trusted release dispatch, and real install/upgrade/rollback remain unconfigured or unverified. See [local SOP preflight evidence](../../../evals/integration/evidence/local-sop-preflight-20261023.md).
 
 ## Migration Plan
 

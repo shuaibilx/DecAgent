@@ -15,6 +15,7 @@ from decagent.business.contracts import validate_schema
 from decagent.business.decision_policy import DecisionGate, PolicyContext, gate_decision
 from decagent.business.employee_auth import EmployeeIdentity
 from decagent.business.execution import BusinessReadError
+from decagent.business.guest_jev_pricing import select_jev_profile
 from decagent.business.interventions import SemanticInterventions, decision_evidence
 from decagent.business.mcp_client import MCPToolError, MCPTransportError
 from decagent.business.memory_control import BusinessMemoryControl
@@ -546,15 +547,32 @@ class ConditionalBusinessServices:
                             "reason": "Jev credential is unavailable; no primary fallback",
                         }
                     )
-                self.adapter = JevAdapter(
-                    api_key=self.settings.jev_api_key,
+                jev_profile = select_jev_profile(
+                    is_guest=self.ledger.trial_budget is not None,
                     model=self.settings.jev_model,
                     provider=self.settings.jev_provider,
+                    reservation_usd=self.config.jev_reservation,
+                )
+                if jev_profile is None:
+                    raise NodePending(
+                        {
+                            "kind": "reconciliation",
+                            "category": "configuration",
+                            "reason": "Guest Jev requires the OpenRouter pricing profile",
+                        }
+                    )
+                jev_model, jev_provider, jev_reservation = jev_profile
+                self.adapter = JevAdapter(
+                    api_key=self.settings.jev_api_key,
+                    model=jev_model,
+                    provider=jev_provider,
                     cache_ttl=0,
                     max_retries=0,
                     budget=LedgerAttemptBudget(
                         self.ledger,
-                        reservation_usd=self.config.jev_reservation,
+                        reservation_usd=jev_reservation,
+                        provider=jev_provider,
+                        requested_model=jev_model,
                         before_dispatch=self._model_guard,
                     ),
                 )

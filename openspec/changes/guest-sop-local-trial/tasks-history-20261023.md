@@ -53,3 +53,22 @@
 
 - 域名购买、正式公网入口与入口防滥用验证、跨设备账号绑定、独立 Linux 服务保证后续再实施；本轮不自动开通。
 - 按用户另行请求再归档和同步主规格，不隐式归档旧 change。
+
+## CI task 5.1 验收更新（2026-10-23）
+
+本节覆盖并取代本文前面仍将 task 5.1 标记为未验收的历史快照，不删除或改写其原始状态记录。
+
+- [x] 5.1 最终候选 `9743e1a6d303e41cd88175a97d3b386e7edfefd6` 的 [GitHub Actions run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425) 12/12 jobs 通过。覆盖 Python 3.11/3.13 主矩阵、Ruff、deterministic、六个 PostgreSQL shards、Python 3.12 Playwright 生产 Gateway E2E、Docker 执行边界、wheel/MCP 与 Compose。
+- 墙钟 8:19、累计 Runner 时间 52:05；基线 run `39940453829` 为 12:27、51:39。增加 26 秒累计 Runner 时间的同时减少 4:08 墙钟，并增加核心浏览器 E2E，不宣称 Runner 费用下降。digest 固定的 Playwright Python 镜像将浏览器 job 从前一 run 的 11:21 降到 1:26；浏览器流程耗时 28 秒。
+- 两个 Python 版本各自 deterministic `2,164 passed, 18 skipped`；各自三个 PostgreSQL shards 合计 `678 passed, 33 skipped`。Windows 专属语义、未配置的 pinned τ runtime、Docker fixture、opt-in readiness/repair、外部 MCP CLI 和上游缓存 skip 仍是未验证项，按具体原因记录于[CI 验收报告](../../../evals/integration/evidence/ci-browser-sharding-20261023.md)。
+- 同 digest 镜像的两个早期实验 run `39949424100`、`39950636276` 分别因 pip cache shim 缺失及 Python 3.13 SSL 模块缺失而未通过；非浏览器的其余 11 jobs 均通过。最终使用镜像内 Python 3.12（项目要求 `>=3.11`），保留 3.11/3.13 主矩阵后全绿。
+
+## Task 3.2 验收更新（2026-10-23）
+
+在固定 Postgres 17 镜像的专用 loopback 临时容器中运行 `evals/integration/test_business_guest_trial_budget.py`，36 passed、0 skipped。用例覆盖任务/试用账本原子预留和回滚、费用与 Qwen token 并发上限、unknown 跨重启保留、免费额度 token 计量、无可靠费率/汇率拒发、以及没有可验证的 Decisions API Jev 费用上界时零 dispatch/零账本行。没有真实模型 API 请求；证据见[游客模型预算验收](../../../evals/integration/evidence/guest-trial-model-budget-20261023.md)。据此将 task 3.2 从“部分完成”更新为完成，task 2.5 的真实 Jev 体验仍保持待办。
+
+## Task 5.5 文档验收更新（2026-10-23）
+
+新增 `docs/README.md`、`docs/repository/README.md`、`docs/ci/README.md`、`docs/cd/README.md` 和 `docs/deployment/README.md`，并在根 README 加入导航。逐项核对公开/私有仓库实际名称、CI workflow 触发与 job 数、run 39951724425 性能证据、tag-only release 配置、最小 GitHub App 输入、私有 workflow 边界、SOP Compose loopback/secret/健康检查/备份回滚行为及 CLI 参数。文档提供 Mermaid 流程/时序/拓扑图，且区分“本轮执行”与“命令模板、未执行”。外部边界保持如实：Runner 0、App 配置缺失、本机 SOP env/secrets 缺失、未创建 release tag、未启用公网/Tunnel、Linux 仍待办。规范与链接检查通过后将 5.5 由未验收更新为验收完成；剩余 6 项为 2.5、4.4、5.3、5.4、6.1、6.2。
+
+上述文档快照编写时本机 env/secrets 尚未创建。随后同日已根据用户指示完成本机配置准备并通过静态预检；当前状态与“0 Runner / GitHub App 缺失”边界见[本机 SOP 预检证据](../../../evals/integration/evidence/local-sop-preflight-20261023.md)。这次准备没有启动容器或修改 GitHub 设置。

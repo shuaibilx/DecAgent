@@ -64,13 +64,13 @@ Qwen 已结算请求的冻结 profile 费率计算值为 ¥0.1884416：Agent ¥0
 - CSM 的 `find_user` read 调用在 MCP gateway 抛出 `ValidationError`，耗时约 0.055 秒，没有 HTTP 状态或结果快照。attempt 已经 dispatch，因此按 unknown 保留，不能重放。
 - ITSM/ReAct 的 `ValueError` 前记录了 `list_users` 和 `find_configuration_items` 两次已结算工具调用；τ retail/ReAct 的 `ValueError` 前记录了四次已结算 read。隔离日志没有保存安全的异常来源行或异常消息，因此当前只能定位到 `agent_execution`，不能确认抛错语句或把失败归因于这些工具调用。
 
-离线检查 CSM 调用链发现：ReAct 与 `_ObservedGateway` 在进入 `LedgeredToolGateway` 前都验证了工具参数；`EvaluationPlanSession.call` 也会在 `environment.call_tool` 前再次验证。原始 MCP 响应返回后，`EvaluationCatalog.observe` 会按冻结的 output schema 校验结果；该路径可产生 `jsonschema.ValidationError`，而账本异常摘要只保存最深异常类名、不保存来源行或 schema 路径。因此**最可能**是 `find_user` 的 MCP 响应未通过 output schema 校验；这是基于代码顺序的诊断假设，不是持久化运行时 traceback 的证明。没有原始响应，无法确定不匹配字段；attempt 继续保持 unknown，不重放。
+离线代码检查确认 `EvaluationCatalog.observe` 是可能抛出 `jsonschema.ValidationError` 的路径之一，但历史记录没有保留原始 MCP 响应、调用参数、来源行或 schema 路径，无法据此确认根因。随后在新建的 pinned CSM 环境中使用合成的不存在用户标记进行一次只读 `find_user` 调用：评测目录接受该响应、前后状态指纹一致、cleanup verified，未复现该异常。该结果只说明这条合成响应通过契约，不能代表历史响应。因此撤回“最可能是 output schema 不匹配”的推测；原路线继续保持 unknown，不重放。完整范围与安全摘要见[隔离只读诊断记录](csm-find-user-readonly-diagnostic-20261023.md)。
 
 ## 结论与后续门槛
 
 真实执行与账本闭环已被验证到“模型、工具、τ 用户模拟器、一个官方评分结果和环境清理实际运行”的程度；但四个域均未形成有效成功闭环，Plan 路线全部遇到 Qwen 请求超时，ReAct 路线也未成功。因此 9.6.F、9.6.G、10.3–10.6 仍未完成，首波验收失败；剩余 smoke 与全量 206+80 暂停。本批没有执行 Jev，不能得出 Jev 的成本、延迟或质量优势结论。
 
-下一步先对照隔离日志调查 120 秒 Qwen timeout、CSM MCP 的 `ValidationError`、ReAct `ValueError` 与 τ telecom 评分失败；不得重放本批 unknown。修复后需冻结新候选和新 cohort、重新通过同 SHA CI，并另行确定后续批次额度与授权。
+保留的 v10 证据没有四次 Qwen timeout 的服务端 request/usage、CSM 的参数/原始响应/traceback、两条 ReAct `ValueError` 的堆栈，或 τ telecom 的细项 verifier 证据。本次 CSM 合成只读探针未定位历史异常，因此单靠当前冻结证据已无法进一步确认这些历史根因。不得重放本批 unknown。若要通过新的真实路线继续诊断，须先修订诊断采集并冻结新候选和 cohort、重新通过同 SHA CI，再另行确定后续批次额度与授权。
 
 ## 证据
 

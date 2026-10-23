@@ -233,7 +233,11 @@ def test_empty_legal_question_set_falls_back_with_a_durable_reason():
     service = BusinessServices.__new__(BusinessServices)
     service.spec = PluginSpec.from_mapping(manifest)
     service.task = {"id": "task", "business_scope_id": "scope"}
-    service.settings = SimpleNamespace(jev_model="~typesafe/jev-latest")
+    service.settings = SimpleNamespace(
+        jev_model="~typesafe/jev-latest", jev_provider="openrouter"
+    )
+    service.config = SimpleNamespace(jev_reservation="0.01")
+    service.ledger = SimpleNamespace(trial_budget=None)
     service.profile = None
     records = []
 
@@ -336,8 +340,12 @@ def typed_service_with_profile(spec, thresholds, *, prior_model=None, requested_
     service.spec, service.profile, service.profile_error = spec, profile, None
     service.task = {"id": "task", "business_scope_id": "scope"}
     service.settings = SimpleNamespace(
-        jev_model=requested_model or "~typesafe/jev-latest", jev_api_key="offline-fixture"
+        jev_model=requested_model or "~typesafe/jev-latest",
+        jev_provider="openrouter",
+        jev_api_key="offline-fixture",
     )
+    service.config = SimpleNamespace(jev_reservation="0.01")
+    service.ledger = SimpleNamespace(trial_budget=None)
     service.database = SimpleNamespace(connect=connect, redactor=Redactor())
     service.executor = SimpleNamespace(guard=lambda conn: None)
     service._primary = None

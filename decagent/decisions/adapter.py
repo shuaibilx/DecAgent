@@ -130,6 +130,9 @@ class JevAdapter:
         self._owns_client = client is None
         self._client = client or httpx.Client(follow_redirects=False)
         self.budget = budget
+        bind_model = getattr(budget, "bind_model", None)
+        if bind_model is not None:
+            bind_model(model=self.model, provider=self.provider, endpoint=self.endpoint)
         self.timeout, self.max_retries = timeout, max_retries
         self.sleep, self.jitter, self.clock, self.utcnow = sleep, jitter, clock, utcnow
         self.usage_hook, self.cost_estimator = usage_hook, cost_estimator

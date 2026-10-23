@@ -10,6 +10,14 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import uuid4
 
+from decagent.business.guest_jev_pricing import (
+    GUEST_JEV_ENDPOINT,
+    GUEST_JEV_MAX_CONTEXT_TOKENS,
+    GUEST_JEV_MODEL,
+    GUEST_JEV_PRICE_BASIS_ID,
+    GUEST_JEV_PROVIDER,
+    GUEST_JEV_RESERVATION_USD,
+)
 from decagent.models.primary import (
     PrimaryProviderFailure,
     PrimaryRequestNotDispatched,
@@ -380,6 +388,8 @@ class LedgerAttemptBudget:
         request_key=None,
         before_dispatch=None,
         purpose="decision",
+        requested_model=None,
+        endpoint=None,
         plan_revision=None,
         node_id=None,
         node_ids=None,
@@ -389,11 +399,32 @@ class LedgerAttemptBudget:
         if not self.reservation_usd.is_finite() or self.reservation_usd <= 0:
             raise ValueError("Positive Jev fee reservation required")
         self.provider, self.request_key = provider, request_key or uuid4().hex
+        self.requested_model = requested_model
+        self.endpoint = endpoint
+        self._model_binding_valid = True
         self.receipts = {}
         self._active_key = None
         self.before_dispatch = before_dispatch
         self.purpose, self.plan_revision = purpose, plan_revision
         self.node_id, self.node_ids = node_id, node_ids
+
+    def bind_model(self, *, model, provider, endpoint=None):
+        """Bind reservation metadata to the same model and endpoint as the adapter."""
+        requested_model = self.requested_model
+        if provider == "openrouter" and requested_model == "jev-latest":
+            requested_model = "~typesafe/jev-latest"
+        if requested_model is not None and requested_model != model:
+            self._model_binding_valid = False
+        else:
+            self.requested_model = model
+        if self.provider not in {"jev", provider}:
+            self._model_binding_valid = False
+        else:
+            self.provider = provider
+        if self.endpoint is not None and self.endpoint != endpoint:
+            self._model_binding_valid = False
+        else:
+            self.endpoint = endpoint
 
     def bind_request_context(self, *, plan_revision, node_ids, purpose="decision_batch"):
         """Called before each synchronous batch, without changing past receipts."""
@@ -402,12 +433,26 @@ class LedgerAttemptBudget:
         self.purpose = purpose
 
     def reserve(self, request, attempt):
-        if self.before_dispatch:
-            self.before_dispatch()
         if attempt == 1:
             self._active_key = f"{self.request_key}:{uuid4().hex}"
             self.receipts = {}
-        tokens = len(json.dumps(request.to_wire(""), ensure_ascii=False).encode()) + 4096
+        model = self.requested_model or ""
+        is_guest = getattr(self.ledger, "trial_budget", None) is not None
+        if not self._model_binding_valid:
+            return None
+        if is_guest and (
+            self.provider != GUEST_JEV_PROVIDER
+            or self.endpoint != GUEST_JEV_ENDPOINT
+            or model != GUEST_JEV_MODEL
+            or self.reservation_usd < GUEST_JEV_RESERVATION_USD
+        ):
+            return None
+        tokens = len(json.dumps(request.to_wire(model), ensure_ascii=False).encode()) + 4096
+        if is_guest and tokens > GUEST_JEV_MAX_CONTEXT_TOKENS:
+            return None
+        if self.before_dispatch:
+            self.before_dispatch()
+        price_basis_id = GUEST_JEV_PRICE_BASIS_ID if is_guest else "jev-reservation-v1"
         try:
             receipt = _reserve(
                 self.ledger,
@@ -424,7 +469,9 @@ class LedgerAttemptBudget:
                 question_count=len(request.questions),
                 trial_cost_currency="USD",
                 trial_cost_native=self.reservation_usd,
-                trial_price_basis_id="jev-reservation-v1",
+                trial_price_basis_id=price_basis_id,
+                requested_model=model or None,
+                endpoint=self.endpoint,
             )
         except BudgetExceeded:
             return None
