@@ -79,3 +79,15 @@ evals/deterministic/test_live_public_runner.py
 ```
 
 These tests validate ledger admission/reservation, worker exclusivity and fencing, dispatch accounting, cancellation, and trial recovery. They do not demonstrate a successful live model route or official benchmark score.
+
+## Runner boundary recheck (2026-10-24 06:25 Asia/Shanghai)
+
+Read-only checks on the current branch and host reconfirmed the deployment boundary:
+
+- `GET /repos/shuaibilx/DecAgent/actions/runners`: zero public self-hosted runners.
+- `GET /repos/shuaibilx/DecAgent-deploy/actions/runners`: one online `decagent-local-deploy` runner with `self-hosted`, `Windows`, `X64`, and `decagent-deploy` labels.
+- The local `DecAgentLocalDeployRunner` scheduled task is disabled; `DecAgentPrivateDeployRunner` is running, and a `Runner.Listener` process is active.
+- Public Actions variables contain only `DECAGENT_DEPLOY_APP_CLIENT_ID`; `DECAGENT_PRIVATE_CD_ENABLED` is absent. The deployment gate remains closed.
+- Public CI run [40032074530](https://github.com/shuaibilx/DecAgent/actions/runs/40032074530), SHA `de825c8337acc704ff2ba1c12aaad2e006c22320`, completed with 12/12 jobs successful. GitHub's job API reports `labels=["ubuntu-latest"]` for every job, so this run did not schedule the private self-hosted runner.
+- GitHub App repository selection remains supported by the prior authenticated installation UI record in this file. The regular `gh` user token cannot call `user/installations` (HTTP 403), so no independent App-authenticated API check was available. The current Edge tab inventory is empty, so this recheck does not make a new claim about the page currently open in the user's browser.
+- No release tag, private workflow dispatch, SOP rollout, or live model/benchmark request was made.

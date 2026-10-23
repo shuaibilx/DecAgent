@@ -36,6 +36,8 @@ Ruff 的 CI 命令明确检查 `decagent`、`evals`、`ops`。本地 `ruff check
 
 前一 12-job 基线 SHA [`9743e1a6d303e41cd88175a97d3b386e7edfefd6`](https://github.com/shuaibilx/DecAgent/commit/9743e1a6d303e41cd88175a97d3b386e7edfefd6) 的 [run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425) 用时 8 分 19 秒、累计 Runner 时间 52 分 05 秒。候选 run 单次多 4 秒墙钟和 1 分 31 秒累计 Runner 时间，不能据此认定发生稳定回退或改进。相对更早的 9-job run `39940453829`，基线墙钟减少 4 分 08 秒，累计 Runner 时间增加 26 秒；优化缩短了等待时间，没有证明 Runner 总资源费用下降。
 
+2026-10-24 的分支候选 SHA [`de825c8337acc704ff2ba1c12aaad2e006c22320`](https://github.com/shuaibilx/DecAgent/commit/de825c8337acc704ff2ba1c12aaad2e006c22320) 的 [run 40032074530](https://github.com/shuaibilx/DecAgent/actions/runs/40032074530) 12/12 job 通过，加入游客生命周期 Chromium E2E。GitHub job API 为全部 12 个 job 返回 `ubuntu-latest` runner label；没有 job 调度本机私有 Runner。该次 run 不替代前述性能基线，也不代表公开基准或本机部署通过。
+
 详细 job 时间、性能基线、全部已核验 skip 类别和候选 SHA 复验范围见[CI 分层与浏览器 E2E 验收](../../evals/integration/evidence/ci-browser-sharding-20261023.md)。该报告注明 Windows 专属语义、固定 τ runtime、特定 Docker fixtures 等跳过条件；skip 不应被解释为通过。
 
 首波前候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 的同 SHA run `39784378797` 为 9/9 通过，属于当时的工作流版本。它与后来的 12-job 验收 run 是不同 SHA 和 workflow 状态。当前评测候选 `50e38b71ce030d7a17593611e4efd564f0a183bf` 已通过同 SHA 的 12-job CI；这仅验证该候选的代码与流水线，不代表模型基准或本机私有部署通过。

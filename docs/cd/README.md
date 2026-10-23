@@ -54,4 +54,4 @@ GHCR control 镜像当前为公开包，可匿名 pull。`DecAgent` 在 Manage A
 3. 先完成任务 4.4 的 Docker 首装、失败恢复、兼容升级、健康失败回滚与 schema 不兼容停服演练。
 4. 再执行经批准的可信 GHCR 发布到本机的 5.4 全链路演练，记录 release SHA/run、镜像 digest、readiness、备份和恢复结果。
 
-截至 2026-10-24，安装页显示 App 仅选择私有 `DecAgent-deploy`；该仓库有 1 个在线 self-hosted Runner，公开 `DecAgent` 为 0。公开仓库未设置 `DECAGENT_PRIVATE_CD_ENABLED`，且没有发布 tag、触发私有 dispatch 或部署持久 SOP image。隔离 smoke 不代表发布或部署验收。此计划不启用公网 URL、Cloudflare Tunnel 或独立 Linux 主机。
+截至 2026-10-24，安装页显示 App 仅选择私有 `DecAgent-deploy`；该仓库有 1 个在线 self-hosted Runner，公开 `DecAgent` 为 0。公开仓库未设置 `DECAGENT_PRIVATE_CD_ENABLED`，且没有发布 tag、触发私有 dispatch 或部署持久 SOP image。最新公开分支 CI run [40032074530](https://github.com/shuaibilx/DecAgent/actions/runs/40032074530) 的全部 12 个 job 均运行在 `ubuntu-latest`，未调度本机 Runner。隔离 smoke 不代表发布或部署验收。此计划不启用公网 URL、Cloudflare Tunnel 或独立 Linux 主机。
