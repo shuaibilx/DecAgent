@@ -30,13 +30,15 @@ flowchart TD
 
 Ruff 的 CI 命令明确检查 `decagent`、`evals`、`ops`。本地 `ruff check .` 也通过 `pyproject.toml` 排除 `.agents`，因为这里保存的是外部工程 skill 与其示例代码，不属于 DecAgent 产品源码；这不会降低上述 CI 路径的检查范围。
 
-## 最后一次完整耗时证据
+## 最近候选的完整 CI 证据
 
-固定 SHA [`9743e1a6d303e41cd88175a97d3b386e7edfefd6`](https://github.com/shuaibilx/DecAgent/commit/9743e1a6d303e41cd88175a97d3b386e7edfefd6) 的 [run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425) 为 12/12 job 通过，墙钟 8 分 19 秒、累计 Runner 时间 52 分 05 秒。相对旧 9-job run `39940453829`，墙钟减少 4 分 08 秒，累计 Runner 时间增加 26 秒；优化缩短了等待时间，没有证明 Runner 总资源费用下降。
+评测候选 SHA [`50e38b71ce030d7a17593611e4efd564f0a183bf`](https://github.com/shuaibilx/DecAgent/commit/50e38b71ce030d7a17593611e4efd564f0a183bf) 的 [run 39981292425](https://github.com/shuaibilx/DecAgent/actions/runs/39981292425) 为 12/12 job 通过，墙钟 8 分 23 秒、累计 Runner 时间 53 分 36 秒；两个 Python 确定性任务各有 2,169 passed、18 skipped。六个 PostgreSQL 集成分片 job 均通过，逐 shard 计数不从 job 状态推算。
 
-详细 job 时间、性能基线、全部 skip 类别和三次浏览器镜像失败/修正过程见[CI 分层与浏览器 E2E 验收](../../evals/integration/evidence/ci-browser-sharding-20261023.md)。该报告注明 Windows 专属语义、固定 τ runtime、特定 Docker fixtures 等跳过条件；skip 不应被解释为通过。
+前一 12-job 基线 SHA [`9743e1a6d303e41cd88175a97d3b386e7edfefd6`](https://github.com/shuaibilx/DecAgent/commit/9743e1a6d303e41cd88175a97d3b386e7edfefd6) 的 [run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425) 用时 8 分 19 秒、累计 Runner 时间 52 分 05 秒。候选 run 单次多 4 秒墙钟和 1 分 31 秒累计 Runner 时间，不能据此认定发生稳定回退或改进。相对更早的 9-job run `39940453829`，基线墙钟减少 4 分 08 秒，累计 Runner 时间增加 26 秒；优化缩短了等待时间，没有证明 Runner 总资源费用下降。
 
-候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 的首波前同 SHA CI run `39784378797` 为 9/9 通过，属于当时的工作流版本。它与后来的 12-job 验收 run 是不同 SHA 和 workflow 状态，不能合并成“当前工作区全部已通过”。目前本地 CI workflow 有未提交修改，故最新工作区尚无同 SHA GitHub CI 结果。
+详细 job 时间、性能基线、全部已核验 skip 类别和候选 SHA 复验范围见[CI 分层与浏览器 E2E 验收](../../evals/integration/evidence/ci-browser-sharding-20261023.md)。该报告注明 Windows 专属语义、固定 τ runtime、特定 Docker fixtures 等跳过条件；skip 不应被解释为通过。
+
+首波前候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 的同 SHA run `39784378797` 为 9/9 通过，属于当时的工作流版本。它与后来的 12-job 验收 run 是不同 SHA 和 workflow 状态。当前评测候选 `50e38b71ce030d7a17593611e4efd564f0a183bf` 已通过同 SHA 的 12-job CI；这仅验证该候选的代码与流水线，不代表模型基准或本机私有部署通过。
 
 ## Windows 本机运行 PostgreSQL 集成测试
 

@@ -76,3 +76,11 @@ Integration 每个 Python 版本的 33 个 skip：17 个测试需要独立 dispo
 ## 复核边界
 
 这是 CI 结构与覆盖面的验收，不是完整无 skip 验收。确定性和集成测试的 skip 已逐项归类；Windows 专属语义、pinned τ runtime、特定 Docker fixtures、外部 MCP CLI 和上游语料缓存仍需各自环境才能完整验证。生产模型/Jev 质量、公开基准、私有 CD 和本机 Docker 升级/回滚演练不由此 run 证明。
+
+## 后续候选 SHA 复验（2026-10-23 北京时间）
+
+后续评测候选 [`50e38b71ce030d7a17593611e4efd564f0a183bf`](https://github.com/shuaibilx/DecAgent/commit/50e38b71ce030d7a17593611e4efd564f0a183bf) 的 [GitHub Actions run 39981292425](https://github.com/shuaibilx/DecAgent/actions/runs/39981292425) 绑定相同 SHA，最终状态为 **12/12 job success**。运行时间为北京时间 23:47:29–23:55:52，墙钟 8 分 23 秒，累计 Runner 时间 53 分 36 秒。Workbench JavaScript、Python 3.11/3.13 检查、六个 PostgreSQL 集成分片、Python 3.12 Gateway Chromium E2E、Docker 执行器边界、wheel/MCP/Compose 构建与启动冒烟均通过。
+
+Python 3.11 与 3.13 deterministic 均为 **2,169 passed、18 skipped、0 failed**。18 个 skip 包括 14 个依赖未配置 pinned τ 子进程运行时的案例、1 个未安装 tau2 runtime、1 个 Windows process-tree 回归，以及 Windows ACL 和 junction 语义各 1 项。六个 PostgreSQL 集成 shard job 全部成功；本次不从 GitHub job 摘要中推断逐 shard pass/skip 计数，上一版 `9743e1a` 的计数仍仅属于其自身 run。游客预算集成本机专用 PostgreSQL 复验另有 38 passed、0 skipped 的证据，模型请求数为 0。
+
+该候选的总墙钟比前一 12-job 验收 run 多 4 秒、累计 Runner 时间多 1 分 31 秒；单次运行差异不足以证明 CI 进一步提速或变慢。最慢 job 仍为 Python 3.13 integration shard 3/3（8 分 19 秒）。这些 CI 结果不代表真实 Jev/Qwen 评测、公开基准完成、游客入口启用、私有 Runner/CD 或真实本机 Docker 升级回滚验收。

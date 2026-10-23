@@ -38,7 +38,7 @@
 
 ## 5. 公共 CI 与私有 CD
 
-- [x] 5.1 优化公共CI分层、独立job并行与锁定缓存，保留Python3.11/3.13、Ruff、确定性、PostgreSQL、核心E2E、wheel/MCP、Compose；比较各job与总耗时，列出skip原因。最终候选 `9743e1a6d303e41cd88175a97d3b386e7edfefd6` 的 [CI run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425) 12/12 jobs 通过，墙钟 8:19、累计 Runner 52:05；确定性与 PostgreSQL 集成 skip 已分类，明细及基线比较见[CI 验收报告](../../../evals/integration/evidence/ci-browser-sharding-20261023.md)。
+- [x] 5.1 优化公共CI分层、独立job并行与锁定缓存，保留Python3.11/3.13、Ruff、确定性、PostgreSQL、核心E2E、wheel/MCP、Compose；比较各job与总耗时，列出skip原因。基线 `9743e1a6d303e41cd88175a97d3b386e7edfefd6` 的 [run 39951724425](https://github.com/shuaibilx/DecAgent/actions/runs/39951724425) 和评测候选 `50e38b71ce030d7a17593611e4efd564f0a183bf` 的同 SHA [run 39981292425](https://github.com/shuaibilx/DecAgent/actions/runs/39981292425) 均为 12/12 jobs 通过；候选 run 墙钟 8:23、累计 Runner 53:36。候选 Python 3.11/3.13 deterministic 各为 2,169 passed、18 skipped，六个 PostgreSQL 集成 shards 均成功。完整耗时、计数边界及 skip 分类见[CI验收报告](../../../evals/integration/evidence/ci-browser-sharding-20261023.md)。
 - [x] 5.2 实现私有部署仓库的发布验证器和最小输入工作流；离线测试拒绝错误 repo/SHA/tag/main/CI/run attempt/digest 和任意脚本路径，不在本机执行未验证代码。审查确认发布验证先于 rollout，且只传验证器输出；真实 dispatch 留在 5.3/5.4。
 - [ ] 5.3 配置私有 DecAgent-deploy，迁移本机 Runner，公共发布仅用最小凭证触发固定 workflow；验证公共 PR/Actions 无法调度本机，私有凭证最小且不打印密钥。
 - [ ] 5.4 完成一次可信版本GHCR发布至本机SOP服务的全链路演练及失败演练；保存commit/run/digest/健康/回滚证据，任务串行无互相覆盖。
