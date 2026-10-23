@@ -173,6 +173,21 @@ The source manifest is the gate for formal scoring: an unknown license, missing
 snapshot, changed checksum, unresolved image digest, or unverified environment
 must stop the run and leave the score unreported.
 
+### Pinned CSM `find_user` output compatibility
+
+The pinned CSM server declares `active` as a JSON boolean but serializes the
+database bit as integer `0`/`1`. The isolated evaluator preserves the original
+MCP envelope and applies a schema-scoped conversion only for exact `0`/`1`
+values at boolean-only schema nodes reached through inline `properties`,
+schema-valued `additionalProperties`, or object `items`. It records converted
+JSON Pointers, rejects other integers, and does not convert schemas that also
+allow integer/number. It does not expand `$ref` or schema-composition keywords;
+those values remain subject to strict validation and fail closed if invalid.
+ReAct and Plan receive the same normalized business value. The result contract
+is versioned as `enterprise-mcp-observation-v2`; this compatibility diagnostic
+does not change the historical v10 routes or count as a benchmark trial. See
+the [sanitized diagnostic and regression evidence](evidence/csm-find-user-output-contract-20261024.md).
+
 ## Frozen model profiles and public comparison manifest
 
 `manifests/evaluation_model_profiles.json`, v2, and comparison manifests
@@ -297,8 +312,16 @@ and verify local images without creating a ledger or calling a model/MCP server:
 ```
 
 A live run still requires the exact candidate to pass CI, all runtime gates, a
-new persisted budget, and separate user authorization; the expired v9 batch
-authorization does not carry forward.
+new persisted budget, and separate user authorization; the v10 batch has already
+ended and its terminal routes are not replayed.
+
+The 2026-10-24 dry-run on code HEAD `edd30f1e60a10a21eebd3d41bced20d6bc8b4063`
+passed image preflight and selected the same four tasks / eight ReAct-Plan route
+slots, with 0 ledger creation, 0 model calls and 0 MCP calls. The broader smoke
+denominator remains 24 tasks / 48 route slots. See the [operator report](evidence/public-first-wave-preflight-20261024-edd30f1.md)
+and [machine evidence](evidence/public-first-wave-preflight-20261024-edd30f1.json).
+The v10 live first wave remains 3 failed, 5 unknown and 0 successful routes;
+the dry-run did not change those outcomes or authorize another batch.
 Route pairs must carry the same exposure assignment, model-profile and
 resource-profile digests. Structured branches use code rules; a Jev semantic
 comparison is marked not-applicable until the benchmark contains a naturally

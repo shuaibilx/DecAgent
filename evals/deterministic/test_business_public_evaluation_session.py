@@ -1,5 +1,6 @@
 """Public benchmark sessions drive the production interpreter without a model."""
 
+import json
 from contextlib import contextmanager
 from copy import deepcopy
 from decimal import Decimal
@@ -390,6 +391,65 @@ def test_invalid_upstream_output_is_tagged_without_persisting_schema_details(tmp
             session.close()
 
 
+def test_react_trajectory_receives_the_same_schema_normalized_tool_value(tmp_path):
+    facts = {
+        key: digest(key)
+        for key in (
+            "initial_state_digest",
+            "goal_digest",
+            "actor_profile_digest",
+            "permission_digest",
+            "tool_adapter_digest",
+        )
+    }
+    trial = trial_for(facts)
+    tool = tool_catalog()[0]
+    tool["outputSchema"] = {
+        "type": "object",
+        "properties": {"active": {"type": "boolean"}},
+        "required": ["active"],
+        "additionalProperties": False,
+    }
+
+    class BooleanBitEnvironment:
+        def call_tool(self, _command, _arguments):
+            return {
+                "content": [{"type": "text", "text": '{"active":1}'}],
+                "isError": False,
+            }
+
+    with EvaluationScope(trial.dataset, trial.dataset_version, trial.case_id) as scope:
+        catalog = EvaluationCatalog.from_mcp_tools(
+            scope,
+            [tool],
+            benchmark_version=trial.dataset_version,
+            result_contract_version="enterprise-mcp-observation-v2",
+        )
+        session = EvaluationPlanSession(
+            BooleanBitEnvironment(),
+            catalog,
+            trial=trial,
+            isolation_id="normalized-react-result",
+            journal_root=tmp_path,
+            actor_id="eval:retail-17",
+            task_input={"instruction": "Read the account status."},
+            skill="Use only the original benchmark tools.",
+            boundary_facts=facts,
+            scorer=lambda _environment: TaskScore(False, 0),
+        )
+        session._conversation_started = 1.0
+        try:
+            observed = session.call("lookup_case", {"user_id": "u-17"})
+            message = session._trajectory[-1]
+        finally:
+            session.close()
+
+    assert observed["raw"]["content"][0]["text"] == '{"active":1}'
+    assert observed["value"]["active"] is True
+    assert observed["normalizations"] == ["/active"]
+    assert json.loads(message["content"]) == {"active": True}
+
+
 def test_unexpected_observer_runtime_error_keeps_generic_tool_stage(tmp_path):
     from decagent.business.plans.runtime import NodeFailure
     from decagent.evaluation.business.public_diagnostics import (
@@ -598,7 +658,7 @@ def test_enterprise_session_factory_fingerprints_catalog_before_building_session
             scope,
             tools,
             benchmark_version=spec.image,
-            result_contract_version="enterprise-mcp-observation-v1",
+            result_contract_version="enterprise-mcp-observation-v2",
         )
         facts = {
             "initial_state_digest": digest("live enterprise state"),

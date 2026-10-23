@@ -147,7 +147,7 @@ def run_plan(tmp_path, *, policy=None, summarizer=None, drift=False, deadline_pr
         scope,
         environment.model_input()["tools"],
         benchmark_version=environment.spec.image,
-        result_contract_version="enterprise-mcp-observation-v1",
+        result_contract_version="enterprise-mcp-observation-v2",
     )
     try:
         result = ControlledRoutes(factory).run(

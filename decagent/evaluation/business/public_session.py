@@ -12,7 +12,11 @@ from uuid import uuid4
 
 from decagent.business.contracts import validate_schema
 from decagent.business.plans.compiler import default_input_schema
-from decagent.business.plans.evaluation_catalog import EvaluationCatalog, EvaluationScope
+from decagent.business.plans.evaluation_catalog import (
+    ENTERPRISE_MCP_OBSERVATION_CONTRACT_VERSION,
+    EvaluationCatalog,
+    EvaluationScope,
+)
 from decagent.business.plans.runtime import NodeFailure, NodePending, NodeResult
 from decagent.decisions.contracts import canonical_json, digest
 
@@ -140,7 +144,7 @@ class EvaluationPlanSession:
             scope,
             public["tools"],
             benchmark_version=spec.image,
-            result_contract_version="enterprise-mcp-observation-v1",
+            result_contract_version=ENTERPRISE_MCP_OBSERVATION_CONTRACT_VERSION,
         )
         from .enterprise_scoring import bounded_state_fingerprint
 
@@ -183,7 +187,7 @@ class EvaluationPlanSession:
             boundary_facts=boundary_facts,
             scorer=scorer,
             benchmark_version=spec.image,
-            result_contract_version="enterprise-mcp-observation-v1",
+            result_contract_version=ENTERPRISE_MCP_OBSERVATION_CONTRACT_VERSION,
             private_initial_state_fingerprint=initial_state_fingerprint,
         )
 
@@ -363,7 +367,20 @@ class EvaluationPlanSession:
                 call_id, "failed" if observed["is_error"] else "succeeded", observed
             )
             if self._conversation_started is not None:
-                self._trajectory.append(self._tool_message(trajectory_call_id, raw))
+                trajectory_result = raw
+                if observed["normalizations"]:
+                    trajectory_result = {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": canonical_json(observed["value"]),
+                            }
+                        ],
+                        "isError": observed["is_error"],
+                    }
+                self._trajectory.append(
+                    self._tool_message(trajectory_call_id, trajectory_result)
+                )
             return observed
         except Exception as exc:
             self.repository.finish_external_call(

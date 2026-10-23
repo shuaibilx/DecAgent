@@ -19,6 +19,7 @@ from decagent.decisions.contracts import digest
 
 OPEN_RESULT_PATH = "x-decagent-open-result-path"
 _ANY_JSON = {"type": ["string", "integer", "number", "boolean", "object", "array", "null"]}
+ENTERPRISE_MCP_OBSERVATION_CONTRACT_VERSION = "enterprise-mcp-observation-v2"
 _NEVER_IN_AGENT_INPUT = frozenset(
     {"endpoint", "endpoint_ref", "url", "base_url", "headers", "authorization", "token"}
 )
@@ -94,6 +95,71 @@ def _reviewed_enterprise_read_tool(
         and fields.get("visibility", {}).get("enum")
         and fields.get("body", {}).get("type") == "string"
     )
+
+
+def _escape_json_pointer_segment(value):
+    return str(value).replace("~", "~0").replace("/", "~1")
+
+
+def _normalize_declared_boolean_values(schema, value, path=""):
+    """Normalize JSON 0/1 only where the frozen output schema requires boolean."""
+    if not isinstance(schema, dict):
+        return value, []
+
+    declared_type = schema.get("type")
+    declared_types = (
+        {declared_type}
+        if isinstance(declared_type, str)
+        else set(declared_type)
+        if isinstance(declared_type, list)
+        else set()
+    )
+    if (
+        "boolean" in declared_types
+        and not {"integer", "number"}.intersection(declared_types)
+        and type(value) is int
+        and value in (0, 1)
+    ):
+        if len(path) > 512:
+            raise ValueError("Boolean output normalization pointer exceeds its bound")
+        return bool(value), [path]
+
+    normalizations = []
+    if isinstance(value, dict):
+        properties = schema.get("properties", {})
+        result = deepcopy(value)
+        if isinstance(properties, dict):
+            for name, child_schema in properties.items():
+                if name in value:
+                    escaped_name = _escape_json_pointer_segment(name)
+                    child_path = f"{path}/{escaped_name}"
+                    result[name], child_paths = _normalize_declared_boolean_values(
+                        child_schema, value[name], child_path
+                    )
+                    normalizations.extend(child_paths)
+        additional = schema.get("additionalProperties")
+        if isinstance(additional, dict):
+            for name, child_value in value.items():
+                if name in properties:
+                    continue
+                escaped_name = _escape_json_pointer_segment(name)
+                child_path = f"{path}/{escaped_name}"
+                result[name], child_paths = _normalize_declared_boolean_values(
+                    additional, child_value, child_path
+                )
+                normalizations.extend(child_paths)
+        return result, normalizations
+
+    if isinstance(value, list) and isinstance(schema.get("items"), dict):
+        result = []
+        for index, item in enumerate(value):
+            normalized, child_paths = _normalize_declared_boolean_values(
+                schema["items"], item, f"{path}/{index}"
+            )
+            result.append(normalized)
+            normalizations.extend(child_paths)
+        return result, normalizations
+    return value, normalizations
 
 
 class EvaluationScope:
@@ -222,8 +288,13 @@ class EvaluationCatalog:
                         "raw": deepcopy(_ANY_JSON),
                         "value": {OPEN_RESULT_PATH: True},
                         "is_error": {"type": "boolean"},
+                        "normalizations": {
+                            "type": "array",
+                            "items": {"type": "string", "maxLength": 512},
+                            "maxItems": 256,
+                        },
                     },
-                    "required": ["raw", "value", "is_error"],
+                    "required": ["raw", "value", "is_error", "normalizations"],
                     "additionalProperties": False,
                 },
                 "upstream_schema": original,
@@ -412,6 +483,17 @@ class EvaluationCatalog:
             value = deepcopy(raw)
         command_spec = self._commands[command]
         output_schema = command_spec.upstream_output_schema
+        normalizations = []
         if output_schema is not None and not is_error:
+            value, normalizations = _normalize_declared_boolean_values(
+                output_schema, value
+            )
+            if len(normalizations) > 256:
+                raise ValueError("Too many boolean output normalizations")
             validate_schema(output_schema, value)
-        return {"raw": deepcopy(raw), "value": value, "is_error": is_error}
+        return {
+            "raw": deepcopy(raw),
+            "value": value,
+            "is_error": is_error,
+            "normalizations": normalizations,
+        }

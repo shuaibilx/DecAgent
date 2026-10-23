@@ -57,7 +57,7 @@ def catalog(tools=None, *, benchmark="enterpriseops-gym"):
         scope,
         tools if tools is not None else [knowledge_tool()],
         benchmark_version="pinned-v1",
-        result_contract_version="enterprise-mcp-observation-v1",
+        result_contract_version="enterprise-mcp-observation-v2",
     )
 
 
@@ -336,7 +336,7 @@ def test_controlled_plan_route_sends_same_verified_candidates_and_accepts_only_r
                 scope,
                 tools,
                 benchmark_version=frozen.dataset_version,
-                result_contract_version="enterprise-mcp-observation-v1",
+                result_contract_version="enterprise-mcp-observation-v2",
             )
             session = TrackingSession(
                 Environment(),
@@ -361,7 +361,7 @@ def test_controlled_plan_route_sends_same_verified_candidates_and_accepts_only_r
             scope,
             tools,
             benchmark_version="pinned-v1",
-            result_contract_version="enterprise-mcp-observation-v1",
+            result_contract_version="enterprise-mcp-observation-v2",
         )
         plan = semantic_plan(spec, QuestionRegistry.from_spec(spec))
 

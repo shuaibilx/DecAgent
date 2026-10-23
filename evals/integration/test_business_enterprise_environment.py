@@ -8,6 +8,7 @@ import asyncio
 import importlib
 import json
 import os
+import re
 from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -239,16 +240,23 @@ def test_pinned_csm_find_user_read_tool_preserves_database_state():
                 scope,
                 [tool],
                 benchmark_version=spec.image,
-                result_contract_version="enterprise-mcp-observation-v1",
+                result_contract_version="enterprise-mcp-observation-v2",
             )
             assert catalog.commands["find_user"].effect == "read"
-
-        before = trial.state_fingerprint()
-        response = trial.call_tool("find_user", {"name": "__decagent_read_audit_missing__"})
-        after = trial.state_fingerprint()
-        assert response.get("isError", False) is False
-        assert response.get("content")
-        assert after == before
+            before = trial.state_fingerprint()
+            match = re.search(
+                r"([A-Z][a-z]+ [A-Z][a-z]+) sent an email stating",
+                public["user_prompt"],
+            )
+            assert match is not None
+            response = trial.call_tool("find_user", {"name": match.group(1)})
+            after = trial.state_fingerprint()
+            assert response.get("isError", False) is False
+            assert response.get("content")
+            observed = catalog.observe("find_user", response)
+            assert observed["normalizations"] == ["/active"]
+            assert type(observed["value"]["active"]) is bool
+            assert after == before
 
     assert trial.cleanup_verified is True
 

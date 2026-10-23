@@ -1,10 +1,12 @@
 # Proposal
 
-## 当前实施状态（2026-10-23，v10 首波已 live 执行，验收门槛未通过）
+## 当前实施状态（2026-10-24，v10 首波已 live 执行，验收门槛未通过）
 
 主 change 为 **72/79，仍有 7 项待完成**：9.6.D、9.6.F、9.6.G、10.3–10.6；`guest-sop-local-trial` 为 22/28。候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 的同 SHA GitHub Actions [CI run 39784378797](https://github.com/shuaibilx/DecAgent/actions/runs/39784378797) 9/9 jobs 成功。冻结 v10 四域首波已运行 4 个任务、8 条 ReAct/Plan 路线：3 failed、5 unknown、0 success；清理 8/8 verified，仅 τ telecom/ReAct 获得官方评分且为 0.0。Plan 路线均遇到 120 秒 Qwen timeout；CSM/ReAct MCP dispatch 为 unknown。批次没有 Jev 或 LLM judge 请求，公开基准仍为 0/286，不支持质量或 Jev 收益结论。
 
-首波后的 CSM 离线只读探针在新建 pinned 环境中通过了合成 `find_user` 查询，未复现历史 `ValidationError`；原始调用参数与响应未留存，故根因仍未确认，9.6.F 保持未完成，unknown 不重放。详见[诊断记录](../../../evals/benchmarks/evidence/csm-find-user-readonly-diagnostic-20261023.md)。
+2026-10-24 的固定 v10 `first-wave --check-images` dry-run 在代码 HEAD `edd30f1e60a10a21eebd3d41bced20d6bc8b4063` 通过，确认 4 个任务/8 个路线槽、镜像就绪、0 ledger、0 模型请求和 0 MCP 请求。它不改变 v10 live 终态，也不续期或授权新批次；详见[预检说明](../../../evals/benchmarks/evidence/public-first-wave-preflight-20261024-edd30f1.md)。
+
+首波后的 CSM 离线只读探针在新建 pinned 环境中通过了合成 `find_user` 查询，未复现历史 `ValidationError`。2026-10-24 进一步用公开任务要求的只读查询复现了相同类别的输出契约错误：schema 声明 `active:boolean`，MCP JSON 实际以整数编码。现已加入严格 schema-aware `0/1` 规范化、原始响应保留、JSON Pointer 记录以及 ReAct/Plan 同值输入，并将适配结果契约升至 v2；真实只读 CSM 集成与清理验证通过。该发现不能证明历史 v10 的 `ValueError` 原因相同，且不改变历史 `unknown`。四域真实模型/工具/评分闭环未完成，9.6.F/G 仍待新候选、CI、预算与授权。详见[诊断与修正记录](../../../evals/benchmarks/evidence/csm-find-user-output-contract-20261024.md)及[早期合成探针](../../../evals/benchmarks/evidence/csm-find-user-readonly-diagnostic-20261023.md)。
 
 ### Latest verification after the v10 first wave (2026-10-23)
 

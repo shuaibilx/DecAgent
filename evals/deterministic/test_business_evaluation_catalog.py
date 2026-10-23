@@ -1,9 +1,11 @@
 """Trusted benchmark catalog stays isolated from the production plugin boundary."""
 
+import json
 from copy import deepcopy
 
 import pytest
 
+from decagent.business.contracts import validate_schema
 from decagent.business.plans.contracts import Plan
 from decagent.business.plans.templates import QuestionRegistry
 from decagent.decisions.contracts import digest
@@ -213,7 +215,7 @@ def test_pinned_csm_find_user_read_classification_requires_exact_image_and_schem
             scope,
             [tool],
             benchmark_version=image,
-            result_contract_version="enterprise-mcp-observation-v1",
+            result_contract_version="enterprise-mcp-observation-v2",
         )
         assert catalog.commands["find_user"].effect == "read"
 
@@ -223,7 +225,7 @@ def test_pinned_csm_find_user_read_classification_requires_exact_image_and_schem
             scope,
             [drifted],
             benchmark_version=image,
-            result_contract_version="enterprise-mcp-observation-v1",
+            result_contract_version="enterprise-mcp-observation-v2",
         )
         assert changed.commands["find_user"].effect == "write"
 
@@ -231,7 +233,7 @@ def test_pinned_csm_find_user_read_classification_requires_exact_image_and_schem
             scope,
             [tool],
             benchmark_version="docker.io/example/other-csm@sha256:" + "c" * 64,
-            result_contract_version="enterprise-mcp-observation-v1",
+            result_contract_version="enterprise-mcp-observation-v2",
         )
         assert changed_image.commands["find_user"].effect == "write"
 
@@ -368,6 +370,7 @@ def test_observation_keeps_original_mcp_response_and_derives_structured_value_vi
             "raw": original["result"],
             "value": {"case_id": "C-17", "status": "open"},
             "is_error": False,
+            "normalizations": [],
         }
         original["result"]["structuredContent"]["case_id"] = "changed"
         assert observed["raw"]["structuredContent"]["case_id"] == "C-17"
@@ -404,7 +407,119 @@ def test_null_structured_content_falls_back_to_json_text_for_output_validation()
             "raw": raw,
             "value": {"case_id": "C-17", "status": "open"},
             "is_error": False,
+            "normalizations": [],
         }
+
+
+@pytest.mark.parametrize(("wire_value", "expected"), [(0, False), (1, True)])
+def test_declared_boolean_output_normalizes_database_bit_values(wire_value, expected):
+    EvaluationCatalog, EvaluationScope = api()
+    tool = tool_catalog()[0]
+    tool["outputSchema"] = {
+        "type": "object",
+        "properties": {"active": {"type": "boolean"}},
+        "required": ["active"],
+        "additionalProperties": False,
+    }
+    raw = {
+        "content": [{"type": "text", "text": json.dumps({"active": wire_value})}],
+        "isError": False,
+    }
+
+    with EvaluationScope("enterpriseops-gym", "csm-v1", "csm-1") as scope:
+        catalog = EvaluationCatalog.from_mcp_tools(
+            scope,
+            [tool],
+            benchmark_version="csm-v1",
+            result_contract_version="enterprise-mcp-observation-v2",
+        )
+
+        observed = catalog.observe("lookup_case", raw)
+        validate_schema(catalog.commands["lookup_case"].result_schema, observed)
+
+    assert observed["raw"] == raw
+    assert observed["value"]["active"] is expected
+    assert observed["normalizations"] == ["/active"]
+
+
+def test_declared_boolean_output_does_not_coerce_other_integers():
+    EvaluationCatalog, EvaluationScope = api()
+    tool = tool_catalog()[0]
+    tool["outputSchema"] = {
+        "type": "object",
+        "properties": {"active": {"type": "boolean"}},
+        "required": ["active"],
+        "additionalProperties": False,
+    }
+    raw = {
+        "content": [{"type": "text", "text": '{"active":2}'}],
+        "isError": False,
+    }
+
+    with EvaluationScope("enterpriseops-gym", "csm-v1", "csm-1") as scope:
+        catalog = EvaluationCatalog.from_mcp_tools(
+            scope,
+            [tool],
+            benchmark_version="csm-v1",
+            result_contract_version="enterprise-mcp-observation-v2",
+        )
+
+        with pytest.raises(ValueError, match="boolean"):
+            catalog.observe("lookup_case", raw)
+
+
+def test_integer_union_is_not_normalized_to_boolean():
+    EvaluationCatalog, EvaluationScope = api()
+    tool = tool_catalog()[0]
+    tool["outputSchema"] = {
+        "type": "object",
+        "properties": {"active": {"type": ["boolean", "integer"]}},
+        "required": ["active"],
+    }
+    raw = {
+        "content": [{"type": "text", "text": '{"active":1}'}],
+        "isError": False,
+    }
+
+    with EvaluationScope("enterpriseops-gym", "csm-v1", "csm-1") as scope:
+        catalog = EvaluationCatalog.from_mcp_tools(
+            scope,
+            [tool],
+            benchmark_version="csm-v1",
+            result_contract_version="enterprise-mcp-observation-v2",
+        )
+
+        observed = catalog.observe("lookup_case", raw)
+
+    assert type(observed["value"]["active"]) is int
+    assert observed["normalizations"] == []
+
+
+def test_referenced_boolean_output_is_not_implicitly_normalized():
+    EvaluationCatalog, EvaluationScope = api()
+    tool = tool_catalog()[0]
+    tool["outputSchema"] = {
+        "$defs": {"active_flag": {"type": "boolean"}},
+        "type": "object",
+        "properties": {"active": {"$ref": "#/$defs/active_flag"}},
+        "required": ["active"],
+        "additionalProperties": False,
+    }
+    raw = {
+        "content": [{"type": "text", "text": '{"active":1}'}],
+        "isError": False,
+    }
+
+    with EvaluationScope("enterpriseops-gym", "csm-v1", "csm-1") as scope:
+        catalog = EvaluationCatalog.from_mcp_tools(
+            scope,
+            [tool],
+            benchmark_version="csm-v1",
+            result_contract_version="enterprise-mcp-observation-v2",
+        )
+
+        with pytest.raises(ValueError, match="boolean"):
+            catalog.observe("lookup_case", raw)
 
 
 def test_evaluation_catalog_rejects_remote_json_schema_references():
@@ -447,6 +562,7 @@ def test_tau_result_object_is_preserved_as_json_transport_data():
             "raw": {"content": '{"status":"open"}', "is_error": False},
             "value": {"status": "open"},
             "is_error": False,
+            "normalizations": [],
         }
 
 

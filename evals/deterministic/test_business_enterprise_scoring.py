@@ -327,7 +327,7 @@ def enterprise_session_fixture(tmp_path, *, changed_state=False):
         scope,
         tool_catalog(),
         benchmark_version=environment.spec.image,
-        result_contract_version="enterprise-mcp-observation-v1",
+        result_contract_version="enterprise-mcp-observation-v2",
     )
     trial = ComparisonTrial(
         dataset="enterpriseops-gym",

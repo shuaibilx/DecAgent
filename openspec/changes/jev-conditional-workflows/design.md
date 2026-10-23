@@ -1,6 +1,18 @@
 # Design
 
-## 最新执行结果（2026-10-22，manifest v9 / candidate f1a4a70）
+## 当前执行状态（2026-10-24）
+
+v10 真实首波运行在候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 上完成：4 个任务/8 条 ReAct/Plan 路线终态为 3 failed、5 unknown、0 success，清理 8/8 verified；只有 τ telecom/ReAct 获得官方评分且为 0.0。Qwen 共 30 次请求，220,086 Token 已结算，另有 257,347 Token 上界预留处于 unknown；Jev 与裁判均未调用。质量门槛未通过，历史 unknown 不重放，24 例 smoke 与 206+80 全量暂停。公开 benchmark 仍为 0/286 个已评分任务。详情见[人读报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.md)和[机器报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.json)。
+
+2026-10-24 在代码 HEAD `edd30f1e60a10a21eebd3d41bced20d6bc8b4063` 重跑固定 v10 `first-wave --check-images`，预检通过并确认 4 个首波任务/8 个 ReAct/Plan 路线槽、固定镜像已就绪、0 ledger、0 模型/MCP 派发。该 dry-run 仅核对冻结输入和本机镜像，不代表 live route 通过，不重放旧 unknown，也不构成新批次授权。详见[预检说明](../../../evals/benchmarks/evidence/public-first-wave-preflight-20261024-edd30f1.md)与[机器报告](../../../evals/benchmarks/evidence/public-first-wave-preflight-20261024-edd30f1.json)。
+
+### 2026-10-24 CSM `find_user` schema/wire compatibility
+
+固定 CSM 镜像的真实只读查询显示：原始工具 schema 将 `active` 声明为 boolean，而 MCP JSON 将数据库 bit 字段编码为整数。严格校验因此会拒绝一个成功响应。评测适配器仅在内联 `properties`、schema-valued `additionalProperties` 和对象 `items` 中声明为 boolean 的节点，把精确整数 `0`/`1` 规范化为 `false`/`true`；保留原始 envelope，并记录变更 JSON Pointer。它不隐式展开 `$ref` 或组合关键字；这些节点继续按冻结 schema 严格校验，失败则失败关闭。其他整数和允许 integer/number 的 union 不转换。ReAct 的对话轨迹和 Plan 节点使用同一个规范化业务值，评测结果封装版本升为 `enterprise-mcp-observation-v2`。新回归、真实 CSM 只读 MCP 集成和清理验证通过。详情见[诊断与修正证据](../../../evals/benchmarks/evidence/csm-find-user-output-contract-20261024.md)。
+
+该证据只确认当前 pinned 输出契约的兼容问题，不能证明缺少原始调用数据的 v10 历史 `ValueError` 一定由它造成；不修改历史 attempt、评分或预算，也不以此宣称四域评测闭环完成。9.6.F/G 与 10.3 仍待真实模型、工具、官方评分和新批次授权。
+
+### 历史执行结果（2026-10-22，manifest v9 / candidate f1a4a70）
 
 候选 `f1a4a704fe2c36b22127006fe0bc9860733923d5` 的同 SHA GitHub Actions [CI run 39731158534](https://github.com/shuaibilx/DecAgent/actions/runs/39731158534) 全部通过，随后执行冻结 manifest v9 的 4 个任务/8 条 ReAct/Plan 路线。8 条路线均终态：4 failed、4 unknown、0 succeeded；只有 ITSM/ReAct 与 τ telecom/ReAct 到达官方评分器，二者均为 0.0；环境清理 8/8 verified。3 个 Plan primary 请求约 60 秒超时且用量/服务端请求 ID unknown，保留 198,176 Token 与 ¥0.2052352 冻结费率预留；τ retail 两条路线因用户模拟器模型客户端本地预检失败而标记 not_sent；CSM/ReAct 的 MCP attempt 为 unknown。已知用量 101,110 tokens，按冻结费率估算抵扣前 API 费用 ¥0.0853511；没有 provider invoice 证据。Jev/judge 0 次。详情见[首波执行报告](../../../generated/261022/1426_公开评测首波执行报告_f1a4a70.md)及[机器数据](../../../evals/benchmarks/evidence/public-first-wave-live-20261022-f1a4a70.json)。该 cohort 未通过成功/评分门槛；不重放 unknown，不开展剩余 smoke 或全量，也不据此推断 Jev 收益。
 

@@ -82,6 +82,26 @@ EnterpriseOps-Gym CSM/ITSM MUST 作为主要端到端工作流 benchmark；τ-Be
 - **WHEN** 原工具通过成功的 MCP 传输返回 isError=true
 - **THEN** 原始错误完整持久化，ReAct 可按原观察恢复，计划使用显式 on_error；不能将已收到的工具错误改为传输未知或伪装成成功
 
+### Requirement: Preserve typed MCP output semantics across evaluator routes
+
+隔离评测适配器 MUST 保留原始 MCP 响应，并按冻结的 output schema 验证成功结果。ReAct 和计划路线 MUST 接收相同的类型化业务值；原始响应仍可审计，规范化不能覆盖或改写它。结果封装使用版本化的 `enterprise-mcp-observation-v2`。
+
+#### Scenario: MCP encodes a schema-declared boolean as a database bit
+- **WHEN** 固定工具 output schema 在某字段只声明 boolean，而成功 MCP JSON 结果在该字段返回整数 `0` 或 `1`
+- **THEN** 评测适配器保留原始 MCP envelope，将业务 value 中的字段映射为 `false` 或 `true`，记录 JSON Pointer，并让 ReAct 与计划路线观察同一规范值
+
+### Requirement: Fail closed outside supported boolean normalization nodes
+
+评测适配器 MAY 将精确整数 `0` 或 `1` 规范化为 boolean，但仅限内联 `properties`、schema-valued `additionalProperties` 和对象 `items`。它 MUST NOT 隐式展开 `$ref` 或组合关键字；未转换值仍须通过冻结 schema 的严格校验，否则 MUST 以输出契约错误失败关闭。
+
+#### Scenario: A boolean is declared behind an unexpanded reference
+- **WHEN** output schema 通过 `$ref` 声明 boolean，而响应对应节点返回整数 `0` 或 `1`
+- **THEN** 适配器不进行隐式转换，保留原值，并由严格 schema 校验拒绝该结果
+
+#### Scenario: MCP returns a value outside the boolean wire compatibility rule
+- **WHEN** 字段返回 `2`、其他非布尔类型，或其 schema 也允许 integer/number
+- **THEN** 不进行隐式 boolean 转换；纯 boolean schema 的非法结果仍按 output-schema validation failure 处理，联合类型按原 JSON 类型保留
+
 ### Requirement: Separate data splits and prevent answer leakage
 
 系统 MUST 保留 benchmark 官方任务划分；无官方划分时按业务流程/任务族隔离开发、验证和测试。期望状态、reference actions、标签、答案及 verifier 私有字段 MUST NOT 出现在待测模型输入中。测试集 MUST 不参与模板、阈值或策略调优，评测记忆不得跨测试样本学习。

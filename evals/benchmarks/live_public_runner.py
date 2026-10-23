@@ -210,7 +210,11 @@ def _enterprise_task(root, record, source, inventory):
 
 
 def _enterprise_boundary(spec, environment, record):
-    from decagent.business.plans.evaluation_catalog import EvaluationCatalog, EvaluationScope
+    from decagent.business.plans.evaluation_catalog import (
+        ENTERPRISE_MCP_OBSERVATION_CONTRACT_VERSION,
+        EvaluationCatalog,
+        EvaluationScope,
+    )
 
     public = environment.model_input()
     initial = bounded_state_fingerprint(environment.state_fingerprint())
@@ -221,7 +225,7 @@ def _enterprise_boundary(spec, environment, record):
             scope,
             public["tools"],
             benchmark_version=spec.image,
-            result_contract_version="enterprise-mcp-observation-v1",
+            result_contract_version=ENTERPRISE_MCP_OBSERVATION_CONTRACT_VERSION,
         )
     boundary = {
         "initial_state_digest": initial["digest"],
