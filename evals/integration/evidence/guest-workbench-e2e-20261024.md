@@ -28,4 +28,11 @@ The command is now part of the CI browser-E2E job:
 python -m evals.e2e.business_guest_workbench
 ```
 
+## GitHub Actions verification
+
+- Candidate SHA: `de825c8337acc704ff2ba1c12aaad2e006c22320`.
+- CI run: [40032074530](https://github.com/shuaibilx/DecAgent/actions/runs/40032074530), `workflow_dispatch` on `feat/conditional-evaluation`.
+- Result: all 12 jobs succeeded, including the Python 3.12 production gateway browser E2E job that runs both employee and guest browser flows.
+- This validates the committed test in hosted CI. It does not expand the test's scope to a live Jev request, an employee-mediated business decision, or a deployed guest service.
+
 This evidence closes only the browser-level guest session lifecycle. The Jev suggestion-to-semantic-reply path is still covered by the Node DOM regression rather than a real-browser flow, and this test makes no claim about live Jev quality or behavior. OpenSpec task 2.5 remains open.
