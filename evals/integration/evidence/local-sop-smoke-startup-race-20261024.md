@@ -57,3 +57,11 @@ This verifies a disposable, locally built image and readiness/fault-recovery beh
 - Cleanup verification found no containers, volumes, networks or image with this run's project/tag. The old API remained on `127.0.0.1:8000`; port 8001 remained unbound.
 - A preceding exploratory `--help` invocation unexpectedly started another disposable smoke because the script did not parse arguments. Its process ended and its project resources were absent at follow-up, but its exit status was not retained and is not counted as validation. The CLI now uses `argparse`; regressions assert `--help` and unknown arguments exit before port/temp-directory setup. The focused file passed `8` tests, Ruff passed, and the explicit `--help` command now prints usage without starting Docker.
 - This remains disposable-only evidence. It does not complete task 4.4's persistent first install, same-digest recovery, upgrade, rollback, schema stop, or startup-recovery exercises.
+
+## Private Runner restart and current preflight (2026-10-24, Asia/Shanghai)
+
+- No private Actions run was active. The `DecAgentPrivateDeployRunner` scheduled task used an `AtLogOn` trigger, `StartWhenAvailable`, up to three retries at one-minute intervals, and `IgnoreNew` for overlapping starts.
+- Restarted the idle task (`Running` → `Ready` → `Running`). The GitHub API then reported the `decagent-local-deploy` runner online. The bootstrap log recorded a fresh loop start and Docker Desktop Linux-engine readiness.
+- The real `sop_preflight` command passed against `ops/deploy/sop.env`; it reported project `decagent-sop`, the six expected services, API binding `127.0.0.1:8001`, `conditional_workflows=true`, `guest_trial=false`, and `docker_socket=false`.
+- Read-only host checks found no `decagent-sop` containers, volumes, or networks; port 8001 was free, and the existing API remained healthy on port 8000 with `/health` returning HTTP 200 after the Runner restart.
+- This verifies only scheduled-task restart and static Compose/configuration preflight. It does not verify Windows sign-out/reboot recovery, persistent installation, a deployment workflow, first-install/recovery/upgrade/rollback, or schema-incompatible stop. OpenSpec task 4.4 remains open.
