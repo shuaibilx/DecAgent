@@ -131,6 +131,7 @@ def main() -> int:
         if thread.is_alive():
             server.force_exit = True
             thread.join(timeout=5)
+        gateway_still_running = thread.is_alive()
         try:
             _stop_mcp(fixture.mcp_service)
         finally:
@@ -141,6 +142,8 @@ def main() -> int:
                         sql.Identifier(fixture.database_name)
                     )
                 )
+        if gateway_still_running:
+            raise RuntimeError("Synthetic business gateway failed to stop")
 
 
 if __name__ == "__main__":
