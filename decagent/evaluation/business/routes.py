@@ -52,7 +52,7 @@ from decagent.evaluation.business.public_resources import (
 from .comparison import ComparisonTrial, Route, RouteRun, TauStepLimitReached
 from .final_response import DEFAULT_RESPONSE_POLICY, FinalResponsePolicy, accept_summary
 from .model_profiles import ModelProfile
-from .public_diagnostics import safe_exception_type, safe_failure_stage
+from .public_diagnostics import FAILURE_STAGES, safe_exception_type, safe_failure_stage
 
 
 def _money(value):
@@ -300,11 +300,35 @@ class ModelReply:
 class ModelCallError(Exception):
     """An unsuccessful dispatch with known usage; omit reply when still unknown."""
 
-    def __init__(self, message, *, reply=None):
+    def __init__(self, message, *, reply=None, failure_stage=None):
         super().__init__(message)
         if reply is not None and not isinstance(reply, ModelReply):
             raise TypeError("Failed-call usage must be a ModelReply")
+        if failure_stage is not None and (
+            type(failure_stage) is not str or failure_stage not in FAILURE_STAGES
+        ):
+            raise ValueError("Model call failure stage must be allowlisted")
         self.reply = reply
+        self.failure_stage = failure_stage
+
+
+class _PublicRouteStageFailure(Exception):
+    """Fallback wrapper for exceptions that cannot carry a safe stage attribute."""
+
+    def __init__(self, error, failure_stage):
+        self.failure_stage = failure_stage
+        self.diagnostic_exception_type = safe_exception_type(error)
+        super().__init__("A public route component failed")
+
+
+def _raise_at_failure_stage(error, default_stage):
+    """Annotate an error at a known boundary without retaining its message."""
+    stage = safe_failure_stage(error, default=default_stage)
+    try:
+        error.failure_stage = stage
+    except Exception:
+        raise _PublicRouteStageFailure(error, stage) from error
+    raise error
 
 
 @dataclass(frozen=True)
@@ -1011,7 +1035,7 @@ class ControlledRoutes:
                     status = "unknown"
                     terminal = {"status": "unknown", "unknown": True}
                     failure_kind = "model_usage_unknown"
-                    failure_stage = "model_callback"
+                    failure_stage = safe_failure_stage(exc, default="model_callback")
                     exception_type = safe_exception_type(exc)
                 except PublicModelProfileDrift as exc:
                     error = type(exc).__name__ + ": " + str(exc)
@@ -1254,17 +1278,23 @@ class ControlledRoutes:
     ):
         observations = []
         for _ in range(self.max_react_turns):
-            session.boundary().check(trial, initial=False)
+            try:
+                session.boundary().check(trial, initial=False)
+            except Exception as exc:
+                _raise_at_failure_stage(exc, "route_supervisor")
             request = {**public, "observations": deepcopy(observations)}
             if getattr(session, "supports_user_simulation", False):
                 request["conversation"] = session.conversation
             _record_tau_step(session, "agent")
-            action = usage.call(
-                "primary",
-                callback,
-                request,
-                timeout_seconds=(timeout_provider() if timeout_provider else None),
-            )
+            try:
+                action = usage.call(
+                    "primary",
+                    callback,
+                    request,
+                    timeout_seconds=(timeout_provider() if timeout_provider else None),
+                )
+            except Exception as exc:
+                _raise_at_failure_stage(exc, "model_callback")
             if (
                 isinstance(action, dict)
                 and action.get("finish") is True
@@ -1275,21 +1305,39 @@ class ControlledRoutes:
                     type(message) is not str
                     or len(message.encode("utf-8")) > response_policy.max_output_bytes
                 ):
-                    raise ValueError("ReAct final response exceeds the frozen byte limit")
+                    error = ValueError("ReAct final response exceeds the frozen byte limit")
+                    _raise_at_failure_stage(error, "model_response_validation")
                 if getattr(session, "supports_user_simulation", False):
                     if type(message) is not str or not message.strip():
-                        raise ValueError("τ ReAct completion requires a final assistant message")
-                    session.finish_conversation(message)
+                        error = ValueError(
+                            "τ ReAct completion requires a final assistant message"
+                        )
+                        _raise_at_failure_stage(error, "model_response_validation")
+                    try:
+                        session.finish_conversation(message)
+                    except Exception as exc:
+                        _raise_at_failure_stage(
+                            exc, "tau_worker_user_simulator_step"
+                        )
                 elif type(message) is str and callable(
                     getattr(session, "set_final_response", None)
                 ):
-                    session.set_final_response(message)
+                    try:
+                        session.set_final_response(message)
+                    except Exception as exc:
+                        _raise_at_failure_stage(exc, "agent_execution")
                 return {"status": "complete"}
             if isinstance(action, dict) and set(action) == {"ask_user"}:
                 prompt = action["ask_user"]
                 if not callable(getattr(session, "ask_user", None)):
-                    raise ValueError("This route has no simulated user to clarify with")
-                answer = session.ask_user(prompt)
+                    error = ValueError("This route has no simulated user to clarify with")
+                    _raise_at_failure_stage(error, "model_response_validation")
+                try:
+                    answer = session.ask_user(prompt)
+                except Exception as exc:
+                    _raise_at_failure_stage(
+                        exc, "tau_worker_user_simulator_step"
+                    )
                 observations.append(
                     {"assistant_question": prompt, "user_answer": answer}
                 )
@@ -1297,9 +1345,15 @@ class ControlledRoutes:
                     return {"status": "stopped", "reason": "τ-Bench user stopped"}
                 continue
             if not isinstance(action, dict) or set(action) != {"tool", "arguments"}:
-                raise ValueError("ReAct must select one registered tool or explicitly finish")
+                error = ValueError(
+                    "ReAct must select one registered tool or explicitly finish"
+                )
+                _raise_at_failure_stage(error, "model_response_validation")
             command, params = action["tool"], action["arguments"]
-            _validate_tool(session.spec, command, params)
+            try:
+                _validate_tool(session.spec, command, params)
+            except Exception as exc:
+                _raise_at_failure_stage(exc, "model_response_validation")
             if session.spec.commands[command].effect == "write":
                 # Existing approval/governance is mandatory; a raw model call is not approval.
                 handler = getattr(session, "handle_react_write", None)
@@ -1319,6 +1373,8 @@ class ControlledRoutes:
                         "request": deepcopy(pending.request),
                         **({"unknown": True} if pending.unknown else {}),
                     }
+                except Exception as exc:
+                    _raise_at_failure_stage(exc, "tool_gateway")
             else:
                 try:
                     data = gateway.call(command, params)
@@ -1332,6 +1388,8 @@ class ControlledRoutes:
                         },
                         "unknown": True,
                     }
+                except Exception as exc:
+                    _raise_at_failure_stage(exc, "tool_gateway")
             observations.append({"tool": command, "arguments": deepcopy(params), "data": data})
         return {"status": "stopped", "reason": "ReAct turn bound exhausted"}
 

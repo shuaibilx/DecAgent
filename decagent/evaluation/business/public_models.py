@@ -783,6 +783,7 @@ class PublicReactCallback:
             raise ModelCallError(
                 "Primary model response did not satisfy the public action contract",
                 reply=self._reply(None, exc.usage, exc.model, exc.server_request_id),
+                failure_stage="model_response_validation",
             ) from None
         usage = getattr(turn, "usage", None)
         if not isinstance(usage, ModelUsage):
@@ -799,6 +800,7 @@ class PublicReactCallback:
             raise ModelCallError(
                 "Primary model response did not contain one valid public action",
                 reply=measured,
+                failure_stage="model_response_validation",
             ) from None
         return ModelReply(
             action,

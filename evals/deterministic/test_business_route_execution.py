@@ -23,6 +23,7 @@ from decagent.evaluation.business.comparison import (
     compare_full_workflow,
     compare_semantic_judgment,
 )
+from decagent.evaluation.business.public_resources import PublicModelOutcomeUnknown
 from evals.deterministic.test_business_plan_compiler import read_plan
 from evals.deterministic.test_business_plan_contracts import literal, node, reference
 
@@ -1194,6 +1195,26 @@ def test_react_reasons_after_each_observation_and_uses_same_gateway():
     assert result.status == "complete" and result.run.task_success
     assert result.run.primary_requests == 2 and len(session.calls) == 1
     assert not session.repositories
+
+
+def test_react_unknown_route_preserves_specific_model_failure_stage():
+    session = Session()
+
+    class WorkerFailure(RuntimeError):
+        failure_stage = "model_worker_response"
+        diagnostic_exception_type = "InvalidEnvelope"
+
+    def react(_request):
+        try:
+            raise WorkerFailure("private worker response")
+        except WorkerFailure as exc:
+            raise PublicModelOutcomeUnknown("usage could not be confirmed") from exc
+
+    result = execute(session, route=Route.REACT_SKILL_MCP, react=react)
+
+    assert result.status == "unknown"
+    assert result.failure_stage == "model_worker_response"
+    assert "private worker response" not in repr(result)
 
 
 def test_plan_control_step_bound_is_separate_from_react_turn_bound():

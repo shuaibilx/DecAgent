@@ -11,6 +11,7 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from decagent.evaluation.business.comparison import Route
+from decagent.evaluation.business.public_models import PublicReactCallback
 from decagent.evaluation.business.public_resources import (
     LedgeredModelAdapterFactory,
     LedgeredModelCallback,
@@ -25,6 +26,7 @@ from decagent.evaluation.business.routes import (
     ObservedUsage,
     ProviderBillingEvidence,
 )
+from decagent.models.primary import ModelTurn, ModelUsage
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -193,6 +195,35 @@ def test_measured_model_response_error_persists_safe_failure_diagnostics(tmp_pat
     assert snapshot["exception_type"] == "ModelCallError"
     assert "private_response_must_not_be_persisted" not in json.dumps(snapshot)
     ledger.close()
+
+
+def test_react_action_contract_error_keeps_response_validation_stage():
+    profile = _plan_with_known_primary_prices().profiles.primary
+
+    class Primary:
+        def respond(self, _messages, *, timeout_seconds):
+            assert timeout_seconds == 1
+            return ModelTurn(
+                text="private invalid action payload",
+                tools=(),
+                usage=ModelUsage(2, 1, 3),
+                model=profile.model,
+                server_request_id="request-123",
+            )
+
+    callback = PublicReactCallback(
+        Primary(), SimpleNamespace(commands={}), profile=profile
+    )
+
+    with pytest.raises(ModelCallError) as caught:
+        callback(
+            {"task_input": {}, "skill": "skill", "observations": [], "tools": {}},
+            timeout_seconds=1,
+        )
+
+    assert caught.value.failure_stage == "model_response_validation"
+    assert caught.value.reply.tokens == 3
+    assert "private invalid action payload" not in str(caught.value)
 
 
 def test_cny_cost_is_reserved_and_settled_without_a_guessed_usd_conversion(tmp_path):

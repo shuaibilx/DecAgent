@@ -96,7 +96,7 @@
 - [x] 9.6.C 通过 τ 子进程桥记录 transcript，再使用官方 evaluator；ReAct/Plan 均支持模拟用户澄清。
 - [ ] 9.6.D 审核并冻结自然适用的 Jev 模板；在同一状态输入下配对 Jev 与固定通用模型。离线审阅确认仅 CSM 知识文章选择适用，使用 Choice；其他域 N/A，结构化条件走规则。状态/问题相同的 mock 配对回归通过；真实配对仍待新 cohort 与授权。见[适用性审阅](../../../evals/benchmarks/evidence/jev-applicability-contract-review-20261022.md)。
 - [x] 9.6.E 冻结公开 manifest、暴露组、profile、预算、复用/记忆消融与计时；标签和私有评分材料不得进入 Agent 输入。完成仅表示设计冻结，不代表真实评测通过。
-- [ ] 9.6.F 接通并验收真实模型/MCP callback、三路线调度、τ 模拟器与官方裁判、最终回复、unknown/评分失败分类和环境清理；unknown 后不得继续派发该路线。[离线监督与 callback 回归](../../../evals/integration/evidence/public-cancellable-supervision-20261022.md)。v10 首波已实际派发四域路线并清理 8/8，但 4 条 Plan 路线均以 Qwen TimeoutError 进入 unknown，CSM/ReAct MCP attempt 也为 unknown；静态调用链提示 CSM `find_user` 的 `ValidationError` 最可能来自 MCP 返回值未通过 frozen output schema，但由于未保存来源阶段与 schema 路径，仍是诊断假设。ReAct 另有两条 ValueError agent failure，一条 τ telecom 官方评分 0.0。只有一条路线到达官方评分，尚不能验收四域真实模型/工具/评分闭环；不重放任何 unknown，详见[首波报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.md)。历史 τ retail 空目录拒发、工具异常诊断和清理记录仍见上述证据；本轮没有调用 Jev 或 LLM judge。
+- [ ] 9.6.F 接通并验收真实模型/MCP callback、三路线调度、τ 模拟器与官方裁判、最终回复、unknown/评分失败分类和环境清理；unknown 后不得继续派发该路线。[离线监督与 callback 回归](../../../evals/integration/evidence/public-cancellable-supervision-20261022.md)。v10 首波已实际派发四域路线并清理 8/8，但 4 条 Plan 路线均以 Qwen TimeoutError 进入 unknown，CSM/ReAct MCP attempt 也为 unknown；静态调用链提示 CSM `find_user` 的 `ValidationError` 最可能来自 MCP 返回值未通过 frozen output schema，但由于未保存来源阶段与 schema 路径，仍是诊断假设。离线 journal 不能还原两条 ReAct `ValueError` 的历史抛错位置；当前代码只为后续执行增加了 route/model/action/τ/tool 边界阶段标记，不能把新标记倒填到 v10。另有一条 τ telecom 官方评分 0.0。只有一条路线到达官方评分，尚不能验收四域真实模型/工具/评分闭环；不重放任何 unknown，详见[首波报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.md)。本轮没有调用 Jev 或 LLM judge。
 - [ ] 9.6.G v10 首波固定的 CSM、ITSM、τ retail、τ telecom 四域八路线均已尝试，但验收未通过：3 failed、5 unknown、0 success，仅 τ telecom/ReAct 一条路线评分且为 0.0；清理 8/8 verified。先离线调查 Qwen 120 秒超时、CSM MCP validation failure 和 ReAct 失败，再冻结新候选与后续额度；不得重放本批 unknown。只有四域评分与成功门槛通过后才补齐固定 24 例 smoke。仅对自然适用且审核通过的节点做 Jev 配对。
 - [x] 9.7 持久化 Jev 累计 1 美元预留/结算/unknown 停止账本；历史费用不可重置。
 - [x] 9.8 对计划路线实现证据约束的确定性最终回复及有界 Qwen 总结；总结失败/unknown 受账本约束。
@@ -120,7 +120,7 @@
 - [x] 10.10.C 实现活动执行者租约、heartbeat 与 fencing；恢复不能重放完成或 unknown 路线。
 - [x] 10.10.D 接通 supervisor、ledger、MCP、deadline、官方 scorer 和 cleanup，并以隔离测试验证。
 - [x] 10.10.E 验证公开 runner 故障恢复与四域受控工程闭环；工程闭环不等于公开基准成绩。
-- [x] 10.10.F 安全保存模型/工具/route 诊断；保留未知和失败阶段、不记录敏感正文，清理补录不可重放。
+- [x] 10.10.F 安全保存模型/工具/route 诊断；保留未知和失败阶段、不记录敏感正文，清理补录不可重放。后续 ReAct 路径新增更细的 route supervisor、model callback、response validation、τ simulator 和 tool gateway 阶段；unknown 包装异常保留更具体的白名单阶段；v10 历史 `ValueError` 仍不可追溯。
 
 ## 11. 整体回归与本机交付
 
