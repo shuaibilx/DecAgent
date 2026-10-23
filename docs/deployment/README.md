@@ -1,6 +1,6 @@
 # Windows 本机 SOP Compose
 
-本指南描述本机试运行的准备和运行边界，不表示持久化服务已完成真实部署。2026-10-23 的一次性 Docker smoke 已通过并清理；真实发布镜像升级/回滚和私有 CD 仍未验收。当前 Compose 将 API 只绑定到 loopback，适合本机访问；它没有为公网访问配置域名、TLS 入口或 Tunnel。
+本指南描述本机试运行的准备和运行边界，不表示持久化服务已完成真实部署。2026-10-24 的一次性 Docker smoke 在加入 Compose 健康等待后通过并清理；真实首装恢复、GHCR 升级/回滚和私有 CD 仍未验收。当前 Compose 将 API 只绑定到 loopback，适合本机访问；它没有为公网访问配置域名、TLS 入口或 Tunnel。详见[启动竞态修复与隔离 smoke 证据](../../evals/integration/evidence/local-sop-smoke-startup-race-20261024.md)。
 
 ## 服务拓扑
 
@@ -26,7 +26,7 @@ flowchart LR
 
 ## 首次准备
 
-本机配置文件已在 2026-10-23 准备完成并通过 Compose 静态预检。后续的一次性隔离 smoke 曾启动完整 SOP 容器栈，验证健康、Worker 故障检测/恢复后已自动清理；没有保留生产 SOP 容器。证据见[本机 SOP 预检记录](../../evals/integration/evidence/local-sop-preflight-20261023.md)和[隔离 Docker smoke](../../evals/integration/evidence/local-sop-disposable-smoke-20261023.md)。以下说明区分已完成准备与后续部署：
+本机配置文件已在 2026-10-23 准备完成并通过 Compose 静态预检。2026-10-24 又用当前工作树重复运行一次性隔离 smoke：完整 SOP 容器栈启动、Worker 故障检测/恢复通过，资源自动清理；未保留生产 SOP 容器。证据见[本机 SOP 预检记录](../../evals/integration/evidence/local-sop-preflight-20261023.md)、[此前隔离 Docker smoke](../../evals/integration/evidence/local-sop-disposable-smoke-20261023.md)和[本次启动竞态修复证据](../../evals/integration/evidence/local-sop-smoke-startup-race-20261024.md)。以下说明区分已完成准备与后续部署：
 
 1. 已核实 Docker Desktop Linux engine 可用（Compose v5.6.0）；实际部署前仍需确认 Docker 服务处于 healthy。
 2. `ops/deploy/sop.env` 已从模板创建；非敏感配置中游客试用和 Qwen→DeepSeek 降级均保持关闭。

@@ -98,3 +98,15 @@ def test_smoke_readiness_timeout_returns_only_last_redacted_report():
         "status": "not_ready",
         "components": {"business_worker": False},
     }
+
+
+def test_disposable_smoke_waits_for_compose_health_before_probing_api():
+    from ops.deploy.offline_sop_smoke import _start_stack
+
+    commands = []
+
+    _start_stack(lambda *args: commands.append(args))
+
+    assert commands == [
+        ("up", "--build", "--detach", "--wait", "--wait-timeout", "180")
+    ]

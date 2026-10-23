@@ -123,6 +123,11 @@ def _wait_for_readiness(
         sleep(min(poll_interval_seconds, remaining))
 
 
+def _start_stack(compose):
+    """Wait for configured Compose health checks before the first host probe."""
+    compose("up", "--build", "--detach", "--wait", "--wait-timeout", "180")
+
+
 def main():
     root = Path(__file__).resolve().parents[2]
     instance = "decagent-sop-smoke-" + uuid4().hex[:12]
@@ -206,7 +211,7 @@ def main():
                 capture=True,
             )
             compose("config", "--quiet")
-            compose("up", "--build", "--detach")
+            _start_stack(compose)
             services = {}
             for service_name in (
                 "postgres",
