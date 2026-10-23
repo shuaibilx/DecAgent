@@ -25,5 +25,6 @@
 - 覆盖评测目录、session、路线执行、语义注册、评分与最终回复的确定性回归共 `157 passed`；全仓 Ruff 通过。
 - 固定 CSM 镜像的只读 MCP 集成 `1 passed, 4 deselected`，确认 `/active` 被规范化、数据库未变且环境清理成功。
 - `openspec validate jev-conditional-workflows --strict` 与 `openspec validate guest-sop-local-trial --strict` 均通过；`git diff --check` 无空白错误。
+- 候选代码 SHA `7b56d588682a36d8ea2171890676af3e6f45ac3c` 的同 SHA GitHub Actions [run 40014153430](https://github.com/shuaibilx/DecAgent/actions/runs/40014153430) 为 12/12 jobs 成功；墙钟 8 分 35 秒，累计 Runner 时间 53 分 11 秒。Python 3.11/3.13 deterministic 各 `2,176 passed, 18 skipped`；六个 PostgreSQL integration shard 合计 `1,364 passed, 66 skipped`。跳过项包含未启用的 Docker/repair/pinned benchmark fixtures、可选上游缓存、缺失的 mcp-cli 以及 Windows 专属语义，不能视为已验证。该 CI 只验证代码，不启动公开路线或模型。
 - 此修正只完成一个工具结果契约兼容边界。它不是正式 benchmark 路线，不产生任务得分，也不证明真实模型、三路线调度、Jev 收益或四域端到端闭环。
 - v10 的 4 任务/8 路线历史状态、费用预留、unknown、评分和清理证据均未被改写；启动新 cohort 仍需要新候选、同 SHA CI、冻结预算与单独授权。

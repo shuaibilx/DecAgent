@@ -17,8 +17,11 @@ Reviewing the broader gateway suite exposed a second transaction interaction: re
 - Current code: 6 focused PostgreSQL integration cases passed, covering resume, concurrent approval plus memory history, MCP issue/revoke, outer-transaction rollback cleanup, and stale browser sessions.
 - Broader gateway, memory, and workflow-registry integration files: 50 passed in 424.83 seconds on the same-connection resume fix before the final lock-mode narrowing; the six focused cases above were rerun against the final code.
 - Ruff check, Ruff format check, and `git diff --check` passed for the changed implementation and test files.
-- Tests used disposable local PostgreSQL 17 containers bound to loopback with no persistent volumes. No model, external business API, or deployment was called.
+- The first CI attempt on fix commit `4cc6a7e188cfcad4b896f893e431af0cfdf13fa1`, [run `40008483803`](https://github.com/shuaibilx/DecAgent/actions/runs/40008483803) attempt 1, passed the browser E2E and all jobs except Python 3.11 integration shard 1/3. That shard reported 230 passed, 2 failed, and 13 skipped; both failures were the durable-interrupt resume tests above ending in `awaiting_input`.
+- The two affected tests passed locally with the exact `requirements.lock` dependency set under xdist. The complete matching Linux Python 3.11.17/PostgreSQL 17 CI shard then passed: 233 passed, 12 skipped in 221.02 seconds.
+- GitHub Actions run `40008483803` attempt 2 passed all 12 jobs, including the previously failing Python 3.11 integration shard 1/3 (5m59s). No code changed between attempts. The initial failure was not reproduced; its underlying trigger remains unconfirmed, so this evidence does not claim a proven flake root cause.
+- Local reproductions used disposable PostgreSQL 17 containers with no persistent volumes. GitHub Actions used its disposable PostgreSQL service. No model, external business API, or deployment was called.
 
 ## Remaining verification
 
-The fix has not yet been pushed or re-run in GitHub Actions. The failed run remains an accurate historical failure; a new same-commit CI run is required before calling the CI regression resolved. No private dispatch, release tag, or SOP deployment was triggered.
+The lock-order fix is pushed and its same-commit GitHub Actions rerun passed; the first failed attempt remains recorded as historical evidence. The intermittent trigger is not known. No private dispatch, release tag, or SOP deployment was triggered.

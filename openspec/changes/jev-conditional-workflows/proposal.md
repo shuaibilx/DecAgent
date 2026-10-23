@@ -6,6 +6,8 @@
 
 2026-10-24 的固定 v10 `first-wave --check-images` dry-run 在代码 HEAD `edd30f1e60a10a21eebd3d41bced20d6bc8b4063` 通过，确认 4 个任务/8 个路线槽、镜像就绪、0 ledger、0 模型请求和 0 MCP 请求。它不改变 v10 live 终态，也不续期或授权新批次；详见[预检说明](../../../evals/benchmarks/evidence/public-first-wave-preflight-20261024-edd30f1.md)。
 
+候选代码 SHA `7b56d588682a36d8ea2171890676af3e6f45ac3c` 的同 SHA GitHub Actions [run 40014153430](https://github.com/shuaibilx/DecAgent/actions/runs/40014153430) 为 12/12 jobs 成功（墙钟 8 分 35 秒，累计 Runner 53 分 11 秒）。Python 3.11/3.13 deterministic 各 `2,176 passed, 18 skipped`；六个 PostgreSQL shard 合计 `1,364 passed, 66 skipped`。同 SHA first-wave dry-run 仅校验四任务/八路线与镜像，0 ledger、0 模型、0 MCP；它不续期 live 授权。公开 benchmark 仍为 0/286，v10 terminal 结果未改变。详细 CI 计数与跳过原因见[CI 验收证据](../../../evals/integration/evidence/ci-browser-sharding-20261023.md)。
+
 首波后的 CSM 离线只读探针在新建 pinned 环境中通过了合成 `find_user` 查询，未复现历史 `ValidationError`。2026-10-24 进一步用公开任务要求的只读查询复现了相同类别的输出契约错误：schema 声明 `active:boolean`，MCP JSON 实际以整数编码。现已加入严格 schema-aware `0/1` 规范化、原始响应保留、JSON Pointer 记录以及 ReAct/Plan 同值输入，并将适配结果契约升至 v2；真实只读 CSM 集成与清理验证通过。该发现不能证明历史 v10 的 `ValueError` 原因相同，且不改变历史 `unknown`。四域真实模型/工具/评分闭环未完成，9.6.F/G 仍待新候选、CI、预算与授权。详见[诊断与修正记录](../../../evals/benchmarks/evidence/csm-find-user-output-contract-20261024.md)及[早期合成探针](../../../evals/benchmarks/evidence/csm-find-user-readonly-diagnostic-20261023.md)。
 
 ### Latest verification after the v10 first wave (2026-10-23)

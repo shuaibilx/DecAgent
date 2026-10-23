@@ -77,6 +77,14 @@ Integration 每个 Python 版本的 33 个 skip：17 个测试需要独立 dispo
 
 这是 CI 结构与覆盖面的验收，不是完整无 skip 验收。确定性和集成测试的 skip 已逐项归类；Windows 专属语义、pinned τ runtime、特定 Docker fixtures、外部 MCP CLI 和上游语料缓存仍需各自环境才能完整验证。生产模型/Jev 质量、公开基准、私有 CD 和本机 Docker 升级/回滚演练不由此 run 证明。
 
+## 最新代码候选同 SHA 复验（2026-10-24 北京时间）
+
+CSM `find_user` 输出契约修正候选 [`7b56d588682a36d8ea2171890676af3e6f45ac3c`](https://github.com/shuaibilx/DecAgent/commit/7b56d588682a36d8ea2171890676af3e6f45ac3c) 的 [GitHub Actions run 40014153430](https://github.com/shuaibilx/DecAgent/actions/runs/40014153430) **12/12 jobs 成功**。运行窗口为 2026-10-24 03:47:16–03:55:51（Asia/Shanghai），墙钟 8 分 35 秒，累计 Runner 时间 53 分 11 秒。覆盖 Python 3.11/3.13、六个 PostgreSQL shards、生产 Gateway Chromium E2E、Workbench JavaScript、Docker 边界、wheel/MCP/Compose smoke。
+
+Python 3.11 与 3.13 deterministic 各 `2,176 passed, 18 skipped, 0 failed`。六个 PostgreSQL shards 合计 `1,364 passed, 66 skipped, 0 failed`；按 Python 版本分别为 `682 passed, 33 skipped`。该 run 的 66 个集成 skip 涉及未启用的 disposable Docker/repair fixtures、pinned benchmark 与本地 pinned Docker readiness、可选上游缓存、mcp-cli 未安装和 Windows ACL。独立 Docker 边界 job 通过，但不替代这些 opt-in 集成场景。deterministic skip 为每个 Python 版本 18 项：14 个 pinned τ 子进程运行时未配置、1 个 tau2 runtime 未安装、Windows ACL/process-tree/junction 各 1 项。
+
+CI 证明候选代码在该门禁下通过，不等于公开任务评测。相同 SHA 的 first-wave image preflight 选中冻结的 4 个任务/8 个路线槽，但创建 0 ledger、发出 0 模型/0 MCP 请求；没有重新执行或改写 v10 terminal cohort，也没有产生新的 live 批次授权。公开 benchmark 仍为 0/286，历史 unknown 不重放。
+
 ## 后续候选 SHA 复验（2026-10-23 北京时间）
 
 后续评测候选 [`50e38b71ce030d7a17593611e4efd564f0a183bf`](https://github.com/shuaibilx/DecAgent/commit/50e38b71ce030d7a17593611e4efd564f0a183bf) 的 [GitHub Actions run 39981292425](https://github.com/shuaibilx/DecAgent/actions/runs/39981292425) 绑定相同 SHA，最终状态为 **12/12 job success**。运行时间为北京时间 23:47:29–23:55:52，墙钟 8 分 23 秒，累计 Runner 时间 53 分 36 秒。Workbench JavaScript、Python 3.11/3.13 检查、六个 PostgreSQL 集成分片、Python 3.12 Gateway Chromium E2E、Docker 执行器边界、wheel/MCP/Compose 构建与启动冒烟均通过。

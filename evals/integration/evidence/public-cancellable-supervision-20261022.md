@@ -38,3 +38,17 @@ Validation: focused deterministic public trial/execution/route suites `150 passe
 ## Current candidate offline revalidation (2026-10-22)
 
 On local code HEAD `8373c73`, the CI-scoped Ruff command `python -m ruff check decagent evals ops` passed, and OpenSpec strict validation passed for all six changes. The focused set `test_public_release_boundary.py`, `test_business_public_trials.py`, `test_public_model_dispatch.py`, and `test_public_cancellable_model.py` passed `113 tests`; this rechecks public-runner isolation, persisted resource admission, model identity/cost settlement, and cancellation/unknown handling. No model provider, MCP benchmark environment, or scorer was contacted. The worktree contained documentation-only evidence updates during this run; no candidate SHA or live authorization was created.
+
+## Current worktree offline revalidation (2026-10-24)
+
+On the DecAgent worktree at code HEAD `edd30f1e60a10a21eebd3d41bced20d6bc8b4063`, using `D:\Anaconda3\envs\Agent311\python.exe`, the following focused deterministic suites passed:
+
+```text
+evals/deterministic/test_public_supervisor.py
+evals/deterministic/test_public_model_dispatch.py
+evals/deterministic/test_public_cancellable_model.py
+evals/deterministic/test_live_public_runner.py
+70 passed in 31.72s
+```
+
+The initial shell-default Python invocation did not collect two modules because it used Anaconda base (missing `langchain_core` and `datetime.UTC`); rerunning under the project `Agent311` interpreter passed. This is an environment-selection issue, not a test assertion failure. The run was limited to deterministic suites; it did not launch a public-evaluation cohort or intentionally contact a model provider, MCP benchmark environment, or official scorer. It does not establish a successful live route or close 9.6.F/G and 10.3–10.6. No code or live-evaluation state was changed by this revalidation.
