@@ -1,6 +1,6 @@
 # Windows 本机 SOP Compose
 
-本指南描述本机试运行的准备和运行边界，不表示持久化服务已完成真实部署。2026-10-24 的一次性 Docker smoke 在加入 Compose 健康等待后通过并清理；真实首装恢复、GHCR 升级/回滚和私有 CD 仍未验收。当前 Compose 将 API 只绑定到 loopback，适合本机访问；它没有为公网访问配置域名、TLS 入口或 Tunnel。详见[启动竞态修复与隔离 smoke 证据](../../evals/integration/evidence/local-sop-smoke-startup-race-20261024.md)。
+本指南描述本机试运行的准备和运行边界，不表示持久化服务已完成真实部署。2026-10-24 的一次性 Docker smoke 已在启动竞态修正后重复通过并清理；真实首装恢复、GHCR 升级/回滚和私有 CD 仍未验收。当前 Compose 将 API 只绑定到 loopback，适合本机访问；它没有为公网访问配置域名、TLS 入口或 Tunnel。详见[启动竞态修复与隔离 smoke 证据](../../evals/integration/evidence/local-sop-smoke-startup-race-20261024.md)。
 
 ## 服务拓扑
 
@@ -26,14 +26,14 @@ flowchart LR
 
 ## 首次准备
 
-本机配置文件已在 2026-10-23 准备完成并通过 Compose 静态预检。2026-10-24 又用当前工作树重复运行一次性隔离 smoke：完整 SOP 容器栈启动、Worker 故障检测/恢复通过，资源自动清理；未保留生产 SOP 容器。证据见[本机 SOP 预检记录](../../evals/integration/evidence/local-sop-preflight-20261023.md)、[此前隔离 Docker smoke](../../evals/integration/evidence/local-sop-disposable-smoke-20261023.md)和[本次启动竞态修复证据](../../evals/integration/evidence/local-sop-smoke-startup-race-20261024.md)。以下说明区分已完成准备与后续部署：
+本机配置文件已在 2026-10-23 准备完成并通过 Compose 静态预检。2026-10-24 再次运行一次性隔离 smoke：完整 SOP 容器栈启动、Worker 故障检测/恢复通过，资源自动清理；未保留生产 SOP 容器。另用本机 `sop.env` 重跑静态预检并通过。证据见[本机 SOP 预检记录](../../evals/integration/evidence/local-sop-preflight-20261023.md)、[此前隔离 Docker smoke](../../evals/integration/evidence/local-sop-disposable-smoke-20261023.md)和[本次启动竞态修复证据](../../evals/integration/evidence/local-sop-smoke-startup-race-20261024.md)。以下说明区分已完成准备与后续部署：
 
 1. 已核实 Docker Desktop Linux engine 可用（Compose v5.6.0）；实际部署前仍需确认 Docker 服务处于 healthy。
 2. `ops/deploy/sop.env` 已从模板创建；非敏感配置中游客试用和 Qwen→DeepSeek 降级均保持关闭。
 3. `.decagent/sop-secrets/` 中已创建 `postgres_password`、`main_api_key`、`jev_api_key`。两把模型密钥仅从本机忽略的 `.env` 复制到 secret 文件，数据库密码由随机数生成；ACL 限定为当前 Windows 用户。密钥值没有写入日志、文档或 Git。
 4. 下方 `sop_preflight` 已实际运行并通过；它只渲染和检查 Compose 配置，不会创建容器，也不代表业务 readiness 已经通过。
-5. 首次安装和升级应使用受信的不可变 `ghcr.io/shuaibilx/decagent-control@sha256:…` digest 经 rollout coordinator 管理。GitHub App 已创建并保存凭证，但仍未安装到私有部署仓库，Runner 尚未配置；本机 Docker 首装/升级回滚演练也未完成。不要把裸 `docker compose up` 当成生产发布流程。
-6. 当前旧版 `decagent-api` 容器使用 `127.0.0.1:8000`。Compose 支持通过 `DECAGENT_SOP_API_PORT` 指定独立端口；切换现有端口或替换旧服务前，应先完成受信版本验收和数据恢复演练。一次性 smoke 使用随机端口，没有停止或修改旧服务。
+5. 首次安装和升级应使用受信的不可变 `ghcr.io/shuaibilx/decagent-control@sha256:…` digest 经 rollout coordinator 管理。GitHub App `DecAgent Private Deployment` 已安装且仅选择私有仓库 `shuaibilx/DecAgent-deploy`，权限为 `metadata: read` 与 `actions: write`；该私有仓库的 `decagent-local-deploy` Runner 在线，公开 `DecAgent` Runner 为 0。旧公共 Runner 计划任务已禁用，私有 Runner 计划任务正在运行。公开仓库已配置 App Client ID variable 与加密私钥 secret，但部署开关仍关闭，尚未做 App-authenticated 安装范围独立核验、workflow dispatch 或持久 SOP 服务部署。本机 Docker 首装/升级回滚演练也未完成。不要把裸 `docker compose up` 当成生产发布流程。
+6. 当前旧版 `decagent-api` 容器持续运行在 `127.0.0.1:8000`；刚才的本机静态预检确认 `ops/deploy/sop.env` 也渲染为 `127.0.0.1:8000`。因此首次启动持久 SOP 前必须确定端口切换或服务切换方案，不能直接启动并与旧服务争用该端口。Compose 支持通过 `DECAGENT_SOP_API_PORT` 指定端口，但静态预检不会检测宿主机端口占用；需在 4.4 演练中加入真实占用检查。切换现有服务前，应先完成受信版本验收和数据恢复演练。一次性 smoke 使用随机端口，没有停止或修改旧服务。
 
 ## 配置预检
 
@@ -81,7 +81,7 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:8000/readyz' -TimeoutSec 5
 - 接受短时中断：电脑关机/休眠、Windows 更新、Docker Desktop 或 Runner 重启时服务会不可用；不提供 7×24 保证。
 - 游客 Jev 预算现在只允许固定 OpenRouter Jev 1.14 费率 profile，并按 $0.02/attempt 预留；游客入口仍由 `DECAGENT_GUEST_TRIAL_ENABLED` 默认关闭。真实建议工作台、费用边界变更后的复验及部署演练完成前，不要开启游客入口。
 - 当前没有已确认可用的域名，也没有配置 Cloudflare Tunnel。不要把 `DECAGENT_SOP_PUBLIC_URL` 改成任意公网地址来代替入口、安全控制和外部身份方案。
-- 真实 Windows 登录启动、Docker Desktop 恢复、Runner 恢复、Docker 首装/升级/回滚均属于 OpenSpec 4.4/5.3/5.4 待验收项；独立 Linux 部署另列后续。
+- 私有 Runner 当前在线且由计划任务启动；登录启动与 Docker Desktop/Runner 故障后的恢复仍待演练。Docker 首装/升级/回滚和 App-authenticated dispatch 也属于 OpenSpec 4.4/5.3/5.4 待验收项；独立 Linux 部署另列后续。
 
 ## 相关文件
 

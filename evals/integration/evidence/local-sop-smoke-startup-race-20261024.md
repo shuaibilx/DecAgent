@@ -33,3 +33,12 @@ This verifies a disposable, locally built image and readiness/fault-recovery beh
 - Ruff: passed.
 - OpenSpec strict validation: `jev-conditional-workflows` and `guest-sop-local-trial` passed.
 - `git diff --check`: passed; Git emitted only configured LF-to-CRLF working-copy notices.
+
+## Repeat on the current candidate (2026-10-24)
+
+- Candidate source: `d7e8b0e79df5c443a756beb76f1094c799c28f1a`; the only pre-run worktree edit was OpenSpec task-status documentation.
+- A second invocation of `D:\Anaconda3\envs\Agent311\python.exe -m ops.deploy.offline_sop_smoke` passed with disposable project `decagent-sop-smoke-dc9efb4eb833` and image tag `decagent-sop:offline-dc9efb4eb833`.
+- The same six services reached readiness. Stopping and restarting the business Worker changed the readiness result to not-ready and back to ready. The script reported `model_requests=0`, `guest_trial=false`, and `docker_socket=false`.
+- Script completion also verified removal of all containers, volumes, networks, and the uniquely tagged image. Existing application containers and volumes were not targeted.
+- The real configuration preflight was rerun with `ops/deploy/sop.env`; it passed and reported API binding `127.0.0.1:8000`. A read-only Docker check confirmed the legacy `decagent-api` remains healthy and already publishes that same host binding. The static preflight does not detect host-port conflicts; persistent first install must resolve and verify the port plan before startup.
+- This repeat still does not close task 4.4: persistent first install, same-digest recovery, upgrade, health rollback, schema-incompatible stop, Windows/Runner restart recovery, and backup restoration remain untested.
