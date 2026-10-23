@@ -12,12 +12,12 @@ if ($Repository -cne $ApprovedRepository) {
 }
 
 $projectDirectory = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
-$envFile = Join-Path $projectDirectory '.env'
-$secretsDirectory = Join-Path $projectDirectory '.decagent\secrets'
+$envFile = Join-Path $projectDirectory 'ops\deploy\sop.env'
+$secretsDirectory = Join-Path $projectDirectory '.decagent\sop-secrets'
 if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) {
-    throw 'The project .env file is missing; create and configure the local deployment first.'
+    throw 'The local SOP environment file is missing; create it from sop.env.example before installing the Runner.'
 }
-foreach ($secretName in @('broker_token', 'postgres_password', 'github_token', 'main_api_key', 'jev_api_key')) {
+foreach ($secretName in @('postgres_password', 'main_api_key', 'jev_api_key')) {
     if (-not (Test-Path -LiteralPath (Join-Path $secretsDirectory $secretName) -PathType Leaf)) {
         throw 'A required local Compose secret file is missing; refusing to register the Runner.'
     }
@@ -27,6 +27,14 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 }
 if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) {
     throw 'Docker Desktop CLI is required.'
+}
+$runtimePython = Join-Path $projectDirectory '.venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $runtimePython -PathType Leaf)) {
+    throw 'The project Python 3.11+ runtime is missing; refusing to register the Runner.'
+}
+& $runtimePython -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'
+if ($LASTEXITCODE -ne 0) {
+    throw 'The project Python runtime must be version 3.11 or newer; refusing to register the Runner.'
 }
 
 $authOutput = & gh auth status 2>&1

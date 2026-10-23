@@ -55,18 +55,41 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Log in to GHCR with read-only package credentials
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        with:
-          registry: ghcr.io
-          username: shuaibilx
-          password: ${{ secrets.DECAGENT_PUBLIC_READ_TOKEN }}
+      - name: Verify local SOP persistent configuration
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $localProjectDirectory = $env:DECAGENT_LOCAL_PROJECT_DIR
+          if ([string]::IsNullOrWhiteSpace($localProjectDirectory)) {
+            throw 'The Runner has no configured local SOP project directory.'
+          }
+          $localProjectDirectory = (Resolve-Path -LiteralPath $localProjectDirectory).Path
+          $runtimePython = Join-Path $localProjectDirectory '.venv\Scripts\python.exe'
+          if (-not (Test-Path -LiteralPath $runtimePython -PathType Leaf)) {
+            throw 'The local project Python 3.11+ runtime is missing.'
+          }
+          & $runtimePython -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'
+          if ($LASTEXITCODE -ne 0) {
+            throw 'The local project Python runtime must be version 3.11 or newer.'
+          }
+          $envFile = Join-Path $localProjectDirectory 'ops\deploy\sop.env'
+          $secretsDirectory = Join-Path $localProjectDirectory '.decagent\sop-secrets'
+          if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) {
+            throw 'The local SOP environment file is missing.'
+          }
+          foreach ($name in @('postgres_password', 'main_api_key', 'jev_api_key')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $secretsDirectory $name) -PathType Leaf)) {
+              throw 'A required local SOP secret file is missing.'
+            }
+          }
 
       - name: Verify public release provenance and immutable image digest
         id: verify
-        env:
-          DECAGENT_PUBLIC_READ_TOKEN: ${{ secrets.DECAGENT_PUBLIC_READ_TOKEN }}
-        run: python .\ops\deploy\release_verifier.py
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $localProjectDirectory = (Resolve-Path -LiteralPath $env:DECAGENT_LOCAL_PROJECT_DIR).Path
+          $runtimePython = Join-Path $localProjectDirectory '.venv\Scripts\python.exe'
+          & $runtimePython .\ops\deploy\release_verifier.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Roll out the verified digest through the fixed coordinator
         env:
@@ -76,8 +99,18 @@ jobs:
           if ($env:VERIFIED_IMAGE -notmatch '^ghcr\.io/shuaibilx/decagent-control@sha256:[0-9a-f]{64}$') {
             throw 'Verifier did not produce the fixed immutable control image.'
           }
-          python .\ops\deploy\sop_rollout.py `
+          $localProjectDirectory = (Resolve-Path -LiteralPath $env:DECAGENT_LOCAL_PROJECT_DIR).Path
+          $composeFile = Join-Path $PWD 'compose.sop.yaml'
+          $envFile = Join-Path $localProjectDirectory 'ops\deploy\sop.env'
+          $backupRoot = Join-Path $localProjectDirectory '.decagent\sop-backups'
+          $stateRoot = Join-Path $localProjectDirectory '.decagent\sop-releases'
+          $runtimePython = Join-Path $localProjectDirectory '.venv\Scripts\python.exe'
+          & $runtimePython -m ops.deploy.sop_rollout `
             --candidate-image $env:VERIFIED_IMAGE `
-            --project-directory $PWD `
+            --project-directory $localProjectDirectory `
+            --compose-file $composeFile `
+            --env-file $envFile `
+            --backup-root $backupRoot `
+            --state-root $stateRoot `
             --run-id "gha-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

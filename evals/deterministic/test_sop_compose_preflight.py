@@ -1,7 +1,17 @@
+import subprocess
+import sys
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
+import yaml
 
+from decagent.business.mcp_contract import (
+    COMPOSE_INTERNAL_MCP_ENDPOINT as APP_COMPOSE_INTERNAL_MCP_ENDPOINT,
+)
+from ops.deploy.sop_contract import (
+    COMPOSE_INTERNAL_MCP_ENDPOINT as DEPLOY_COMPOSE_INTERNAL_MCP_ENDPOINT,
+)
 from ops.deploy.sop_preflight import validate_compose_config
 
 
@@ -82,6 +92,59 @@ def valid_config():
 
 def test_sop_topology_is_valid_and_does_not_publish_internal_services(valid_config):
     validate_compose_config(valid_config)
+
+
+def test_private_preflight_copy_does_not_require_application_package(tmp_path):
+    project_root = Path(__file__).resolve().parents[2]
+    deploy_package = tmp_path / "ops" / "deploy"
+    deploy_package.mkdir(parents=True)
+    for name in (
+        "release_verifier.py",
+        "sop_business_probe.py",
+        "sop_contract.py",
+        "sop_preflight.py",
+        "sop_rollout.py",
+    ):
+        (deploy_package / name).write_bytes((project_root / "ops" / "deploy" / name).read_bytes())
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            "-c",
+            "from ops.deploy import release_verifier, sop_business_probe, sop_preflight, "
+            "sop_rollout; "
+            "assert all((release_verifier, sop_business_probe, sop_preflight, sop_rollout))",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_private_deployment_compose_matches_sop_topology_without_build_context():
+    project_root = Path(__file__).resolve().parents[2]
+    public_config = yaml.safe_load((project_root / "compose.sop.yaml").read_text(encoding="utf-8"))
+    private_path = project_root / "ops" / "deploy" / "compose.sop.private.yaml"
+    assert private_path.is_file(), (
+        "private deployment needs a self-contained image-only Compose file"
+    )
+    private_config = yaml.safe_load(private_path.read_text(encoding="utf-8"))
+
+    expected_private_config = deepcopy(public_config)
+    expected_private_config["x-sop-control"].pop("build")
+    for service in expected_private_config["services"].values():
+        service.pop("build", None)
+
+    assert private_config == expected_private_config
+    assert all("build" not in service for service in private_config["services"].values())
+
+
+def test_deployment_and_application_mcp_endpoint_contracts_match():
+    assert DEPLOY_COMPOSE_INTERNAL_MCP_ENDPOINT == APP_COMPOSE_INTERNAL_MCP_ENDPOINT
 
 
 def test_preflight_rejects_public_api_binding(valid_config):

@@ -74,3 +74,21 @@
 本轮新增八项共 45 个文件与上游固定提交逐个匹配，既有 76 个文件摘要仍一致；八个新增 Python 文件通过 AST 语法检查，64 个新增技能内相对链接可解析。许可证保留；未运行评测模型、Harbor、SQLite 数据导出或 MCP 评测脚本。既有 webapp-testing 的 with_server.py --help 曾验证，未在本轮启动服务。
 
 2026-10-21 来源复核：GitHub API 确认技能清单中的 8 个上游仓库及固定提交仍可读取；7 个固定提交的 GitHub 签名校验为 verified，`cloudflare/security-audit-skill@c1c8a8c` 的提交未签名。该技能仍固定到精确 commit，并受本地逐文件 SHA-256 校验，但应与已签名提交区分其 provenance 强度。本地 17 项 GitHub 来源技能的 147 个文件摘要全部匹配；`github/awesome-copilot` 两项继续标为社区实践，不作为 GitHub 官方规范。
+
+## 2026-10-23 workflow-skill review
+
+The repository already contains the following pinned skills, so this review did not
+duplicate or overwrite them:
+
+- github-actions-hardening and github-actions-efficiency match
+  github/awesome-copilot at commit
+  d85f762d6e521abf5fe16703946e9b38adc42da7. The repository is GitHub-maintained,
+  while these individual skills are community contributions; use them as review
+  checklists, not as normative GitHub security documentation.
+- mcp-builder matches anthropics/skills at commit
+  dbd4588f9e1033efb41dad4bef2f7947c8993d44.
+
+The exact installed paths and broader skill/task mapping remain documented above.
+The agentic-eval skill was reviewed but not installed because its LLM-as-judge
+approach conflicts with this project's requirement to use deterministic official
+benchmark scorers for primary results.

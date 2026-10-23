@@ -15,6 +15,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from ops.deploy.sop_contract import SOP_REQUIRED_SERVICES
+
 IMAGE_PATTERN = re.compile(r"^ghcr\.io/shuaibilx/decagent-control@sha256:[a-f0-9]{64}$")
 RUN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$")
 
@@ -80,6 +82,123 @@ def _write_record(path: Path, record: dict, *, create: bool = False) -> None:
     finally:
         if temp_path.exists():
             temp_path.unlink()
+
+
+def first_install(runtime, candidate_image: str, record_path: Path, *, run_id: str) -> dict:
+    """Install a first SOP release, or resume the same incomplete installation.
+
+    Unlike :func:`rollout`, first installation has no known-good application image
+    to roll back to. It therefore refuses any unrecorded Docker state and preserves
+    partially initialized volumes for same-digest forward recovery.
+    """
+    _validate_image(candidate_image)
+    if not isinstance(run_id, str) or RUN_ID_PATTERN.fullmatch(run_id) is None:
+        raise ValueError("SOP rollout run id is invalid")
+    path = Path(record_path)
+    if path.is_symlink():
+        raise ValueError("SOP initial-install record cannot be a symlink")
+
+    fingerprint = runtime.compose_fingerprint(candidate_image)
+    if not isinstance(fingerprint, str) or re.fullmatch(r"[a-f0-9]{64}", fingerprint) is None:
+        raise ValueError("SOP initial-install Compose fingerprint is invalid")
+
+    if path.exists():
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("SOP initial-install record is unreadable") from exc
+        if not isinstance(record, dict) or record.get("format") != 1:
+            raise ValueError("SOP initial-install record format is invalid")
+        if record.get("status") == "ready":
+            raise RuntimeError("SOP is already installed; use the upgrade rollout path")
+        if record.get("status") not in {"installing", "failed"}:
+            raise ValueError("SOP initial-install record state is invalid")
+        if record.get("candidate", {}).get("image") != candidate_image:
+            raise ValueError("Initial installation recovery requires the same immutable image")
+        if record.get("compose_sha256") != fingerprint:
+            raise RuntimeError("SOP initial installation recovery target changed")
+        runtime.assert_initial_install_recovery_target(candidate_image, fingerprint)
+        record["attempts"] = min(int(record.get("attempts", 0)) + 1, 1000)
+        record["last_run_id"] = run_id
+        record.pop("failure", None)
+        record.pop("stop_failure", None)
+    else:
+        runtime.assert_initial_install_target_pristine(candidate_image)
+        record = {
+            "format": 1,
+            "status": "installing",
+            "created_run_id": run_id,
+            "last_run_id": run_id,
+            "attempts": 1,
+            "candidate": {"image": candidate_image},
+            "compose_sha256": fingerprint,
+            "backup": None,
+            "database_preserved": True,
+        }
+        _secure_directory(path.parent, exist_ok=True)
+        _write_record(path, record, create=True)
+
+    record["status"] = "installing"
+    _write_record(path, record)
+    try:
+        # Repeat the check immediately before Compose can create persistent volumes.
+        if record["attempts"] == 1:
+            if runtime.compose_fingerprint(candidate_image) != fingerprint:
+                raise RuntimeError("SOP initial installation recovery target changed")
+            runtime.assert_initial_install_target_pristine(candidate_image)
+        else:
+            runtime.assert_initial_install_recovery_target(candidate_image, fingerprint)
+        runtime.install_initial_image(candidate_image)
+        if not runtime.wait_ready():
+            raise RuntimeError("initial_business_readiness_failed")
+        record["status"] = "ready"
+        record["active_image"] = candidate_image
+        record["database_preserved"] = True
+        _write_record(path, record)
+        return record
+    except (Exception, KeyboardInterrupt) as failure:
+        stop_failure = _stop_application_without_raising(runtime)
+        record["status"] = "failed"
+        record["failure"] = type(failure).__name__
+        record["database_preserved"] = True
+        if stop_failure is not None:
+            record["stop_failure"] = stop_failure
+        _write_record(path, record)
+        return record
+
+
+def deploy_candidate(
+    runtime,
+    candidate_image: str,
+    release_record_path: Path,
+    initial_install_record_path: Path,
+    *,
+    run_id: str,
+) -> dict:
+    """Select first-install recovery or an existing-stack upgrade safely."""
+    initial_path = Path(initial_install_record_path)
+    if initial_path.is_symlink():
+        raise ValueError("SOP initial-install record cannot be a symlink")
+    if initial_path.exists():
+        try:
+            initial_record = json.loads(initial_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("SOP initial-install record is unreadable") from exc
+        if not isinstance(initial_record, dict):
+            raise ValueError("SOP initial-install record is invalid")
+        if initial_record.get("status") != "ready":
+            return first_install(runtime, candidate_image, initial_path, run_id=run_id)
+
+    try:
+        runtime.ensure_ready()
+    except RuntimeError:
+        # first_install performs a separate pristine-target or same-install check;
+        # an unhealthy existing stack therefore remains a hard refusal.
+        return first_install(runtime, candidate_image, initial_path, run_id=run_id)
+    active = _release_snapshot(runtime.capture_release())
+    if active["image"] == candidate_image:
+        return {"status": "ready", "active_image": candidate_image, "already_active": True}
+    return rollout(runtime, candidate_image, release_record_path, run_id=run_id)
 
 
 def rollout(runtime, candidate_image: str, record_path: Path, *, run_id: str) -> dict:
@@ -218,6 +337,29 @@ def _safe_compose_config(value):
     return value
 
 
+def _secret_file_fingerprints(config, project_root: Path) -> dict[str, dict[str, str]]:
+    """Return non-reversible identities for the file-backed Compose secrets."""
+    definitions = config.get("secrets", {})
+    if not isinstance(definitions, dict):
+        raise ValueError("SOP Compose secret definitions are invalid")
+
+    result = {}
+    for name, definition in sorted(definitions.items()):
+        if not isinstance(definition, dict) or not isinstance(definition.get("file"), str):
+            raise ValueError("SOP Compose supports only file-backed secrets")
+        secret_path = Path(definition["file"])
+        if not secret_path.is_absolute():
+            secret_path = Path(project_root) / secret_path
+        if secret_path.is_symlink() or not secret_path.is_file():
+            raise ValueError("SOP Compose secret file is unavailable or unsafe")
+        try:
+            digest = _sha256_file(secret_path)
+        except OSError as exc:
+            raise RuntimeError("Could not fingerprint an SOP Compose secret file") from exc
+        result[name] = {"path": secret_path.as_posix(), "sha256": digest}
+    return result
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with Path(path).open("rb") as stream:
@@ -243,8 +385,10 @@ def _tree_manifest(root: Path) -> list[dict]:
     return result
 
 
-def _secure_directory(path: Path) -> None:
-    path.mkdir(parents=True, exist_ok=False)
+def _secure_directory(path: Path, *, exist_ok: bool = False) -> None:
+    if path.is_symlink():
+        raise ValueError("SOP state directory cannot be a symlink")
+    path.mkdir(parents=True, exist_ok=exist_ok)
     if os.name == "nt":
         identity = subprocess.run(
             ["whoami"], capture_output=True, text=True, encoding="utf-8", check=False, timeout=10
@@ -350,12 +494,17 @@ class SopDockerRuntime:
             raise ValueError("Rendered SOP image differs from the requested image digest")
         return value
 
-    def _compose_fingerprint(self):
-        config = self._render_config()
+    def _compose_fingerprint(self, image):
+        config = self._render_config(image)
         for name in _APP_SERVICES:
             config["services"][name]["image"] = "<immutable-control-image>"
-        safe = _safe_compose_config(config)
-        canonical = json.dumps(safe, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        fingerprint_payload = {
+            "compose": _safe_compose_config(config),
+            "secret_files": _secret_file_fingerprints(config, self.root),
+        }
+        canonical = json.dumps(
+            fingerprint_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def ensure_ready(self):
@@ -368,6 +517,132 @@ class SopDockerRuntime:
             raise RuntimeError(
                 "Existing SOP stack is not business-ready; deployment was not started"
             )
+
+    def assert_initial_install_target_pristine(self, image):
+        config = self._render_config(image)
+        project = config["name"]
+        containers = self._docker(
+            ["ps", "--all", "--quiet", "--filter", f"label=com.docker.compose.project={project}"]
+        ).splitlines()
+        volume_names = set(self._docker(["volume", "ls", "--quiet"]).splitlines())
+        network_names = set(
+            self._docker(["network", "ls", "--format", "{{.Name}}"]).splitlines()
+        )
+        expected_volumes = {
+            volume.get("name") or f"{project}_{name}"
+            for name, volume in config.get("volumes", {}).items()
+        }
+        expected_networks = {
+            network.get("name") or f"{project}_{name}"
+            for name, network in config.get("networks", {}).items()
+        }
+        project_volumes = self._docker(
+            [
+                "volume",
+                "ls",
+                "--quiet",
+                "--filter",
+                f"label=com.docker.compose.project={project}",
+            ]
+        ).splitlines()
+        project_networks = self._docker(
+            [
+                "network",
+                "ls",
+                "--format",
+                "{{.Name}}",
+                "--filter",
+                f"label=com.docker.compose.project={project}",
+            ]
+        ).splitlines()
+        if (
+            containers
+            or project_volumes
+            or project_networks
+            or expected_volumes & volume_names
+            or expected_networks & network_names
+        ):
+            raise RuntimeError("SOP initial installation target contains Docker state")
+
+    def assert_initial_install_recovery_target(self, image, compose_sha256):
+        config = self._render_config(image)
+        if self._compose_fingerprint(image) != compose_sha256:
+            raise RuntimeError("SOP initial installation recovery target changed")
+        project = config["name"]
+        container_ids = self._docker(
+            ["ps", "--all", "--quiet", "--filter", f"label=com.docker.compose.project={project}"]
+        ).splitlines()
+        if container_ids:
+            inspected = json.loads(self._docker(["inspect", *container_ids]))
+            if not isinstance(inspected, list):
+                raise RuntimeError("SOP initial-install container inspection is invalid")
+            for container in inspected:
+                config_data = container.get("Config") or {}
+                labels = config_data.get("Labels") or {}
+                service = labels.get("com.docker.compose.service")
+                if (
+                    labels.get("com.docker.compose.project") != project
+                    or service not in SOP_REQUIRED_SERVICES
+                    or config_data.get("Image") != config["services"][service].get("image")
+                ):
+                    raise RuntimeError("SOP initial-install recovery found unexpected containers")
+
+        volume_names = set(self._docker(["volume", "ls", "--quiet"]).splitlines())
+        expected_volumes = {
+            volume.get("name") or f"{project}_{name}": name
+            for name, volume in config.get("volumes", {}).items()
+        }
+        project_volumes = set(
+            self._docker(
+                [
+                    "volume",
+                    "ls",
+                    "--quiet",
+                    "--filter",
+                    f"label=com.docker.compose.project={project}",
+                ]
+            ).splitlines()
+        )
+        if project_volumes - expected_volumes.keys():
+            raise RuntimeError("SOP initial-install recovery found unexpected volumes")
+        for name in volume_names & expected_volumes.keys():
+            details = json.loads(self._docker(["volume", "inspect", name]))
+            labels = details[0].get("Labels") or {}
+            if (
+                labels.get("com.docker.compose.project") != project
+                or labels.get("com.docker.compose.volume") != expected_volumes[name]
+            ):
+                raise RuntimeError("SOP initial-install recovery found unexpected volumes")
+
+        network_names = set(
+            self._docker(["network", "ls", "--format", "{{.Name}}"]).splitlines()
+        )
+        expected_networks = {
+            network.get("name") or f"{project}_{name}": name
+            for name, network in config.get("networks", {}).items()
+        }
+        project_networks = set(
+            self._docker(
+                [
+                    "network",
+                    "ls",
+                    "--format",
+                    "{{.Name}}",
+                    "--filter",
+                    f"label=com.docker.compose.project={project}",
+                ]
+            ).splitlines()
+        )
+        if project_networks - expected_networks.keys():
+            raise RuntimeError("SOP initial-install recovery found unexpected networks")
+        for name in network_names & expected_networks.keys():
+            details = json.loads(self._docker(["network", "inspect", name]))
+            labels = details[0].get("Labels") or {}
+            if (
+                labels.get("com.docker.compose.project") != project
+                or labels.get("com.docker.compose.network") != expected_networks[name]
+            ):
+                raise RuntimeError("SOP initial-install recovery found unexpected networks")
 
     def capture_release(self):
         image_refs = []
@@ -419,7 +694,7 @@ class SopDockerRuntime:
         graph_versions = sorted(item for item in graph_text.split(",") if item)
         return {
             "image": image,
-            "compose_sha256": self._compose_fingerprint(),
+            "compose_sha256": self._compose_fingerprint(image),
             "schema_versions": schema_versions,
             "graph_versions": graph_versions,
         }
@@ -496,6 +771,17 @@ class SopDockerRuntime:
             timeout=240,
         )
 
+    def install_initial_image(self, image):
+        _validate_image(image)
+        self._render_config(image)
+        # Unlike an upgrade, first install also needs the pinned PostgreSQL image.
+        self._compose(["pull"], image=image, timeout=600)
+        self._compose(
+            ["up", "--detach", "--no-build", "--pull", "never", "--wait", "--wait-timeout", "180"],
+            image=image,
+            timeout=240,
+        )
+
     def wait_ready(self):
         from ops.deploy.sop_business_probe import probe_running_sop
 
@@ -565,9 +851,15 @@ def main(argv=None):
     try:
         with exclusive_rollout_lock(lock_path, args.run_id):
             runtime = SopDockerRuntime(root, compose_file, env_file, backup_root)
-            result = rollout(runtime, args.candidate_image, record_path, run_id=args.run_id)
+            result = deploy_candidate(
+                runtime,
+                args.candidate_image,
+                record_path,
+                state_root / "initial-install.json",
+                run_id=args.run_id,
+            )
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
-        return 0 if result["status"] == "deployed" else 2
+        return 0 if result["status"] in {"deployed", "ready"} else 2
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as exc:
         print(f"SOP rollout failed safely: {exc}", file=sys.stderr)
         return 2

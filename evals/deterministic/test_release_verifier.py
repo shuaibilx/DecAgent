@@ -275,8 +275,19 @@ def test_private_workflow_is_manual_fixed_ref_and_uses_only_the_private_runner()
     assert all("repository" not in step.get("with", {}) for step in job["steps"])
     assert all("script_path" not in str(step) for step in job["steps"])
     assert all("command" not in step.get("with", {}) for step in job["steps"])
-    assert "DECAGENT_PUBLIC_READ_TOKEN" in workflow_text
+    assert "DECAGENT_PUBLIC_READ_TOKEN" not in workflow_text
+    assert "packages: read" not in workflow_text
+    assert "docker/login-action" not in workflow_text
+    assert "${{ github.token }}" not in workflow_text
     assert "repository_dispatch" not in workflow_text
+    verify_step = next(i for i, step in enumerate(job["steps"]) if step.get("id") == "verify")
+    rollout_step = next(
+        i
+        for i, step in enumerate(job["steps"])
+        if step.get("name") == "Roll out the verified digest through the fixed coordinator"
+    )
+    assert verify_step < rollout_step
+    assert "${{ steps.verify.outputs.image }}" in workflow_text
 
 
 def test_github_client_collects_release_and_attempt_evidence_from_fixed_repository():
@@ -328,6 +339,20 @@ def test_github_client_collects_release_and_attempt_evidence_from_fixed_reposito
     }
     assert seen_urls[0] == f"{base}/git/ref/tags/{TAG}"
     assert all(SOURCE_REPOSITORY in url for url in seen_urls)
+
+
+def test_github_client_reads_public_provenance_without_a_personal_token():
+    seen = []
+
+    def opener(request_value, timeout):
+        seen.append(request_value)
+        assert timeout == 30
+        return io.BytesIO(b'{"object":{"sha":"' + SHA.encode() + b'"}}')
+
+    payload = GitHubEvidenceClient(opener=opener)._get("/git/ref/heads/main")
+
+    assert payload["object"]["sha"] == SHA
+    assert "Authorization" not in seen[0].headers
 
 
 def test_github_api_errors_do_not_echo_token_or_response_body():

@@ -1,5 +1,8 @@
+import json
+
 import pytest
 
+from ops.deploy import sop_rollout as rollout_module
 from ops.deploy.sop_rollout import (
     SchemaCompatibilityError,
     SopDockerRuntime,
@@ -31,8 +34,13 @@ class FakeRuntime:
         self.backups = 0
         self.services_running = True
         self.events = []
+        self.pristine = True
+        self.recovery_valid = True
+        self.compose_sha256 = "c" * 64
 
     def ensure_ready(self):
+        if getattr(self, "stack_ready", True) is False:
+            raise RuntimeError("Existing SOP stack is not business-ready")
         return None
 
     def capture_release(self):
@@ -70,6 +78,26 @@ class FakeRuntime:
         self.stopped += 1
         self.events.append("stop")
         self.services_running = False
+
+    def assert_initial_install_target_pristine(self, _image):
+        self.events.append("assert-pristine")
+        if not self.pristine:
+            raise RuntimeError("SOP initial installation target contains Docker state")
+
+    def assert_initial_install_recovery_target(self, _image, compose_sha256):
+        self.events.append("assert-recovery")
+        if not self.recovery_valid or compose_sha256 != self.compose_sha256:
+            raise RuntimeError("SOP initial installation recovery target changed")
+
+    def compose_fingerprint(self, _image):
+        return self.compose_sha256
+
+    def install_initial_image(self, image):
+        self.events.append(f"initial-install:{image}")
+        self.applied.append(image)
+        self.current_image = image
+        self.pristine = False
+        self.services_running = True
 
 
 def test_successful_rollout_records_versions_backup_and_image_without_secrets(tmp_path):
@@ -130,6 +158,167 @@ def test_docker_runtime_stops_mcp_with_api_and_worker(monkeypatch):
     runtime.stop_application()
 
     assert calls == [["stop", "api", "worker", "business-mcp"]]
+
+
+def test_compose_fingerprint_is_bound_to_the_active_immutable_image(tmp_path):
+    runtime = SopDockerRuntime.__new__(SopDockerRuntime)
+    runtime.root = tmp_path
+    rendered_images = []
+
+    def render(image=None):
+        rendered_images.append(image)
+        return {
+            "services": {
+                name: {"image": image}
+                for name in ("migrate", "bootstrap", "business-mcp", "api", "worker")
+            }
+        }
+
+    runtime._render_config = render
+
+    fingerprint = runtime._compose_fingerprint(CANDIDATE)
+
+    assert rendered_images == [CANDIDATE]
+    assert len(fingerprint) == 64
+
+
+def test_compose_fingerprint_changes_when_a_secret_file_changes(tmp_path):
+    runtime = SopDockerRuntime.__new__(SopDockerRuntime)
+    runtime.root = tmp_path
+    secret_file = tmp_path / "main_api_key"
+    secret_file.write_text("first-secret-value", encoding="utf-8")
+    config = {
+        "services": {
+            name: {"image": CANDIDATE, "secrets": ["main_api_key"]}
+            for name in ("migrate", "bootstrap", "business-mcp", "api", "worker")
+        },
+        "secrets": {"main_api_key": {"file": str(secret_file)}},
+    }
+    runtime._render_config = lambda _image: config
+
+    initial_fingerprint = runtime._compose_fingerprint(CANDIDATE)
+    secret_file.write_text("rotated-secret-value", encoding="utf-8")
+    rotated_fingerprint = runtime._compose_fingerprint(CANDIDATE)
+
+    assert initial_fingerprint != rotated_fingerprint
+    assert "first-secret-value" not in initial_fingerprint
+    assert "rotated-secret-value" not in rotated_fingerprint
+
+
+@pytest.mark.parametrize("resource_kind", ["container", "volume", "network"])
+def test_initial_install_refuses_each_kind_of_existing_compose_resource(
+    monkeypatch, resource_kind
+):
+    runtime = SopDockerRuntime.__new__(SopDockerRuntime)
+    config = {
+        "name": "decagent-sop",
+        "services": {},
+        "volumes": {"sop_data": {}, "sop_postgres_data": {}},
+        "networks": {"sop-internal": {}, "sop-egress": {}},
+    }
+    monkeypatch.setattr(runtime, "_render_config", lambda _image: config)
+
+    def docker(arguments, **_kwargs):
+        command = arguments[0]
+        if command == "ps":
+            return "container-id" if resource_kind == "container" else ""
+        if command == "volume":
+            return "decagent-sop_sop_data" if resource_kind == "volume" else ""
+        if command == "network":
+            return "decagent-sop_sop-internal" if resource_kind == "network" else ""
+        raise AssertionError(f"unexpected docker command: {arguments}")
+
+    monkeypatch.setattr(runtime, "_docker", docker)
+
+    with pytest.raises(RuntimeError, match="contains Docker state"):
+        runtime.assert_initial_install_target_pristine(CANDIDATE)
+
+
+def test_initial_install_recovery_rejects_container_from_another_release(monkeypatch):
+    runtime = SopDockerRuntime.__new__(SopDockerRuntime)
+    config = {
+        "name": "decagent-sop",
+        "services": {
+            "api": {"image": CANDIDATE},
+            "worker": {"image": CANDIDATE},
+            "business-mcp": {"image": CANDIDATE},
+        },
+        "volumes": {},
+        "networks": {},
+    }
+    monkeypatch.setattr(runtime, "_render_config", lambda _image: config)
+    monkeypatch.setattr(runtime, "_compose_fingerprint", lambda _image: "c" * 64)
+
+    def docker(arguments, **_kwargs):
+        if arguments[0] == "ps":
+            return "container-id"
+        if arguments[0] == "inspect":
+            return json.dumps(
+                [
+                    {
+                        "Config": {
+                            "Image": PREVIOUS,
+                            "Labels": {
+                                "com.docker.compose.project": "decagent-sop",
+                                "com.docker.compose.service": "api",
+                            },
+                        }
+                    }
+                ]
+            )
+        raise AssertionError(f"unexpected docker command: {arguments}")
+
+    monkeypatch.setattr(runtime, "_docker", docker)
+
+    with pytest.raises(RuntimeError, match="unexpected containers"):
+        runtime.assert_initial_install_recovery_target(CANDIDATE, "c" * 64)
+
+
+@pytest.mark.parametrize("resource_kind", ["volume", "network"])
+def test_initial_install_recovery_rejects_unexpected_project_resource(
+    monkeypatch, resource_kind
+):
+    runtime = SopDockerRuntime.__new__(SopDockerRuntime)
+    config = {
+        "name": "decagent-sop",
+        "services": {},
+        "volumes": {"sop_postgres_data": {}},
+        "networks": {"sop-internal": {}},
+    }
+    monkeypatch.setattr(runtime, "_render_config", lambda _image: config)
+    monkeypatch.setattr(runtime, "_compose_fingerprint", lambda _image: "c" * 64)
+
+    def docker(arguments, **_kwargs):
+        if arguments[0] == "ps":
+            return ""
+        if arguments[0] == "volume" and arguments[1] == "ls":
+            if resource_kind == "volume" and "--filter" in arguments:
+                return "decagent-sop_orphaned"
+            return ""
+        if arguments[0] == "network" and arguments[1] == "ls":
+            if resource_kind == "network" and "--filter" in arguments:
+                return "decagent-sop_orphaned"
+            return ""
+        raise AssertionError(f"unexpected docker command: {arguments}")
+
+    monkeypatch.setattr(runtime, "_docker", docker)
+
+    with pytest.raises(RuntimeError, match="unexpected (volumes|networks)"):
+        runtime.assert_initial_install_recovery_target(CANDIDATE, "c" * 64)
+
+
+def test_initial_install_pulls_all_images_before_starting_without_build(monkeypatch):
+    runtime = SopDockerRuntime.__new__(SopDockerRuntime)
+    monkeypatch.setattr(runtime, "_render_config", lambda _image: {})
+    calls = []
+    monkeypatch.setattr(runtime, "_compose", lambda arguments, **kwargs: calls.append(arguments))
+
+    runtime.install_initial_image(CANDIDATE)
+
+    assert calls == [
+        ["pull"],
+        ["up", "--detach", "--no-build", "--pull", "never", "--wait", "--wait-timeout", "180"],
+    ]
 
 
 def test_backup_failure_restores_previous_service_before_returning(tmp_path):
@@ -215,3 +404,129 @@ def test_rollout_rejects_mutable_or_untrusted_image_refs(tmp_path, image):
 
     assert runtime.backups == 0
     assert runtime.applied == []
+
+
+def test_initial_install_coordinator_exists_before_it_is_used():
+    assert callable(getattr(rollout_module, "first_install", None)), (
+        "SOP deployment needs an explicit first-install coordinator"
+    )
+
+
+def test_deployment_entrypoint_selects_first_install_only_when_no_ready_stack_exists(tmp_path):
+    runtime = FakeRuntime(readiness=(True,))
+    runtime.stack_ready = False
+    initial_record = tmp_path / "state" / "initial-install.json"
+
+    result = rollout_module.deploy_candidate(
+        runtime,
+        CANDIDATE,
+        tmp_path / "state" / "release.json",
+        initial_record,
+        run_id="initial-dispatch-1",
+    )
+
+    assert result["status"] == "ready"
+    assert initial_record.exists()
+    assert runtime.backups == 0
+    assert runtime.applied == [CANDIDATE]
+
+
+def test_deployment_entrypoint_is_idempotent_for_already_active_digest(tmp_path):
+    runtime = FakeRuntime(readiness=(True,))
+    runtime.current_image = CANDIDATE
+    initial_record = tmp_path / "state" / "initial-install.json"
+    initial_record.parent.mkdir()
+    initial_record.write_text(
+        json.dumps(
+            {
+                "format": 1,
+                "status": "ready",
+                "candidate": {"image": CANDIDATE},
+                "compose_sha256": "c" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = rollout_module.deploy_candidate(
+        runtime,
+        CANDIDATE,
+        tmp_path / "state" / "release.json",
+        initial_record,
+        run_id="duplicate-release-1",
+    )
+
+    assert result["status"] == "ready"
+    assert result["already_active"] is True
+    assert runtime.applied == []
+    assert runtime.backups == 0
+
+
+def test_initial_install_bootstraps_only_a_pristine_target_and_persists_digest(tmp_path):
+    runtime = FakeRuntime(readiness=(True,))
+    record_path = tmp_path / "state" / "initial-install.json"
+
+    result = rollout_module.first_install(
+        runtime, CANDIDATE, record_path, run_id="first-install-1"
+    )
+
+    assert result["status"] == "ready"
+    assert result["candidate"]["image"] == CANDIDATE
+    assert result["compose_sha256"] == "c" * 64
+    assert runtime.events[:3] == [
+        "assert-pristine",
+        "assert-pristine",
+        f"initial-install:{CANDIDATE}",
+    ]
+    assert json.loads(record_path.read_text(encoding="utf-8"))["status"] == "ready"
+
+
+def test_initial_install_refuses_existing_docker_state_without_touching_it(tmp_path):
+    runtime = FakeRuntime()
+    runtime.pristine = False
+    record_path = tmp_path / "state" / "initial-install.json"
+
+    with pytest.raises(RuntimeError, match="contains Docker state"):
+        rollout_module.first_install(runtime, CANDIDATE, record_path, run_id="first-install-2")
+
+    assert not record_path.exists()
+    assert runtime.applied == []
+    assert runtime.backups == 0
+
+
+def test_failed_initial_install_preserves_state_and_only_retries_same_image(tmp_path):
+    runtime = FakeRuntime(readiness=(False, True))
+    record_path = tmp_path / "state" / "initial-install.json"
+
+    failed = rollout_module.first_install(
+        runtime, CANDIDATE, record_path, run_id="first-install-3"
+    )
+    assert failed["status"] == "failed"
+    assert failed["database_preserved"] is True
+    assert runtime.stopped == 1
+
+    with pytest.raises(ValueError, match="same immutable image"):
+        rollout_module.first_install(
+            runtime, PREVIOUS, record_path, run_id="first-install-4"
+        )
+    assert runtime.applied == [CANDIDATE]
+
+    recovered = rollout_module.first_install(
+        runtime, CANDIDATE, record_path, run_id="first-install-5"
+    )
+    assert recovered["status"] == "ready"
+    assert runtime.applied == [CANDIDATE, CANDIDATE]
+
+
+def test_initial_install_rejects_changed_compose_fingerprint_on_recovery(tmp_path):
+    runtime = FakeRuntime(readiness=(False,))
+    record_path = tmp_path / "state" / "initial-install.json"
+    rollout_module.first_install(runtime, CANDIDATE, record_path, run_id="first-install-6")
+    runtime.compose_sha256 = "e" * 64
+
+    with pytest.raises(RuntimeError, match="recovery target changed"):
+        rollout_module.first_install(
+            runtime, CANDIDATE, record_path, run_id="first-install-7"
+        )
+
+    assert runtime.applied == [CANDIDATE]

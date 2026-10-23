@@ -227,22 +227,24 @@ def validate_release(
 class GitHubEvidenceClient:
     """Read release provenance from the fixed public repository's REST API."""
 
-    def __init__(self, token: str, *, opener=urllib.request.urlopen):
-        if not token:
-            raise ReleaseVerificationError("DECAGENT_PUBLIC_READ_TOKEN is required")
+    def __init__(self, token: str | None = None, *, opener=urllib.request.urlopen):
+        if token is not None and (type(token) is not str or not token.strip()):
+            raise ReleaseVerificationError("GitHub API token must be a non-empty string")
         self._token = token
         self._opener = opener
         self._base = f"https://api.github.com/repos/{SOURCE_REPOSITORY}"
 
     def _get(self, path: str) -> dict[str, Any]:
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "DecAgent-private-release-verifier",
+        }
+        if self._token is not None:
+            headers["Authorization"] = f"Bearer {self._token}"
         request = urllib.request.Request(
             self._base + path,
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {self._token}",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "DecAgent-private-release-verifier",
-            },
+            headers=headers,
         )
         try:
             with self._opener(request, timeout=30) as response:
@@ -390,7 +392,6 @@ def verify_environment(environment: Mapping[str, str] | None = None) -> Verified
         event_path = Path(env["GITHUB_EVENT_PATH"])
         deployment_repository = env["GITHUB_REPOSITORY"]
         deployment_ref = env["GITHUB_REF"]
-        token = env["DECAGENT_PUBLIC_READ_TOKEN"]
     except KeyError as exc:
         raise ReleaseVerificationError(
             f"required workflow environment is missing: {exc.args[0]}"
@@ -409,7 +410,9 @@ def verify_environment(environment: Mapping[str, str] | None = None) -> Verified
         deployment_ref=deployment_ref,
     )
     image = inspect_published_image(request)
-    evidence = GitHubEvidenceClient(token).collect(request, image)
+    evidence = GitHubEvidenceClient(env.get("DECAGENT_PUBLIC_READ_TOKEN") or None).collect(
+        request, image
+    )
     return validate_release(
         request,
         evidence,

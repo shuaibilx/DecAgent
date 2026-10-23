@@ -8,8 +8,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from decagent.business.mcp_contract import COMPOSE_INTERNAL_MCP_ENDPOINT
-from ops.deploy.sop_contract import SOP_PRIVATE_SERVICES, SOP_REQUIRED_SERVICES
+from ops.deploy.sop_contract import (
+    COMPOSE_INTERNAL_MCP_ENDPOINT,
+    SOP_PRIVATE_SERVICES,
+    SOP_REQUIRED_SERVICES,
+)
 
 
 def _environment(service):
@@ -165,13 +168,15 @@ def validate_compose_config(config):
 
 
 def main(argv=None):
-    root = Path(__file__).resolve().parents[2]
+    default_project_root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--project-directory", default=str(default_project_root))
     parser.add_argument("--compose-file", default="compose.sop.yaml")
     parser.add_argument("--env-file", default="ops/deploy/sop.env.example")
     args = parser.parse_args(argv)
-    compose_file = (root / args.compose_file).resolve()
-    env_file = (root / args.env_file).resolve()
+    project_root = Path(args.project_directory).resolve()
+    compose_file = (project_root / args.compose_file).resolve()
+    env_file = (project_root / args.env_file).resolve()
     if not compose_file.is_file() or not env_file.is_file():
         raise SystemExit("SOP Compose file or isolated environment example is missing")
     try:
@@ -180,7 +185,7 @@ def main(argv=None):
                 "docker",
                 "compose",
                 "--project-directory",
-                str(root),
+                str(project_root),
                 "--env-file",
                 str(env_file),
                 "--file",
@@ -189,7 +194,7 @@ def main(argv=None):
                 "--format",
                 "json",
             ],
-            cwd=root,
+            cwd=project_root,
             capture_output=True,
             text=True,
             encoding="utf-8",

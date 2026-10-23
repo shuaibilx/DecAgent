@@ -1,4 +1,4 @@
-name: Release image publishing (GHCR only)
+name: Release image publishing and private CD trigger
 
 on:
   push:
@@ -115,3 +115,88 @@ jobs:
             org.opencontainers.image.version=${{ github.ref_name }}
           cache-from: type=gha,scope=decagent-runner
           cache-to: type=gha,mode=max,scope=decagent-runner
+
+  dispatch_private_deploy:
+    name: Trigger trusted private deployment
+    needs: publish
+    if: needs.publish.result == 'success' && vars.DECAGENT_PRIVATE_CD_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Create a single-repository Actions token
+        id: private-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.DECAGENT_DEPLOY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DECAGENT_DEPLOY_APP_PRIVATE_KEY }}
+          owner: shuaibilx
+          repositories: DecAgent-deploy
+          permission-actions: write
+
+      - name: Dispatch fixed private deployment workflow
+        env:
+          APP_TOKEN: ${{ steps.private-token.outputs.token }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_RUN_ID: ${{ github.run_id }}
+          RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CONTROL_DIGEST: ${{ needs.publish.outputs.control_digest }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request, urlopen
+
+          source = os.environ["SOURCE_REPOSITORY"]
+          tag = os.environ["RELEASE_TAG"]
+          sha = os.environ["RELEASE_SHA"]
+          run_id = os.environ["RELEASE_RUN_ID"]
+          run_attempt = os.environ["RELEASE_RUN_ATTEMPT"]
+          digest = os.environ["CONTROL_DIGEST"]
+          token = os.environ["APP_TOKEN"]
+          if source != "shuaibilx/DecAgent":
+              raise SystemExit("Unexpected public release repository")
+          if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag):
+              raise SystemExit("Unexpected release tag")
+          if not re.fullmatch(r"[0-9a-f]{40}", sha):
+              raise SystemExit("Unexpected release commit")
+          if not re.fullmatch(r"[1-9][0-9]*", run_id) or not re.fullmatch(r"[1-9][0-9]*", run_attempt):
+              raise SystemExit("Unexpected release run identity")
+          if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+              raise SystemExit("Published control-image digest is missing")
+
+          payload = {
+              "ref": "main",
+              "inputs": {
+                  "source_repository": source,
+                  "tag": tag,
+                  "sha": sha,
+                  "run_id": run_id,
+                  "run_attempt": run_attempt,
+                  "image": f"ghcr.io/shuaibilx/decagent-control@{digest}",
+              },
+          }
+          request = Request(
+              "https://api.github.com/repos/shuaibilx/DecAgent-deploy/actions/workflows/deploy-sop.yml/dispatches",
+              data=json.dumps(payload).encode("utf-8"),
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+          try:
+              with urlopen(request, timeout=30) as response:
+                  if response.status != 204:
+                      raise SystemExit("Private deployment dispatch returned an unexpected status")
+          except (HTTPError, URLError, TimeoutError) as exc:
+              raise SystemExit("Private deployment workflow dispatch failed") from exc
+          print(f"Dispatched {tag} at {sha} to the fixed private workflow.")
+          PY

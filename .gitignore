@@ -6,6 +6,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+ops/deploy/sop.env
 .decagent/
 .waku-source-baseline.json
 *.egg-info/

@@ -34,6 +34,22 @@
 - **WHEN** 旧版本无法安全读取升级后的数据库
 - **THEN** 系统停止并给出人工恢复步骤，不盲目启动旧应用或自动恢复覆盖数据库
 
+### Requirement: Safe first installation and same-image recovery
+
+首次部署 MUST 仅在固定 SOP Compose 项目没有容器、持久卷或网络时初始化；私有部署 workflow MUST 先验证候选镜像并且只把验证器输出的不可变 digest 传给固定协调器。协调器 CLI 本身仅校验 digest 格式，不是发布来源认证边界，不得作为生产入口直接接收未验证候选。部署在本机受限目录持久记录安装状态。首次启动失败时 MUST 保留数据库卷和安装记录、停止业务写入服务；只能使用相同 digest、相同 Compose 配置及相同 secret 文件内容重试，不得自动清空或替换数据。Compose 指纹 MUST 纳入 file-backed secret 的内容摘要，不得保存 secret 明文。首次安装成功后，后续版本 MUST 进入带备份与兼容性检查的升级路径。
+
+#### Scenario: First install on a pristine host
+- **WHEN** 固定 Compose 项目尚无任何容器、持久卷或网络
+- **THEN** 系统以验证过的 digest 创建 SOP 服务，执行迁移与 bootstrap，并通过完整业务 readiness 后记录首次安装成功
+
+#### Scenario: First install finds pre-existing Docker state
+- **WHEN** 固定 Compose 项目已存在任一容器、卷或网络，但没有有效的首次安装恢复记录
+- **THEN** 系统拒绝安装，不删除、重建或覆盖现有状态
+
+#### Scenario: Retry an interrupted first install
+- **WHEN** 首次安装记录表明安装未完成，且重试使用完全相同的镜像 digest 与 Compose 指纹
+- **THEN** 系统可幂等地再次执行同一版本迁移/bootstrap；若任一身份不同则拒绝继续并保留现场
+
 ### Requirement: Verified CI coverage and startup recovery
 
 CI MUST 覆盖 Python 3.11/3.13、代码检查、确定性、真实 PostgreSQL 集成、核心浏览器 E2E、发行包 MCP 与 Compose。缓存和并行优化 MUST 不移除关键覆盖；Runner/Docker 登录启动及重启恢复 MUST 有实测证据，不能将缺环境 skip 记为通过。
