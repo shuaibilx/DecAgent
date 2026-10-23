@@ -53,3 +53,29 @@ The user completed the GitHub App installation in the authenticated Edge session
 The private deployment repository now reports one online self-hosted Runner, `decagent-local-deploy`, with labels `self-hosted`, `Windows`, `X64`, and `decagent-deploy`. The public repository reports zero runners. The local scheduled task `DecAgentPrivateDeployRunner` is running and the old public task `DecAgentLocalDeployRunner` is disabled. The public repo contains the App client-ID variable and encrypted private-key secret; the public CD enablement variable remains absent. The private deployment workflow is present. No workflow dispatch, release tag, service rollout, or deployment was started; CD remains gated off.
 
 The earlier sections above are historical snapshots and remain in place to document the overbroad installation incident and its recovery. They do not describe the latest installation state.
+
+## Revalidation after documentation push (2026-10-24)
+
+The documentation-only commit `fe62d293338b9b5a0fef55118076afb096d0654c` is now on `origin/feat/conditional-evaluation`; local and remote refs match. No CI run was created for this documentation-only push; the latest same-branch code run remains `08ae3b7e8297706d9285c64d22a4e24a5b372095`, run `40028645454`, 12/12 jobs successful.
+
+Current boundary checks:
+
+- Public `shuaibilx/DecAgent` Runner API: zero runners.
+- Private `shuaibilx/DecAgent-deploy` Runner API: one online `decagent-local-deploy` runner with `self-hosted`, `Windows`, `X64`, and `decagent-deploy` labels.
+- Windows scheduled tasks: `DecAgentLocalDeployRunner` is `Disabled`; `DecAgentPrivateDeployRunner` is `Running`. A `Runner.Listener` process is active.
+- The public release workflow remains tag-only (`v*`). Its publish jobs use GitHub-hosted `ubuntu-latest`; the private dispatch job also uses GitHub-hosted `ubuntu-latest` and requires `vars.DECAGENT_PRIVATE_CD_ENABLED == 'true'`. The public Actions variable list contains only `DECAGENT_DEPLOY_APP_CLIENT_ID`, so the deployment gate remains absent/closed.
+- `GET /repos/{owner}/{repo}/installation` with the current regular `gh` user credential returned `401` for both repositories because GitHub requires a decodable App JWT for this endpoint. This is not evidence about whether the custom App is installed on either repository; the latest installation-scope evidence remains the authenticated UI confirmation above.
+- No workflow dispatch, release tag, Docker rollout, or model/benchmark request was made.
+
+The focused offline regression group passed on the current candidate using the project `Agent311` interpreter:
+
+```text
+evals/deterministic/test_business_public_trials.py
+evals/deterministic/test_public_supervisor.py
+evals/deterministic/test_public_model_dispatch.py
+evals/deterministic/test_public_cancellable_model.py
+evals/deterministic/test_live_public_runner.py
+131 passed in 35.03s
+```
+
+These tests validate ledger admission/reservation, worker exclusivity and fencing, dispatch accounting, cancellation, and trial recovery. They do not demonstrate a successful live model route or official benchmark score.
