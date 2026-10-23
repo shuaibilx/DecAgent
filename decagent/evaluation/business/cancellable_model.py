@@ -17,6 +17,12 @@ from pathlib import Path
 
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_TIMEOUT_SECONDS = 1800.0
+_PROGRESS_STAGES = ("model_call", "request_pre_send", "provider_response")
+_TRANSPORT_PROGRESS_STAGES = frozenset({"request_pre_send", "provider_response"})
+_PROGRESS_STAGE_CODES = {
+    stage: index for index, stage in enumerate(_PROGRESS_STAGES, start=1)
+}
+_PROGRESS_CODE_STAGES = {code: stage for stage, code in _PROGRESS_STAGE_CODES.items()}
 
 
 class CancellableProcessError(RuntimeError):
@@ -32,8 +38,47 @@ class CancellableProcessError(RuntimeError):
         super().__init__("One-shot provider worker failed (" + stage + ")")
 
 
+class CancellableProcessProgress:
+    """Share only a bounded transport stage and HTTP status with a supervisor."""
+
+    def __init__(self, state):
+        self._state = state
+
+    @classmethod
+    def create(cls):
+        context = multiprocessing.get_context("spawn")
+        return cls(context.RawArray("i", 1))
+
+    def mark(self, stage, http_status=None):
+        stage_code = _PROGRESS_STAGE_CODES.get(stage)
+        if stage_code is None:
+            raise ValueError("Unknown one-shot worker progress stage")
+        status = (
+            http_status
+            if type(http_status) is int and 100 <= http_status <= 599
+            else 0
+        )
+        # One packed integer keeps timeout observation lock-free; the parent
+        # must never wait on a worker-owned lock while enforcing its deadline.
+        self._state[0] = stage_code * 1000 + status
+
+    def snapshot(self):
+        stage_code, status = divmod(self._state[0], 1000)
+        stage = _PROGRESS_CODE_STAGES.get(stage_code)
+        return stage, status if 100 <= status <= 599 else None
+
+
 class CancellableProcessTimeout(TimeoutError):
     """The supervisor deadline elapsed and the owned child tree was terminated."""
+
+    def __init__(self, *, stage=None, http_status=None):
+        self.stage = stage if stage in _PROGRESS_STAGE_CODES else None
+        self.http_status = (
+            http_status
+            if type(http_status) is int and 100 <= http_status <= 599
+            else None
+        )
+        super().__init__("One-shot provider request exceeded its deadline")
 
 
 def _linux_process_group_has_active_members(process_group, *, proc_root=Path("/proc")):
@@ -291,7 +336,7 @@ def _terminate_process_tree(process):
 
 
 def run_cancellable_process(
-    target, args=(), *, timeout_seconds, worker_guard_path=None
+    target, args=(), *, timeout_seconds, worker_guard_path=None, progress=None
 ):
     """Run one trusted, importable target with bounded JSON output and lifetime.
 
@@ -304,6 +349,8 @@ def run_cancellable_process(
         worker_guard_path, (str, os.PathLike)
     ):
         raise TypeError("One-shot worker guard path must be a filesystem path")
+    if progress is not None and not isinstance(progress, CancellableProcessProgress):
+        raise TypeError("One-shot worker progress must use the bounded progress contract")
     if (
         type(timeout_seconds) not in {int, float}
         or not 0 < timeout_seconds <= _MAX_TIMEOUT_SECONDS
@@ -322,8 +369,11 @@ def run_cancellable_process(
         child_connection.close()
         remaining = deadline - time.monotonic()
         if remaining <= 0 or not parent_connection.poll(remaining):
+            stage, http_status = progress.snapshot() if progress is not None else (None, None)
+            if stage not in _TRANSPORT_PROGRESS_STAGES:
+                stage, http_status = None, None
             _terminate_process_tree(process)
-            raise CancellableProcessTimeout("One-shot provider request exceeded its deadline")
+            raise CancellableProcessTimeout(stage=stage, http_status=http_status)
         try:
             raw = parent_connection.recv_bytes(maxlength=_MAX_RESPONSE_BYTES)
             frame = json.loads(raw.decode("utf-8"))

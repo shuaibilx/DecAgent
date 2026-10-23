@@ -735,7 +735,7 @@ class TrialBudgetLedger:
             ).fetchone()
 
 
-def make_task_usage_ledger(database, settings, task):
+def make_task_usage_ledger(database, settings, task, *, clock=None):
     """Attach guest admission and spend controls to every business task ledger."""
     from decagent.storage.usage import UsageLedger
 
@@ -751,7 +751,9 @@ def make_task_usage_ledger(database, settings, task):
     if row["kind"] != "guest":
         return UsageLedger(database, task_id)
 
-    trial_budget = TrialBudgetLedger(database, TrialBudgetPolicy.from_settings(settings))
+    trial_budget = TrialBudgetLedger(
+        database, TrialBudgetPolicy.from_settings(settings), clock=clock
+    )
     return UsageLedger(
         database,
         task_id,

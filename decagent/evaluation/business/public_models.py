@@ -168,6 +168,7 @@ class ModelWorkerOutcomeUnknown(RuntimeError):
         "model_call": "model_worker_model_call",
         "request_pre_send": "model_worker_request_pre_send",
         "provider_response": "model_worker_provider_response",
+        "supervisor_deadline": "model_worker_timeout",
         "response": "model_worker_response",
     }
 
@@ -370,7 +371,8 @@ def _primary_result_frame(turn):
 
 
 def _one_shot_primary_dispatch(
-    profile, api_key, known_secrets, tool_definitions, messages, timeout_seconds
+    profile, api_key, known_secrets, tool_definitions, messages, timeout_seconds,
+    progress=None,
 ):
     """Perform exactly one provider request inside an isolated child process."""
     primary = None
@@ -380,10 +382,20 @@ def _one_shot_primary_dispatch(
         try:
             import httpx2
 
+            def observe_request(request):
+                transport.on_request(request)
+                if progress is not None:
+                    progress.mark("request_pre_send")
+
+            def observe_response(response):
+                transport.on_response(response)
+                if progress is not None and transport.response_status is not None:
+                    progress.mark("provider_response", transport.response_status)
+
             http_client = httpx2.Client(
                 event_hooks={
-                    "request": [transport.on_request],
-                    "response": [transport.on_response],
+                    "request": [observe_request],
+                    "response": [observe_response],
                 }
             )
             primary = PrimaryModel.from_evaluation_profile(
@@ -404,6 +416,8 @@ def _one_shot_primary_dispatch(
                 "exception_type": safe_exception_type(exc),
             }
         try:
+            if progress is not None:
+                progress.mark("model_call")
             turn = primary.respond(messages, timeout_seconds=timeout_seconds)
         except PrimaryResponseRejected as exc:
             usage = exc.usage
@@ -502,6 +516,7 @@ class OneShotPrimaryModel:
     def respond(self, messages, stream=False, *, timeout_seconds=None):
         from .cancellable_model import (
             CancellableProcessError,
+            CancellableProcessProgress,
             CancellableProcessTimeout,
             run_cancellable_process,
         )
@@ -530,6 +545,7 @@ class OneShotPrimaryModel:
             ) from None
         if len(serialized) > 4 * 1024 * 1024:
             raise PrimaryRequestNotDispatched(reason="context_limit") from None
+        progress = CancellableProcessProgress.create()
         try:
             frame = run_cancellable_process(
                 _one_shot_primary_dispatch,
@@ -540,12 +556,18 @@ class OneShotPrimaryModel:
                     self.tool_definitions,
                     list(messages),
                     float(timeout),
+                    progress,
                 ),
                 timeout_seconds=float(timeout),
                 worker_guard_path=self.worker_guard_path,
+                progress=progress,
             )
-        except CancellableProcessTimeout:
-            raise TimeoutError("One-shot provider request exceeded its deadline") from None
+        except CancellableProcessTimeout as exc:
+            raise ModelWorkerOutcomeUnknown(
+                worker_stage=exc.stage or "supervisor_deadline",
+                exception_type="TimeoutError",
+                http_status=exc.http_status,
+            ) from None
         except CancellableProcessError as exc:
             if exc.stage == "isolation_setup":
                 raise PrimaryRequestNotDispatched(

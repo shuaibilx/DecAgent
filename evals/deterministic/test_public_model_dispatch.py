@@ -974,6 +974,53 @@ def test_unknown_worker_attempt_persists_sanitized_worker_diagnostics(tmp_path):
     ledger.close()
 
 
+def test_provider_response_timeout_is_persisted_and_blocks_replay(tmp_path):
+    plan = _plan_with_known_primary_prices()
+    ledger, trial_id, route = _started_ledger(tmp_path, plan)
+    profile = plan.profiles.primary
+    calls = []
+
+    class ProviderResponseTimeout(TimeoutError):
+        failure_stage = "model_worker_provider_response"
+        diagnostic_exception_type = "TimeoutError"
+        status_code = 200
+
+    def callback(_request, *, timeout_seconds):
+        assert timeout_seconds > 0
+        calls.append("sent")
+        raise ProviderResponseTimeout("private response body and credential")
+
+    measured = LedgeredModelCallback(
+        callback,
+        ledger,
+        profile=profile,
+        trial_id=trial_id,
+        route=route,
+        input_token_upper_bound=lambda value: max(1, len(json.dumps(value).encode("utf-8"))),
+        route_remaining_seconds=lambda: ledger.route_remaining_seconds(trial_id, route.value),
+    )
+    with pytest.raises(PublicModelOutcomeUnknown):
+        measured({"messages": []})
+
+    assert calls == ["sent"]
+    assert ledger.route_status(trial_id, route.value) == "unknown"
+    attempt = ledger.model_attempts_snapshot(trial_id, route.value)[0]
+    assert attempt["status"] == "unknown"
+    assert attempt["failure_stage"] == "model_worker_provider_response"
+    assert attempt["exception_type"] == "TimeoutError"
+    assert attempt["http_status"] == 200
+    assert "private response body" not in repr(attempt)
+    assert "credential" not in repr(attempt)
+    lifecycle = ledger.route_lifecycle(trial_id, route.value)
+    assert lifecycle["status"] == "unknown"
+    assert lifecycle["failure_stage"] == "model_worker_provider_response"
+    assert lifecycle["exception_type"] == "TimeoutError"
+    with pytest.raises(ValueError, match="unknown model usage"):
+        measured({"messages": []})
+    assert calls == ["sent"]
+    ledger.close()
+
+
 def test_unknown_qwen_cost_keeps_bounded_dispatch_and_never_records_zero(tmp_path):
     plan = _legacy_plan()
     ledger, trial_id, route = _started_ledger(tmp_path, plan)

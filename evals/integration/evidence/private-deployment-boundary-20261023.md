@@ -54,19 +54,36 @@ report linked below.
 
 - Public `DecAgent` remains public; its current branch CI run for candidate
   `9d61688c52ee66435a22e18c4fa1c8348a70095a` completed successfully as run
-  `39784378797` before the current uncommitted changes.
-- The local public release workflow edits have not been committed or published.
-  This evidence does not claim a same-SHA CI run for the current worktree, a
-  private workflow dispatch, a self-hosted deployment, or an end-to-end CD run.
+  `39784378797` before the later branch commits; it does not cover them.
+- The public release workflow edits have been committed and pushed on
+  `feat/conditional-evaluation` at `4e932ce`; no release tag was created, so no
+  CD was dispatched.
+- Manual CI run `39935184424` on `4e932ce` failed in PostgreSQL integration shard
+  2 on both Python 3.11 and 3.13. Both jobs failed the same guest-budget test:
+  its assertions queried the frozen 2026-10-22 budget date while the production
+  ledger factory used the actual 2026-10-23 clock. The test helper now accepts an
+  optional clock, and the budget module passes locally (`36 passed`).
+- A code review found that a child marked `model_call` before making HTTP could
+  be misreported as transport progress. The parent now retains only observed
+  transport boundaries; model-call-only deadlines map to generic
+  `model_worker_timeout`. Regressions cover a real stalled child, HTTP 200
+  response headers, persisted unknown attempt/route status, and replay blocking.
+- The current worktree's deterministic suite passes (`2,164 passed, 18 skipped`),
+  the guest-budget PostgreSQL module passes (`36 passed`), Ruff and strict
+  validation for both active changes pass. The correction has not been pushed,
+  so same-SHA CI remains pending. This evidence does not
+  claim passing CI for the current worktree, private workflow dispatch, a
+  self-hosted deployment, or an end-to-end CD run.
 - The authorized v10 public first-wave run on the same candidate finished with 3
   failed routes, 5 unknown routes, and 0 successful routes. No Jev or judge call
   was made; unknown requests remain reserved and were not replayed. See
   [`public-first-wave-live-20261023-v10-9d61688.md`](../../benchmarks/evidence/public-first-wave-live-20261023-v10-9d61688.md)
   for exact route, usage, and cost-estimate evidence.
-- The current local worktree passed the complete deterministic suite (`2,160
-  passed, 18 skipped`), Ruff, and strict validation for
-  `guest-sop-local-trial`. This does not substitute for same-SHA public CI,
-  PostgreSQL integration, browser E2E, Docker, Runner, or private CD acceptance.
+- The current local worktree passed the complete deterministic suite (`2,164
+  passed, 18 skipped`), Ruff, strict validation for both active changes, and the
+  guest-budget integration module (`36 passed`) against disposable local
+  PostgreSQL. This does not substitute for full same-SHA public CI, browser E2E,
+  Docker rollout, Runner, or private CD acceptance.
 
 ## Supporting sources
 

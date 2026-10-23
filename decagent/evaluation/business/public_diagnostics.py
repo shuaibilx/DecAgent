@@ -17,6 +17,7 @@ FAILURE_STAGES = frozenset(
         "model_worker_model_call",
         "model_worker_request_pre_send",
         "model_worker_provider_response",
+        "model_worker_timeout",
         "model_worker_target",
         "model_worker_response",
         "tool_gateway",

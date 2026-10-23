@@ -763,7 +763,7 @@ def test_guest_model_settlement_commits_actual_native_cost_and_usage_atomically(
 def test_guest_model_dispatch_factory_fails_closed_when_trial_is_disabled(database):
     workspace_id = _workspace(database, "budget-task-disabled")
     task = _guest_business_task(database, workspace_id)
-    usage = make_task_usage_ledger(database, Settings(), task)
+    usage = make_task_usage_ledger(database, Settings(), task, clock=lambda: FIXED_NOW)
 
     with pytest.raises(BudgetExceeded) as caught:
         usage.reserve_model(
@@ -790,7 +790,7 @@ def test_guest_model_dispatch_factory_attaches_real_trial_ledger(database):
         guest_trial_fx_cny_per_usd=FX.cny_per_usd,
         guest_trial_fx_source_url=FX.source_url,
     )
-    usage = make_task_usage_ledger(database, settings, task)
+    usage = make_task_usage_ledger(database, settings, task, clock=lambda: FIXED_NOW)
 
     receipt_id = usage.reserve_model(
         "enabled-guest-qwen",
@@ -825,7 +825,7 @@ def test_guest_model_request_without_a_reliable_price_is_rejected(database):
         guest_trial_fx_cny_per_usd=FX.cny_per_usd,
         guest_trial_fx_source_url=FX.source_url,
     )
-    usage = make_task_usage_ledger(database, settings, task)
+    usage = make_task_usage_ledger(database, settings, task, clock=lambda: FIXED_NOW)
 
     with pytest.raises(BudgetExceeded) as caught:
         usage.reserve_model(
@@ -863,7 +863,7 @@ def test_guest_model_timeout_stops_retry_and_keeps_unknown_reservation(database)
         guest_trial_fx_cny_per_usd=FX.cny_per_usd,
         guest_trial_fx_source_url=FX.source_url,
     )
-    usage = make_task_usage_ledger(database, settings, task)
+    usage = make_task_usage_ledger(database, settings, task, clock=lambda: FIXED_NOW)
     claimed = database.claim(task["id"], "guest-budget-timeout", seconds=120)
     assert claimed["state"] == "running"
 
@@ -953,7 +953,7 @@ def test_guest_provider_failures_commit_unknown_settlement(
         guest_trial_fx_cny_per_usd=FX.cny_per_usd,
         guest_trial_fx_source_url=FX.source_url,
     )
-    usage = make_task_usage_ledger(database, settings, task)
+    usage = make_task_usage_ledger(database, settings, task, clock=lambda: FIXED_NOW)
     claimed = database.claim(task["id"], f"bp-worker-{slug_category}", seconds=120)
     assert claimed["state"] == "running"
 
@@ -1017,7 +1017,7 @@ def test_guest_unclassified_transport_failure_commits_unknown_settlement(databas
         guest_trial_fx_cny_per_usd=FX.cny_per_usd,
         guest_trial_fx_source_url=FX.source_url,
     )
-    usage = make_task_usage_ledger(database, settings, task)
+    usage = make_task_usage_ledger(database, settings, task, clock=lambda: FIXED_NOW)
     claimed = database.claim(task["id"], "transport-worker", seconds=120)
     assert claimed["state"] == "running"
 
@@ -1108,7 +1108,9 @@ def test_guest_jev_request_is_rejected_before_dispatch_without_fee_bound(databas
         graph_version="business-3",
     )
     settings = Settings(guest_trial_enabled=True, guest_rate_limit_hmac_key=b"B" * 32)
-    usage_ledger = make_task_usage_ledger(database, settings, task)
+    usage_ledger = make_task_usage_ledger(
+        database, settings, task, clock=lambda: FIXED_NOW
+    )
     claimed = database.claim(task["id"], "guest-budget-jev", seconds=120)
     assert claimed["state"] == "running"
     request = build_request(

@@ -30,6 +30,12 @@ def _wait_forever():
         time.sleep(1)
 
 
+def _mark_model_call_then_wait(progress, started):
+    progress.mark("model_call")
+    started.set()
+    _wait_forever()
+
+
 def _signal_then_wait(release, started):
     started.set()
     if not release.wait(5):
@@ -177,6 +183,28 @@ def test_cancellable_process_deadline_reaps_worker_and_descendant():
     finally:
         descendants.close()
         descendants.join_thread()
+
+
+def test_parent_deadline_without_transport_progress_uses_generic_stage():
+    from decagent.evaluation.business.cancellable_model import (
+        CancellableProcessProgress,
+        CancellableProcessTimeout,
+        run_cancellable_process,
+    )
+
+    progress = CancellableProcessProgress.create()
+    started = multiprocessing.get_context("spawn").Event()
+    with pytest.raises(CancellableProcessTimeout) as raised:
+        run_cancellable_process(
+            _mark_model_call_then_wait,
+            (progress, started),
+            timeout_seconds=3,
+            progress=progress,
+        )
+
+    assert started.is_set()
+    assert raised.value.stage is None
+    assert raised.value.http_status is None
 
 
 def test_posix_process_tree_termination_sweeps_descendant_started_during_shutdown(
@@ -353,11 +381,14 @@ def test_public_primary_response_is_decoded_from_a_one_shot_child(monkeypatch):
     )
     captured = {}
 
-    def dispatch(target, args, *, timeout_seconds, worker_guard_path=None):
+    def dispatch(
+        target, args, *, timeout_seconds, worker_guard_path=None, progress=None
+    ):
         assert target is _one_shot_primary_dispatch
         captured["args"] = args
         captured["timeout_seconds"] = timeout_seconds
         captured["worker_guard_path"] = worker_guard_path
+        captured["progress"] = progress
         return {
             "kind": "turn",
             "turn": {
@@ -389,6 +420,8 @@ def test_public_primary_response_is_decoded_from_a_one_shot_child(monkeypatch):
     assert turn.tools[0].name == "decagent_submit_plan"
     assert captured["timeout_seconds"] == 0.25
     assert captured["worker_guard_path"] is None
+    assert captured["args"][-1] is captured["progress"]
+    assert captured["progress"] is not None
     assert captured["args"][1] == "test-secret"
     assert captured["args"][2] == ("test-secret",)
     assert not hasattr(model, "client")
@@ -760,6 +793,106 @@ def test_one_shot_primary_records_local_provider_response_without_leaking_conten
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_one_shot_timeout_retains_last_safe_http_boundary():
+    from dataclasses import replace
+
+    from decagent.evaluation.business.public_models import (
+        ModelWorkerOutcomeUnknown,
+        OneShotPrimaryModel,
+    )
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    class HeadersThenStallHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            content_length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(content_length)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", "1024")
+            self.end_headers()
+            self.wfile.flush()
+            time.sleep(8)
+
+        def log_message(self, *_args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), HeadersThenStallHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    model = None
+    try:
+        root = Path(__file__).resolve().parents[2]
+        profile = load_public_run_plan(
+            root,
+            mode="smoke",
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ).profiles.primary
+        profile = replace(profile)
+        object.__setattr__(
+            profile,
+            "endpoint",
+            f"http://127.0.0.1:{server.server_port}/v1",
+        )
+        model = OneShotPrimaryModel(profile, api_key="test-secret")
+
+        with pytest.raises(ModelWorkerOutcomeUnknown) as raised:
+            model.respond(
+                [{"role": "user", "content": "offline timeout fixture"}],
+                timeout_seconds=5,
+            )
+
+        assert raised.value.failure_stage == "model_worker_provider_response"
+        assert raised.value.status_code == 200
+        assert raised.value.diagnostic_exception_type == "TimeoutError"
+        assert "test-secret" not in str(raised.value)
+        assert "offline timeout fixture" not in str(raised.value)
+    finally:
+        if model is not None:
+            model.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_one_shot_timeout_without_transport_progress_uses_generic_worker_stage(
+    monkeypatch,
+):
+    from decagent.evaluation.business import cancellable_model
+    from decagent.evaluation.business.public_models import (
+        ModelWorkerOutcomeUnknown,
+        OneShotPrimaryModel,
+    )
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    profile = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    ).profiles.primary
+    model = OneShotPrimaryModel(profile, api_key="test-secret")
+
+    def dispatch(*_args, **_kwargs):
+        raise cancellable_model.CancellableProcessTimeout()
+
+    monkeypatch.setattr(cancellable_model, "run_cancellable_process", dispatch)
+    try:
+        with pytest.raises(ModelWorkerOutcomeUnknown) as raised:
+            model.respond([{"role": "user", "content": "safe timeout fixture"}])
+
+        assert raised.value.failure_stage == "model_worker_timeout"
+        assert raised.value.status_code is None
+        assert raised.value.diagnostic_exception_type == "TimeoutError"
+        assert "test-secret" not in str(raised.value)
+        assert "safe timeout fixture" not in str(raised.value)
+    finally:
+        model.close()
 
 
 def test_tau_public_model_uses_one_shot_primary_factory_by_default():

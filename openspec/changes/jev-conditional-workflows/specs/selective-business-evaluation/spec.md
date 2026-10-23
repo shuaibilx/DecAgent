@@ -698,6 +698,14 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** 隔离模型 worker 已收到 HTTP response headers，之后的 SDK/响应解析失败且没有完整模型 usage
 - **THEN** attempt 与 route 保持 unknown，并记录 `model_worker_provider_response` 和有效 HTTP 状态码；响应状态不代表 token 或账单已知，响应正文不得进入诊断，路线不得重放
 
+#### Scenario: Supervisor deadline retains a received response boundary
+- **WHEN** 隔离模型 worker 已收到 HTTP response headers，但父级监督期限先于 SDK 自身超时到达并终止 worker，且 usage 未知
+- **THEN** attempt 与 route 保持 unknown；监督者仅从进程间有界状态记录 `model_worker_provider_response` 和有效 HTTP 状态码，不记录响应正文，不释放预留，也不重放路线
+
+#### Scenario: Supervisor deadline before transport progress
+- **WHEN** 父级监督期限到达时 one-shot worker 尚未更新任何传输阶段，且不能证明请求是否已发出
+- **THEN** attempt 与 route 保持 unknown，记录通用 `model_worker_timeout` 且 HTTP 状态为 null；不得声称请求已发出或未发出，不释放预留，也不重放路线
+
 #### Scenario: Tool gateway loses a response
 - **WHEN** 已派发的工具调用返回无法确认上游结果的异常
 - **THEN** 工具 attempt 与 route 进入 unknown，记录允许的工具阶段及安全异常类名；参数和返回正文不进入诊断快照，后续工具、模型及评分均停止
