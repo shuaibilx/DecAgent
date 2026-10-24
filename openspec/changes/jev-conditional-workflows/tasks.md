@@ -1,12 +1,12 @@
 # Tasks
 
-## 当前执行状态与后续顺序（2026-10-24 19:01，北京时间）
+## 当前执行状态与后续顺序（2026-10-24 19:20，北京时间）
 
 - **OpenSpec 状态：** 主 change 为 **73/80**；待完成 9.6.D/F/G 与 10.3–10.6。四个已暴露案例仅作诊断，正式 pilot 仍是 24 个未暴露任务，当前尚未冻结 pilot manifest；公开基准为 0/286。
 - **真实模型边界：** Qwen round 2 已结束但未通过闭环，仍为 3 请求、34,054 tokens、1 次 MCP、180.34 秒、0 successful route；OpenRouter live 请求为 0。旧 45 分钟授权过期，新的真实模型请求必须等待用户明确授权，不可恢复旧账本。
-- **CI 结果与修复：** 候选 `1d3bd9c8d576a665cc5a49ccc4a5569ba8d92cbc` 的 run 40087151660 初次 11/12 jobs 通过；唯一 Docker boundary job 报告 `public_http_proxy=false`，但没有保存首个 HTTP 状态或重定向链，无法确认具体失败在哪一段。探测使用 `urllib` 默认重定向处理，可能把 HTTP 与随后 HTTPS 混在一起。仅重跑该失败 job 后 attempt 2 通过。当前工作区将 HTTP 检查改为不跟随重定向，接受首个 2xx/3xx 并拒绝 403；网络权限策略未放宽，修复尚未提交或经过 CI。
-- **当前离线改动：** 公共 Plan 解析/编译失败用安全原因码分别记录 `malformed_response`、`invalid_plan`，不写正文且不暗中重试；补充了 Docker runner boundary probe 回归。定向测试 45 passed、全量 deterministic 2,263 passed / 19 skipped（263.21 秒）、Ruff 通过，OpenSpec strict 6/6 通过。
-- **下一步：** 核验完整 diff、任务进度与文档链接后提交当前切片，在同 SHA 上跑全量 CI；CI 通过后，再准备新的模型批次授权请求。只有匹配 provider/profile 的真实 Plan→MCP→官方评分→cleanup 闭环通过，才冻结并执行 24-task/68-route pilot；失败和 unknown 均保留，不重放旧试次、不宣称 Jev 收益。
+- **候选与 CI：** `2d99c433e508eddfb2acd5608ce62911f4faddc4` 已推送到 `feat/conditional-evaluation`；同 SHA GitHub Actions [run 40088888178](https://github.com/shuaibilx/DecAgent/actions/runs/40088888178) **12/12 jobs 通过**，含 Python 3.11/3.13 deterministic 与 PostgreSQL integration、Docker boundary、wheel/MCP、镜像/Compose smoke、浏览器 E2E。Docker probe 首次失败及 attempt 2 通过的准确记录见设计说明；`2d99c43` 的修正也通过真实 Docker boundary job。
+- **已完成的离线修正：** 公共 Plan 解析/编译失败分别记录安全原因码 `malformed_response`、`invalid_plan`；不写正文、不暗中重试。HTTP boundary probe 停止自动跟随重定向，初始 2xx/3xx 成功、403 失败，不放宽网络策略。定向测试 45 passed、全量 deterministic 2,263 passed / 19 skipped（263.21 秒）、全仓 Ruff 通过、OpenSpec strict 6/6 通过。
+- **下一步：** 新 readiness 批次的用户授权尚待确认；获批后先跑有界 Qwen，必要时再使用独立 OpenRouter 路由，不恢复旧账本。只有 provider/profile 匹配的真实 Plan→MCP→官方评分→cleanup 闭环通过，才冻结并执行 24-task/68-route pilot；失败和 unknown 均保留，不重放旧试次、不宣称 Jev 收益。
 
 ## 历史执行状态与后续顺序（2026-10-24 18:26，北京时间）
 
