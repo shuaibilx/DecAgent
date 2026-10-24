@@ -722,7 +722,7 @@ def execute_live_public_phase(
             cohort_digest=plan.cohort_digest,
             candidate_sha=candidate_sha,
         )
-        authorize_public_evaluation_phase(
+        authorization = authorize_public_evaluation_phase(
             plan.root,
             phase=phase_name,
             candidate_sha=candidate_sha,
@@ -732,6 +732,10 @@ def execute_live_public_phase(
                 diagnostic_gate["report_sha256"] if diagnostic_gate is not None else None
             ),
         )
+        if authorization["batch_started_at_utc"] is not None:
+            batch_started_at = datetime.fromisoformat(
+                authorization["batch_started_at_utc"]
+            ).astimezone(UTC)
         ledger = open_first_wave_public_trial_ledger(
             plan.root,
             plan,
@@ -740,6 +744,21 @@ def execute_live_public_phase(
             batch_started_at=batch_started_at,
         )
         try:
+            finalized_authorization = authorize_public_evaluation_phase(
+                plan.root,
+                phase=phase_name,
+                candidate_sha=candidate_sha,
+                cohort_digest=plan.cohort_digest,
+                ledger_path=ledger_path,
+                diagnostic_report_sha256=(
+                    diagnostic_gate["report_sha256"]
+                    if diagnostic_gate is not None
+                    else None
+                ),
+                finalize_candidate_successor=True,
+            )
+            if finalized_authorization["candidate_successor_pending"]:
+                raise ValueError("Diagnostic candidate authorization transfer is incomplete")
             runtime = FirstWaveRuntime(
                 plan, tau_python=tau_python, journal_root=journal_root
             )

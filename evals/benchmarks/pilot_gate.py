@@ -82,6 +82,11 @@ def build_bounded_diagnostic_plan(plan):
 
     limits = dict(DIAGNOSTIC_RESOURCE_LIMITS)
     batch_limits = dict(DIAGNOSTIC_BATCH_LIMITS)
+    resource_profile_digest = digest(limits)
+    selected = tuple(
+        {**record, "resource_profile_digest": resource_profile_digest}
+        for record in selected
+    )
     diagnostic_manifest = digest(
         {
             "schema_version": "public-evaluation-diagnostic-plan-v1",

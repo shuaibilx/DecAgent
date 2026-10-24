@@ -375,7 +375,11 @@ def test_live_runner_preflights_all_four_environments_before_opening_ledger(monk
     monkeypatch.setattr(
         live_public_runner,
         "authorize_public_evaluation_phase",
-        lambda *_args, **_kwargs: None,
+        lambda *_args, **_kwargs: {
+            "authorization_path": Path("unused.sqlite3"),
+            "batch_started_at_utc": None,
+            "candidate_successor_pending": False,
+        },
     )
     monkeypatch.setattr(live_public_runner, "PublicSupervisor", Supervisor)
     monkeypatch.setattr(
@@ -470,7 +474,11 @@ def test_diagnostic_report_includes_the_bounded_phase_evidence(monkeypatch):
     monkeypatch.setattr(
         live_public_runner,
         "authorize_public_evaluation_phase",
-        lambda *_args, **_kwargs: None,
+        lambda *_args, **_kwargs: {
+            "authorization_path": Path("unused.sqlite3"),
+            "batch_started_at_utc": None,
+            "candidate_successor_pending": False,
+        },
     )
     monkeypatch.setattr(live_public_runner, "PublicSupervisor", Supervisor)
     monkeypatch.setattr(

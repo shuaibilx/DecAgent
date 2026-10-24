@@ -1,12 +1,12 @@
 # Tasks
 
-## 当前状态（2026-10-24，评测切片本地验证完成，CI/live 待执行）
+## 当前状态（2026-10-24，候选修复本地验证通过，候选 CI/live 待执行）
 
 - **OpenSpec checkbox：72/79 完成。** 未完成：9.6.D、9.6.F、9.6.G、10.3、10.4、10.5、10.6。
 - **历史真实首波：** 候选 `5b43a45962ee16bc0f61015d1063ee9ad6c676fe` 上 4 个任务/8 条 ReAct 与 Plan 路线为 3 failed、5 unknown、0 success；清理 8/8 verified。仅 ITSM/ReAct 与 τ telecom/ReAct 获官方评分，均为 0.0。Jev 未纳入；unknown 不重放。详见[首波报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261024-5b43a45-100qwen.md)。
-- **本轮本地进展：** 已有 metadata-only 24-task/68-route pilot sampler、primary semantic 完整路线与 Jev execution-only 同一 Plan/decision-input 配对、无自然判断 N/A 与 primary 失败配对 incomplete 区分、ReAct/τ callback 安全原因码、CSM `find_entitlements.product_id` nullable 输出 observation 契约、Qwen CNY 费用硬上限事务门禁，以及 bounded diagnostic 报告 phase 证据修复。诊断和 pilot 共用额度；另加用户级持久授权锁，限制为一个候选及一对诊断/pilot，丢失账本或切换候选/cohort 不得重置；批次墙钟在环境预检前启动，评分就绪门禁绑定同一任务/路线。恢复时无法恢复原 Plan 且无持久“未观察语义决策”证明的 Jev 槽现记为 incomplete；证据路径先检查原始路径组件和 parent traversal。`diagnostic` dry-run 固定展示 4 个开发案例/8 个路线，并使用真实诊断预算：Qwen 最多 6 次请求、600,000 token、2,700 秒（45 分钟）；不会把全周 500 次请求等额度冒报为本次诊断上限，也不创建 ledger、不派发模型或 MCP。最终本地验证：deterministic `2,234 passed, 19 skipped`、全仓 Ruff、OpenSpec strict（6/6）、`git diff --check`，以及 digest-pinned 镜像 preflight 均通过。本机 symlink 权限导致一条真实文件系统 symlink 测试 skip，另有确定性模拟回归。
-- **尚未验收：** 当前 HEAD 为 `466ec97f5a63520bc50d2d02a0b56e70cf51f268`，评测修改未提交，已有同 SHA CI 不覆盖本轮差异；尚未发出新模型请求、冻结 24-task pilot manifest 或运行新 cohort。Qwen historical Plan timeout 根因仍待有限新诊断；OpenRouter 的备用诊断 cohort 仍未建立；历史 unknown 不重放。已确认 diagnostic dry-run 与本地 digest 镜像预检通过，但这不等于 live 模型/MCP/评分闭环。
-- **候选 CI：** 历史首波源 SHA 的同 SHA CI run [40043584670](https://github.com/shuaibilx/DecAgent/actions/runs/40043584670) 通过；它不覆盖当前工作区修改。
+- **本轮本地进展：** 已有 metadata-only 24-task/68-route pilot sampler、primary semantic 完整路线与 Jev execution-only 同一 Plan/decision-input 配对、无自然判断 N/A 与 primary 失败配对 incomplete 区分、ReAct/τ callback 安全原因码、CSM `find_entitlements.product_id` nullable 输出 observation 契约、Qwen CNY 费用硬上限事务门禁，以及 bounded diagnostic dry-run/phase 修复。提交 `7148a0d` 的同 SHA CI 12/12 通过。第一次 live 仅在派发前因诊断任务的 `resource_profile_digest` 沿用了 smoke 摘要而停止；账本 8 条路线均 pending，模型/工具/机器时间/τ 尝试为 0，未产生模型请求或费用。当前修复为诊断任务重算资源摘要，并加入仅限零派发状态的候选接替：旧、新账本须保持 8 条路线 pending、尝试数为 0，旧账本不得有评分、清理结果或停止标记；接替保留旧账本及审计摘要，沿用原 45 分钟起点和截止时间，不增加预算。修复后的离线 dry-run、Ruff、OpenSpec strict 和全量确定性测试（2,236 passed、19 skipped）通过；同 SHA CI 与真实诊断仍待执行。详见[零派发诊断记录](../../../evals/benchmarks/evidence/public-diagnostic-pre-dispatch-20261024-7148a0d.md)。
+- **尚未验收：** 尚未发出新 Qwen、DeepSeek 或 Jev 请求，尚未冻结 24-task pilot manifest、运行新 cohort 或获得新官方评分。Qwen historical Plan timeout 根因仍待有界诊断；OpenRouter 的备用诊断 cohort 仍未建立；历史 unknown 不重放。前一候选 CI 和本轮旧版 `2,234 passed, 19 skipped` 不覆盖当前未提交修复。
+- **候选 CI：** 已有候选 `7148a0d0bb5a14aa492cdec1d7d5633d291ad950` 的 [CI run 40066788788](https://github.com/shuaibilx/DecAgent/actions/runs/40066788788) 12/12 通过；它不覆盖当前工作区修复。
 - **游客与本机交付：** [guest-sop-local-trial](../guest-sop-local-trial/tasks.md) 为 24/28，剩余 2.5、4.4、5.3、5.4。
 - **完整历史快照：** [本次整理前快照](../../../generated/261024/0952_jev完整任务快照_清理前.md)；[上一版逐字快照](../../../generated/261022/任务整理/1202_jev任务完整快照_整理前.md)。详细实现证据见[工作台](../../../generated/261021/任务整理/1434_实现与工作台证据.md)、[评测](../../../generated/261021/任务整理/1434_评测基础证据.md)、[模型与真实评测](../../../generated/261021/任务整理/1434_模型与真实评测证据.md)、[整体验收](../../../generated/261021/任务整理/1434_整体验收证据.md)。
 

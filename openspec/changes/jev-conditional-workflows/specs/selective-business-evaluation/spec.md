@@ -401,6 +401,10 @@ callback、官方 scorer、清理逻辑和资源门禁接通前 MUST 被拒绝�
 - **WHEN** 通过 `--phase diagnostic` 对已暴露的四个固定开发案例做实时模型诊断
 - **THEN** 只允许同一干净且已通过同 SHA CI 的候选，最多 12 次通用模型请求、600,000 Token 和 2,700 秒；Qwen 最多 6 次/600,000 Token/¥13.50，Qwen Agent、模拟器和裁判分别受冻结的角色限额约束；批次工具调用上限为 1,600，每路线资源仍独立限制。Qwen 费用预留、已结算费用和 unknown 预留须在同一持久账本事务中准入/结算，越线后停止所有后续派发。诊断开始时间和绝对 deadline MUST 在创建环境/预检前持久化；预检耗尽 deadline 时 MUST 写入批次停止原因并跳过所有未派发路线。诊断结果和 runtime pilot manifest MUST 写入 Git 忽略的 `.decagent/evaluation/` 状态目录，避免冻结证据让候选 SHA 变脏；报告必须包含 4 个任务、8 个路线槽、实际时间和模型/数据/源代码指纹；旧 `first-wave` live phase 必须拒绝。Pilot manifest 冻结及执行均要求通过该候选和相同 profile、inventory、source manifest 与执行代码摘要校验的完成诊断证据，并将该报告 SHA-256 和剩余额度绑定进冻结 manifest。诊断与 pilot 共用一周累计的 500 次 Qwen 请求、500 万 Token、1,600 次工具调用、4 小时和 ¥13.50 上限；pilot 的新账本必须先扣除诊断已用值及 unknown 预留，机器时间按已耗秒数向上取整，任何 phase 或 state 路径都不得重置累计额度。实现 MUST 使用 checkout 之外的规范用户级授权记录，将当前预算 ID 固定到唯一项目路径、候选 SHA、diagnostic cohort、pilot cohort 和对应报告摘要；新的候选/cohort 不得取得新预算，已登记账本丢失时 MUST 拒绝重建。诊断结束后，pilot 只能使用与授权中 diagnostic report SHA 相同的证据。
 
+#### Scenario: Zero-dispatch diagnostic candidate successor
+- **WHEN** 已授权 diagnostic 在任何模型、工具、机器时间或 τ 步骤派发前因可复现的代码/计划契约缺陷而失败，随后代码修复形成新的 CI 候选
+- **THEN** 系统仅在旧账本证明 8 个路线均保持 `pending`、模型/工具/机器时间/τ 尝试均为零、无评分/清理结果且旧批次未停止时，允许将活动 diagnostic 绑定到新候选和新 cohort；必须保留旧账本及 supersession 审计记录，并沿用旧 `started_at` 与绝对 deadline，不能获得新的一份 2,700 秒或其他资源上限。新候选仍必须通过对应同 SHA CI。任何已预留或已派发尝试、非 pending 路线、unknown、停止批次或无法验证的账本均禁止候选接替；它们必须保留原始资源占用并按正常失败/unknown 规则终止。
+
 #### Scenario: Immutable first-wave smoke scope
 - **WHEN** runner 加载公开冒烟 manifest
 - **THEN** 它必须校验固定的 CSM、ITSM、τ retail、τ telecom 四个首波 case ID 与 ReAct/Plan 路线顺序，报告 4 个任务和 8 个路线槽位；即使 manifest digest 被重算，改动首波身份也必须被拒绝

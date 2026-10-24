@@ -443,15 +443,16 @@ def test_bounded_diagnostic_plan_has_four_cases_and_enforces_small_batch_caps():
         check_source_files=False,
     )
     diagnostic = build_bounded_diagnostic_plan(base)
+    from decagent.decisions.contracts import digest
 
     assert diagnostic.mode == "smoke"
     assert len(diagnostic.trials) == 4
-    assert diagnostic.trials == tuple(base.trials[:0]) + tuple(
-        record
-        for selected in base.initial_smoke_wave
-        for record in base.trials
-        if record["trial_id"] == selected["trial_id"]
-    )
+    assert [record["trial_id"] for record in diagnostic.trials] == [
+        selected["trial_id"] for selected in base.initial_smoke_wave
+    ]
+    assert {
+        record["resource_profile_digest"] for record in diagnostic.trials
+    } == {digest(diagnostic.resource_limits)}
     assert diagnostic.routes == ("react_skill_mcp", "plan_mcp")
     assert diagnostic.route_slot_count() == 8
     assert diagnostic.batch_limits["qwen_requests"] == 6
