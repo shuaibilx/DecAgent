@@ -39,7 +39,7 @@ EnterpriseOps-Gym CSM/ITSM MUST 作为主要端到端工作流 benchmark；τ-Be
 - **THEN** 报告选择规则、全部任务 ID 和未运行部分，不修改样本目标来迎合某条策略
 
 #### Scenario: Pre-registered metadata-only pilot sample
-- **WHEN** 从冻结的 v10 inventory 生成本阶段 24-task pilot
+- **WHEN** 从冻结的 v11 inventory 生成本阶段 24-task pilot
 - **THEN** 仅按 benchmark、domain、split、exposure 和 case ID 以固定 seed `sop-pilot-20261024-v1` 做 SHA-256 稳定排序，选择 CSM 10、ITSM 10、τ retail test 2、τ telecom test 2；不得读取任务 prompt、目标状态、reference action 或评分材料来抽样、替换或排序。每任务运行 ReAct 与一次规划确定性路线，另为全部 CSM 安排 primary semantic 与 Jev semantic 配对槽，冻结总分母 68；失败、unknown、N/A 均保留。
 
 #### Scenario: Upstream and MCP dependency locks conflict
@@ -248,6 +248,34 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 - **WHEN** 展示生产预算副评
 - **THEN** 使用当前生产配置并与主质量比较分表呈现，不混合两种预算的分母或结论
 
+### Requirement: Immutable live comparison batches and provider attribution
+
+每个真实诊断或公开 pilot MUST 在派发前绑定候选代码 SHA、任务清单及来源版本、镜像摘要、模型/profile/价格版本、路线计划、共享预算身份和报告身份。更换提供方 MUST 建立独立实验组，不能将不同模型的任务结果拼接成一份配对成绩；正式比较 MUST 关闭跨模型降级。诊断与 pilot MUST 共用累计预算，history 中已用请求、token、费用、工具调用、墙钟及 unknown 预留 MUST 被扣除，改变 state/cohort 路径 MUST NOT 重置预算。unknown 任务和模型请求 MUST 保持终态且不得自动重放。
+
+#### Scenario: Provider change creates a distinct experiment group
+- **WHEN** Qwen 未通过诊断门槛而后续使用 OpenRouter DeepSeek
+- **THEN** 在派发前冻结 DeepSeek 的 endpoint、model、profile 和价格来源；单独记录其调用与费用，不能将 Qwen 与 DeepSeek 路线混为同一模型结果或配对结论
+
+#### Scenario: A new diagnostic round preserves prior weekly use
+- **WHEN** 在同一周预算身份下开始新的诊断轮次
+- **THEN** 历史已结算用量与 unknown 预留继续占用原额度；旧轮次终态不变，完成或 unknown 的路线不重放
+
+#### Scenario: A batch reaches any hard cap
+- **WHEN** 请求、token、提供方费用、MCP 次数、路线时间或批次墙钟任一硬上限耗尽
+- **THEN** supervisor 阻止后续模型、工具及评分派发，保留准确的 pending/unknown/failed 分母，不自动扩大额度
+
+### Requirement: Safe official τ score breakdown
+
+官方 τ evaluator 返回的 aggregate reward MUST 保持原始权威值。报告 MAY 保存固定分类 `DB`、`ENV_ASSERTION`、`ACTION`、`COMMUNICATE` 与 `NL_ASSERTION` 的有限数值分项，但 MUST 丢弃未知分类、非数值、非有限或超出 `[0,1]` 的值；分项 MUST NOT 改写 reward/task success 或进入 Agent、planner、Jev、用户模拟器上下文。不得记录 private verifier detail、hidden target state 或原始评分输入。
+
+#### Scenario: A τ score identifies a failed aggregate category
+- **WHEN** τ official evaluator 返回有效 aggregate reward 和 allowlist 内的分项
+- **THEN** 报告保留原 reward 与安全分项以定位失败类别，官方成功状态仍由原 evaluator 结果决定
+
+#### Scenario: An evaluator exposes an unknown or private reward component
+- **WHEN** reward breakdown 含未知名称、隐藏检查内容、非法数值或恶意非字符串 key
+- **THEN** 未获 allowlist 认可的内容不进入公开证据或 Agent 上下文，原始 aggregate reward 不被重算
+
 ### Requirement: Validation-selected thresholds with quality target
 
 默认策略 MUST 在验证集上选择自动部分点估计正确率至少 95%、有效自动样本至少 100 的候选中覆盖最高者；并列取更高阈值。每个适用决策族 MUST 独立核查。无合格候选或样本不足 MUST 不发布合格默认策略，不降低质量目标。
@@ -399,7 +427,7 @@ callback、官方 scorer、清理逻辑和资源门禁接通前 MUST 被拒绝�
 
 #### Scenario: Bounded live diagnostic precedes pilot freeze and dispatch under a shared budget
 - **WHEN** 通过 `--phase diagnostic` 对已暴露的四个固定开发案例做实时模型诊断
-- **THEN** 只允许同一干净且已通过同 SHA CI 的候选，最多 12 次通用模型请求、600,000 Token 和 2,700 秒；Qwen 最多 6 次/600,000 Token/¥13.50，Qwen Agent、模拟器和裁判分别受冻结的角色限额约束；批次工具调用上限为 1,600，每路线资源仍独立限制。Qwen 费用预留、已结算费用和 unknown 预留须在同一持久账本事务中准入/结算，越线后停止所有后续派发。诊断开始时间和绝对 deadline MUST 在创建环境/预检前持久化；预检耗尽 deadline 时 MUST 写入批次停止原因并跳过所有未派发路线。诊断结果和 runtime pilot manifest MUST 写入 Git 忽略的 `.decagent/evaluation/` 状态目录，避免冻结证据让候选 SHA 变脏；报告必须包含 4 个任务、8 个路线槽、实际时间和模型/数据/源代码指纹；旧 `first-wave` live phase 必须拒绝。Pilot manifest 冻结及执行均要求通过该候选和相同 profile、inventory、source manifest 与执行代码摘要校验的完成诊断证据，并将该报告 SHA-256 和剩余额度绑定进冻结 manifest。诊断与 pilot 共用一周累计的 500 次 Qwen 请求、500 万 Token、1,600 次工具调用、4 小时和 ¥13.50 上限；pilot 的新账本必须先扣除诊断已用值及 unknown 预留，机器时间按已耗秒数向上取整，任何 phase 或 state 路径都不得重置累计额度。实现 MUST 使用 checkout 之外的规范用户级授权记录，将当前预算 ID 固定到唯一项目路径、候选 SHA、diagnostic cohort、pilot cohort 和对应报告摘要；新的候选/cohort 不得取得新预算，已登记账本丢失时 MUST 拒绝重建。诊断结束后，pilot 只能使用与授权中 diagnostic report SHA 相同的证据。
+- **THEN** 只允许同一干净且已通过同 SHA CI 的候选。单次 round 2 最多 12 次通用模型请求、600,000 Token、2,700 秒；其中 Qwen 最多 6 次/600,000 Token/¥1.62，Agent/模拟器/裁判分别受冻结的角色请求与 Token 限额约束，工具调用最多 400 次，每路线资源仍独立限制。Qwen 费用预留、已结算费用和 unknown 预留须在同一持久账本事务中准入/结算，越过 round 或共享周额度中的较低剩余值时停止所有后续派发。诊断开始时间和绝对 deadline MUST 在创建环境/预检前持久化；预检耗尽 deadline 时 MUST 写入批次停止原因并跳过所有未派发路线。诊断结果和 runtime pilot manifest MUST 写入 Git 忽略的 `.decagent/evaluation/` 状态目录，避免冻结证据让候选 SHA 变脏；报告必须包含 4 个任务、8 个路线槽、实际时间和模型/数据/源代码指纹；旧 `first-wave` live phase 必须拒绝。Pilot manifest 冻结及执行均要求通过该候选和相同 profile、inventory、source manifest 与执行代码摘要校验的完成诊断证据，并将该报告 SHA-256 和剩余额度绑定进冻结 manifest。诊断与 pilot 共用一周累计的 500 次通用模型请求、5,000,000 Token、1,600 次工具调用、4 小时、Qwen ¥13.50 与 OpenRouter $5 上限；pilot 的新账本必须先扣除诊断已用值及 unknown 预留，机器时间按已耗秒数向上取整，任何 phase 或 state 路径都不得重置累计额度。实现 MUST 使用 checkout 之外的规范用户级授权记录，将当前预算 ID 固定到唯一项目路径、候选 SHA、diagnostic cohort、pilot cohort 和对应报告摘要；新的候选/cohort 不得取得新预算，已登记账本丢失时 MUST 拒绝重建。诊断结束后，pilot 只能使用与授权中 diagnostic report SHA 相同的证据。
 
 该 bounded diagnostic MUST 对每个固定案例先调度 `plan_mcp`，再调度 `react_skill_mcp`，使有限的 Agent 请求额度优先验证“计划生成、MCP 执行、官方评分”就绪门槛。此顺序只适用于 diagnostic，不改变正式对照路线定义或结果分母。
 
@@ -450,9 +478,9 @@ callback、官方 scorer、清理逻辑和资源门禁接通前 MUST 被拒绝�
 - **WHEN** provider/tool attempt 在 dispatch 后中断，或其用量/结果未知
 - **THEN** 未决额度保留为 unknown，route 不得自动 replay；仅可基于可验证原回执的显式恢复流程继续
 
-#### Scenario: Diagnostic CNY fee hard stop
+#### Scenario: Diagnostic and weekly CNY fee hard stops
 - **WHEN** 诊断批次准备派发 Qwen 请求、收到计费用量，或请求进入 unknown
-- **THEN** dispatch 前必须把该请求的 profile 费用上界原子预留到批次 ¥13.50 上限；结算后按冻结费率的抵扣前 API 费用或可核验提供方费用记录实际金额，unknown 保留原预留。累计 actual+reserved 超限、价格或金额无法核验、或结算显示超限时，持久停止整个批次；报告分别列实际费用、预留费用及总额度，不得将 unknown 记为零。
+- **THEN** dispatch 前必须把该请求的 profile 费用上界原子预留到 round 2 的 ¥1.62 上限及共享周级 ¥13.50 剩余额度中的较低者；结算后按冻结费率的抵扣前 API 费用或可核验提供方费用记录实际金额，unknown 保留原预留。累计 actual+reserved 超限、价格或金额无法核验、或结算显示超限时，持久停止整个批次；报告分别列实际费用、预留费用及各级额度，不得将 unknown 记为零。
 
 #### Scenario: Natural Jev eligibility
 - **WHEN** 基准任务没有自然适用且已审核的可信语义决策模板

@@ -526,7 +526,7 @@ def test_diagnostic_report_includes_the_bounded_phase_evidence(monkeypatch):
 
     assert report["phase"] == "diagnostic"
     assert report["diagnostic_limits"]["max_qwen_requests"] == 6
-    assert report["diagnostic_batch_limits"]["qwen_cost_cny"] == "13.50"
+    assert report["diagnostic_batch_limits"]["qwen_cost_cny"] == "1.62"
     assert report["evaluation_source_digest"]
     assert len(report["diagnostic_task_records"]) == 4
 
@@ -638,7 +638,7 @@ def test_pilot_report_separates_semantic_pairs_and_natural_not_applicable_routes
     from evals.benchmarks.live_public_runner import live_first_wave_report
     from evals.benchmarks.pilot_manifest import build_pilot_manifest, load_public_pilot_plan
 
-    base_path = ROOT / "evals/benchmarks/manifests/comparison_trial_manifest_v10.json"
+    base_path = ROOT / "evals/benchmarks/manifests/comparison_trial_manifest_v11.json"
     base = json.loads(base_path.read_text(encoding="utf-8"))
     frozen = build_pilot_manifest(base)
     manifest_path = tmp_path / "pilot.json"

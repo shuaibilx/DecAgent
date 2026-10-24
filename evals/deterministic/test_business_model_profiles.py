@@ -230,6 +230,14 @@ def test_profile_digest_freezes_request_parameters_tool_contract_timeout_and_rou
     assert exact.fingerprint != replace(exact, provider_routing="openrouter_default").fingerprint
 
 
+def test_frozen_primary_profile_allows_a_bounded_180_second_timeout():
+    selected = replace(profile(), timeout_seconds=180)
+
+    assert selected.timeout_seconds == 180
+    with pytest.raises(ValueError, match="between one and 180 seconds"):
+        replace(profile(), timeout_seconds=181)
+
+
 def test_profile_rejects_sending_a_parameter_declared_unsupported():
     with pytest.raises(ValueError, match="unsupported parameter"):
         replace(profile(), seed=42, unsupported_parameters=("seed",))

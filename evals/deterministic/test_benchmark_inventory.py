@@ -214,6 +214,37 @@ def test_manifest_v10_freezes_longer_primary_timeout_without_changing_scope():
     )
 
 
+def test_manifest_v11_freezes_180_second_primary_timeout_without_rewriting_v10():
+    root = Path(__file__).resolve().parents[2]
+    manifest_dir = INVENTORY_PATH.parent
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+
+    profiles_v5 = EvaluationModelProfiles.from_dict(
+        json.loads((manifest_dir / "evaluation_model_profiles_v5.json").read_text(encoding="utf-8"))
+    )
+    profiles_v6 = EvaluationModelProfiles.from_dict(
+        json.loads((manifest_dir / "evaluation_model_profiles_v6.json").read_text(encoding="utf-8"))
+    )
+
+    assert profiles_v5.primary.timeout_seconds == 120
+    assert profiles_v6.primary.timeout_seconds == 180
+    assert profiles_v5.user_simulator.fingerprint == profiles_v6.user_simulator.fingerprint
+    assert profiles_v5.judge.fingerprint == profiles_v6.judge.fingerprint
+
+    built = build_trial_manifest(root, model_profiles=profiles_v6, manifest_version=11)
+
+    assert built["schema_version"] == "business-comparison-trial-manifest-11"
+    assert built["model_profiles"]["roles"]["primary"]["timeout_seconds"] == 180
+    assert built["counts"] == {
+        "full_trials": 286,
+        "smoke_trials": 24,
+        "initial_smoke_wave": 4,
+    }
+    assert built == json.loads(
+        (manifest_dir / "comparison_trial_manifest_v11.json").read_text(encoding="utf-8")
+    )
+
+
 def test_manifest_builder_accepts_only_lower_frozen_batch_limits(tmp_path):
     root = Path(__file__).resolve().parents[2]
     profile_path = INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json"
@@ -486,7 +517,7 @@ def test_v9_public_trial_plan_remains_loadable_as_historical_cohort():
     assert "reference_actions" not in serialized
 
 
-def test_default_public_trial_plan_uses_the_timeout_recovery_cohort():
+def test_default_public_trial_plan_uses_the_180_second_timeout_recovery_cohort():
     from decagent.evaluation.business.public_trials import load_public_run_plan
 
     root = Path(__file__).resolve().parents[2]
@@ -498,10 +529,31 @@ def test_default_public_trial_plan_uses_the_timeout_recovery_cohort():
         check_source_files=False,
     )
 
-    assert plan.profiles.primary.timeout_seconds == 120
+    assert plan.profiles.primary.timeout_seconds == 180
     assert plan.profiles.user_simulator.timeout_seconds == 60
     assert plan.profiles.judge.timeout_seconds == 60
     assert len(plan.initial_smoke_wave) == 4
+
+
+def test_public_trial_loader_accepts_frozen_v11_profile_without_changing_v10():
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    manifest_dir = root / "evals/benchmarks/manifests"
+    plan = load_public_run_plan(
+        root,
+        mode="smoke",
+        manifest_path=manifest_dir / "comparison_trial_manifest_v11.json",
+        profiles_path=manifest_dir / "evaluation_model_profiles_v6.json",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+
+    assert plan.profiles.primary.timeout_seconds == 180
+    assert plan.profiles.user_simulator.timeout_seconds == 60
+    assert plan.profiles.judge.timeout_seconds == 60
+    assert len(plan.trials) == 24
 
 
 def test_resource_subset_is_stable_across_source_order_and_bounded():

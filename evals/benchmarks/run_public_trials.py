@@ -35,6 +35,13 @@ def parser():
         choices=("diagnostic", "first-wave", "remaining-smoke", "full", "pilot"),
         help="show the fixed task slice selected for this offline phase",
     )
+    command.add_argument(
+        "--diagnostic-round",
+        type=int,
+        choices=(1, 2),
+        default=1,
+        help="select the explicitly authorized diagnostic round; round 2 is one-time only",
+    )
     command.add_argument("--manifest", type=Path)
     command.add_argument("--pilot-manifest", type=Path)
     command.add_argument("--source-manifest", type=Path)
@@ -141,6 +148,8 @@ def _execute_live_phase(args, command):
         command.error(f"live {args.phase} execution requires --mode {required_mode}")
     if args.phase == "pilot" and not args.diagnostic_evidence:
         command.error("live pilot execution requires --diagnostic-evidence")
+    if args.phase != "diagnostic" and args.diagnostic_round != 1:
+        command.error("--diagnostic-round applies only to the diagnostic phase")
     if args.state:
         command.error("--state is unsupported; live execution uses the canonical ledger")
     if not args.report:
@@ -196,6 +205,7 @@ def _execute_live_phase(args, command):
             "working_tree_dirty": False,
             "candidate_ci_verified": True,
             "phase": args.phase,
+            "diagnostic_round": args.diagnostic_round,
         }
         if args.phase == "pilot":
             call["diagnostic_evidence"] = args.diagnostic_evidence
@@ -218,6 +228,7 @@ def _execute_live_phase(args, command):
         complete_public_evaluation_phase(
             root,
             phase=args.phase,
+            phase_round=args.diagnostic_round,
             candidate_sha=report["candidate_sha"],
             cohort_digest=report["cohort_digest"],
             ledger_path=canonical_public_trial_ledger_path(

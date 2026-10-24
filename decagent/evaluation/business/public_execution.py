@@ -232,12 +232,18 @@ def _score_evidence(trial, result):
     forbidden = getattr(score, "forbidden_side_effects", None)
     if forbidden is not None and (type(forbidden) is not int or forbidden < 0):
         return None
-    return {
+    evidence = {
         "source": source,
         "value": value,
         "success": success,
         "forbidden_side_effects": forbidden,
     }
+    components = getattr(score, "score_components", None)
+    if components is not None:
+        if source != "tau2-bench-original-evaluate-simulation":
+            return None
+        evidence["score_components"] = components
+    return evidence
 
 
 def _cleanup_evidence(result):

@@ -1,0 +1,89 @@
+{
+  "schema_version": "sop-agent-weekly-budget-baseline-v1",
+  "budget_id": "sop-pilot-20261024-v1",
+  "frozen_at": "2026-10-24",
+  "sources": [
+    {
+      "name": "four-domain-first-wave",
+      "candidate_sha": "5b43a45962ee16bc0f61015d1063ee9ad6c676fe",
+      "machine_report": "evals/benchmarks/evidence/public-first-wave-live-20261024-5b43a45-100qwen.json",
+      "machine_report_sha256": "d66f50b980472bd9ef1b1f1def730c969d9437805d2a018f936ba84009c1013b",
+      "request_count": 33,
+      "tokens_including_unknown_reserves": 490885,
+      "role_usage": {
+        "agent": {
+          "requests": 23,
+          "tokens": 458097
+        },
+        "user_simulator": {
+          "requests": 10,
+          "tokens": 32788
+        },
+        "judge": {
+          "requests": 0,
+          "tokens": 0
+        }
+      },
+      "qwen_cost_cny_including_unknown_reserves": "0.4729735",
+      "tool_calls": 13,
+      "wall_seconds": 811.322132,
+      "operator_report": "evals/benchmarks/evidence/public-first-wave-live-20261024-5b43a45-100qwen.md",
+      "operator_report_sha256": "58904aeb23697ca84f4472be465f3b92d4d69598593781b9424fe9b1ed6c71b3"
+    },
+    {
+      "name": "bounded-diagnostic-91d1cf0",
+      "candidate_sha": "91d1cf0e25f87d3f74eb83674f6257c8004b8a98",
+      "machine_report_sha256": "f817277e5bb38f908def0d4b1e04bfb231394fef7f2f18b3240fce3206968f79",
+      "operator_report": "evals/benchmarks/evidence/sop-agent-diagnostic-20261024-91d1cf0.md",
+      "operator_report_sha256": "33d296a09e57420cd602b6190e2f6b61ada7aa00f5e3ddd8beeefdd592d55bef",
+      "request_count": 3,
+      "tokens_including_unknown_reserves": 22191,
+      "role_usage": {
+        "agent": {
+          "requests": 3,
+          "tokens": 22191
+        },
+        "user_simulator": {
+          "requests": 0,
+          "tokens": 0
+        },
+        "judge": {
+          "requests": 0,
+          "tokens": 0
+        }
+      },
+      "qwen_cost_cny_including_unknown_reserves": "0.0201905",
+      "tool_calls": 2,
+      "wall_seconds": 64.455256,
+      "machine_report": "evals/benchmarks/evidence/sop-agent-diagnostic-20261024-91d1cf0.json"
+    }
+  ],
+  "totals": {
+    "qwen_requests": 36,
+    "qwen_tokens_including_unknown_reserves": 513076,
+    "role_usage": {
+      "agent": {
+        "requests": 26,
+        "tokens": 480288
+      },
+      "user_simulator": {
+        "requests": 10,
+        "tokens": 32788
+      },
+      "judge": {
+        "requests": 0,
+        "tokens": 0
+      }
+    },
+    "qwen_cost_cny_including_unknown_reserves": "0.4931640",
+    "openrouter_requests": 0,
+    "openrouter_cost_usd": "0",
+    "tool_calls": 15,
+    "wall_seconds": 875.777388
+  },
+  "notes": [
+    "Unknown request token and fee reservations remain counted; they do not imply confirmed provider billing.",
+    "Qwen fees are frozen-rate estimates and conservative reservations, not provider invoices or voucher/cash allocation.",
+    "The earlier four-domain run and the 91d1cf0 diagnostic are development evidence, not performance-comparison results."
+  ]
+}

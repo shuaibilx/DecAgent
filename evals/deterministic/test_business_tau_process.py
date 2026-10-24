@@ -39,6 +39,33 @@ def test_tau_failure_stage_allowlists_match_worker_and_public_diagnostics():
     assert module.TauBridgeError("invalid stage", failure_stage=[]).failure_stage is None
 
 
+def test_tau_worker_exports_only_allowlisted_numeric_reward_components():
+    module = bridge()
+    worker_path = Path(module.__file__).with_name("tau_worker.py")
+    spec = importlib.util.spec_from_file_location("_tau_worker_score_contract", worker_path)
+    assert spec is not None and spec.loader is not None
+    worker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(worker)
+
+    class RewardType:
+        DB = "DB"
+
+    class Component:
+        value = "ACTION"
+
+    actual = worker._safe_reward_breakdown(
+        {
+            RewardType.DB: 0.0,
+            Component(): 1.0,
+            "COMMUNICATE": 0.5,
+            "private_target": 1.0,
+            "NL_ASSERTION": float("nan"),
+        }
+    )
+
+    assert actual == {"ACTION": 1.0, "COMMUNICATE": 0.5, "DB": 0.0}
+
+
 def test_tau_mcp_environment_uses_official_environment_policy_when_unspecified():
     from decagent.evaluation.business.tau_tools import TauMCPEnvironment
 

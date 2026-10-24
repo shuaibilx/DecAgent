@@ -42,6 +42,27 @@ _METHOD_STAGES = {
     "score_simulation": "tau_worker_score_input_parse",
     "state": "tau_worker_state_read",
 }
+_SAFE_REWARD_COMPONENTS = frozenset(
+    {"DB", "ENV_ASSERTION", "ACTION", "COMMUNICATE", "NL_ASSERTION"}
+)
+
+
+def _safe_reward_breakdown(value):
+    """Expose only upstream aggregate reward categories, never private checks."""
+    if type(value) is not dict:
+        return {}
+    result = {}
+    for key, score in value.items():
+        name = getattr(key, "value", key)
+        if (
+            type(name) is str
+            and name in _SAFE_REWARD_COMPONENTS
+            and type(score) in {int, float}
+            and math.isfinite(score)
+            and 0 <= score <= 1
+        ):
+            result[name] = float(score)
+    return dict(sorted(result.items()))
 
 
 def verify_source(params):
@@ -464,6 +485,9 @@ def dispatch(
             "scored": True,
             "scorer": "tau2-bench-original-evaluate-simulation",
             "reward": reward,
+            "score_components": _safe_reward_breakdown(
+                getattr(reward_info, "reward_breakdown", None)
+            ),
             "judge_usage": {
                 "requests": len(judge_usage),
                 "input_tokens": sum(input_counts)

@@ -70,7 +70,7 @@ def _base_manifest():
             for i in range(5)
         )
     manifest = {
-        "schema_version": "business-comparison-trial-manifest-10",
+        "schema_version": "business-comparison-trial-manifest-11",
         "manifest_id": "base-manifest",
         "full_trials": trials,
     }
@@ -110,11 +110,15 @@ def test_pilot_manifest_is_deterministic_and_digest_protected():
 
 
 def test_pilot_manifest_freeze_binds_diagnostic_and_remaining_shared_budget():
+    from evals.benchmarks.pilot_gate import (
+        WEEKLY_BASELINE_SHA256,
+        load_historical_weekly_usage,
+    )
+
+    root = Path(__file__).resolve().parents[2]
     base = json.loads(
-        (
-            Path(__file__).resolve().parents[2]
-            / "evals/benchmarks/manifests/comparison_trial_manifest_v10.json"
-        ).read_text(encoding="utf-8")
+        (root / "evals/benchmarks/manifests/comparison_trial_manifest_v11.json")
+        .read_text(encoding="utf-8")
     )
     diagnostic = {
         "candidate_sha": "a" * 40,
@@ -136,14 +140,17 @@ def test_pilot_manifest_freeze_binds_diagnostic_and_remaining_shared_budget():
             "judge": {"requests": 0, "tokens": 0},
         },
         "report_sha256": "f" * 64,
+        "diagnostic_round": 2,
+        "weekly_budget_baseline_sha256": WEEKLY_BASELINE_SHA256,
+        "historical_weekly_usage": load_historical_weekly_usage(root),
     }
 
     pilot = build_pilot_manifest(base, diagnostic_gate=diagnostic)
 
     assert pilot["diagnostic_evidence"]["report_sha256"] == "f" * 64
     assert pilot["diagnostic_evidence"]["candidate_sha"] == "a" * 40
-    assert pilot["diagnostic_evidence"]["remaining_batch_limits"]["qwen_requests"] == 497
-    assert pilot["diagnostic_evidence"]["remaining_batch_limits"]["qwen_cost_cny"] == "11.500000"
+    assert pilot["diagnostic_evidence"]["remaining_batch_limits"]["qwen_requests"] == 461
+    assert pilot["diagnostic_evidence"]["remaining_batch_limits"]["qwen_cost_cny"] == "11.0068360"
     payload = {key: value for key, value in pilot.items() if key != "manifest_digest"}
     assert pilot["manifest_digest"] == digest(payload)
 
@@ -168,7 +175,7 @@ def test_pilot_manifest_rejects_incomplete_or_exposed_candidate_pools():
 
 def test_frozen_pilot_loads_only_the_digest_bound_selected_trials(tmp_path):
     root = Path(__file__).resolve().parents[2]
-    base_path = root / "evals/benchmarks/manifests/comparison_trial_manifest_v10.json"
+    base_path = root / "evals/benchmarks/manifests/comparison_trial_manifest_v11.json"
     base = json.loads(base_path.read_text(encoding="utf-8"))
     pilot = build_pilot_manifest(base)
     pilot_path = tmp_path / "pilot.json"
@@ -195,7 +202,7 @@ def test_loaded_pilot_uses_only_the_remaining_shared_budget(tmp_path):
     from evals.benchmarks.pilot_gate import apply_remaining_pilot_budget
 
     root = Path(__file__).resolve().parents[2]
-    base_path = root / "evals/benchmarks/manifests/comparison_trial_manifest_v10.json"
+    base_path = root / "evals/benchmarks/manifests/comparison_trial_manifest_v11.json"
     base = json.loads(base_path.read_text(encoding="utf-8"))
     pilot = build_pilot_manifest(base)
     pilot_path = tmp_path / "pilot.json"

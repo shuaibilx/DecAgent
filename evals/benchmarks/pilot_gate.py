@@ -9,7 +9,7 @@ import os
 import re
 from dataclasses import replace
 from decimal import Decimal, InvalidOperation
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from decagent.decisions.contracts import digest
 from decagent.evaluation.business.public_limits import (
@@ -39,14 +39,14 @@ _SCORE_SOURCES = frozenset(
 DIAGNOSTIC_BATCH_LIMITS = {
     "qwen_requests": 6,
     "qwen_tokens": 600_000,
-    "qwen_cost_cny": "13.50",
+    "qwen_cost_cny": "1.62",
     "agent_qwen_requests": 3,
     "agent_qwen_tokens": 400_000,
     "user_simulator_qwen_requests": 2,
     "user_simulator_qwen_tokens": 150_000,
     "judge_qwen_requests": 1,
     "judge_qwen_tokens": 50_000,
-    "tool_calls": 1_600,
+    "tool_calls": 400,
     "wall_seconds": 2_700,
 }
 DIAGNOSTIC_RESOURCE_LIMITS = {
@@ -61,6 +61,103 @@ DIAGNOSTIC_RESOURCE_LIMITS = {
     "judge_tokens": 600_000,
 }
 WEEKLY_QWEN_COST_CNY = Decimal("13.50")
+WEEKLY_BASELINE_RELATIVE_PATH = Path(
+    "evals/benchmarks/evidence/weekly-budget-baseline-20261024.json"
+)
+WEEKLY_BASELINE_SHA256 = (
+    "a40a55b0826be1265689db6b668248e94ab675668fc286f30c789d34e8f3b160"
+)
+
+
+def _verify_weekly_baseline_sources(root, sources):
+    expected_names = {"four-domain-first-wave", "bounded-diagnostic-91d1cf0"}
+    source_names = {
+        item.get("name") for item in sources if type(item) is dict
+    } if type(sources) is list else set()
+    if type(sources) is not list or source_names != expected_names:
+        raise ValueError("Frozen weekly budget source report index is incomplete")
+    for source in sources:
+        if type(source) is not dict:
+            raise ValueError("Frozen weekly budget source report index is malformed")
+        for path_key in ("machine_report", "operator_report"):
+            relative = source.get(path_key)
+            expected_digest = source.get(path_key + "_sha256")
+            if (
+                type(relative) is not str
+                or "\\" in relative
+                or type(expected_digest) is not str
+                or re.fullmatch(r"[a-f0-9]{64}", expected_digest) is None
+            ):
+                raise ValueError("Frozen weekly budget source report reference is invalid")
+            parsed = PurePosixPath(relative)
+            if parsed.is_absolute() or not parsed.parts or any(
+                part in {"", ".", ".."} for part in parsed.parts
+            ):
+                raise ValueError("Frozen weekly budget source report path is invalid")
+            target = root
+            for part in parsed.parts:
+                target = target / part
+                if target.is_symlink():
+                    raise ValueError("Frozen weekly budget source report cannot be a symlink")
+            target_digest = (
+                hashlib.sha256(target.read_bytes()).hexdigest()
+                if target.is_file()
+                else None
+            )
+            if target_digest != expected_digest:
+                raise ValueError("Frozen weekly budget baseline source report digest differs")
+
+
+def load_historical_weekly_usage(root):
+    """Load the immutable pre-diagnostic usage already spent in this budget week."""
+    root = Path(root).resolve()
+    path = root / WEEKLY_BASELINE_RELATIVE_PATH
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("Frozen weekly budget baseline is unavailable")
+    raw = path.read_bytes().replace(b"\r\n", b"\n")
+    if hashlib.sha256(raw).hexdigest() != WEEKLY_BASELINE_SHA256:
+        raise ValueError("Frozen weekly budget baseline digest differs")
+    try:
+        baseline = json.loads(raw)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Frozen weekly budget baseline is unreadable") from exc
+    if (
+        type(baseline) is not dict
+        or baseline.get("schema_version") != "sop-agent-weekly-budget-baseline-v1"
+        or baseline.get("budget_id") != PUBLIC_EVALUATION_BUDGET_ID
+        or type(baseline.get("totals")) is not dict
+    ):
+        raise ValueError("Frozen weekly budget baseline identity differs")
+    _verify_weekly_baseline_sources(root, baseline.get("sources"))
+    totals = baseline["totals"]
+    expected_roles = {
+        "agent": {"requests": 26, "tokens": 480_288},
+        "user_simulator": {"requests": 10, "tokens": 32_788},
+        "judge": {"requests": 0, "tokens": 0},
+    }
+    expected = {
+        "qwen_requests": 36,
+        "qwen_tokens_including_unknown_reserves": 513_076,
+        "role_usage": expected_roles,
+        "qwen_cost_cny_including_unknown_reserves": "0.4931640",
+        "openrouter_requests": 0,
+        "openrouter_cost_usd": "0",
+        "tool_calls": 15,
+        "wall_seconds": 875.777388,
+    }
+    if totals != expected:
+        raise ValueError("Frozen weekly budget baseline totals differ")
+    return {
+        "qwen_requests": expected["qwen_requests"],
+        "qwen_tokens": expected["qwen_tokens_including_unknown_reserves"],
+        "general_model_requests": expected["qwen_requests"],
+        "general_model_tokens": expected["qwen_tokens_including_unknown_reserves"],
+        "qwen_cost_cny": expected["qwen_cost_cny_including_unknown_reserves"],
+        "tool_calls": expected["tool_calls"],
+        "wall_seconds": expected["wall_seconds"],
+        "role_usage": expected_roles,
+        "baseline_sha256": WEEKLY_BASELINE_SHA256,
+    }
 
 
 def build_bounded_diagnostic_plan(plan):
@@ -91,6 +188,7 @@ def build_bounded_diagnostic_plan(plan):
     diagnostic_manifest = digest(
         {
             "schema_version": "public-evaluation-diagnostic-plan-v1",
+            "weekly_budget_baseline_sha256": WEEKLY_BASELINE_SHA256,
             "source_manifest_digest": plan.manifest_digest,
             "source_manifest_sha256": plan.source_manifest_digest,
             "task_inventory_digest": plan.inventory_digest,
@@ -132,34 +230,61 @@ def is_bounded_diagnostic_plan(plan):
     )
 
 
-def remaining_pilot_batch_limits(approved_limits, diagnostic_usage):
+def remaining_pilot_batch_limits(
+    approved_limits, diagnostic_usage, *, historical_usage=None
+):
     """Subtract diagnostic usage so diagnostic and pilot share one weekly ceiling."""
     if type(diagnostic_usage) is not dict:
         raise ValueError("A frozen approved budget and diagnostic usage are required")
     approved_limits = validate_public_batch_limits(approved_limits)
+    if historical_usage is None:
+        historical_usage = {
+            "qwen_requests": 0,
+            "qwen_tokens": 0,
+            "general_model_requests": 0,
+            "general_model_tokens": 0,
+            "qwen_cost_cny": "0",
+            "tool_calls": 0,
+            "wall_seconds": 0,
+            "role_usage": {
+                "agent": {"requests": 0, "tokens": 0},
+                "user_simulator": {"requests": 0, "tokens": 0},
+                "judge": {"requests": 0, "tokens": 0},
+            },
+        }
+    if type(historical_usage) is not dict:
+        raise ValueError("Frozen historical budget consumption is required")
     role_usage = diagnostic_usage.get("role_usage")
+    historical_role_usage = historical_usage.get("role_usage")
     role_names = ("agent", "user_simulator", "judge")
-    if type(role_usage) is not dict or set(role_usage) != set(role_names):
+    if (
+        type(role_usage) is not dict
+        or set(role_usage) != set(role_names)
+        or type(historical_role_usage) is not dict
+        or set(historical_role_usage) != set(role_names)
+    ):
         raise ValueError("Diagnostic role usage is incomplete")
 
     consumed = {}
     for role in role_names:
-        usage = role_usage[role]
-        if type(usage) is not dict:
-            raise ValueError("Diagnostic role usage is malformed")
-        requests, tokens = usage.get("requests"), usage.get("tokens")
-        if (
-            type(requests) is not int
-            or requests < 0
-            or type(tokens) is not int
-            or tokens < 0
-        ):
-            raise ValueError("Diagnostic role usage must be nonnegative integers")
-        consumed[f"{role}_qwen_requests"] = requests
-        consumed[f"{role}_qwen_tokens"] = tokens
+        current, historical = role_usage[role], historical_role_usage[role]
+        for value in (current, historical):
+            if type(value) is not dict:
+                raise ValueError("Diagnostic role usage is malformed")
+            requests, tokens = value.get("requests"), value.get("tokens")
+            if (
+                type(requests) is not int
+                or requests < 0
+                or type(tokens) is not int
+                or tokens < 0
+            ):
+                raise ValueError("Diagnostic role usage must be nonnegative integers")
+        consumed[f"{role}_qwen_requests"] = current["requests"] + historical["requests"]
+        consumed[f"{role}_qwen_tokens"] = current["tokens"] + historical["tokens"]
 
     try:
         qwen_cost = Decimal(diagnostic_usage["qwen_cost_cny"])
+        historical_qwen_cost = Decimal(historical_usage["qwen_cost_cny"])
         qwen_cost_limit = WEEKLY_QWEN_COST_CNY
     except (KeyError, InvalidOperation, TypeError, ValueError) as exc:
         raise ValueError("Diagnostic Qwen cumulative fee is unavailable") from exc
@@ -168,6 +293,12 @@ def remaining_pilot_batch_limits(approved_limits, diagnostic_usage):
     general_requests = diagnostic_usage.get("general_model_requests")
     tool_calls = diagnostic_usage.get("tool_calls")
     elapsed = diagnostic_usage.get("diagnostic_elapsed_seconds")
+    historical_requests = historical_usage.get("general_model_requests")
+    historical_tokens = historical_usage.get("general_model_tokens")
+    historical_qwen_requests = historical_usage.get("qwen_requests")
+    historical_qwen_tokens = historical_usage.get("qwen_tokens")
+    historical_tools = historical_usage.get("tool_calls")
+    historical_elapsed = historical_usage.get("wall_seconds")
     if (
         type(qwen_requests) is not int
         or type(qwen_tokens) is not int
@@ -179,23 +310,44 @@ def remaining_pilot_batch_limits(approved_limits, diagnostic_usage):
         or elapsed < 0
         or not qwen_cost.is_finite()
         or qwen_cost < 0
+        or not historical_qwen_cost.is_finite()
+        or historical_qwen_cost < 0
+        or any(
+            type(value) is not int or value < 0
+            for value in (
+                historical_requests,
+                historical_tokens,
+                historical_qwen_requests,
+                historical_qwen_tokens,
+                historical_tools,
+            )
+        )
+        or type(historical_elapsed) not in {int, float}
+        or not math.isfinite(historical_elapsed)
+        or historical_elapsed < 0
         or qwen_cost > qwen_cost_limit
         or general_requests != qwen_requests
         or diagnostic_usage.get("general_model_tokens") != qwen_tokens
-        or sum(consumed[f"{role}_qwen_requests"] for role in role_names)
+        or sum(role_usage[role]["requests"] for role in role_names)
         != qwen_requests
-        or sum(consumed[f"{role}_qwen_tokens"] for role in role_names) != qwen_tokens
+        or sum(role_usage[role]["tokens"] for role in role_names) != qwen_tokens
+        or sum(historical_role_usage[role]["requests"] for role in role_names)
+        != historical_qwen_requests
+        or sum(historical_role_usage[role]["tokens"] for role in role_names)
+        != historical_qwen_tokens
+        or historical_requests != historical_qwen_requests
+        or historical_tokens != historical_qwen_tokens
     ):
         raise ValueError("Diagnostic usage cannot be applied to the frozen Qwen pilot")
 
     remaining = dict(approved_limits)
     for name, used in consumed.items():
         remaining[name] -= used
-    remaining["qwen_requests"] -= qwen_requests
-    remaining["qwen_tokens"] -= qwen_tokens
-    remaining["tool_calls"] -= tool_calls
-    remaining["wall_seconds"] -= math.ceil(elapsed)
-    remaining_cost = qwen_cost_limit - qwen_cost
+    remaining["qwen_requests"] -= qwen_requests + historical_requests
+    remaining["qwen_tokens"] -= qwen_tokens + historical_tokens
+    remaining["tool_calls"] -= tool_calls + historical_tools
+    remaining["wall_seconds"] -= math.ceil(elapsed + historical_elapsed)
+    remaining_cost = qwen_cost_limit - qwen_cost - historical_qwen_cost
     if any(type(value) is not int or value < 1 for value in remaining.values()):
         raise ValueError("Diagnostic usage exhausted the remaining pilot resource budget")
     if remaining_cost <= 0:
@@ -211,7 +363,9 @@ def apply_remaining_pilot_budget(plan, diagnostic_usage):
     return replace(
         plan,
         batch_limits=remaining_pilot_batch_limits(
-            plan.batch_limits, diagnostic_usage
+            plan.batch_limits,
+            diagnostic_usage,
+            historical_usage=diagnostic_usage.get("historical_weekly_usage"),
         ),
     )
 
@@ -291,8 +445,9 @@ def validate_diagnostic_evidence(
     """Require bounded, same-source evidence of real MCP execution and official scoring."""
     _path, report = _read_report(root, evidence_path)
     if (
-        report.get("schema_version") != "public-evaluation-live-diagnostic-v1"
+        report.get("schema_version") != "public-evaluation-live-diagnostic-v2"
         or report.get("phase") != "diagnostic"
+        or report.get("diagnostic_round") != 2
         or report.get("dry_run") is not False
         or report.get("evaluation_budget_id") != PUBLIC_EVALUATION_BUDGET_ID
     ):
@@ -311,6 +466,12 @@ def validate_diagnostic_evidence(
         raise ValueError("Diagnostic evidence must come from a clean CI-verified candidate")
     if report.get("model_profiles_digest") != model_profiles_digest:
         raise ValueError("Diagnostic model profiles differ from the frozen pilot profiles")
+    historical_usage = load_historical_weekly_usage(root)
+    if (
+        report.get("weekly_budget_baseline_sha256") != WEEKLY_BASELINE_SHA256
+        or report.get("historical_weekly_usage") != historical_usage
+    ):
+        raise ValueError("Diagnostic report does not carry the frozen weekly usage baseline")
     if (
         expected_source_manifest_digest is not None
         and report.get("source_manifest_digest") != expected_source_manifest_digest
@@ -669,6 +830,8 @@ def validate_diagnostic_evidence(
         "unknown_requests": unknown_attempts,
         "closed_loop_route_count": closed_loop_routes,
         "report_sha256": hashlib.sha256(_path_read_bytes(root, evidence_path)).hexdigest(),
+        "historical_weekly_usage": historical_usage,
+        "weekly_budget_baseline_sha256": WEEKLY_BASELINE_SHA256,
     }
 
 

@@ -1,10 +1,21 @@
 import json
+import shutil
 from pathlib import Path
 
 import pytest
 
 from decagent.evaluation.business.public_trials import load_public_run_plan
-from evals.benchmarks.pilot_gate import validate_diagnostic_evidence
+from evals.benchmarks.pilot_gate import (
+    DIAGNOSTIC_BATCH_LIMITS,
+    DIAGNOSTIC_LIMITS,
+    DIAGNOSTIC_RESOURCE_LIMITS,
+    WEEKLY_BASELINE_RELATIVE_PATH,
+    WEEKLY_BASELINE_SHA256,
+    load_historical_weekly_usage,
+    validate_diagnostic_evidence,
+)
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _valid_report(candidate_sha="a" * 40, profile_digest="b" * 64):
@@ -67,8 +78,9 @@ def _valid_report(candidate_sha="a" * 40, profile_digest="b" * 64):
             else [],
         }
     return {
-        "schema_version": "public-evaluation-live-diagnostic-v1",
+        "schema_version": "public-evaluation-live-diagnostic-v2",
         "phase": "diagnostic",
+        "diagnostic_round": 2,
         "dry_run": False,
         "candidate_sha": candidate_sha,
         "cohort_digest": "d" * 64,
@@ -76,6 +88,8 @@ def _valid_report(candidate_sha="a" * 40, profile_digest="b" * 64):
         "working_tree_dirty": False,
         "candidate_ci_verified": True,
         "model_profiles_digest": profile_digest,
+        "weekly_budget_baseline_sha256": WEEKLY_BASELINE_SHA256,
+        "historical_weekly_usage": load_historical_weekly_usage(ROOT),
         "evaluation_source_digest": "e" * 64,
         "source_manifest_digest": "f" * 64,
         "task_inventory_digest": "9" * 64,
@@ -102,37 +116,9 @@ def _valid_report(candidate_sha="a" * 40, profile_digest="b" * 64):
         "route_denominator": 8,
         "selected_route_slots": 8,
         "diagnostic_elapsed_seconds": 100.0,
-        "diagnostic_limits": {
-            "max_general_requests": 12,
-            "max_qwen_requests": 6,
-            "max_openrouter_requests": 6,
-            "max_tokens": 600_000,
-            "max_wall_seconds": 2_700,
-        },
-        "diagnostic_batch_limits": {
-            "qwen_requests": 6,
-            "qwen_tokens": 600_000,
-            "qwen_cost_cny": "13.50",
-            "agent_qwen_requests": 3,
-            "agent_qwen_tokens": 400_000,
-            "user_simulator_qwen_requests": 2,
-            "user_simulator_qwen_tokens": 150_000,
-            "judge_qwen_requests": 1,
-            "judge_qwen_tokens": 50_000,
-            "tool_calls": 1_600,
-            "wall_seconds": 2_700,
-        },
-        "diagnostic_resource_limits": {
-            "agent_model_requests": 6,
-            "agent_tokens": 600_000,
-            "tool_calls": 200,
-            "agent_machine_seconds": 2_700,
-            "tau_steps": 200,
-            "user_simulator_requests": 6,
-            "user_simulator_tokens": 600_000,
-            "judge_requests": 6,
-            "judge_tokens": 600_000,
-        },
+        "diagnostic_limits": DIAGNOSTIC_LIMITS,
+        "diagnostic_batch_limits": DIAGNOSTIC_BATCH_LIMITS,
+        "diagnostic_resource_limits": DIAGNOSTIC_RESOURCE_LIMITS,
         "batch": {
             "qwen_requests": 1,
             "qwen_tokens": 30,
@@ -142,19 +128,7 @@ def _valid_report(candidate_sha="a" * 40, profile_digest="b" * 64):
             "qwen_actual_cost_cny": "0.000043",
             "qwen_reserved_cost_cny": "0",
             "tool_calls": 1,
-            "limits": {
-                "qwen_requests": 6,
-                "qwen_tokens": 600_000,
-                "qwen_cost_cny": "13.50",
-                "agent_qwen_requests": 3,
-                "agent_qwen_tokens": 400_000,
-                "user_simulator_qwen_requests": 2,
-                "user_simulator_qwen_tokens": 150_000,
-                "judge_qwen_requests": 1,
-                "judge_qwen_tokens": 50_000,
-                "tool_calls": 1_600,
-                "wall_seconds": 2_700,
-            },
+            "limits": DIAGNOSTIC_BATCH_LIMITS,
         },
         "routes": routes,
     }
@@ -163,6 +137,17 @@ def _valid_report(candidate_sha="a" * 40, profile_digest="b" * 64):
 def _write_report(tmp_path, report):
     evidence = tmp_path / ".decagent" / "evaluation" / "evidence"
     evidence.mkdir(parents=True)
+    baseline = tmp_path / WEEKLY_BASELINE_RELATIVE_PATH
+    baseline.parent.mkdir(parents=True, exist_ok=True)
+    baseline_bytes = (ROOT / WEEKLY_BASELINE_RELATIVE_PATH).read_bytes()
+    baseline.write_bytes(baseline_bytes)
+    for source in json.loads(baseline_bytes)["sources"]:
+        for path_key in ("machine_report", "operator_report"):
+            relative_path = Path(source[path_key])
+            source_report = ROOT / relative_path
+            target_report = tmp_path / relative_path
+            target_report.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_report, target_report)
     path = evidence / "diagnostic.json"
     path.write_text(json.dumps(report), encoding="utf-8")
     return path
@@ -185,6 +170,8 @@ def test_diagnostic_gate_accepts_bounded_four_domain_closed_loop(tmp_path):
     assert result["general_model_requests"] == 1
     assert result["general_model_tokens"] == 30
     assert result["qwen_cost_cny"] == "0.000043"
+    assert result["historical_weekly_usage"]["qwen_requests"] == 36
+    assert result["weekly_budget_baseline_sha256"] == WEEKLY_BASELINE_SHA256
 
 
 def test_diagnostic_gate_keeps_unknown_usage_reserved_while_accepting_other_closed_loop(
@@ -461,7 +448,7 @@ def test_bounded_diagnostic_plan_has_four_cases_and_enforces_small_batch_caps():
     assert diagnostic.route_slot_count() == 8
     assert diagnostic.batch_limits["qwen_requests"] == 6
     assert diagnostic.batch_limits["qwen_tokens"] == 600_000
-    assert diagnostic.batch_limits["qwen_cost_cny"] == "13.50"
+    assert diagnostic.batch_limits["qwen_cost_cny"] == "1.62"
     assert diagnostic.batch_limits["wall_seconds"] == 2_700
     assert sum(
         diagnostic.batch_limits[f"{role}_qwen_requests"]
@@ -511,6 +498,51 @@ def test_pilot_batch_limits_subtract_diagnostic_consumption_from_shared_weekly_c
     }
 
 
+def test_pilot_batch_limits_also_subtract_previously_spent_weekly_budget():
+    from evals.benchmarks.pilot_gate import remaining_pilot_batch_limits
+
+    plan = load_public_run_plan(
+        ROOT,
+        mode="full",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    historical = load_historical_weekly_usage(ROOT)
+    diagnostic = {
+        "general_model_requests": 3,
+        "general_model_tokens": 800_000,
+        "qwen_requests": 3,
+        "qwen_tokens": 800_000,
+        "qwen_cost_cny": "2.000000",
+        "tool_calls": 100,
+        "diagnostic_elapsed_seconds": 120.2,
+        "role_usage": {
+            "agent": {"requests": 2, "tokens": 500_000},
+            "user_simulator": {"requests": 1, "tokens": 300_000},
+            "judge": {"requests": 0, "tokens": 0},
+        },
+    }
+
+    limits = remaining_pilot_batch_limits(
+        plan.batch_limits, diagnostic, historical_usage=historical
+    )
+
+    assert limits == {
+        "qwen_requests": 461,
+        "qwen_tokens": 3_686_924,
+        "agent_qwen_requests": 272,
+        "agent_qwen_tokens": 2_019_712,
+        "user_simulator_qwen_requests": 149,
+        "user_simulator_qwen_tokens": 1_267_212,
+        "judge_qwen_requests": 40,
+        "judge_qwen_tokens": 400_000,
+        "tool_calls": 1_485,
+        "wall_seconds": 13_404,
+        "qwen_cost_cny": "11.0068360",
+    }
+
+
 def test_pilot_batch_limits_reject_exhausted_budget_or_cross_provider_diagnostic():
     from evals.benchmarks.pilot_gate import remaining_pilot_batch_limits
 
@@ -543,3 +575,23 @@ def test_pilot_batch_limits_reject_exhausted_budget_or_cross_provider_diagnostic
     diagnostic["openrouter_requests"] = 1
     with pytest.raises(ValueError, match="frozen Qwen pilot"):
         remaining_pilot_batch_limits(plan.batch_limits, diagnostic)
+
+
+def test_historical_budget_loader_verifies_source_report_hashes(tmp_path):
+    baseline_relative = WEEKLY_BASELINE_RELATIVE_PATH
+    baseline_source = ROOT / baseline_relative
+    baseline_target = tmp_path / baseline_relative
+    baseline_target.parent.mkdir(parents=True)
+    shutil.copyfile(baseline_source, baseline_target)
+
+    report_relative = Path(
+        "evals/benchmarks/evidence/public-first-wave-live-20261024-5b43a45-100qwen.json"
+    )
+    report_source = ROOT / report_relative
+    report_target = tmp_path / report_relative
+    report_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(report_source, report_target)
+    report_target.write_bytes(report_target.read_bytes() + b" ")
+
+    with pytest.raises(ValueError, match="baseline source report digest"):
+        load_historical_weekly_usage(tmp_path)

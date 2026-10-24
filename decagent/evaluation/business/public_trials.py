@@ -124,7 +124,9 @@ def _validate_request_billing_evidence(
 def _validate_score_evidence(value):
     """Validate the small, non-sensitive score facts retained for reports."""
     required = {"source", "value", "success", "forbidden_side_effects"}
-    if type(value) is not dict or set(value) != required:
+    if type(value) is not dict or not required <= set(value) or set(value) - (
+        required | {"score_components"}
+    ):
         raise ValueError("Official score evidence must use the complete frozen shape")
     score = value["value"]
     if (
@@ -140,6 +142,24 @@ def _validate_score_evidence(value):
     forbidden = value["forbidden_side_effects"]
     if forbidden is not None and (type(forbidden) is not int or forbidden < 0):
         raise ValueError("Forbidden side effects must be null or a nonnegative integer")
+    if "score_components" in value:
+        components = value["score_components"]
+        allowed_components = {
+            "DB", "ENV_ASSERTION", "ACTION", "COMMUNICATE", "NL_ASSERTION"
+        }
+        if (
+            value["source"] != "tau2-bench-original-evaluate-simulation"
+            or type(components) is not dict
+            or not components
+            or not set(components) <= allowed_components
+            or any(
+                type(component_score) not in {int, float}
+                or not isfinite(component_score)
+                or not 0 <= component_score <= 1
+                for component_score in components.values()
+            )
+        ):
+            raise ValueError("Official score components must contain allowlisted aggregates")
 
 
 @dataclass(frozen=True)
@@ -407,7 +427,7 @@ def load_public_run_plan(
     if mode not in {"smoke", "full"}:
         raise ValueError("Public evaluation mode must be smoke or full")
     manifest_path = Path(manifest_path) if manifest_path else (
-        root / "evals/benchmarks/manifests/comparison_trial_manifest_v10.json"
+        root / "evals/benchmarks/manifests/comparison_trial_manifest_v11.json"
     )
     source_manifest_path = Path(source_manifest_path) if source_manifest_path else (
         root / "evals/benchmarks/manifests/source_manifest.json"
@@ -418,10 +438,11 @@ def load_public_run_plan(
         "business-comparison-trial-manifest-8": 8,
         "business-comparison-trial-manifest-9": 9,
         "business-comparison-trial-manifest-10": 10,
+        "business-comparison-trial-manifest-11": 11,
     }.get(manifest.get("schema_version"))
     if manifest_version is None:
         raise ValueError("Public comparison manifest version is unsupported")
-    profile_version = {7: 3, 8: 4, 9: 4, 10: 5}[manifest_version]
+    profile_version = {7: 3, 8: 4, 9: 4, 10: 5, 11: 6}[manifest_version]
     profile_schema_version = 3 if manifest_version == 7 else 4
     profiles_path = Path(profiles_path) if profiles_path else (
         root
@@ -700,7 +721,19 @@ def build_dry_run_report(plan, *, phase=None):
                 if item["trial_id"] in {wave["trial_id"] for wave in plan.initial_smoke_wave}
             )
         ),
-        "initial_smoke_wave": list(plan.initial_smoke_wave),
+        "initial_smoke_wave": [
+            {
+                key: trial[key]
+                for key in (
+                    "trial_id",
+                    "benchmark",
+                    "domain",
+                    "split",
+                    "case_id",
+                )
+            }
+            for trial in plan.initial_smoke_wave
+        ],
         "by_benchmark": counts,
         "resource_limits": plan.resource_limits,
         "batch_limits": plan.batch_limits,

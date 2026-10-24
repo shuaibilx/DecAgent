@@ -81,8 +81,8 @@ def build_trial_manifest(
     root: Path, *, model_profiles: EvaluationModelProfiles | None = None,
     manifest_version: int = 5, batch_limits: dict | None = None,
 ) -> dict:
-    if manifest_version not in {5, 6, 7, 8, 9, 10}:
-        raise ValueError("Supported public trial manifest versions are 5, 6, 7, 8, 9 and 10")
+    if manifest_version not in {5, 6, 7, 8, 9, 10, 11}:
+        raise ValueError("Supported public trial manifest versions are 5 through 11")
     if model_profiles is not None and not isinstance(model_profiles, EvaluationModelProfiles):
         raise TypeError("model_profiles must use the frozen evaluation profile contract")
     if batch_limits is not None and manifest_version < 9:
@@ -367,7 +367,7 @@ def main(argv=None):
         type=Path,
         help="JSON stop lines no larger than the reviewed first-wave ceilings",
     )
-    parser.add_argument("--manifest-version", type=int, choices=(5, 6, 7, 8, 9, 10), default=5)
+    parser.add_argument("--manifest-version", type=int, choices=(5, 6, 7, 8, 9, 10, 11), default=5)
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[2]
     profiles = (

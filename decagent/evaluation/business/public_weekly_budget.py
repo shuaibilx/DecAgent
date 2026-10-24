@@ -70,7 +70,18 @@ def _connect(path):
             cohort_digest TEXT NOT NULL,
             ledger_path TEXT NOT NULL,
             status TEXT NOT NULL CHECK(status IN ('open','completed')),
-            report_sha256 TEXT
+            report_sha256 TEXT,
+            phase_round INTEGER NOT NULL DEFAULT 1 CHECK(phase_round IN (1,2))
+        );
+        CREATE TABLE IF NOT EXISTS phase_history(
+            phase TEXT NOT NULL CHECK(phase IN ('diagnostic','pilot')),
+            phase_round INTEGER NOT NULL CHECK(phase_round IN (1,2)),
+            candidate_sha TEXT NOT NULL,
+            cohort_digest TEXT NOT NULL,
+            ledger_path TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status='completed'),
+            report_sha256 TEXT NOT NULL,
+            PRIMARY KEY(phase,phase_round)
         );
         CREATE TABLE IF NOT EXISTS superseded_phase_candidates(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,6 +97,20 @@ def _connect(path):
             superseded_at_utc TEXT NOT NULL
         );
         """
+    )
+    columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(phases)")
+    }
+    if "phase_round" not in columns:
+        connection.execute(
+            "ALTER TABLE phases ADD COLUMN phase_round INTEGER NOT NULL DEFAULT 1 "
+            "CHECK(phase_round IN (1,2))"
+        )
+    connection.execute(
+        "INSERT OR IGNORE INTO phase_history(phase,phase_round,candidate_sha,cohort_digest,"
+        "ledger_path,status,report_sha256) SELECT phase,phase_round,candidate_sha,cohort_digest,"
+        "ledger_path,status,report_sha256 FROM phases WHERE status='completed' "
+        "AND report_sha256 IS NOT NULL"
     )
     return connection
 
@@ -216,6 +241,7 @@ def authorize_public_evaluation_phase(
     root,
     *,
     phase,
+    phase_round=1,
     candidate_sha,
     cohort_digest,
     ledger_path,
@@ -230,6 +256,10 @@ def authorize_public_evaluation_phase(
     """
     root = Path(root).resolve()
     ledger_identity = _validate_identity(phase, candidate_sha, cohort_digest, ledger_path)
+    if type(phase_round) is not int or phase_round not in {1, 2}:
+        raise ValueError("Only the frozen first or one-time second diagnostic round is allowed")
+    if phase != "diagnostic" and phase_round != 1:
+        raise ValueError("Only diagnostic phases may have a round number")
     if not Path(ledger_identity).is_relative_to(root):
         raise ValueError("Weekly authorization ledger must belong to this project")
     authorization_path = canonical_public_weekly_budget_path(root)
@@ -261,6 +291,56 @@ def authorize_public_evaluation_phase(
                 "Weekly evaluation authorization is already bound to another project or budget"
             )
 
+        if phase == "diagnostic" and phase_round == 2:
+            current_diagnostic = connection.execute(
+                "SELECT candidate_sha,cohort_digest,ledger_path,status,report_sha256,phase_round "
+                "FROM phases WHERE phase='diagnostic'"
+            ).fetchone()
+            if current_diagnostic is None:
+                raise ValueError("Second diagnostic round requires a completed first round")
+            same_identity = tuple(current_diagnostic[:3]) == (
+                candidate_sha,
+                cohort_digest,
+                ledger_identity,
+            )
+            if current_diagnostic[5] == 2:
+                if current_diagnostic[3] == "completed":
+                    raise ValueError("The one-time second diagnostic round is already complete")
+                if not same_identity:
+                    raise ValueError("Open second diagnostic cannot change candidate or ledger")
+                if not Path(ledger_identity).is_file():
+                    raise ValueError("Authorized second diagnostic ledger is missing")
+            else:
+                if current_diagnostic[3] != "completed" or not current_diagnostic[4]:
+                    raise ValueError("Second diagnostic round requires a completed first round")
+                if connection.execute(
+                    "SELECT 1 FROM phases WHERE phase='pilot'"
+                ).fetchone() is not None:
+                    raise ValueError("Second diagnostic round cannot follow pilot dispatch")
+                if connection.execute(
+                    "SELECT 1 FROM phase_history WHERE phase='diagnostic' AND phase_round=2"
+                ).fetchone() is not None:
+                    raise ValueError("The one-time second diagnostic round was already used")
+                if same_identity or Path(ledger_identity).exists():
+                    raise ValueError(
+                        "Second diagnostic requires a new candidate, cohort and ledger"
+                    )
+                connection.execute(
+                    "UPDATE phases SET candidate_sha=?,cohort_digest=?,ledger_path=?,"
+                    "status='open',report_sha256=NULL,phase_round=2 WHERE phase='diagnostic'",
+                    (candidate_sha, cohort_digest, ledger_identity),
+                )
+            connection.execute("COMMIT")
+            return {
+                "authorization_path": authorization_path,
+                "batch_started_at_utc": None,
+                "candidate_successor_pending": False,
+                "phase_round": 2,
+                "previous_report_sha256": current_diagnostic[4],
+            }
+        if phase == "diagnostic" and phase_round != 1:
+            raise ValueError("Diagnostic round is unsupported")
+
         if phase == "pilot":
             if (
                 type(diagnostic_report_sha256) is not str
@@ -286,6 +366,12 @@ def authorize_public_evaluation_phase(
             "FROM phases WHERE phase=?",
             (phase,),
         ).fetchone()
+        active_round = connection.execute(
+            "SELECT phase_round FROM phases WHERE phase=?", (phase,)
+        ).fetchone()
+        if existing is not None and active_round is not None:
+            if active_round[0] != phase_round:
+                raise ValueError("Requested evaluation round differs from the authorized phase")
         expected_phase = (candidate_sha, cohort_digest, ledger_identity)
         preserved_start = None
         if existing is None:
@@ -389,6 +475,7 @@ def complete_public_evaluation_phase(
     root,
     *,
     phase,
+    phase_round=1,
     candidate_sha,
     cohort_digest,
     ledger_path,
@@ -398,6 +485,10 @@ def complete_public_evaluation_phase(
     """Seal one phase report so the next phase can consume its remaining budget."""
     root = Path(root).resolve()
     ledger_identity = _validate_identity(phase, candidate_sha, cohort_digest, ledger_path)
+    if type(phase_round) is not int or phase_round not in {1, 2}:
+        raise ValueError("Evaluation phase round is invalid")
+    if phase != "diagnostic" and phase_round != 1:
+        raise ValueError("Only diagnostic phases may have a round number")
     if type(report_sha256) is not str or re.fullmatch(r"[a-f0-9]{64}", report_sha256) is None:
         raise ValueError("A finalized live evaluation report digest is required")
     if not Path(ledger_identity).is_file():
@@ -407,10 +498,17 @@ def complete_public_evaluation_phase(
     try:
         connection.execute("BEGIN IMMEDIATE")
         existing = connection.execute(
-            "SELECT candidate_sha,cohort_digest,ledger_path,status FROM phases WHERE phase=?",
+            "SELECT candidate_sha,cohort_digest,ledger_path,status,phase_round "
+            "FROM phases WHERE phase=?",
             (phase,),
         ).fetchone()
-        if existing != (candidate_sha, cohort_digest, ledger_identity, "open"):
+        if existing != (
+            candidate_sha,
+            cohort_digest,
+            ledger_identity,
+            "open",
+            phase_round,
+        ):
             raise ValueError("Live report does not match the open weekly budget phase")
         if phase == "pilot":
             diagnostic = connection.execute(
@@ -424,6 +522,18 @@ def complete_public_evaluation_phase(
         connection.execute(
             "UPDATE phases SET status='completed',report_sha256=? WHERE phase=?",
             (report_sha256, phase),
+        )
+        connection.execute(
+            "INSERT INTO phase_history(phase,phase_round,candidate_sha,cohort_digest,"
+            "ledger_path,status,report_sha256) VALUES(?,?,?,?,?,'completed',?)",
+            (
+                phase,
+                phase_round,
+                candidate_sha,
+                cohort_digest,
+                ledger_identity,
+                report_sha256,
+            ),
         )
         connection.execute("COMMIT")
     except BaseException:

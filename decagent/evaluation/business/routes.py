@@ -603,6 +603,7 @@ class TaskScore:
     forbidden_side_effects: int | None
     benchmark_score: float | None = None
     official: bool = False
+    score_components: dict[str, float] | None = None
     user_simulator_cost_usd: Decimal | None = Decimal("0")
     user_simulator_requests: int = 0
     user_simulator_tokens: int | None = 0
@@ -627,6 +628,21 @@ class TaskScore:
             raise ValueError("Benchmark score must be null or a finite value in [0, 1]")
         if self.official and self.benchmark_score is None:
             raise ValueError("An official benchmark score must include the original score value")
+        if self.score_components is not None:
+            allowed_components = {
+                "DB", "ENV_ASSERTION", "ACTION", "COMMUNICATE", "NL_ASSERTION"
+            }
+            if type(self.score_components) is not dict or not set(
+                self.score_components
+            ) <= allowed_components:
+                raise ValueError("Score components must use the fixed official categories")
+            if any(
+                type(value) not in {int, float}
+                or not isfinite(value)
+                or not 0 <= value <= 1
+                for value in self.score_components.values()
+            ):
+                raise ValueError("Score component values must be finite values in [0, 1]")
         if self.forbidden_side_effects is not None and (
             type(self.forbidden_side_effects) is not int or self.forbidden_side_effects < 0
         ):

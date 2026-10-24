@@ -280,6 +280,7 @@ def execution_result(
     error=None, plan_digest=None, decision_input_digest=None,
     evidence_scope="full_workflow",
     diagnostic_code=None,
+    score_components=None,
 ):
     benchmark_score = 1.0 if score else 0.0
     score_value = SimpleNamespace(
@@ -287,6 +288,7 @@ def execution_result(
         benchmark_score=benchmark_score if score else None,
         success=score,
         forbidden_side_effects=0 if score else None,
+        score_components=score_components,
     )
     return SimpleNamespace(
         status=status,
@@ -320,7 +322,9 @@ def execution_result(
 
 def test_public_route_dispatch_reserves_times_and_persists_official_result(tmp_path):
     ledger = FakeLedger(tmp_path)
-    controlled = FakeControlledRoutes(execution_result())
+    controlled = FakeControlledRoutes(
+        execution_result(score_components={"ACTION": 1.0, "DB": 0.0})
+    )
 
     receipt = run_public_route(
         root=tmp_path,
@@ -352,6 +356,7 @@ def test_public_route_dispatch_reserves_times_and_persists_official_result(tmp_p
         "value": 1.0,
         "success": True,
         "forbidden_side_effects": 0,
+        "score_components": {"ACTION": 1.0, "DB": 0.0},
     }
     assert terminal["cleanup_verified"] is True
 

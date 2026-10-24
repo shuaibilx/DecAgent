@@ -888,6 +888,7 @@ class EvaluationPlanSession:
                 forbidden_side_effects=None,
                 benchmark_score=float(result["reward"]),
                 official=True,
+                score_components=result.get("score_components") or None,
             )
         else:
             score_with_response = getattr(self._scorer, "score_with_model_response", None)

@@ -233,6 +233,9 @@ def test_diagnostic_phase_dry_run_selects_the_same_four_cases_without_execution(
     assert report["batch_limits"]["wall_seconds"] == 2_700
     assert report["live_model_calls"] == report["mcp_calls"] == 0
     assert report["ledger_created"] is False
+    assert all(
+        "exposure_group" not in trial for trial in report["initial_smoke_wave"]
+    )
     assert report["selected_trial_ids"] == [
         item["trial_id"] for item in report["initial_smoke_wave"]
     ]
@@ -676,15 +679,14 @@ def test_official_score_evidence_survives_ledger_resume(tmp_path):
     selected = plan()
     path = tmp_path / "scored-trials.sqlite3"
     ledger = PublicTrialLedger.create(path, selected)
-    trial = next(
-        item for item in selected.trials if item["benchmark"] == "enterpriseops-gym"
-    )
+    trial = next(item for item in selected.trials if item["benchmark"] == "tau-bench")
     route = selected.routes[0]
     score_evidence = {
-        "source": "enterpriseops-gym-original-verifier",
+        "source": "tau2-bench-original-evaluate-simulation",
         "value": 1.0,
         "success": True,
-        "forbidden_side_effects": 0,
+        "forbidden_side_effects": None,
+        "score_components": {"ACTION": 1.0, "DB": 0.0},
     }
     ledger.start_route(trial["trial_id"], route)
 

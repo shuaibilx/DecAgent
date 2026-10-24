@@ -933,6 +933,7 @@ def test_tau_route_runs_official_user_conversation_and_scorer_through_measured_c
                 "scored": True,
                 "scorer": "tau2-bench-original-evaluate-simulation",
                 "reward": 1.0,
+                "score_components": {"ACTION": 1.0, "DB": 1.0},
                 "judge_usage": {
                     "requests": 1,
                     "input_tokens": reply["tau_usage"]["prompt_tokens"],
@@ -1044,6 +1045,7 @@ def test_tau_route_runs_official_user_conversation_and_scorer_through_measured_c
     assert result.status == "complete", result.error
     assert result.run.task_success is True
     assert result.run.benchmark_score == 1.0
+    assert result.score.score_components == {"ACTION": 1.0, "DB": 1.0}
     assert result.run.user_simulator_requests == 3
     assert result.run.user_simulator_tokens == 18
     assert result.run.user_simulator_cost_usd == Decimal("0.006")

@@ -1,6 +1,20 @@
 # Proposal
 
-## 最新状态（2026-10-24，Qwen diagnostic 未通过 readiness 门槛）
+## 当前获批收尾方案（2026-10-24，一周评测交付）
+
+在 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照结果。当前重点是修通既有执行链、获得至少一个完整的 Plan→MCP→官方评分→清理闭环，再运行固定 24-task/68-route pilot；不重建已基本完成的规划器、执行器、MCP、Jev、人工接管、记忆和 trace。
+
+历史 v10 首波保持 0 success、3 failed、5 unknown；`91d1cf0` diagnostic 保持 2 failed/6 pending。两者不可重放、不可并入新 cohort，不能作为性能收益证据。旧失败只提供阶段级证据：Plan 120 秒 request timeout、CSM `find_entitlements` 输出契约异常、ITSM/ReAct response validation failure、τ retail callback `ValueError`、τ telecom 官方 0 分。缺失的原始响应/异常正文不补猜；CSM nullable 契约按固定镜像与 schema digest 进行窄范围修复，不能放宽通用校验。
+
+当前工作区已把 primary profile timeout 上限提高到 180 秒并生成 profile v6/manifest v11；只暴露受信 τ evaluator 的固定聚合分项，保存不可变周用量基线并校验其来源报告哈希，同时实现同一周授权库内的一次性诊断 round 2。全量 deterministic 为 2,245 passed、19 skipped；Ruff、strict OpenSpec 和 diff check 通过，当前 SHA 的 GitHub Actions 尚需验证。当前未进行新模型或业务工具派发。
+
+下一次诊断上限为 12 次通用模型请求、600,000 token、45 分钟；先用 Qwen，最多 6 次。该诊断 Qwen 费用预留上限 ¥1.62，并计入全周 Qwen ¥13.50 上限。若 Qwen 无法通过门槛，可在剩余额度内单独冻结 OpenRouter `deepseek/deepseek-v4.1-flash` 的 model/endpoint/price/profile 后最多使用 6 次；两个提供方的数据绝不拼成同一成绩。诊断至少须有一条真实计划、工具、官方评分与环境清理闭环；官方 0 分保留为有效失败。未通过则停止扩量并报告故障证据。
+
+诊断通过后，按 `sop-pilot-20261024-v1` 仅凭任务 ID、domain、split 和曝光元数据抽取 EnterpriseOps CSM 10、ITSM 10、τ retail official test 2、τ telecom official test 2，共 24 个未暴露任务。比较排期固定为 68 条路线：全任务 ReAct、一次规划+规则；同一 10 条 CSM 再安排一次规划+通用模型语义判断与一次规划+Jev 的相同状态配对。Jev 只用于已审核的知识文章 Choice；无自然分支记 N/A。试验锁定候选 SHA、模型、源数据与镜像、profile、预算和路线；跨提供方降级关闭。报告列出所有状态、评分/未评分分母、成本、token、延迟、覆盖率、统计区间及副作用测量状态。95% 自动正确率与每类 100 个自动样本资格条件不变。
+
+当前周硬上限共用且不能因 cohort/path 更换重置：通用模型 500 请求/5,000,000 token、MCP 1,600 次、4 小时、Qwen 抵扣前 ¥13.50、OpenRouter 抵扣前 $5；Jev 使用原累计 $1 账本，unknown 预留不释放。游客功能、公网入口、私有 CD/部署、记忆消融和阈值扫描暂停；独立 Linux 验收继续待办。
+
+## 历史状态（2026-10-24，Qwen diagnostic 未通过 readiness 门槛）
 
 主 change 保持 **72/79**，未完成任务为 9.6.D/F/G 与 10.3–10.6。候选 `91d1cf0e25f87d3f74eb83674f6257c8004b8a98` 的 GitHub Actions [run 40068945541](https://github.com/shuaibilx/DecAgent/actions/runs/40068945541) 最终 attempt 2 为 12/12 jobs 成功；首轮 Python 3.13 PostgreSQL shard 有一次失败，失败 job 重跑后通过。该候选 deterministic 为 2,236 passed、19 skipped，Ruff 与 OpenSpec strict 6/6 通过。
 

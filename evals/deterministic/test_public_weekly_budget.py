@@ -263,3 +263,81 @@ def test_started_diagnostic_cannot_be_rebound_to_a_successor(
             cohort_digest="c" * 64,
             ledger_path=root / ".decagent" / "business-eval" / "successor.sqlite3",
         )
+
+
+def test_one_explicit_second_diagnostic_round_preserves_the_first_report(tmp_path, monkeypatch):
+    root = tmp_path / "project"
+    root.mkdir()
+    auth_path = tmp_path / "user-state" / "weekly.sqlite3"
+    monkeypatch.setattr(
+        budget, "canonical_public_weekly_budget_path", lambda *_args: auth_path
+    )
+    first = {
+        "phase": "diagnostic",
+        "candidate_sha": "a" * 40,
+        "cohort_digest": "b" * 64,
+        "ledger_path": _ledger(root, "first-diagnostic.sqlite3"),
+    }
+    budget.authorize_public_evaluation_phase(root, **first)
+    first_report = "c" * 64
+    budget.complete_public_evaluation_phase(
+        root, **first, report_sha256=first_report
+    )
+
+    second = {
+        "phase": "diagnostic",
+        "phase_round": 2,
+        "candidate_sha": "d" * 40,
+        "cohort_digest": "e" * 64,
+        "ledger_path": root / ".decagent" / "business-eval" / "second-diagnostic.sqlite3",
+    }
+    authorized = budget.authorize_public_evaluation_phase(root, **second)
+    assert authorized["phase_round"] == 2
+    assert authorized["previous_report_sha256"] == first_report
+    assert authorized["batch_started_at_utc"] is None
+
+    second["ledger_path"].touch()
+    second_report = "f" * 64
+    budget.complete_public_evaluation_phase(
+        root, **second, report_sha256=second_report
+    )
+
+    with sqlite3.connect(auth_path) as connection:
+        history = connection.execute(
+            "SELECT phase_round,candidate_sha,cohort_digest,report_sha256 "
+            "FROM phase_history WHERE phase='diagnostic' ORDER BY phase_round"
+        ).fetchall()
+    assert history == [
+        (1, "a" * 40, "b" * 64, first_report),
+        (2, "d" * 40, "e" * 64, second_report),
+    ]
+    with pytest.raises(ValueError, match="already complete"):
+        budget.authorize_public_evaluation_phase(
+            root,
+            phase="diagnostic",
+            phase_round=2,
+            candidate_sha="d" * 40,
+            cohort_digest="e" * 64,
+            ledger_path=second["ledger_path"],
+        )
+
+
+def test_second_diagnostic_round_requires_completed_first_round_and_new_state(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "project"
+    root.mkdir()
+    auth_path = tmp_path / "user-state" / "weekly.sqlite3"
+    monkeypatch.setattr(
+        budget, "canonical_public_weekly_budget_path", lambda *_args: auth_path
+    )
+
+    with pytest.raises(ValueError, match="completed first round"):
+        budget.authorize_public_evaluation_phase(
+            root,
+            phase="diagnostic",
+            phase_round=2,
+            candidate_sha="a" * 40,
+            cohort_digest="b" * 64,
+            ledger_path=_ledger(root, "second.sqlite3"),
+        )

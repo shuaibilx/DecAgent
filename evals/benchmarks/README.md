@@ -221,6 +221,16 @@ input rate is owner-reported and must be checked against each OpenRouter
 generation record. Cross-provider fallback stays disabled within a paired
 cohort.
 
+The v6 profile and v11 manifest are a separate, not-yet-run recovery cohort:
+they raise only the primary request timeout from 120 to 180 seconds after the
+v10 Plan requests exceeded their local deadline. The user-simulator, judge and
+Jev profiles are byte-for-byte unchanged. The default smoke and pilot manifest
+now use v11/v6; v10/v5 remain available for historical reproduction. τ-Bench
+reports may additionally retain only the official evaluator's aggregate
+`DB`, `ENV_ASSERTION`, `ACTION`, `COMMUNICATE` and `NL_ASSERTION` scores when
+present. Per-action checks, assertion text, target states and evaluator notes
+remain inside the isolated worker.
+
 The public-trial ledger also retains a minimal official score summary for
 recovery/reporting: scorer source, score in `[0, 1]`, success flag and measured
 forbidden-side-effect count. Its digest is checked against the frozen benchmark

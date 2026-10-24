@@ -158,8 +158,8 @@ class ModelProfile:
             "not_applicable",
         }:
             raise ValueError("Model tool-choice policy is invalid")
-        if type(self.timeout_seconds) is not int or not 1 <= self.timeout_seconds <= 120:
-            raise ValueError("Model timeout must be between one and 120 seconds")
+        if type(self.timeout_seconds) is not int or not 1 <= self.timeout_seconds <= 180:
+            raise ValueError("Model timeout must be between one and 180 seconds")
         if type(self.provider_routing) is not str or self.provider_routing not in {
             "direct_endpoint", "openrouter_default", "openrouter_model_alias"
         }:

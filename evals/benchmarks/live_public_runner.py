@@ -562,7 +562,7 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
         "schema_version": (
             "public-evaluation-live-pilot-v2"
             if phase.phase == "pilot"
-            else "public-evaluation-live-diagnostic-v1"
+            else "public-evaluation-live-diagnostic-v2"
             if phase.phase == "diagnostic"
             else "public-evaluation-live-first-wave-v4"
         ),
@@ -661,6 +661,7 @@ def execute_live_public_phase(
     candidate_sha,
     working_tree_dirty,
     phase="first-wave",
+    diagnostic_round=1,
     candidate_ci_verified=False,
     diagnostic_evidence=None,
 ):
@@ -676,6 +677,12 @@ def execute_live_public_phase(
     )
 
     phase_name = phase
+    if (
+        type(diagnostic_round) is not int
+        or diagnostic_round not in {1, 2}
+        or (phase_name != "diagnostic" and diagnostic_round != 1)
+    ):
+        raise ValueError("Only diagnostic round 1 or the one-time round 2 is supported")
     if candidate_ci_verified is not True:
         raise ValueError("Live evaluation requires a CI-verified immutable candidate")
     if phase_name == "first-wave":
@@ -725,6 +732,7 @@ def execute_live_public_phase(
         authorization = authorize_public_evaluation_phase(
             plan.root,
             phase=phase_name,
+            phase_round=diagnostic_round,
             candidate_sha=candidate_sha,
             cohort_digest=plan.cohort_digest,
             ledger_path=ledger_path,
@@ -747,6 +755,7 @@ def execute_live_public_phase(
             finalized_authorization = authorize_public_evaluation_phase(
                 plan.root,
                 phase=phase_name,
+                phase_round=diagnostic_round,
                 candidate_sha=candidate_sha,
                 cohort_digest=plan.cohort_digest,
                 ledger_path=ledger_path,
@@ -810,11 +819,21 @@ def execute_live_public_phase(
                 working_tree_dirty=working_tree_dirty,
             )
             if phase_name == "diagnostic":
+                from evals.benchmarks.pilot_gate import (
+                    WEEKLY_BASELINE_SHA256,
+                    load_historical_weekly_usage,
+                )
+
                 report["diagnostic_limits"] = dict(DIAGNOSTIC_LIMITS)
                 report["diagnostic_batch_limits"] = dict(DIAGNOSTIC_BATCH_LIMITS)
                 report["diagnostic_resource_limits"] = dict(DIAGNOSTIC_RESOURCE_LIMITS)
                 report["evaluation_source_digest"] = evaluation_source_digest(plan.root)
                 report["diagnostic_elapsed_seconds"] = max(0.0, perf_counter() - started)
+                report["diagnostic_round"] = diagnostic_round
+                report["weekly_budget_baseline_sha256"] = WEEKLY_BASELINE_SHA256
+                report["historical_weekly_usage"] = load_historical_weekly_usage(
+                    plan.root
+                )
                 report["diagnostic_task_records"] = [
                     {
                         key: record[key]

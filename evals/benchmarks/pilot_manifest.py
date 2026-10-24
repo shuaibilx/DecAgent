@@ -19,7 +19,7 @@ from evals.benchmarks.pilot_gate import (
 )
 
 PILOT_SEED = "sop-pilot-20261024-v1"
-BASE_SCHEMA = "business-comparison-trial-manifest-10"
+BASE_SCHEMA = "business-comparison-trial-manifest-11"
 _COMMON_ROUTES = ("react_skill_mcp", "plan_mcp")
 _SEMANTIC_ROUTES = (
     "plan_primary_semantic_mcp",
@@ -156,6 +156,9 @@ def build_pilot_manifest(base_manifest, *, seed=PILOT_SEED, diagnostic_gate=None
             "diagnostic_elapsed_seconds",
             "role_usage",
             "report_sha256",
+            "historical_weekly_usage",
+            "weekly_budget_baseline_sha256",
+            "diagnostic_round",
         )
         if type(diagnostic_gate) is not dict or any(
             key not in diagnostic_gate for key in required_evidence
@@ -165,7 +168,9 @@ def build_pilot_manifest(base_manifest, *, seed=PILOT_SEED, diagnostic_gate=None
             key: diagnostic_gate[key] for key in required_evidence
         }
         diagnostic_evidence["remaining_batch_limits"] = remaining_pilot_batch_limits(
-            base_manifest.get("batch_limits"), diagnostic_gate
+            base_manifest.get("batch_limits"),
+            diagnostic_gate,
+            historical_usage=diagnostic_gate["historical_weekly_usage"],
         )
     payload = {
         "schema_version": "sop-agent-public-pilot-manifest-v1",
@@ -173,7 +178,7 @@ def build_pilot_manifest(base_manifest, *, seed=PILOT_SEED, diagnostic_gate=None
         "status": "pre_registered_not_run",
         "seed": seed,
         "selection": {
-            "source": "comparison_trial_manifest_v10.full_trials",
+            "source": "comparison_trial_manifest_v11.full_trials",
             "fields": ["benchmark", "domain", "split", "exposure_group", "case_id"],
             "ranking": "sha256(seed + NUL + case_id), ascending",
             "exclude_exposure_groups": ["development_exposed"],
@@ -234,12 +239,12 @@ def load_public_pilot_plan(
     check_runtime=True,
     check_source_files=True,
 ):
-    """Validate the pilot freeze against v10 before constructing its run plan."""
+    """Validate the pilot freeze against v11 before constructing its run plan."""
     from decagent.evaluation.business.public_trials import load_public_run_plan
 
     root = Path(root).resolve()
     base_path = Path(base_manifest_path) if base_manifest_path else (
-        root / "evals/benchmarks/manifests/comparison_trial_manifest_v10.json"
+        root / "evals/benchmarks/manifests/comparison_trial_manifest_v11.json"
     )
     base_manifest = _load_json(base_path)
     pilot_manifest = _load_json(pilot_manifest_path)
@@ -305,7 +310,7 @@ def main(argv=None):
     parser.add_argument(
         "--base",
         type=Path,
-        default=Path(__file__).parent / "manifests/comparison_trial_manifest_v10.json",
+        default=Path(__file__).parent / "manifests/comparison_trial_manifest_v11.json",
     )
     parser.add_argument(
         "--output",
