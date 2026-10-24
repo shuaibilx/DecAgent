@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
+from math import isfinite
 
 from decagent.business.codec import strict_json
 from decagent.business.contracts import validate_schema
@@ -42,6 +44,8 @@ from decagent.models.primary import (
 )
 
 MAX_TAU_MODEL_TOOL_SCHEMAS = 32
+_PRIMARY_WORKER_RESPONSE_GRACE_SECONDS = 0.5
+_PRIMARY_WORKER_RESPONSE_GRACE_MAX_SECONDS = 5.0
 _JEV_OPENROUTER_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 _JEV_OPENROUTER_MODEL = re.compile(
     r"(?:~typesafe/jev-latest|typesafe/jev-\d+\.\d+(?:-\d{8})?)\Z"
@@ -371,8 +375,8 @@ def _primary_result_frame(turn):
 
 
 def _one_shot_primary_dispatch(
-    profile, api_key, known_secrets, tool_definitions, messages, timeout_seconds,
-    progress=None,
+    profile, api_key, known_secrets, tool_definitions, messages,
+    deadline_monotonic, progress=None,
 ):
     """Perform exactly one provider request inside an isolated child process."""
     primary = None
@@ -418,7 +422,38 @@ def _one_shot_primary_dispatch(
         try:
             if progress is not None:
                 progress.mark("model_call")
-            turn = primary.respond(messages, timeout_seconds=timeout_seconds)
+            if (
+                type(deadline_monotonic) not in {int, float}
+                or not isfinite(deadline_monotonic)
+            ):
+                return {
+                    "kind": "not_dispatched",
+                    "reason": "input_invalid",
+                    "exception_type": "InvalidDeadline",
+                }
+            remaining_seconds = deadline_monotonic - time.monotonic()
+            if remaining_seconds <= 0:
+                return {
+                    "kind": "not_dispatched",
+                    "reason": "input_invalid",
+                    "exception_type": "DeadlineExpired",
+                }
+            response_grace = min(
+                _PRIMARY_WORKER_RESPONSE_GRACE_MAX_SECONDS,
+                max(
+                    _PRIMARY_WORKER_RESPONSE_GRACE_SECONDS,
+                    remaining_seconds * 0.05,
+                ),
+                remaining_seconds / 2,
+            )
+            provider_timeout = remaining_seconds - response_grace
+            if provider_timeout <= 0:
+                return {
+                    "kind": "not_dispatched",
+                    "reason": "input_invalid",
+                    "exception_type": "DeadlineExpired",
+                }
+            turn = primary.respond(messages, timeout_seconds=provider_timeout)
         except PrimaryResponseRejected as exc:
             usage = exc.usage
             return {
@@ -444,6 +479,25 @@ def _one_shot_primary_dispatch(
                 "exception_type": safe_exception_type(exc),
             }
         except PrimaryProviderFailure as exc:
+            if exc.category in {"timeout", "connection"}:
+                if transport.response_status is not None:
+                    worker_stage = "provider_response"
+                elif transport.request_prepared:
+                    worker_stage = "request_pre_send"
+                else:
+                    worker_stage = "model_call"
+                frame = {
+                    "kind": "worker_outcome_unknown",
+                    "worker_stage": worker_stage,
+                    "exception_type": (
+                        "TimeoutError"
+                        if exc.category == "timeout"
+                        else "ConnectionError"
+                    ),
+                }
+                if transport.response_status is not None:
+                    frame["http_status"] = transport.response_status
+                return frame
             return {
                 "kind": "provider_failure",
                 "category": exc.category,
@@ -545,6 +599,7 @@ class OneShotPrimaryModel:
             ) from None
         if len(serialized) > 4 * 1024 * 1024:
             raise PrimaryRequestNotDispatched(reason="context_limit") from None
+        deadline_monotonic = time.monotonic() + float(timeout)
         progress = CancellableProcessProgress.create()
         try:
             frame = run_cancellable_process(
@@ -555,7 +610,7 @@ class OneShotPrimaryModel:
                     (self.api_key,),
                     self.tool_definitions,
                     list(messages),
-                    float(timeout),
+                    deadline_monotonic,
                     progress,
                 ),
                 timeout_seconds=float(timeout),

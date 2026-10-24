@@ -419,6 +419,7 @@ def test_public_primary_response_is_decoded_from_a_one_shot_child(monkeypatch):
     assert turn.usage.total_tokens == 10
     assert turn.tools[0].name == "decagent_submit_plan"
     assert captured["timeout_seconds"] == 0.25
+    assert time.monotonic() < captured["args"][5] <= time.monotonic() + 0.25
     assert captured["worker_guard_path"] is None
     assert captured["args"][-1] is captured["progress"]
     assert captured["progress"] is not None
@@ -484,7 +485,7 @@ def test_one_shot_primary_client_setup_error_is_verified_not_dispatched(monkeypa
 
     monkeypatch.setattr(public_models, "PrimaryModel", BrokenFactory)
     result = public_models._one_shot_primary_dispatch(
-        None, "test-secret", (), None, [], 1.0
+        None, "test-secret", (), None, [], time.monotonic() + 1.0
     )
 
     assert result == {
@@ -517,7 +518,7 @@ def test_one_shot_primary_model_call_error_stays_unknown_with_safe_stage(monkeyp
 
     monkeypatch.setattr(public_models, "PrimaryModel", TestFactory)
     result = public_models._one_shot_primary_dispatch(
-        None, "test-secret", (), None, [], 1.0
+        None, "test-secret", (), None, [], time.monotonic() + 1.0
     )
 
     assert result == {
@@ -561,7 +562,7 @@ def test_one_shot_primary_records_only_safe_http_boundary_diagnostics(
 
     monkeypatch.setattr(public_models, "PrimaryModel", TestFactory)
     result = public_models._one_shot_primary_dispatch(
-        None, "test-secret", (), None, [], 1.0
+        None, "test-secret", (), None, [], time.monotonic() + 1.0
     )
 
     expected = {
@@ -623,7 +624,7 @@ def test_one_shot_primary_response_framing_error_has_response_stage(monkeypatch)
 
     monkeypatch.setattr(public_models, "PrimaryModel", TestFactory)
     result = public_models._one_shot_primary_dispatch(
-        None, "test-secret", (), None, [], 1.0
+        None, "test-secret", (), None, [], time.monotonic() + 1.0
     )
 
     assert result == {

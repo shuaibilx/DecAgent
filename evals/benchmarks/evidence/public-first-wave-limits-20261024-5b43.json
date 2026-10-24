@@ -1,0 +1,12 @@
+{
+  "qwen_requests": 100,
+  "qwen_tokens": 1000000,
+  "agent_qwen_requests": 60,
+  "agent_qwen_tokens": 600000,
+  "user_simulator_qwen_requests": 32,
+  "user_simulator_qwen_tokens": 320000,
+  "judge_qwen_requests": 8,
+  "judge_qwen_tokens": 80000,
+  "tool_calls": 400,
+  "wall_seconds": 7200
+}
