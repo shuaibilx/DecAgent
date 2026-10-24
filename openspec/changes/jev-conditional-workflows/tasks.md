@@ -1,11 +1,12 @@
 # Tasks
 
-## 当前执行状态与后续顺序（2026-10-24 21:34，北京时间）
+## 当前执行状态与后续顺序（2026-10-24 23:38，北京时间）
 
-- **OpenSpec 状态：** 主 change 为 **75/82**；待完成 9.6.D/F/G、10.3.C 与 10.4–10.6。四个已暴露案例仅作诊断，正式 pilot 仍是 24 个未暴露任务，当前尚未冻结 pilot manifest；公开基准为 0/286。
-- **readiness v2 结果：** 旧账本不恢复，unknown 不重放。本次独立批次于 2026-10-24 完成：Qwen 3 次/14,459 tokens，通过连通与工具契约，但计划未通过冻结 compiler（`PlanProposalInvalid`）；OpenRouter DeepSeek 4 次/16,457 tokens，通过连通、工具契约、只读计划 compiler 与流式 usage。总计 7 次/30,916 tokens、56.433 秒，无 unknown。抵扣前冻结费率估算为 Qwen ¥0.0137883、OpenRouter $0.0121728；提供方账单实际值未返回。无业务 MCP 或官方 scorer 调用。详见[机器证据](../../../evals/benchmarks/evidence/routed-model-readiness-20261024-132906.json)与[执行说明](../../../evals/benchmarks/evidence/routed-model-readiness-20261024-132906.md)。v2 仅证明 OpenRouter 通用路由通过 readiness；未记录 Fireworks 路由，不能解锁固定 Fireworks 的公共 cohort，也不能与 Qwen 结果拼接。
-- **候选与 CI：** 基线候选 `8acbe767ce1d7091c7ce23760c630bd34002ad94` 已推送到 `feat/conditional-evaluation`，同 SHA GitHub Actions [run 40097640965](https://github.com/shuaibilx/DecAgent/actions/runs/40097640965) **12/12 jobs 通过**。这只覆盖 readiness v2 之前的代码。此前全量 deterministic 为 **2,291 passed、19 skipped**；本轮最终相关套件为 **69 passed、1 skipped**。当前 profile-bound v3 代码尚未提交或经同 SHA CI 验证；Ruff、OpenSpec strict、零派发 dry-run 将在最终整理后重跑。
-- **下一步：** 本地 10.3.B gate 现绑定完整 cohort fingerprint、主模型 profile digest、不可变 ledger profile、逐 attempt Fireworks route/request-profile fingerprint 及价格 digest；仅在独立 OpenRouter 已完整通过且无本 provider unknown 时放行。旧 v2 不能靠添加外层字段升级；Qwen unknown 保留，但不阻止独立的 OpenRouter qualification。v3 live readiness 尚未运行。先完成代码审查、提交与同 SHA CI，再另行取得新批次授权；随后以单个开发案例验证实际 MCP→官方评分→cleanup 闭环，并保持 provider 分组与账本分开。只有该真实闭环通过后，才冻结并运行 24-task/68-route pilot。readiness 本身不是业务评测或性能证据；失败、unknown 和旧试次均保留，不重放、不宣称 Jev 收益。
+- **OpenSpec 状态：** 主 change 为 **75/82**；待完成 9.6.D/F/G、10.3.C 与 10.4–10.6。四个已暴露案例只作诊断，正式 pilot 仍是 24 个未暴露任务，当前尚未冻结 pilot manifest；公开基准为 0/286。
+- **readiness v2 结果：** 旧账本不恢复，unknown 不重放。本次独立批次于 2026-10-24 完成：Qwen 3 次/14,459 tokens，通过连通与工具契约，但计划未通过冻结 compiler（`PlanProposalInvalid`）；OpenRouter DeepSeek 4 次/16,457 tokens，通过连通、工具契约、只读计划 compiler 与流式 usage。总计 7 次/30,916 tokens、56.433 秒，无 unknown。抵扣前冻结费率估算为 Qwen ¥0.0137883、OpenRouter $0.0121728；提供方账单实际值未返回。无业务 MCP 或官方 scorer 调用。详见[机器证据](../../../evals/benchmarks/evidence/routed-model-readiness-20261024-132906.json)与[执行说明](../../../evals/benchmarks/evidence/routed-model-readiness-20261024-132906.md)。v2 未记录 Fireworks 路由，不能解锁固定 Fireworks 的公共 cohort，也不能与 Qwen 结果拼接。
+- **provider-specific readiness 实现与 CI：** 提交 `69c6c6f0fb7c86ee3a1c31b54d049e1a856c37bb` 已通过同 SHA GitHub Actions [run 40106888705](https://github.com/shuaibilx/DecAgent/actions/runs/40106888705)，11/11 jobs；后续仅文档提交为 `a7d1e1eb94b922fa6396a77a2ba90dbf4bc0a343`。v3 ledger/evidence 绑定 v7 cohort primary provider，当前只探测 OpenRouter Fireworks。新批次最多 4 次 Fireworks 请求、300,000 tokens、45 分钟及抵扣前 $0.30；live readiness 尚未运行。
+- **零派发预检：** 使用 `D:\Anaconda3\envs\Agent311\python.exe -m decagent model-readiness` 得到 `status=dry_run`、`required_provider=openrouter`、`max_openrouter_calls=4`、`max_total_tokens=300000`、`max_deepseek_cost_usd=0.30`、`live_requests=0`。未创建 ledger、未访问模型、MCP 或官方评分器。终端默认 Python 是不兼容的 Anaconda base；项目命令应显式使用 Agent311 解释器。
+- **下一步：** 等待对新 v3 live readiness 批次的独立授权；不得把早前 `2d99c43` 批次授权转用或重放。获授权后只执行冻结 Fireworks profile 的连接、工具契约、只读计划编译和流式用量检查；unknown 即停止该 provider。readiness 成功本身不授权业务调用。之后若要验证 Plan→实际 MCP→官方评分→cleanup 的单开发案例，需另行冻结模型请求/Token/成本/时间额度并取得对应授权。只有该闭环通过后，才冻结并运行 24-task/68-route pilot。所有失败、unknown 和未评分项保留；readiness 与开发诊断均不是性能证据，也不支持 Jev 收益声明。
 
 ## 历史执行状态与后续顺序（2026-10-24 18:26，北京时间）
 
