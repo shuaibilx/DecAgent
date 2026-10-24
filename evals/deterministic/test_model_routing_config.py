@@ -35,6 +35,63 @@ def test_openrouter_fallback_can_reuse_only_an_openrouter_jev_key():
     assert "safe-fixture-key" not in repr(openrouter)
 
 
+def test_openrouter_main_route_requests_usage_for_normal_and_streaming_calls(monkeypatch):
+    from langchain_core.messages import AIMessage, AIMessageChunk
+
+    from decagent.models import primary as primary_module
+
+    class StreamingChatModel(CapturingChatModel):
+        def invoke(self, messages, **kwargs):
+            self.invoke_kwargs = kwargs
+            return AIMessage(
+                content="ready",
+                usage_metadata={
+                    "input_tokens": 9,
+                    "output_tokens": 2,
+                    "total_tokens": 11,
+                },
+                response_metadata={"model_name": "deepseek/deepseek-v4.1-flash"},
+            )
+
+        def stream(self, messages, **kwargs):
+            self.stream_kwargs = kwargs
+            yield AIMessageChunk(
+                content="ready",
+                usage_metadata={
+                    "input_tokens": 9,
+                    "output_tokens": 2,
+                    "total_tokens": 11,
+                },
+                response_metadata={"model_name": "deepseek/deepseek-v4.1-flash"},
+            )
+
+    CapturingChatModel.instances.clear()
+    monkeypatch.setattr(primary_module, "ChatOpenAI", StreamingChatModel)
+    settings = Settings(
+        main_model="deepseek/deepseek-v4.1-flash",
+        main_base_url="https://openrouter.ai/api/v1",
+        main_api_key="openrouter-main-secret",
+    )
+    config = RuntimeConfig(
+        main_provider="openrouter",
+        main_price=TokenPrice("openrouter-main-v1", Decimal("0.6"), Decimal("2.4")),
+    )
+
+    routed = build_budgeted_primary(
+        settings, config, Ledger(), purpose="planning", fallback_allowed=False
+    )
+    messages = [{"role": "user", "content": "usage check"}]
+    normal_turn = routed.model.respond(messages)
+    streaming_turn = routed.model.respond(messages, stream=True)
+
+    client = StreamingChatModel.instances[0]
+    assert client.kwargs["extra_body"]["usage"] == {"include": True}
+    assert client.stream_kwargs["stream_options"] == {"include_usage": True}
+    assert normal_turn.usage.total_tokens == 11
+    assert streaming_turn.usage.total_tokens == 11
+    assert routed.model.usage_include is True
+
+
 def test_fallback_profile_uses_independent_model_and_includes_openrouter_usage(monkeypatch):
     from decagent.models import primary
 
@@ -66,6 +123,61 @@ def test_fallback_profile_uses_independent_model_and_includes_openrouter_usage(m
     assert fallback["include_response_headers"] is True and fallback["max_retries"] == 0
     assert routed.fallback_provider == "openrouter" and routed.fallback_price is price
     assert "openrouter-secret" not in repr(routed)
+
+
+def test_openrouter_readiness_can_measure_usage_for_normal_and_streaming_responses(monkeypatch):
+    from langchain_core.messages import AIMessageChunk
+
+    from decagent.evaluation.business.model_profiles import ModelProfile
+    from decagent.models import primary as primary_module
+
+    class StreamingChatModel(CapturingChatModel):
+        def bind_tools(self, definitions, **_kwargs):
+            self.definitions = definitions
+            return self
+
+        def stream(self, messages, **kwargs):
+            self.stream_kwargs = kwargs
+            yield AIMessageChunk(
+                content="ready",
+                usage_metadata={
+                    "input_tokens": 9,
+                    "output_tokens": 2,
+                    "total_tokens": 11,
+                },
+                response_metadata={"model_name": "deepseek/deepseek-v4.1-flash"},
+            )
+
+    monkeypatch.setattr(primary_module, "ChatOpenAI", StreamingChatModel)
+    profile = ModelProfile(
+        role="primary",
+        provider="openrouter",
+        model="deepseek/deepseek-v4.1-flash",
+        endpoint="https://openrouter.ai/api/v1",
+        price_version="deepseek-readiness-v1",
+        price_source="frozen readiness profile",
+        input_price_per_million=Decimal("0.6"),
+        output_price_per_million=Decimal("2.4"),
+        max_input_tokens=65_536,
+        max_output_tokens=256,
+        temperature=Decimal("0"),
+        top_p=Decimal("1"),
+        unsupported_parameters=("seed",),
+        provider_routing="openrouter_default",
+    )
+
+    model = primary_module.PrimaryModel.from_evaluation_profile(
+        profile,
+        api_key="openrouter-secret",
+        usage_include=True,
+    )
+    client = StreamingChatModel.instances[-1]
+    turn = model.respond([{"role": "user", "content": "stream check"}], stream=True)
+
+    assert client.kwargs["extra_body"]["usage"] == {"include": True}
+    assert client.stream_kwargs["stream_options"] == {"include_usage": True}
+    assert turn.usage.total_tokens == 11
+    assert "openrouter-secret" not in repr(model)
 
 
 def test_fixed_model_cohort_can_disable_fallback_even_when_profile_is_configured(monkeypatch):

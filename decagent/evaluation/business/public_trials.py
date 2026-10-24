@@ -861,7 +861,7 @@ class PublicTrialLedger:
                     status TEXT NOT NULL CHECK(status IN (
                         'pending','running','completed','failed','unknown','scoring_error','not_applicable'
                     )), result_digest TEXT, error_category TEXT,
-                    failure_stage TEXT, exception_type TEXT,
+                    failure_stage TEXT, exception_type TEXT, diagnostic_code TEXT,
                     score_status TEXT NOT NULL DEFAULT 'not_attempted' CHECK(score_status IN (
                         'not_attempted','scored','failed','unknown','not_applicable'
                     )), score_digest TEXT,
@@ -1125,6 +1125,10 @@ class PublicTrialLedger:
                     connection.execute(
                         f"ALTER TABLE route_trials ADD COLUMN {name} TEXT"
                     )
+            if "diagnostic_code" not in route_columns:
+                connection.execute(
+                    "ALTER TABLE route_trials ADD COLUMN diagnostic_code TEXT"
+                )
             tool_columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(tool_attempts)")
             }
@@ -1743,7 +1747,7 @@ class PublicTrialLedger:
         self, trial_id, route, *, status, result_digest=None, error_category=None,
         cleanup_verified, score_status="not_attempted", score_digest=None,
         cleanup_evidence_digest=None, score_evidence=None,
-        failure_stage=None, exception_type=None,
+        failure_stage=None, exception_type=None, diagnostic_code=None,
     ):
         self._active()
         if status not in _TERMINAL:
@@ -1803,11 +1807,13 @@ class PublicTrialLedger:
         validate_diagnostic(
             failure_stage=failure_stage,
             exception_type=exception_type,
+            diagnostic_code=diagnostic_code,
         )
         self._transaction()
         try:
             existing = self._connection.execute(
                 "SELECT status,result_digest,error_category,failure_stage,exception_type,"
+                "diagnostic_code,"
                 "score_status,score_digest,"
                 "score_evidence_json,"
                 "cleanup_status,cleanup_evidence_digest FROM route_trials "
@@ -1817,26 +1823,21 @@ class PublicTrialLedger:
             if existing is None:
                 raise ValueError("Route is outside the frozen public task denominator")
             if existing["status"] == "unknown" and status == "unknown":
-                failure_stage = (
-                    existing["failure_stage"] if failure_stage is None else failure_stage
+                supplied_diagnostics = (
+                    ("failure_stage", failure_stage),
+                    ("exception_type", exception_type),
+                    ("diagnostic_code", diagnostic_code),
+                    ("error_category", error_category),
                 )
-                exception_type = (
-                    existing["exception_type"] if exception_type is None else exception_type
-                )
-                error_category = (
-                    existing["error_category"] if error_category is None else error_category
-                )
-                if (
-                    existing["failure_stage"] is not None
-                    and failure_stage != existing["failure_stage"]
-                ) or (
-                    existing["exception_type"] is not None
-                    and exception_type != existing["exception_type"]
-                ) or (
-                    existing["error_category"] is not None
-                    and error_category != existing["error_category"]
+                if any(
+                    supplied is not None and supplied != existing[name]
+                    for name, supplied in supplied_diagnostics
                 ):
                     raise ValueError("Unknown-route diagnostics cannot be rewritten")
+                failure_stage = existing["failure_stage"]
+                exception_type = existing["exception_type"]
+                diagnostic_code = existing["diagnostic_code"]
+                error_category = existing["error_category"]
             if score_evidence is not None:
                 trial = self._connection.execute(
                     "SELECT dataset FROM route_trials WHERE trial_id=? AND route=?",
@@ -1856,6 +1857,7 @@ class PublicTrialLedger:
                 error_category,
                 failure_stage,
                 exception_type,
+                diagnostic_code,
                 score_status,
                 score_digest,
                 score_evidence_json,
@@ -1864,6 +1866,7 @@ class PublicTrialLedger:
             )
             current = tuple(existing[key] for key in (
                 "status", "result_digest", "error_category", "failure_stage", "exception_type",
+                "diagnostic_code",
                 "score_status", "score_digest",
                 "score_evidence_json",
                 "cleanup_status", "cleanup_evidence_digest",
@@ -1920,14 +1923,14 @@ class PublicTrialLedger:
                 raise ValueError("Unresolved or unknown model usage blocks route finalization")
             cursor = self._connection.execute(
                 "UPDATE route_trials SET status=?,result_digest=?,error_category=?,"
-                "failure_stage=?,exception_type=?,"
+                "failure_stage=?,exception_type=?,diagnostic_code=?,"
                 "score_status=?,score_digest=?,score_evidence_json=?,cleanup_status=?,"
                 "cleanup_evidence_digest=?,"
                 "updated_at_utc=? "
                 "WHERE trial_id=? AND route=? AND status='running'",
                 (
                     status, result_digest, error_category, failure_stage, exception_type,
-                    score_status, score_digest,
+                    diagnostic_code, score_status, score_digest,
                     score_evidence_json,
                     cleanup_status, cleanup_evidence_digest, _now(), trial_id, route,
                 ),
@@ -1943,7 +1946,8 @@ class PublicTrialLedger:
     def route_lifecycle(self, trial_id, route):
         self._active()
         row = self._connection.execute(
-            "SELECT status,error_category,failure_stage,exception_type,score_status,"
+            "SELECT status,error_category,failure_stage,exception_type,diagnostic_code,"
+            "score_status,"
             "score_digest,score_evidence_json,cleanup_status,"
             "cleanup_evidence_digest "
             "FROM route_trials WHERE trial_id=? AND route=?",
@@ -2547,7 +2551,7 @@ class PublicTrialLedger:
 
     def mark_model_unknown(
         self, attempt_id, *, error_category, http_status=None, attempt_seconds=None,
-        failure_stage=None, exception_type=None,
+        failure_stage=None, exception_type=None, diagnostic_code=None,
     ):
         self._active()
         if (
@@ -2570,6 +2574,7 @@ class PublicTrialLedger:
             failure_stage=failure_stage,
             exception_type=exception_type,
             http_status=http_status,
+            diagnostic_code=diagnostic_code,
         )
         self._transaction()
         try:
@@ -2604,10 +2609,10 @@ class PublicTrialLedger:
             ).fetchone()
             self._connection.execute(
                 "UPDATE route_trials SET status='unknown',error_category=?,failure_stage=?,"
-                "exception_type=?,updated_at_utc=? "
+                "exception_type=?,diagnostic_code=?,updated_at_utc=? "
                 "WHERE trial_id=? AND route=? AND status='running'",
                 (
-                    error_category, failure_stage, exception_type, _now(),
+                    error_category, failure_stage, exception_type, diagnostic_code, _now(),
                     row["trial_id"], row["route"],
                 ),
             )

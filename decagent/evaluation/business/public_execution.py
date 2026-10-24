@@ -20,6 +20,7 @@ from decagent.decisions.contracts import digest
 from .comparison import PublicComparisonTrial, Route
 from .public_diagnostics import (
     DIAGNOSTIC_CODES,
+    safe_diagnostic_code,
     safe_exception_type,
 )
 from .public_limits import public_batch_limit_stop_reason
@@ -303,11 +304,15 @@ def _route_tau_steps(ledger, trial_id, route):
 def _route_diagnostic_snapshot(ledger, trial_id, route):
     read = getattr(ledger, "route_lifecycle", None)
     if not callable(read):
-        return None, None
+        return None, None, None
     lifecycle = read(trial_id, route)
     if type(lifecycle) is not dict:
-        return None, None
-    return lifecycle.get("failure_stage"), lifecycle.get("exception_type")
+        return None, None, None
+    return (
+        lifecycle.get("failure_stage"),
+        lifecycle.get("exception_type"),
+        lifecycle.get("diagnostic_code"),
+    )
 
 
 def _unknown_route_score_status(ledger, trial_id, route):
@@ -589,6 +594,7 @@ def execute_public_route(
                 else "route_supervisor"
             )
             exception_type = safe_exception_type(exc)
+            diagnostic_code = safe_diagnostic_code(exc)
             result_hash = digest(
                 {
                     "trial_id": trial_id,
@@ -608,11 +614,12 @@ def execute_public_route(
                 score_status="not_attempted",
                 failure_stage=failure_stage,
                 exception_type=exception_type,
+                diagnostic_code=diagnostic_code,
             )
         else:
             error_category = None
             result_hash = None
-            failure_stage, exception_type = _route_diagnostic_snapshot(
+            failure_stage, exception_type, diagnostic_code = _route_diagnostic_snapshot(
                 ledger, trial_id, route_name
             )
             score_status = _unknown_route_score_status(ledger, trial_id, route_name)
@@ -623,6 +630,9 @@ def execute_public_route(
                 result_digest=None,
                 cleanup_verified=False,
                 score_status=score_status,
+                failure_stage=failure_stage,
+                exception_type=exception_type,
+                diagnostic_code=diagnostic_code,
             )
         return PublicRouteReceipt(
             trial_id,
@@ -637,6 +647,7 @@ def execute_public_route(
             _route_tau_steps(ledger, trial_id, route_name),
             failure_stage,
             exception_type,
+            diagnostic_code=diagnostic_code,
         )
 
     timing = getattr(result, "timing", None)
@@ -669,15 +680,23 @@ def execute_public_route(
                 cleanup_verified=False,
                 score_status=score_status,
             )
-            failure_stage, exception_type = _route_diagnostic_snapshot(
+            failure_stage, exception_type, diagnostic_code = _route_diagnostic_snapshot(
                 ledger, trial_id, route_name
             )
             return PublicRouteReceipt(
-                trial_id, route_name, "unknown", score_status, False,
-            None, None, machine_seconds, None,
-            _route_tau_steps(ledger, trial_id, route_name),
-            failure_stage,
-            exception_type,
+                trial_id,
+                route_name,
+                "unknown",
+                score_status,
+                False,
+                None,
+                None,
+                machine_seconds,
+                None,
+                _route_tau_steps(ledger, trial_id, route_name),
+                failure_stage,
+                exception_type,
+                diagnostic_code=diagnostic_code,
             )
         result = None
         failure = "invalid_route_timing"
@@ -714,7 +733,7 @@ def execute_public_route(
             cleanup_evidence_digest=cleanup_digest,
             score_status=score_status,
         )
-        failure_stage, exception_type = _route_diagnostic_snapshot(
+        failure_stage, exception_type, diagnostic_code = _route_diagnostic_snapshot(
             ledger, trial_id, route_name
         )
         return PublicRouteReceipt(
@@ -723,6 +742,7 @@ def execute_public_route(
             _route_tau_steps(ledger, trial_id, route_name),
             failure_stage,
             exception_type,
+            diagnostic_code=diagnostic_code,
         )
 
     tau_steps = _route_tau_steps(ledger, trial_id, route_name)
@@ -790,6 +810,7 @@ def execute_public_route(
         score_evidence=score_evidence,
         failure_stage=None if status == "completed" else failure_stage,
         exception_type=None if status == "completed" else exception_type,
+        diagnostic_code=None if status == "completed" else diagnostic_code,
     )
     return PublicRouteReceipt(
         trial_id,

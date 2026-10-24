@@ -50,7 +50,7 @@ class PlanProposalInvalid(ValueError):
     def __init__(self, turns, reason, validation_issues=()):
         self.turns, self.reason = tuple(turns), reason
         self.validation_issues = bounded_validation_issues(validation_issues)
-        super().__init__("Planner returned invalid plans after bounded format repair")
+        super().__init__("Planner returned invalid plans after bounded attempts")
 
 
 def plan_tool_definitions():
@@ -79,12 +79,16 @@ def validate_plan_tool(name, params):
 
 class ConditionalPlanner:
     def __init__(
-        self, primary, spec, *, transforms=None, max_context_bytes=48_000, max_request_tokens=65_536
+        self, primary, spec, *, transforms=None, max_context_bytes=48_000,
+        max_request_tokens=65_536, allow_format_repair=True,
     ):
         self.primary, self.spec = primary, spec
         self.registry = QuestionRegistry.from_spec(spec)
         self.transforms = TRANSFORM_CONTRACTS if transforms is None else transforms
         self.max_context_bytes = max_context_bytes
+        if type(allow_format_repair) is not bool:
+            raise ValueError("Planner format-repair policy must be boolean")
+        self.allow_format_repair = allow_format_repair
         if type(max_request_tokens) is not int or max_request_tokens < 1:
             raise ValueError("Planner request input bound must be a positive integer")
         self.max_request_tokens = max_request_tokens
@@ -178,7 +182,8 @@ class ConditionalPlanner:
         if len(body.encode("utf-8")) > self.max_context_bytes:
             raise ValueError("Required planning context exceeds its input bound")
         turns, validation_issues = [], ()
-        for repair in (False, True):
+        attempts = (False, True) if self.allow_format_repair else (False,)
+        for repair in attempts:
             messages = [
                 {"role": "system", "content": self.instructions(repair=repair)},
                 {"role": "user", "content": body},
@@ -272,6 +277,10 @@ def budgeted_planner(
     transforms=None,
     fallback_allowed=True,
     force_fallback=False,
+    max_same_provider_attempts=None,
+    request_timeout=None,
+    allow_format_repair=True,
+    model=None,
 ):
     primary = build_budgeted_primary(
         settings,
@@ -284,7 +293,14 @@ def budgeted_planner(
         before_dispatch=before_dispatch,
         fallback_allowed=fallback_allowed,
         force_fallback=force_fallback,
+        max_same_provider_attempts=max_same_provider_attempts,
+        request_timeout=request_timeout,
+        model=model,
     )
     return ConditionalPlanner(
-        primary, spec, transforms=transforms, max_request_tokens=config.context_tokens
+        primary,
+        spec,
+        transforms=transforms,
+        max_request_tokens=config.context_tokens,
+        allow_format_repair=allow_format_repair,
     )

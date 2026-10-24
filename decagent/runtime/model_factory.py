@@ -19,6 +19,8 @@ def build_budgeted_primary(
     fallback_allowed=True,
     force_fallback=False,
     request_role=None,
+    max_same_provider_attempts=None,
+    request_timeout=None,
 ):
     if type(fallback_allowed) is not bool or type(force_fallback) is not bool:
         raise ValueError("Model fallback controls must be boolean")
@@ -35,6 +37,7 @@ def build_budgeted_primary(
         max_output_tokens=max_output_tokens,
         tool_definitions=tool_definitions,
         validator=validator,
+        usage_include=config.main_provider == "openrouter",
     )
     fallback = None
     if use_fallback:
@@ -72,7 +75,12 @@ def build_budgeted_primary(
         fallback_unknown_cost_reservation=config.unknown_fallback_reservation,
         fallback_requested_model=settings.fallback_model if fallback else None,
         fallback_endpoint=settings.fallback_base_url if fallback else None,
-        max_same_provider_attempts=config.max_primary_attempts,
+        max_same_provider_attempts=(
+            config.max_primary_attempts
+            if max_same_provider_attempts is None
+            else max_same_provider_attempts
+        ),
         max_retry_after_seconds=config.max_retry_after_seconds,
         max_input_tokens=config.max_model_input_tokens,
+        request_timeout=request_timeout,
     )

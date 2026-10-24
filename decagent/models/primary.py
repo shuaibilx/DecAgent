@@ -311,6 +311,7 @@ class PrimaryModel:
         requested_model=None,
         endpoint=None,
         tool_choice=None,
+        usage_include=False,
     ):
         if (tool_definitions is None) != (validator is None):
             raise ValueError("Capability definitions and validator must be injected together")
@@ -325,13 +326,17 @@ class PrimaryModel:
         self.redactor = redactor or Redactor()
         self.requested_model = _safe_model_identifier(requested_model, self.redactor)
         self.endpoint = endpoint
+        if type(usage_include) is not bool:
+            raise ValueError("Usage inclusion policy must be boolean")
+        self.usage_include = usage_include
         self.max_request_timeout = getattr(client, "request_timeout", None) or 60
         self._request_timeout_lock = threading.RLock()
         self._closed = False
 
     @classmethod
     def from_settings(
-        cls, settings, max_output_tokens=2048, *, tool_definitions=None, validator=None
+        cls, settings, max_output_tokens=2048, *, tool_definitions=None, validator=None,
+        usage_include=False,
     ):
         return cls.from_profile(
             model=settings.main_model,
@@ -346,7 +351,7 @@ class PrimaryModel:
                 settings.github_token,
                 getattr(settings, "fallback_api_key", ""),
             ),
-            usage_include=False,
+            usage_include=usage_include,
         )
 
     @classmethod
@@ -407,6 +412,7 @@ class PrimaryModel:
             requested_model=model,
             endpoint=base_url,
             tool_choice=tool_choice,
+            usage_include=usage_include,
         )
 
     @classmethod
@@ -419,6 +425,7 @@ class PrimaryModel:
         tool_definitions=None,
         validator=None,
         http_client=None,
+        usage_include=False,
     ):
         """Build a general-model client whose wire parameters match a frozen cohort."""
         from decagent.evaluation.business.model_profiles import ModelProfile
@@ -456,6 +463,7 @@ class PrimaryModel:
             tool_choice=profile.tool_choice,
             http_client=http_client,
             extra_body=route_request_body,
+            usage_include=usage_include,
         )
 
     @contextmanager
@@ -522,7 +530,12 @@ class PrimaryModel:
             request_id, request_id_seen, request_id_conflict = None, False, False
             provider_failure = None
             try:
-                chunks = iter(self.client.stream(safe_messages))
+                stream_kwargs = (
+                    {"stream_options": {"include_usage": True}}
+                    if self.usage_include
+                    else {}
+                )
+                chunks = iter(self.client.stream(safe_messages, **stream_kwargs))
             except Exception as error:
                 if isinstance(error, (PrimaryResponseRejected, PrimaryRequestNotDispatched)):
                     provider_failure = ValueError("Provider streaming request failed")

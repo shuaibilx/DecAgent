@@ -1477,6 +1477,7 @@ def test_unknown_route_records_cleanup_without_becoming_success(tmp_path):
         "error_category": "transport_timeout",
         "failure_stage": "tool_gateway",
         "exception_type": "TimeoutError",
+        "diagnostic_code": None,
         "score_status": "not_attempted",
         "score_digest": None,
         "score_evidence": None,
@@ -1508,6 +1509,176 @@ def test_unknown_route_records_cleanup_without_becoming_success(tmp_path):
             cleanup_evidence_digest=cleanup_digest,
         )
     ledger.close()
+
+
+def test_route_lifecycle_persists_allowlisted_diagnostic_code(tmp_path):
+    selected = plan()
+    ledger = PublicTrialLedger.create(
+        tmp_path / "route-diagnostic-code.sqlite3", selected
+    )
+    trial = selected.trials[0]
+    route = selected.routes[0]
+    ledger.start_route(trial["trial_id"], route)
+
+    ledger.finish_route(
+        trial["trial_id"],
+        route,
+        status="failed",
+        error_category="agent_failure_malformed_response",
+        cleanup_verified=True,
+        cleanup_evidence_digest="d" * 64,
+        score_status="not_attempted",
+        failure_stage="model_response_validation",
+        exception_type="ModelCallError",
+        diagnostic_code="malformed_response",
+    )
+
+    lifecycle = ledger.route_lifecycle(trial["trial_id"], route)
+    assert lifecycle["failure_stage"] == "model_response_validation"
+    assert lifecycle["exception_type"] == "ModelCallError"
+    assert lifecycle["diagnostic_code"] == "malformed_response"
+    ledger.close()
+
+
+def test_unknown_route_diagnostic_code_survives_cleanup_and_is_immutable(tmp_path):
+    selected = plan()
+    ledger = PublicTrialLedger.create(
+        tmp_path / "unknown-route-diagnostic-code.sqlite3", selected
+    )
+    trial = selected.trials[0]
+    route = selected.routes[0]
+    ledger.start_route(trial["trial_id"], route)
+    attempt = ledger.reserve_model_attempt(
+        trial_id=trial["trial_id"],
+        route=route,
+        role="primary",
+        estimated_input_tokens=100,
+        max_output_tokens=500,
+        reserved_cost_usd=None,
+        profile_digest=selected.profiles.primary.fingerprint,
+    )
+    ledger.mark_model_dispatched(attempt)
+    ledger.mark_model_unknown(
+        attempt,
+        error_category="model_unknown_malformed_response",
+        failure_stage="model_response_validation",
+        exception_type="ModelCallError",
+        diagnostic_code="malformed_response",
+    )
+
+    ledger.finish_route(
+        trial["trial_id"],
+        route,
+        status="unknown",
+        error_category="model_unknown_malformed_response",
+        cleanup_verified=True,
+        cleanup_evidence_digest="e" * 64,
+        score_status="not_attempted",
+        failure_stage="model_response_validation",
+        exception_type="ModelCallError",
+        diagnostic_code="malformed_response",
+    )
+    ledger.finish_route(
+        trial["trial_id"],
+        route,
+        status="unknown",
+        cleanup_verified=True,
+        cleanup_evidence_digest="e" * 64,
+        score_status="not_attempted",
+    )
+
+    assert ledger.route_lifecycle(trial["trial_id"], route)["diagnostic_code"] == (
+        "malformed_response"
+    )
+    with pytest.raises(ValueError, match="diagnostics cannot be rewritten"):
+        ledger.finish_route(
+            trial["trial_id"],
+            route,
+            status="unknown",
+            error_category="model_unknown_invalid_plan",
+            cleanup_verified=False,
+            cleanup_evidence_digest="f" * 64,
+            score_status="not_attempted",
+            failure_stage="model_response_validation",
+            exception_type="ModelCallError",
+            diagnostic_code="invalid_plan",
+        )
+    ledger.close()
+
+
+def test_unknown_route_cleanup_cannot_fill_missing_diagnostic_code(tmp_path):
+    selected = plan()
+    ledger = PublicTrialLedger.create(
+        tmp_path / "unknown-route-missing-diagnostic-code.sqlite3", selected
+    )
+    trial = selected.trials[0]
+    route = selected.routes[0]
+    ledger.start_route(trial["trial_id"], route)
+    attempt = ledger.reserve_model_attempt(
+        trial_id=trial["trial_id"],
+        route=route,
+        role="primary",
+        estimated_input_tokens=100,
+        max_output_tokens=500,
+        reserved_cost_usd=None,
+        profile_digest=selected.profiles.primary.fingerprint,
+    )
+    ledger.mark_model_dispatched(attempt)
+    ledger.mark_model_unknown(
+        attempt,
+        error_category="model_unknown_malformed_response",
+        failure_stage="model_response_validation",
+        exception_type="ModelCallError",
+    )
+    ledger.finish_route(
+        trial["trial_id"],
+        route,
+        status="unknown",
+        error_category="model_unknown_malformed_response",
+        cleanup_verified=False,
+        cleanup_evidence_digest="f" * 64,
+        score_status="not_attempted",
+    )
+
+    with pytest.raises(ValueError, match="diagnostics cannot be rewritten"):
+        ledger.finish_route(
+            trial["trial_id"],
+            route,
+            status="unknown",
+            cleanup_verified=False,
+            cleanup_evidence_digest="f" * 64,
+            score_status="not_attempted",
+            failure_stage="model_response_validation",
+            exception_type="ModelCallError",
+            diagnostic_code="malformed_response",
+        )
+
+    assert ledger.route_lifecycle(trial["trial_id"], route)["diagnostic_code"] is None
+    ledger.close()
+
+
+def test_resume_adds_diagnostic_code_column_to_existing_v6_ledger(tmp_path):
+    selected = plan()
+    path = tmp_path / "legacy-route-diagnostics.sqlite3"
+    ledger = PublicTrialLedger.create(path, selected)
+    trial = selected.trials[0]
+    route = selected.routes[0]
+    ledger.close()
+
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("ALTER TABLE route_trials DROP COLUMN diagnostic_code")
+        connection.commit()
+    finally:
+        connection.close()
+
+    resumed = PublicTrialLedger.resume(path, selected)
+    try:
+        lifecycle = resumed.route_lifecycle(trial["trial_id"], route)
+        assert lifecycle["status"] == "pending"
+        assert lifecycle["diagnostic_code"] is None
+    finally:
+        resumed.close()
 
 
 def test_ledgered_tool_gateway_settles_digest_only_evidence(tmp_path):

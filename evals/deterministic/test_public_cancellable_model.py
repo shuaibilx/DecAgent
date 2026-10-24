@@ -418,10 +418,11 @@ def test_public_primary_response_is_decoded_from_a_one_shot_child(monkeypatch):
 
     assert turn.usage.total_tokens == 10
     assert turn.tools[0].name == "decagent_submit_plan"
-    assert captured["timeout_seconds"] == 0.25
+    assert 0 < captured["timeout_seconds"] <= 0.25
     assert time.monotonic() < captured["args"][5] <= time.monotonic() + 0.25
     assert captured["worker_guard_path"] is None
-    assert captured["args"][-1] is captured["progress"]
+    assert captured["args"][6] is captured["progress"]
+    assert captured["args"][-2:] == (False, False)
     assert captured["progress"] is not None
     assert captured["args"][1] == "test-secret"
     assert captured["args"][2] == ("test-secret",)
@@ -677,6 +678,47 @@ def test_one_shot_primary_decodes_model_call_unknown_stage(monkeypatch):
     model.close()
 
 
+def test_one_shot_primary_dispatches_streaming_usage_probe_with_frozen_flags(monkeypatch):
+    from decagent.evaluation.business import cancellable_model
+    from decagent.evaluation.business.public_models import OneShotPrimaryModel
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    profile = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    ).profiles.primary
+    model = OneShotPrimaryModel(profile, api_key="test-secret", usage_include=True)
+    captured = {}
+
+    def dispatch(target, args, **kwargs):
+        captured["target"], captured["args"], captured["kwargs"] = target, args, kwargs
+        return {
+            "kind": "turn",
+            "turn": {
+                "text": "ready",
+                "tools": [],
+                "usage": {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5},
+                "model": profile.model,
+                "server_request_id": "request-1",
+            },
+        }
+
+    monkeypatch.setattr(cancellable_model, "run_cancellable_process", dispatch)
+    turn = model.respond(
+        [{"role": "user", "content": "stream probe"}],
+        stream=True,
+        timeout_seconds=5,
+    )
+
+    assert turn.usage.total_tokens == 5
+    assert captured["args"][-2:] == (True, True)
+    model.close()
+
+
 def test_one_shot_primary_decodes_received_http_response_diagnostics(monkeypatch):
     from decagent.evaluation.business import cancellable_model
     from decagent.evaluation.business.public_diagnostics import (
@@ -859,6 +901,93 @@ def test_one_shot_timeout_retains_last_safe_http_boundary():
         thread.join(timeout=2)
 
 
+def test_one_shot_stream_deadline_cancels_a_provider_that_keeps_trickling():
+    from dataclasses import replace
+
+    from decagent.evaluation.business.public_models import (
+        ModelWorkerOutcomeUnknown,
+        OneShotPrimaryModel,
+    )
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    request_started = threading.Event()
+    chunks_sent = []
+
+    class TricklingStreamHandler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            request_started.set()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            self.wfile.flush()
+            payload = (
+                b'data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk",'
+                b'"created":0,"model":"fixture/model","choices":[{"index":0,'
+                b'"delta":{"content":"x"},"finish_reason":null}]}\n\n'
+            )
+            for _ in range(40):
+                try:
+                    self.wfile.write(f"{len(payload):X}\r\n".encode("ascii"))
+                    self.wfile.write(payload + b"\r\n")
+                    self.wfile.flush()
+                    chunks_sent.append(time.monotonic())
+                    time.sleep(0.2)
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+
+        def log_message(self, *_args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), TricklingStreamHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    model = None
+    started = time.monotonic()
+    try:
+        root = Path(__file__).resolve().parents[2]
+        profile = load_public_run_plan(
+            root,
+            mode="smoke",
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ).profiles.primary
+        profile = replace(profile)
+        object.__setattr__(profile, "endpoint", f"http://127.0.0.1:{server.server_port}/v1")
+        object.__setattr__(profile, "timeout_seconds", 30)
+        model = OneShotPrimaryModel(
+            profile,
+            api_key="test-secret",
+            usage_include=True,
+        )
+
+        with pytest.raises(ModelWorkerOutcomeUnknown) as raised:
+            model.respond(
+                [{"role": "user", "content": "stream timeout fixture"}],
+                stream=True,
+                timeout_seconds=5,
+            )
+
+        assert raised.value.diagnostic_exception_type == "TimeoutError"
+        assert request_started.is_set()
+        assert len(chunks_sent) >= 5
+        assert raised.value.failure_stage in {
+            "model_worker_timeout",
+            "model_worker_provider_response",
+        }
+        assert time.monotonic() - started < 8
+    finally:
+        if model is not None:
+            model.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
 def test_one_shot_timeout_without_transport_progress_uses_generic_worker_stage(
     monkeypatch,
 ):
@@ -926,6 +1055,43 @@ def test_tau_public_model_uses_one_shot_primary_factory_by_default():
     assert isinstance(callback, PublicTauModelCallback)
     assert callback.primary_factory is _one_shot_primary_factory
     assert callback._clients == {}
+
+
+def test_public_one_shot_factory_requests_openrouter_usage_metadata():
+    from dataclasses import replace
+
+    from decagent.evaluation.business.public_models import _one_shot_primary_factory
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+
+    root = Path(__file__).resolve().parents[2]
+    profiles = load_public_run_plan(
+        root,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    ).profiles
+    openrouter_profile = replace(
+        profiles.primary,
+        provider="openrouter",
+        model="deepseek/deepseek-v4.1-flash",
+        endpoint="https://openrouter.ai/api/v1",
+        provider_routing="openrouter_default",
+    )
+    qwen_model = _one_shot_primary_factory(
+        profiles.primary,
+        api_key="test-secret",
+    )
+    openrouter_model = _one_shot_primary_factory(
+        openrouter_profile,
+        api_key="test-secret",
+    )
+    try:
+        assert qwen_model.usage_include is False
+        assert openrouter_model.usage_include is True
+    finally:
+        qwen_model.close()
+        openrouter_model.close()
 
 
 def test_tau_user_simulator_callback_round_trips_registered_tool_over_local_http():

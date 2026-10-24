@@ -113,6 +113,7 @@ class BudgetedPrimary:
         retry_sleep=time.sleep,
         max_retry_after_seconds=30,
         max_input_tokens=65_536,
+        request_timeout=None,
     ):
         self.model, self.ledger, self.price = model, ledger, price
         self.max_output_tokens = max_output_tokens
@@ -121,6 +122,9 @@ class BudgetedPrimary:
         if type(max_input_tokens) is not int or not 1 <= max_input_tokens <= 65_536:
             raise ValueError("Primary input limit must be between one and 65,536")
         self.max_input_tokens = max_input_tokens
+        if request_timeout is not None and not callable(request_timeout):
+            raise ValueError("Request timeout must be a callable policy")
+        self.request_timeout = request_timeout
         self.unknown_cost_reservation = unknown_cost_reservation
         self.before_dispatch = before_dispatch
         self.provider = provider
@@ -237,9 +241,36 @@ class BudgetedPrimary:
             except Exception:
                 _not_sent(self.ledger, receipt, "dispatch_guard")
                 raise
+            timeout_started = time.monotonic()
+            try:
+                timeout_seconds = (
+                    self.request_timeout(model) if self.request_timeout else None
+                )
+                if timeout_seconds is not None:
+                    if (
+                        type(timeout_seconds) not in {int, float}
+                        or timeout_seconds <= 0
+                    ):
+                        raise BudgetExceeded("Provider request deadline is exhausted")
+                    timeout_seconds -= time.monotonic() - timeout_started
+                    if timeout_seconds <= 0:
+                        raise BudgetExceeded("Provider request deadline is exhausted")
+            except Exception:
+                _not_sent(
+                    self.ledger,
+                    receipt,
+                    "request_deadline_exhausted",
+                    after_local_preflight=True,
+                )
+                raise
             started = time.monotonic()
             try:
-                result = model.respond(messages, stream=stream)
+                if timeout_seconds is None:
+                    result = model.respond(messages, stream=stream)
+                else:
+                    result = model.respond(
+                        messages, stream=stream, timeout_seconds=timeout_seconds
+                    )
             except PrimaryRequestNotDispatched as rejected:
                 _not_sent(self.ledger, receipt, rejected.reason, after_local_preflight=True)
                 raise

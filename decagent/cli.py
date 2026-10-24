@@ -19,7 +19,9 @@ def main(argv=None):
     )
     readiness.add_argument("--live", action="store_true", help="Dispatch the bounded probe")
     readiness.add_argument("--resume-known-not-sent", action="store_true")
-    readiness.add_argument("--ledger", default=".decagent/routed-model-readiness-v1.sqlite")
+    readiness.add_argument(
+        "--ledger", default=".decagent/routed-model-readiness-v2-20261024.sqlite"
+    )
     readiness.add_argument("--evidence")
     commands.add_parser("migrate", help="Apply versioned database migrations")
     commands.add_parser("init", help="Initialize the owner credential in the local data directory")

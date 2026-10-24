@@ -256,6 +256,10 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 - **WHEN** Qwen 未通过诊断门槛而后续使用 OpenRouter DeepSeek
 - **THEN** 在派发前冻结 DeepSeek 的 endpoint、model、profile 和价格来源；单独记录其调用与费用，不能将 Qwen 与 DeepSeek 路线混为同一模型结果或配对结论
 
+#### Scenario: OpenRouter main and fallback profiles request usage
+- **WHEN** 通用模型主 profile 或 fallback profile 使用 OpenRouter，执行非流式或流式请求
+- **THEN** 非流式请求包含 `usage: {include: true}`，流式请求包含 `stream_options: {include_usage: true}`；返回缺少完整 usage 时按未知用量处理，不得当作零费用结算
+
 #### Scenario: Pilot readiness evidence matches its execution provider
 - **WHEN** pilot manifest 或 live runner 校验 readiness evidence
 - **THEN** evidence 中 provider、model/profile fingerprint、账本和 pilot 执行配置必须匹配；不匹配时在创建 pilot ledger 或模型/MCP 派发前拒绝，不能将 OpenRouter readiness 用于 Qwen pilot，反之亦然
@@ -371,6 +375,14 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 #### Scenario: Separately bounded routed diagnosis
 - **WHEN** 一个新的模型就绪批次经独立批准启动
 - **THEN** 优先测试 `qwen3.8-flash`，同一纯模型步骤在 transient failure 后最多重试一次，之后可调用一次 `deepseek/deepseek-v4.1-flash`；该批次不超过 8 次请求、300,000 input+output tokens、DeepSeek $1。10.7 的账本与 unknown 不得重置或重放
+
+#### Scenario: Separately authorized routed readiness v2
+- **WHEN** 用户授权新的 routed-readiness v2 批次
+- **THEN** 系统使用新的持久授权 ID 和账本，且不得更改 10.7 或 routed-readiness v1 记录；总量最多 12 次真实模型请求、600,000 input+output tokens、2,700 秒，其中 Qwen 最多 6 次且抵扣前费率估算不超过 ¥1.62，OpenRouter DeepSeek 最多 6 次且费率估算不超过 $5。每请求输入不超过 65,536 tokens、输出不超过 8,192 tokens。Qwen 与 OpenRouter 按各自币种分别记录，代金券不抵减 gross API cost；使用 Qwen 未缓存输入费率作为上界、DeepSeek 冻结的 OpenRouter endpoint 费率作为估算。Qwen profile 必须精确匹配版本 `qwen3.8-flash-standard-cny-20261024-v1`、¥0.8/M 输入和 ¥2.7/M 输出，否则在派发前拒绝。Provider/model/endpoint/费率摘要和实际 token usage 必须进入账本；供应商账单缺失时明确标为费率估算，不能冒称账单。按 Qwen 优先执行完整四阶段连接、工具契约、只读计划编译、流式检查；任一阶段失败则停止所有后续 Qwen 请求，再从头使用独立 OpenRouter profile 执行四阶段，禁止在同一阶段内自动跨 provider fallback。该 v2 禁止同 provider 重试，包括 Planner 输出修复请求；OpenRouter 非流式请求必须要求返回 usage，流式请求必须要求包含 usage chunk，缺失 usage 时不能通过资格检查。unknown usage 保留原 provider 的 Token/费用预留且不重放原请求。Qwen unknown 只允许后续独立 OpenRouter 资格检查，不得通过 OpenRouter 结果解除、重标或释放 Qwen unknown；OpenRouter unknown 则停止整个批次。只有某一 provider 单独完成全部四阶段才可标记为 qualified，不能拼接两个 provider 的阶段结果。绝对 deadline 在持久账本创建时启动；每个请求在发送前由可强制终止的一次性 worker 执行，deadline 覆盖本地序列化、进程和客户端初始化、HTTP 等待与流式读取；持久派发标记后重新计算剩余时间并扣除派发预检耗时，已过期时不得访问 provider。
+
+#### Scenario: Routed readiness does not authorize a benchmark
+- **WHEN** readiness v2 返回通过或失败结果
+- **THEN** 结果只证明其实际记录的 provider/profile 完成了对应接入与只读计划检查；它不自动放行其他 provider 的 pilot，也不替代真实业务 MCP、官方评分、cleanup 或任何性能对照
 
 #### Scenario: Resume a known local preflight failure
 - **WHEN** readiness 阶段因本地检查失败，持久账本证明所有已建 attempt 均未派发且 token/费用为零

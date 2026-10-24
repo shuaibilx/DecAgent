@@ -15,6 +15,7 @@ from .public_diagnostics import (
     MODEL_RESPONSE_DIAGNOSTIC_CODES,
     safe_chained_exception_type,
     safe_chained_http_status,
+    safe_diagnostic_code,
     safe_exception_type,
     safe_failure_stage,
     safe_http_status,
@@ -403,6 +404,7 @@ class LedgeredModelCallback:
                     failure_stage=safe_failure_stage(exc),
                     exception_type=safe_exception_type(exc),
                     http_status=safe_http_status(exc),
+                    diagnostic_code=safe_diagnostic_code(exc),
                 )
                 raise PublicModelOutcomeUnknown(
                     "Model request was dispatched but usage cannot be confirmed"

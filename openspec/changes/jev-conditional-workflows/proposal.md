@@ -1,16 +1,16 @@
 # Proposal
 
-## 当前执行状态（2026-10-24 19:20，北京时间）
+## 当前执行状态（2026-10-24，北京时间）
 
-目标仍是在 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照结果；核心 Agent 不重建。主 change 当前为 **73/80**，待完成 9.6.D/F/G 与 10.3–10.6。公开基准仍为 0/286，Qwen round 2 未通过 Plan→MCP→官方评分闭环，历史结果不作为性能证据。24-task pilot 不得越过 readiness gate；真实模型请求仍须新的明确批次授权，旧 45 分钟窗口已过期。
+目标仍是在 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照结果；核心 Agent 不重建。主 change 当前为 **73/80**，待完成 9.6.D/F/G 与 10.3–10.6。公开基准仍为 0/286，Qwen round 2 未通过 Plan→MCP→官方评分闭环，历史结果不作为性能证据。24-task pilot 不得越过 readiness gate；旧 45 分钟窗口已过期，不恢复旧账本。用户于 2026-10-24 新授权独立 readiness v2（Qwen 最多 6 次/¥1.62，OpenRouter 最多 6 次/$5，总计 12 次、600,000 tokens、45 分钟）；实现按 Qwen 优先、失败后独立 OpenRouter 的顺序执行，未知用量保留原预留且不作跨 provider 恢复。复核后补齐了 readiness、普通主路由及公开基准 OneShot 回调的 OpenRouter usage 请求；包括 Planner 在内的每个 readiness 请求经可强制终止的一次性 worker 执行，覆盖单请求绝对墙钟截止；派发标记后的 timeout 会重新计算，Planner 格式修复二次请求被禁用。全量 deterministic **2,287 passed、19 skipped（275.95 秒）**，Ruff、OpenSpec strict 6/6、`git diff --check` 通过；readiness dry-run 为 0 live requests。独立标准与 Spec 审查未发现阻断项。当前改动尚未提交及同 SHA CI，没有创建 readiness ledger 或发出新 live 请求。
 
-候选 `2d99c433e508eddfb2acd5608ce62911f4faddc4` 已推送到 `feat/conditional-evaluation`；GitHub Actions [run 40088888178](https://github.com/shuaibilx/DecAgent/actions/runs/40088888178) 在同一 SHA 上 **12/12 jobs 通过**。包含 Python 3.11/3.13 deterministic 与 PostgreSQL integration shards、Docker executor boundary、wheel/MCP wire、镜像/Compose smoke 和浏览器 E2E；新 no-redirect HTTP proxy probe 在 GitHub Linux runner 上也通过。全量本地 deterministic 为 **2,263 passed、19 skipped（263.21 秒）**，全仓 Ruff 与 OpenSpec strict 6/6 通过。
+先前候选 `2d99c433e508eddfb2acd5608ce62911f4faddc4` 已推送到 `feat/conditional-evaluation`；GitHub Actions [run 40088888178](https://github.com/shuaibilx/DecAgent/actions/runs/40088888178) 在同一 SHA 上 **12/12 jobs 通过**，满足授权引用的先前候选条件，但不覆盖之后的工作区改动。当前基线为 `ebd381a`。本轮最终工作区在全量 deterministic、Ruff、OpenSpec strict 和 dry-run 上均通过；必须先提交并对本轮最终候选完成同 SHA GitHub CI，才可发送授权请求。
 
 修复前的 `1d3bd9c8d576a665cc5a49ccc4a5569ba8d92cbc` 在 run 40087151660 首次有 11/12 jobs 通过；Docker boundary probe 报告 `public_http_proxy=false`，但没有保存首次 HTTP 状态或重定向链。只重跑失败 job 后 attempt 2 通过。为消除探测耦合，`2d99c43` 让 HTTP probe 不跟随重定向、把首个 2xx/3xx 作为代理连通、403 仍视为失败；没有扩大允许域名、端口或安全策略。新回归与同 SHA CI 均通过。
 
 `PublicPlannerCallback` 现将不可解析响应与冻结 compiler 拒绝分别记录为白名单 `malformed_response` / `invalid_plan`；正文、业务值和异常消息不会入账，也不增加隐式重试。该改动提升故障定位能力，并不修复或证明 Qwen 输出质量。Qwen round 2 仍为 3 请求、34,054 tokens、1 MCP、180.34 秒、0 successful route；CSM Plan/ReAct 官方评分均失败，5 条路线未派发。OpenRouter 没有 live 请求。
 
-pilot 选样规则仍为 metadata-only 固定种子 `sop-pilot-20261024-v1`，目标分母 CSM 10、ITSM 10、τ retail official test 2、τ telecom official test 2，最多 68 条完整路线。当前没有冻结正式 pilot manifest；只有通过与所选 provider/profile 匹配的 readiness 后才能冻结和执行。新 readiness 批次授权尚待用户确认。指标、95% 自动正确率及每类至少 100 个自动样本的生产资格门槛保持不变。
+pilot 选样规则仍为 metadata-only 固定种子 `sop-pilot-20261024-v1`，目标分母 CSM 10、ITSM 10、τ retail official test 2、τ telecom official test 2，最多 68 条完整路线。当前没有冻结正式 pilot manifest；只有通过与所选 provider/profile 匹配的 readiness 后才能冻结和执行。授权的 readiness v2 只负责模型接入/输出契约/只读计划编译检查，不代表业务执行、评分或 Jev 对照通过。指标、95% 自动正确率及每类至少 100 个自动样本的生产资格门槛保持不变。
 
 ## 历史执行状态（2026-10-24 18:08，北京时间）
 

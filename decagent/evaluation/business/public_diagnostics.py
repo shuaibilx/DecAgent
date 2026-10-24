@@ -169,7 +169,9 @@ def safe_chained_http_status(error: BaseException | None) -> int | None:
     return None
 
 
-def validate_diagnostic(*, failure_stage, exception_type, http_status=None):
+def validate_diagnostic(
+    *, failure_stage, exception_type, http_status=None, diagnostic_code=None
+):
     if failure_stage is not None and (
         type(failure_stage) is not str or failure_stage not in FAILURE_STAGES
     ):
@@ -183,3 +185,7 @@ def validate_diagnostic(*, failure_stage, exception_type, http_status=None):
         type(http_status) is not int or not 100 <= http_status <= 599
     ):
         raise ValueError("Failure HTTP status must be a valid status code")
+    if diagnostic_code is not None and (
+        type(diagnostic_code) is not str or diagnostic_code not in DIAGNOSTIC_CODES
+    ):
+        raise ValueError("Failure diagnostic code must be allowlisted")

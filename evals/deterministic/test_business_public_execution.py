@@ -431,6 +431,7 @@ def test_public_route_persists_failure_stage_and_type_without_exception_message(
     assert receipt.status == "failed"
     assert terminal["failure_stage"] == receipt.failure_stage == "agent_execution"
     assert terminal["exception_type"] == receipt.exception_type == "ValueError"
+    assert terminal["diagnostic_code"] == receipt.diagnostic_code == "malformed_response"
     assert (
         terminal["error_category"]
         == receipt.error_category

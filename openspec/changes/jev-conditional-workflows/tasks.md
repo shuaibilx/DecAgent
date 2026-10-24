@@ -1,12 +1,12 @@
 # Tasks
 
-## 当前执行状态与后续顺序（2026-10-24 19:20，北京时间）
+## 当前执行状态与后续顺序（2026-10-24 21:17，北京时间）
 
 - **OpenSpec 状态：** 主 change 为 **73/80**；待完成 9.6.D/F/G 与 10.3–10.6。四个已暴露案例仅作诊断，正式 pilot 仍是 24 个未暴露任务，当前尚未冻结 pilot manifest；公开基准为 0/286。
-- **真实模型边界：** Qwen round 2 已结束但未通过闭环，仍为 3 请求、34,054 tokens、1 次 MCP、180.34 秒、0 successful route；OpenRouter live 请求为 0。旧 45 分钟授权过期，新的真实模型请求必须等待用户明确授权，不可恢复旧账本。
-- **候选与 CI：** `2d99c433e508eddfb2acd5608ce62911f4faddc4` 已推送到 `feat/conditional-evaluation`；同 SHA GitHub Actions [run 40088888178](https://github.com/shuaibilx/DecAgent/actions/runs/40088888178) **12/12 jobs 通过**，含 Python 3.11/3.13 deterministic 与 PostgreSQL integration、Docker boundary、wheel/MCP、镜像/Compose smoke、浏览器 E2E。Docker probe 首次失败及 attempt 2 通过的准确记录见设计说明；`2d99c43` 的修正也通过真实 Docker boundary job。
-- **已完成的离线修正：** 公共 Plan 解析/编译失败分别记录安全原因码 `malformed_response`、`invalid_plan`；不写正文、不暗中重试。HTTP boundary probe 停止自动跟随重定向，初始 2xx/3xx 成功、403 失败，不放宽网络策略。定向测试 45 passed、全量 deterministic 2,263 passed / 19 skipped（263.21 秒）、全仓 Ruff 通过、OpenSpec strict 6/6 通过。
-- **下一步：** 新 readiness 批次的用户授权尚待确认；获批后先跑有界 Qwen，必要时再使用独立 OpenRouter 路由，不恢复旧账本。只有 provider/profile 匹配的真实 Plan→MCP→官方评分→cleanup 闭环通过，才冻结并执行 24-task/68-route pilot；失败和 unknown 均保留，不重放旧试次、不宣称 Jev 收益。
+- **真实模型边界：** Qwen round 2 已结束但未通过闭环，仍为 3 请求、34,054 tokens、1 次 MCP、180.34 秒、0 successful route；OpenRouter live 请求为 0。旧 45 分钟授权已过期，**用户于 2026-10-24 明确授权独立 readiness v2 批次**：Qwen 最多 6 次、OpenRouter 最多 6 次、合计最多 12 次/600,000 tokens/45 分钟；Qwen 抵扣前估算上限 ¥1.62，OpenRouter 上限 $5。旧账本不恢复，unknown 不重放。当前工作区的 v2 实现尚未提交且未经过同 SHA CI，故尚未派发任何新请求。
+- **候选与 CI：** `2d99c433e508eddfb2acd5608ce62911f4faddc4` 已推送到 `feat/conditional-evaluation`；同 SHA GitHub Actions [run 40088888178](https://github.com/shuaibilx/DecAgent/actions/runs/40088888178) **12/12 jobs 通过**，满足授权所引用的先前候选门槛，但不代表当前工作区改动已验证。当前基线为 `ebd381a`，诊断账本、模型 deadline 和回归修复仍在工作区；必须先完成本地验证、提交并通过新候选同 SHA CI，才可启动 readiness v2。
+- **本轮离线验证：** readiness 的 Planner、主模型及公开基准 OneShot 回调均按 OpenRouter provider 请求用量元数据；Planner readiness 禁用格式修复二次请求，所有请求由一次性可取消 worker 约束绝对墙钟截止，派发标记后的 timeout 会扣除本地预检耗时。全量 deterministic **2,287 passed、19 skipped（275.95 秒）**；Ruff、OpenSpec strict（6/6）、`git diff --check` 均通过。readiness dry-run 为 `live_requests=0`；独立标准与 Spec 审查没有发现阻断项。当前改动仍未提交、未通过同 SHA CI；没有创建 readiness ledger 或发送真实请求。
+- **下一步：** readiness v2 的用户授权已获批，但必须先提交当前候选并通过同 SHA GitHub CI；随后严格按 Qwen 优先、OpenRouter 后备及各自上限执行，记录双币种标准费率估算与真实用量，禁止将代金券抵扣误作 API 成本。readiness 结果本身不等于业务评测闭环；只有 provider/profile 匹配的真实 Plan→MCP→官方评分→cleanup 闭环通过，才冻结并执行 24-task/68-route pilot。失败、unknown 和旧试次均保留，不重放、不宣称 Jev 收益。
 
 ## 历史执行状态与后续顺序（2026-10-24 18:26，北京时间）
 
@@ -114,13 +114,13 @@
 
 - [x] 10.1 完成主模型 readiness 检查与放行记录；旧 2026-10-18 unknown 不重试。
 - [x] 10.2 按每决策族至少 100 个自动样本及 95% 正确率门槛评估阈值资格；样本不足时不选生产阈值、不用 holdout 补样。
-- [ ] 10.3 完成模型-specific readiness 与允许的 OpenRouter continuation。Qwen round 2 已结束但未通过闭环：3 请求、34,054 tokens、1 MCP 调用、180.34 秒、0 unknown、0 successful route；同批 45 分钟绝对 deadline 已过，OpenRouter 不得继承新的时钟或 ledger，原授权内不能继续派发。OpenRouter 已预检但实际请求为 0；若之后另获新批次授权，必须单独计量、绑定证据并通过同 SHA CI。**当前 pilot evidence gate 仅支持 Qwen；OpenRouter readiness 不能直接放行现有 pilot，必须先实现并验证 OpenRouter 匹配的 pilot profile/gate/ledger 路径。**任一候选闭环验收仍要求真实 MCP、官方评分和 cleanup；失败/0 分保留，不能无限调参。证据见[Qwen round 2](../../../evals/benchmarks/evidence/sop-agent-diagnostic-round2-20261024-9070176.md)与[OpenRouter 未派发记录](../../../evals/benchmarks/evidence/sop-agent-openrouter-continuation-expired-20261024.md)。
+- [ ] 10.3 完成模型-specific readiness 与允许的 OpenRouter continuation。Qwen round 2 已结束但未通过闭环：3 请求、34,054 tokens、1 MCP 调用、180.34 秒、0 unknown、0 successful route；其 45 分钟 deadline 已过，不恢复旧账本。用户于 2026-10-24 批准独立 readiness v2：Qwen 最多 6 次/¥1.62 CNY，必要时 OpenRouter 最多 6 次/$5 USD；两路合计最多 12 次、600,000 tokens、2,700 秒。计费按冻结标准费率估算抵扣前 API 成本；Qwen 输入采用未缓存上界，券抵扣与现金实付不改变该口径。当前 v2 账本、CNY/USD 分账、Planner/探针统一 one-shot worker、OpenRouter usage 请求和绝对 deadline 已实现并通过定向回归，但工作区改动尚未提交、同 SHA CI 尚未完成，真实请求为 0。执行前必须通过新候选同 SHA CI；unknown 保留预留，停止该 provider，且不得重放旧任务。OpenRouter 结果单独记录，不能与 Qwen 拼接为同一模型成绩。readiness 不能替代真实 Plan→MCP→官方评分→cleanup 闭环；pilot 仍须 provider/profile 匹配，并在 readiness gate 与同 SHA CI 通过后另行冻结与运行。历史证据见[Qwen round 2](../../../evals/benchmarks/evidence/sop-agent-diagnostic-round2-20261024-9070176.md)与[旧 OpenRouter 未派发记录](../../../evals/benchmarks/evidence/sop-agent-openrouter-continuation-expired-20261024.md)。
 - [ ] 10.4 在相同冻结任务、初始状态、权限、工具和模型下比较四种路线：ReAct+Skill+MCP、一次规划+规则执行+MCP、一次规划+通用模型语义判断+MCP、一次规划+Jev+MCP。前两种及规则路线覆盖所有 24 个任务；两个语义路线只对同一 10 条 CSM 任务配对。结构化条件走规则；无自然语义节点的 Jev 记 N/A，不算零成本成功。报告任务质量、评分/副作用、调用、成本、分阶段延迟和同状态配对差异。
 - [ ] 10.5 分开报告规划/Agent、τ 官方用户模拟器、官方裁判和任何真实员工交互；冻结模型 profile 并分别计量角色用量。模拟器或评分器不得冒充人工批准。不得把历史已失败/unknown 路线重放后混入新试验。
 - [ ] 10.6 发布含准确任务/路线/评分分母、所有终态、配对区间、复现命令、成本完整性、端到端与分阶段延迟、自然 Jev 覆盖和图表的报告。说明错误副作用是否实际测量；区分标准化 API 成本、voucher/现金账单；样本不足或质量不达标时不宣称 Jev 收益或生产阈值资格。
 - [x] 10.7 完成有界 Qwen 离线定位与 readiness 复验；unknown 不重置、不重发、不释放预留。
 - [x] 10.8.A 冻结规划、回复、通用语义对照、τ 模拟器和裁判的完整模型 profile。
-- [x] 10.8.B 固定 Qwen 主路由和 OpenRouter DeepSeek 备用路由；逐请求安全记录请求/模型身份、用量、成本及耗时。
+- [x] 10.8.B 固定 Qwen 主路由和 OpenRouter DeepSeek 备用路由；逐请求安全记录请求/模型身份、用量、成本及耗时。OpenRouter 主模型及 fallback 的流式/非流式请求都显式要求 usage，回归见[模型路由测试](../../../evals/deterministic/test_model_routing_config.py)。
 - [x] 10.8.C 验证有限重试、unknown 预留、正式对照禁降级和模型漂移隔离；未知写操作不重放。
 - [x] 10.8.D 固定 Qwen CNY profile 与 manifest 费率来源；按抵扣前费用和账单抵扣分开记录，不猜测账单或汇率。
 - [x] 10.9 完成有界多阶段 readiness；至少一个模型通过 usage 完整的只读计划编译，不调用业务 MCP。
@@ -129,7 +129,7 @@
 - [x] 10.10.C 实现活动执行者租约、heartbeat 与 fencing；恢复不能重放完成或 unknown 路线。
 - [x] 10.10.D 接通 supervisor、ledger、MCP、deadline、官方 scorer 和 cleanup，并以隔离测试验证。
 - [x] 10.10.E 验证公开 runner 故障恢复与四域受控工程闭环；工程闭环不等于公开基准成绩。
-- [x] 10.10.F 诊断仅记录允许的阶段、状态与安全原因码；公共 Plan 解析/编译失败区分 `malformed_response` 与 `invalid_plan`，不保存异常消息或请求/响应正文，也不暗中重试。清理补录不可重放；无法恢复的历史异常原因保留为未知。回归见[公开规划器回调测试](../../../evals/deterministic/test_public_planner_callback.py)；完整历史见[整理前任务快照](../../../generated/261024/0952_jev完整任务快照_清理前.md)。
+- [x] 10.10.F 诊断仅记录允许的阶段、状态与安全原因码；公共 Plan 解析/编译失败区分 `malformed_response` 与 `invalid_plan`，不保存异常消息或请求/响应正文，也不暗中重试。新增 route ledger 的安全 `diagnostic_code` 持久化与读取验证，并覆盖 unknown 路线仅补录清理、不改写业务终态的回归。清理补录不可重放；无法恢复的历史异常原因保留为未知。回归见[公开规划器回调测试](../../../evals/deterministic/test_public_planner_callback.py)、[试次账本测试](../../../evals/deterministic/test_business_public_trials.py)与[执行器测试](../../../evals/deterministic/test_business_public_execution.py)；完整历史见[整理前任务快照](../../../generated/261024/0952_jev完整任务快照_清理前.md)。
 - [x] 10.10.G 角色级请求额度达到上限后，在下一路线 claim 前持久化批次停止并跳过未开始路线；验证不创建该路线的模型、工具或机时 attempt，且不将其计作任务失败。见[角色上限调度回归](../../../evals/deterministic/test_business_public_execution.py)与[持久账本恢复回归](../../../evals/deterministic/test_business_public_trials.py)。
 
 ## 11. 整体回归与本机交付

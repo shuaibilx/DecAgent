@@ -247,3 +247,96 @@ def test_primary_native_currency_price_and_actual_usage_are_forwarded_to_trial_l
     assert settlement["actual_output_tokens"] == 2
     assert settlement["trial_actual_cost_native"] == Decimal("0.000013")
     assert settlement["trial_actual_cost_basis"] == "frozen_rate"
+
+
+def test_readiness_timeout_policy_is_passed_to_each_provider_request():
+    from types import SimpleNamespace
+
+    class TimeoutAwareModel:
+        requested_model = "qwen3.8-flash"
+        endpoint = "https://maas.example/v1"
+        schema_bytes = 0
+        max_request_timeout = 60
+
+        def __init__(self):
+            self.timeouts = []
+
+        def respond(self, messages, *, stream=False, timeout_seconds=None):
+            self.timeouts.append(timeout_seconds)
+            return SimpleNamespace(
+                text="ready",
+                usage=SimpleNamespace(input_tokens=9, output_tokens=2, total_tokens=11),
+                model="fixture/model",
+                server_request_id="request-1",
+            )
+
+    model = TimeoutAwareModel()
+    budgeted = BudgetedPrimary(
+        model,
+        AttemptLedger(),
+        price=TokenPrice("qwen-price", Decimal("1"), Decimal("2"), currency="CNY"),
+        provider="qwen",
+        max_output_tokens=128,
+        request_timeout=lambda _model: 7.5,
+    )
+
+    result = budgeted.respond([{"role": "user", "content": "read only plan"}])
+
+    assert result.text == "ready"
+    assert model.timeouts == [pytest.approx(7.5)]
+
+
+def test_timeout_is_refreshed_after_dispatch_mark_and_budget_policy_latency_is_subtracted(
+    monkeypatch,
+):
+    from decagent.runtime import model_calls
+
+    class Clock:
+        now = 0.0
+
+        def monotonic(self):
+            return self.now
+
+    clock = Clock()
+    monkeypatch.setattr(model_calls.time, "monotonic", clock.monotonic)
+    ledger = AttemptLedger()
+
+    class TimeoutAwareModel:
+        requested_model = "qwen3.8-flash"
+        endpoint = "https://maas.example/v1"
+        schema_bytes = 0
+        max_request_timeout = 60
+
+        def __init__(self):
+            self.timeouts = []
+
+        def respond(self, messages, *, stream=False, timeout_seconds=None):
+            self.timeouts.append(timeout_seconds)
+            return SimpleNamespace(
+                text="ready",
+                usage=SimpleNamespace(input_tokens=9, output_tokens=2, total_tokens=11),
+                model="fixture/model",
+                server_request_id="request-1",
+            )
+
+    from types import SimpleNamespace
+
+    model = TimeoutAwareModel()
+
+    def request_timeout(_model):
+        assert ledger.rows[0]["status"] == "dispatched"
+        clock.now += 2.0
+        return 10.0
+
+    budgeted = BudgetedPrimary(
+        model,
+        ledger,
+        price=TokenPrice("qwen-price", Decimal("1"), Decimal("2"), currency="CNY"),
+        provider="qwen",
+        max_output_tokens=128,
+        request_timeout=request_timeout,
+    )
+
+    budgeted.respond([{"role": "user", "content": "read only plan"}])
+
+    assert model.timeouts == [8.0]

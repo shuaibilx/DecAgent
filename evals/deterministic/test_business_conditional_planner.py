@@ -92,6 +92,52 @@ def test_one_format_repair_keeps_original_usage_and_reason():
     assert "repair" in model.calls[1][0]["content"].lower()
 
 
+def test_planner_can_disable_format_repair_for_single_request_readiness():
+    import decagent.business.plans.planner as planner_module
+    from decagent.business.plans.planner import PlanProposalInvalid
+
+    invalid = read_plan()
+    invalid["nodes"][0]["python"] = "arbitrary code"
+    model = ScriptedModel([turn(invalid), turn(read_plan())])
+    candidate = planner_module.ConditionalPlanner(
+        model,
+        PluginSpec.from_mapping(builtin_manifest()),
+        allow_format_repair=False,
+    )
+
+    with pytest.raises(PlanProposalInvalid):
+        candidate.plan({"instruction": "Read current directory"})
+
+    assert len(model.calls) == 1
+
+
+def test_budgeted_planner_accepts_a_cancellable_readiness_model(monkeypatch):
+    from types import SimpleNamespace
+
+    from decagent.business.plans import planner as planner_module
+
+    model = ScriptedModel([])
+    captured = {}
+
+    def build_budgeted_primary(*_args, **kwargs):
+        captured.update(kwargs)
+        return model
+
+    monkeypatch.setattr(planner_module, "build_budgeted_primary", build_budgeted_primary)
+    result = planner_module.budgeted_planner(
+        None,
+        SimpleNamespace(context_tokens=65_536),
+        PluginSpec.from_mapping(builtin_manifest()),
+        object(),
+        model=model,
+        allow_format_repair=False,
+    )
+
+    assert captured["model"] is model
+    assert result.primary is model
+    assert result.allow_format_repair is False
+
+
 def test_unknown_usage_rejection_stops_without_a_format_repair_request():
     model = ScriptedModel(
         [

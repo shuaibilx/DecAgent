@@ -385,7 +385,7 @@ def _primary_result_frame(turn):
 
 def _one_shot_primary_dispatch(
     profile, api_key, known_secrets, tool_definitions, messages,
-    deadline_monotonic, progress=None,
+    deadline_monotonic, progress=None, stream=False, usage_include=False,
 ):
     """Perform exactly one provider request inside an isolated child process."""
     primary = None
@@ -418,6 +418,7 @@ def _one_shot_primary_dispatch(
                 tool_definitions=tool_definitions,
                 validator=_schema_only_tool_validator(tool_definitions),
                 http_client=http_client,
+                usage_include=usage_include,
             )
         except Exception as exc:
             # Client construction and local tool binding happen before respond()
@@ -462,7 +463,11 @@ def _one_shot_primary_dispatch(
                     "reason": "input_invalid",
                     "exception_type": "DeadlineExpired",
                 }
-            turn = primary.respond(messages, timeout_seconds=provider_timeout)
+            turn = primary.respond(
+                messages,
+                stream=stream,
+                timeout_seconds=provider_timeout,
+            )
         except PrimaryResponseRejected as exc:
             usage = exc.usage
             return {
@@ -557,11 +562,14 @@ class OneShotPrimaryModel:
         api_key,
         tool_definitions=None,
         worker_guard_path=None,
+        usage_include=False,
     ):
         if not isinstance(profile, ModelProfile) or profile.role == "jev":
             raise ValueError("A non-Jev frozen profile is required")
         if type(api_key) is not str or not api_key.strip():
             raise ValueError("A server-side model credential is required")
+        if type(usage_include) is not bool:
+            raise ValueError("Usage inclusion policy must be boolean")
         definitions = deepcopy(tool_definitions)
         if definitions is not None and type(definitions) is not list:
             raise ValueError("One-shot model tools must be a frozen list")
@@ -569,12 +577,17 @@ class OneShotPrimaryModel:
         self.api_key = api_key
         self.tool_definitions = definitions
         self.worker_guard_path = worker_guard_path
+        self.usage_include = usage_include
         self.schema_bytes = len(
             json.dumps(definitions or [], ensure_ascii=False).encode("utf-8")
         )
         self.requested_model = profile.model
         self.endpoint = profile.endpoint
         self._closed = False
+
+    @property
+    def max_request_timeout(self):
+        return self.profile.timeout_seconds
 
     def respond(self, messages, stream=False, *, timeout_seconds=None):
         from .cancellable_model import (
@@ -586,7 +599,7 @@ class OneShotPrimaryModel:
 
         if self._closed:
             raise PrimaryRequestNotDispatched(reason="input_invalid")
-        if stream or type(messages) not in {list, tuple}:
+        if type(stream) is not bool or type(messages) not in {list, tuple}:
             raise PrimaryRequestNotDispatched(reason="input_invalid")
         timeout = self.profile.timeout_seconds if timeout_seconds is None else timeout_seconds
         if (
@@ -595,6 +608,7 @@ class OneShotPrimaryModel:
             or timeout > self.profile.timeout_seconds
         ):
             raise PrimaryRequestNotDispatched(reason="input_invalid")
+        deadline_monotonic = time.monotonic() + float(timeout)
         try:
             serialized = json.dumps(
                 {"messages": messages, "tools": self.tool_definitions or []},
@@ -608,7 +622,6 @@ class OneShotPrimaryModel:
             ) from None
         if len(serialized) > 4 * 1024 * 1024:
             raise PrimaryRequestNotDispatched(reason="context_limit") from None
-        deadline_monotonic = time.monotonic() + float(timeout)
         progress = CancellableProcessProgress.create()
         try:
             frame = run_cancellable_process(
@@ -621,8 +634,10 @@ class OneShotPrimaryModel:
                     list(messages),
                     deadline_monotonic,
                     progress,
+                    stream,
+                    self.usage_include,
                 ),
-                timeout_seconds=float(timeout),
+                timeout_seconds=max(0.001, deadline_monotonic - time.monotonic()),
                 worker_guard_path=self.worker_guard_path,
                 progress=progress,
             )
@@ -732,6 +747,7 @@ def _one_shot_primary_factory(
         api_key=api_key,
         tool_definitions=tool_definitions,
         worker_guard_path=worker_guard_path,
+        usage_include=profile.provider.lower() in {"openrouter", "open_router"},
     )
 
 

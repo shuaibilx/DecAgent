@@ -23,31 +23,47 @@ from uuid import uuid4
 from decagent.decisions.contracts import canonical_json
 from decagent.storage.budget import BudgetExceeded
 
-AUTHORIZATION_ID = "primary-readiness-routed-v1"
+AUTHORIZATION_ID = "primary-readiness-routed-v2-20261024"
 AUTHORIZATION_ANCHOR = (
     Path(__file__).resolve().parents[3] / ".decagent" / "model-readiness-authorizations.sqlite"
 )
-MAX_CALLS = 8
-MAX_TOTAL_TOKENS = 300_000
+MAX_CALLS = 12
+MAX_QWEN_CALLS = 6
+MAX_OPENROUTER_CALLS = 6
+MAX_TOTAL_TOKENS = 600_000
 MAX_REQUEST_INPUT_TOKENS = 65_536
 MAX_OUTPUT_TOKENS = 8_192
-MAX_DEEPSEEK_COST = Decimal("1")
+MAX_QWEN_COST_CNY = Decimal("1.62")
+MAX_DEEPSEEK_COST = Decimal("5")
+MAX_WALL_SECONDS = 2_700
 _IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _SAFE_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/_-]{0,254}\Z")
-_RETRYABLE = frozenset({"timeout", "connection", "transient_http"})
 DEEPSEEK_PRICE_VERSION = "openrouter-endpoints-api-2026-10-19-peak"
 DEEPSEEK_PRICE_SOURCE = (
     "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints"
 )
+QWEN_PRICE_SOURCE = "https://platform.qianwenai.com/pricing/api"
 DEEPSEEK_PRICE_BOUND_PROVIDER = "BaseTen"
 DEEPSEEK_PRICE = {
     "input_per_million": Decimal("0.60"),
     "output_per_million": Decimal("2.40"),
 }
+QWEN_PRICE_VERSION = "qwen3.8-flash-standard-cny-20261024-v1"
+QWEN_PRICE = {
+    "input_per_million": Decimal("0.8"),
+    "output_per_million": Decimal("2.7"),
+}
 _LEGACY_DEEPSEEK_PRICE_VERSION = "openrouter-models-api-2026-10-19-peak"
 _PRIMARY_ENDPOINT_HOST = "maas.qianwenaiapi.com"
 _PRIMARY_ENDPOINT_PATH = "/compatible-mode/v1"
 _PRIMARY_PROVIDER = "qwen"
+_DIAGNOSTIC_PHASES = ("connection", "tool_contract", "plan", "stream")
+_PROVIDER_PHASES = tuple(
+    f"{provider}_{phase}"
+    for provider in ("qwen", "openrouter")
+    for phase in _DIAGNOSTIC_PHASES
+)
+_READINESS_PHASES = frozenset((*_DIAGNOSTIC_PHASES, *_PROVIDER_PHASES))
 _READINESS_CONTEXT = {
     "instruction": "Read the current service directory with the registered read-only "
     "directory capability, then complete only with the verified directory evidence. "
@@ -115,6 +131,7 @@ class SqliteRoutedDiagnosticLedger:
         primary_price_digest,
         fallback_price_digest,
         primary_provider="qwen",
+        primary_currency="CNY",
         resume_known_not_sent=False,
     ):
         if type(resume_known_not_sent) is not bool:
@@ -128,6 +145,8 @@ class SqliteRoutedDiagnosticLedger:
         _safe_value(fallback_model, "fallback model")
         if not isinstance(primary_provider, str) or _IDENTIFIER.fullmatch(primary_provider) is None:
             raise ValueError("Invalid primary provider")
+        if primary_provider != "qwen" or primary_currency != "CNY":
+            raise ValueError("Readiness is frozen to Qwen CNY billing")
         primary_endpoint, fallback_endpoint = _endpoint(primary_endpoint), _endpoint(
             fallback_endpoint
         )
@@ -144,22 +163,29 @@ class SqliteRoutedDiagnosticLedger:
             if type(value) is not str or not re.fullmatch(r"[a-f0-9]{64}", value):
                 raise ValueError(f"{label} must be SHA-256")
         identity = {
-            "schema_version": "routed-model-readiness-ledger-v1",
+            "schema_version": "routed-model-readiness-ledger-v2",
             "authorization_id": AUTHORIZATION_ID,
             "diagnostic_fingerprint": diagnostic_fingerprint,
             "primary_model": primary_model,
             "primary_provider": primary_provider,
+            "primary_currency": primary_currency,
             "primary_endpoint": primary_endpoint,
             "fallback_model": fallback_model,
             "fallback_provider": "openrouter",
             "fallback_endpoint": fallback_endpoint,
             "primary_price_digest": primary_price_digest,
+            "primary_price_source": QWEN_PRICE_SOURCE,
             "fallback_price_digest": fallback_price_digest,
+            "fallback_price_source": DEEPSEEK_PRICE_SOURCE,
             "max_calls": MAX_CALLS,
+            "max_qwen_calls": MAX_QWEN_CALLS,
+            "max_openrouter_calls": MAX_OPENROUTER_CALLS,
             "max_total_tokens": MAX_TOTAL_TOKENS,
             "max_request_input_tokens": MAX_REQUEST_INPUT_TOKENS,
             "max_output_tokens": MAX_OUTPUT_TOKENS,
             "max_deepseek_cost_usd": str(MAX_DEEPSEEK_COST),
+            "max_qwen_cost_cny": str(MAX_QWEN_COST_CNY),
+            "max_wall_seconds": MAX_WALL_SECONDS,
         }
         target_input = Path(path).expanduser()
         anchor_input = Path(AUTHORIZATION_ANCHOR).expanduser()
@@ -225,6 +251,14 @@ class SqliteRoutedDiagnosticLedger:
                         id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL
                     )"""
                 )
+                row = connection.execute("SELECT value FROM identity WHERE id=1").fetchone()
+                expected = canonical_json(self.identity)
+                if row is not None:
+                    prior = json.loads(row["value"])
+                    if prior.get("authorization_id") != self.identity["authorization_id"]:
+                        raise ValueError(
+                            "Routed readiness ledger belongs to a different authorization"
+                        )
                 connection.execute(
                     """CREATE TABLE IF NOT EXISTS attempts(
                         receipt TEXT PRIMARY KEY,
@@ -239,6 +273,7 @@ class SqliteRoutedDiagnosticLedger:
                         requested_tokens INTEGER NOT NULL,
                         requested_output_tokens INTEGER NOT NULL,
                         reserved_cost TEXT NOT NULL,
+                        cost_currency TEXT NOT NULL,
                         actual_tokens INTEGER,
                         actual_cost TEXT,
                         status TEXT NOT NULL CHECK(status IN ('reserved','unknown','settled')),
@@ -266,17 +301,37 @@ class SqliteRoutedDiagnosticLedger:
                         id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL
                     )"""
                 )
+                phase_values = ",".join(
+                    "'" + phase + "'" for phase in sorted(_READINESS_PHASES)
+                )
                 connection.execute(
-                    """CREATE TABLE IF NOT EXISTS phases(
-                        phase TEXT PRIMARY KEY CHECK(phase IN (
-                          'connection','tool_contract','plan','stream'
-                        )),
+                    f"""CREATE TABLE IF NOT EXISTS phases(
+                        phase TEXT PRIMARY KEY CHECK(phase IN ({phase_values})),
                         status TEXT NOT NULL CHECK(
                           status IN ('started','passed','failed','skipped')
                         ),
                         report TEXT
                     )"""
                 )
+                phase_schema = connection.execute(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='phases'"
+                ).fetchone()[0]
+                if "'qwen_connection'" not in phase_schema:
+                    connection.execute(
+                        f"""CREATE TABLE phases_upgrade(
+                            phase TEXT PRIMARY KEY CHECK(phase IN ({phase_values})),
+                            status TEXT NOT NULL CHECK(
+                              status IN ('started','passed','failed','skipped')
+                            ),
+                            report TEXT
+                        )"""
+                    )
+                    connection.execute(
+                        "INSERT INTO phases_upgrade(phase,status,report) "
+                        "SELECT phase,status,report FROM phases"
+                    )
+                    connection.execute("DROP TABLE phases")
+                    connection.execute("ALTER TABLE phases_upgrade RENAME TO phases")
                 connection.execute(
                     """CREATE TABLE IF NOT EXISTS preflight_revisions(
                         revision INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -287,8 +342,14 @@ class SqliteRoutedDiagnosticLedger:
                         created_at_utc TEXT NOT NULL
                     )"""
                 )
-                row = connection.execute("SELECT value FROM identity WHERE id=1").fetchone()
-                expected = canonical_json(self.identity)
+                connection.execute(
+                    "CREATE TABLE IF NOT EXISTS batch_state("
+                    "id INTEGER PRIMARY KEY CHECK(id=1),started_at_utc TEXT NOT NULL)"
+                )
+                connection.execute(
+                    "INSERT OR IGNORE INTO batch_state(id,started_at_utc) VALUES(1,?)",
+                    (datetime.now(UTC).isoformat(),),
+                )
                 if row is None:
                     connection.execute("INSERT INTO identity VALUES(1,?)", (expected,))
                 elif row["value"] != expected:
@@ -401,83 +462,95 @@ class SqliteRoutedDiagnosticLedger:
             for row in rows
         )
 
-    def _deepseek_spend(self, rows):
-        model = self.identity["fallback_model"]
+    @staticmethod
+    def _provider_calls(rows, provider):
+        return sum(
+            row["provider"] == provider and row["dispatch_state"] != "not_sent"
+            for row in rows
+        )
+
+    @staticmethod
+    def _provider_spend(rows, *, provider, currency):
         return sum(
             (
                 Decimal(row["actual_cost"])
                 if row["status"] == "settled" and row["actual_cost"] is not None
                 else Decimal(row["reserved_cost"])
                 for row in rows
-                if row["requested_model"] == model and row["dispatch_state"] != "not_sent"
+                if row["provider"] == provider
+                and row["cost_currency"] == currency
+                and row["dispatch_state"] != "not_sent"
             ),
             Decimal(0),
         )
 
-    def _has_successful_recovery(self, row, rows):
-        by_id = {item["receipt"]: item for item in rows}
-        for candidate in rows:
-            if candidate["status"] != "settled" or candidate["dispatch_state"] != "responded":
-                continue
-            if candidate["actual_tokens"] is None or candidate["actual_cost"] is None:
-                continue
-            current = candidate
-            visited = set()
-            while current["recovery_of"] is not None:
-                parent = current["recovery_of"]
-                if parent in visited:
-                    break
-                visited.add(parent)
-                if parent == row["receipt"]:
-                    return True
-                current = by_id.get(parent)
-                if current is None:
-                    break
-        return False
+    def _deepseek_spend(self, rows):
+        return self._provider_spend(rows, provider="openrouter", currency="USD")
 
-    def _valid_recovery(self, recovery_of, rows, *, recovery_receipt=None):
-        by_id = {row["receipt"]: row for row in rows}
-        current = by_id.get(str(recovery_of))
-        if (
-            current is None
-            or current["status"] != "unknown"
-            or current["dispatch_state"] != "unknown"
-            or current["error_category"] not in _RETRYABLE
-        ):
-            return False
-        ancestors = set()
-        while current is not None:
-            if current["receipt"] in ancestors or current["provider"] not in {
-                self.identity["primary_provider"], "openrouter"
-            }:
-                return False
-            ancestors.add(current["receipt"])
-            current = by_id.get(current["recovery_of"]) if current["recovery_of"] else None
-        children = [row for row in rows if row["recovery_of"] == str(recovery_of)]
-        if children and not (
-            len(children) == 1
-            and recovery_receipt is not None
-            and children[0]["receipt"] == recovery_receipt
-            and children[0]["status"] == "reserved"
-        ):
-            return False
-        unresolved = self._unresolved(rows)
-        return bool(unresolved) and all(row["receipt"] in ancestors for row in unresolved)
+    def _qwen_spend(self, rows):
+        return self._provider_spend(
+            rows, provider=self.identity["primary_provider"], currency="CNY"
+        )
 
-    def _check_unresolved(self, rows, *, recovery_of=None, recovery_receipt=None):
+    def _batch_started_at(self, connection):
+        row = connection.execute(
+            "SELECT started_at_utc FROM batch_state WHERE id=1"
+        ).fetchone()
+        if row is None:
+            raise BudgetExceeded("Readiness batch clock is missing")
+        try:
+            started_at = datetime.fromisoformat(row["started_at_utc"])
+        except (TypeError, ValueError) as exc:
+            raise BudgetExceeded("Readiness batch clock is invalid") from exc
+        if started_at.tzinfo is None:
+            raise BudgetExceeded("Readiness batch clock must include a timezone")
+        return started_at
+
+    def _assert_within_wall_limit(self, connection):
+        elapsed = (datetime.now(UTC) - self._batch_started_at(connection)).total_seconds()
+        if elapsed >= MAX_WALL_SECONDS:
+            raise BudgetExceeded("Readiness batch wall-clock limit exhausted")
+
+    def assert_within_wall_limit(self):
+        with self._transaction() as connection:
+            self._assert_within_wall_limit(connection)
+
+    def request_timeout_seconds(self, model):
+        with self._transaction() as connection:
+            self._assert_within_wall_limit(connection)
+            started_at = self._batch_started_at(connection)
+        remaining = MAX_WALL_SECONDS - (datetime.now(UTC) - started_at).total_seconds()
+        provider_limit = getattr(model, "max_request_timeout", 60)
+        timeout = min(float(provider_limit), remaining - 0.05)
+        if timeout <= 0:
+            raise BudgetExceeded("Readiness batch wall-clock limit exhausted")
+        return timeout
+
+    def _check_unresolved(self, rows, *, provider=None, recovery_of=None):
         unresolved = self._unresolved(rows)
         if not unresolved:
             if recovery_of is not None:
                 raise BudgetExceeded("Recovery source is resolved", code="unknown_model_cost")
             return
-        if all(self._has_successful_recovery(row, rows) for row in unresolved):
-            return
-        if recovery_of is None or not self._valid_recovery(
-            str(recovery_of), rows, recovery_receipt=recovery_receipt
-        ):
+        if recovery_of is not None:
+            raise BudgetExceeded(
+                "Readiness attempts cannot rewrite unknown usage as a recovery",
+                code="unknown_model_cost",
+            )
+        if any(row["dispatch_state"] == "dispatching" for row in unresolved):
             raise BudgetExceeded(
                 "Routed diagnostic has unresolved usage", code="unknown_model_cost"
             )
+        unresolved_providers = {row["provider"] for row in unresolved}
+        if (
+            provider == "openrouter"
+            and unresolved_providers == {self.identity["primary_provider"]}
+        ):
+            return
+        raise BudgetExceeded(
+            "Routed diagnostic provider stopped after unknown usage",
+            code="unknown_model_cost",
+        )
 
     def assert_bound(self):
         with self._transaction() as connection:
@@ -499,25 +572,21 @@ class SqliteRoutedDiagnosticLedger:
             ):
                 raise BudgetExceeded("Routed diagnostic has pending or unknown usage")
             unresolved = self._unresolved(rows)
-            if unresolved and not all(
-                self._has_successful_recovery(row, rows) for row in unresolved
-            ):
-                raise BudgetExceeded("Routed diagnostic has unrecovered unknown usage")
+            if any(row["provider"] != self.identity["primary_provider"] for row in unresolved):
+                raise BudgetExceeded("OpenRouter readiness stopped after unknown usage")
             if connection.execute("SELECT 1 FROM phases WHERE status='started'").fetchone():
                 raise BudgetExceeded("Routed diagnostic phase is already in progress")
 
     def start_phase(self, phase):
-        if phase not in {"connection", "tool_contract", "plan", "stream"}:
+        if phase not in _READINESS_PHASES:
             raise ValueError("Unsupported routed readiness phase")
         with self._transaction() as connection:
+            self._assert_within_wall_limit(connection)
             rows = self._rows(connection)
             if any(row["overrun"] for row in rows):
                 raise BudgetExceeded("Routed diagnostic exceeded its reservation")
-            unresolved = self._unresolved(rows)
-            if unresolved and not all(
-                self._has_successful_recovery(row, rows) for row in unresolved
-            ):
-                raise BudgetExceeded("Routed diagnostic has unrecovered unknown usage")
+            provider = "openrouter" if phase.startswith("openrouter_") else "qwen"
+            self._check_unresolved(rows, provider=provider)
             row = connection.execute(
                 "SELECT status,report FROM phases WHERE phase=?", (phase,)
             ).fetchone()
@@ -531,7 +600,7 @@ class SqliteRoutedDiagnosticLedger:
             return None
 
     def finish_phase(self, phase, status, report):
-        if phase not in {"connection", "tool_contract", "plan", "stream"}:
+        if phase not in _READINESS_PHASES:
             raise ValueError("Unsupported routed readiness phase")
         if status not in {"passed", "failed", "skipped"}:
             raise ValueError("Invalid readiness phase status")
@@ -561,6 +630,7 @@ class SqliteRoutedDiagnosticLedger:
         requested_model=None,
         endpoint=None,
         requested_output_tokens=None,
+        trial_cost_currency=None,
         recovery_of=None,
         **_metadata,
     ):
@@ -593,31 +663,49 @@ class SqliteRoutedDiagnosticLedger:
                 "primary_endpoint"
             ]:
                 raise BudgetExceeded("Primary profile differs from the frozen readiness profile")
+            expected_currency = self.identity["primary_currency"]
         elif provider == "openrouter":
             if requested_model != self.identity["fallback_model"] or endpoint != self.identity[
                 "fallback_endpoint"
             ]:
                 raise BudgetExceeded("Fallback profile differs from the frozen readiness profile")
+            expected_currency = "USD"
         else:
             raise BudgetExceeded(
                 "Unregistered readiness provider", code="unregistered_readiness_provider"
             )
+        if trial_cost_currency != expected_currency:
+            raise BudgetExceeded("Model request currency differs from the frozen provider profile")
         request_digest = hashlib.sha256(request_key.encode()).hexdigest()
         with self._transaction() as connection:
+            self._assert_within_wall_limit(connection)
             rows = self._rows(connection)
             if any(row["overrun"] for row in rows):
                 raise BudgetExceeded("Routed diagnostic exceeded its reservation")
-            if recovery_of is not None and not self._valid_recovery(recovery_of, rows):
-                raise BudgetExceeded(
-                    "Unknown request is not eligible for recovery", code="unknown_model_cost"
-                )
-            self._check_unresolved(rows, recovery_of=recovery_of)
+            self._check_unresolved(
+                rows,
+                provider=provider,
+                recovery_of=recovery_of,
+            )
             counted_attempts = [row for row in rows if row["dispatch_state"] != "not_sent"]
             if len(counted_attempts) >= MAX_CALLS:
                 raise BudgetExceeded("Routed readiness request cap exhausted")
+            provider_cap = (
+                MAX_QWEN_CALLS
+                if provider == self.identity["primary_provider"]
+                else MAX_OPENROUTER_CALLS
+            )
+            if self._provider_calls(rows, provider) >= provider_cap:
+                raise BudgetExceeded(f"{provider} readiness request cap exhausted")
             if self._held_tokens(rows) + tokens > MAX_TOTAL_TOKENS:
                 raise BudgetExceeded("Routed readiness token cap exhausted")
             deepseek_spend = self._deepseek_spend(rows)
+            qwen_spend = self._qwen_spend(rows)
+            qwen_reservation = (
+                cost if provider == self.identity["primary_provider"] else Decimal(0)
+            )
+            if qwen_spend + qwen_reservation > MAX_QWEN_COST_CNY:
+                raise BudgetExceeded("Qwen readiness budget exhausted")
             if (
                 requested_model == self.identity["fallback_model"]
                 and deepseek_spend + cost > MAX_DEEPSEEK_COST
@@ -631,8 +719,9 @@ class SqliteRoutedDiagnosticLedger:
             connection.execute(
                 "INSERT INTO attempts(receipt,request_digest,attempt,provider,requested_model,"
                 "endpoint,request_role,purpose,requested_tokens,requested_output_tokens,reserved_cost,"
+                "cost_currency,"
                 "status,dispatch_state,recovery_of,created_at_utc) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,'reserved','reserved',?,?)",
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'reserved','reserved',?,?)",
                 (
                     receipt,
                     request_digest,
@@ -645,6 +734,7 @@ class SqliteRoutedDiagnosticLedger:
                     tokens,
                     requested_output_tokens,
                     str(cost),
+                    trial_cost_currency,
                     recovery_of,
                     datetime.now(UTC).isoformat(),
                 ),
@@ -653,6 +743,7 @@ class SqliteRoutedDiagnosticLedger:
 
     def mark_dispatched(self, receipt):
         with self._transaction() as connection:
+            self._assert_within_wall_limit(connection)
             rows = self._rows(connection)
             current = next((row for row in rows if row["receipt"] == str(receipt)), None)
             if (
@@ -663,12 +754,16 @@ class SqliteRoutedDiagnosticLedger:
                 raise ValueError("Diagnostic receipt has no fresh reservation")
             self._check_unresolved(
                 rows,
+                provider=current["provider"],
                 recovery_of=current["recovery_of"],
-                recovery_receipt=current["receipt"],
             )
             if (
-                self._held_tokens(rows) > MAX_TOTAL_TOKENS
+                self._provider_calls(rows, current["provider"])
+                > (MAX_QWEN_CALLS if current["provider"] == self.identity["primary_provider"]
+                   else MAX_OPENROUTER_CALLS)
+                or self._held_tokens(rows) > MAX_TOTAL_TOKENS
                 or self._deepseek_spend(rows) > MAX_DEEPSEEK_COST
+                or self._qwen_spend(rows) > MAX_QWEN_COST_CNY
             ):
                 raise BudgetExceeded("Routed readiness reservation exceeds its cap")
             if sum(row["dispatch_state"] != "not_sent" for row in rows) > MAX_CALLS:
@@ -680,11 +775,17 @@ class SqliteRoutedDiagnosticLedger:
     def mark_not_sent(self, receipt, *, reason, after_local_preflight=False):
         if not isinstance(reason, str) or not _IDENTIFIER.fullmatch(reason):
             raise ValueError("Invalid non-dispatch reason")
+        if type(after_local_preflight) is not bool:
+            raise ValueError("Local non-dispatch proof must be explicit")
         with self._transaction() as connection:
             row = connection.execute(
                 "SELECT * FROM attempts WHERE receipt=?", (str(receipt),)
             ).fetchone()
-            if row is None or row["status"] != "reserved" or row["dispatch_state"] != "reserved":
+            can_release = row and (
+                row["dispatch_state"] == "reserved"
+                or (row["dispatch_state"] == "dispatching" and after_local_preflight)
+            )
+            if row is None or row["status"] != "reserved" or not can_release:
                 raise ValueError("Dispatched diagnostic request cannot be released")
             connection.execute(
                 "UPDATE attempts SET status='settled',dispatch_state='not_sent',"
@@ -736,6 +837,8 @@ class SqliteRoutedDiagnosticLedger:
             if row is None or row["status"] != "reserved" or row["dispatch_state"] != "dispatching":
                 raise ValueError("Diagnostic receipt has no active request")
             known = tokens is not None and cost is not None and response_state == "responded"
+            if response_state == "responded" and not known and error_category is None:
+                error_category = "usage_unknown"
             overrun = (
                 tokens is not None and tokens > row["requested_tokens"]
             ) or (
@@ -764,20 +867,36 @@ class SqliteRoutedDiagnosticLedger:
             rows = self._rows(connection)
             total = self._held_tokens(rows)
             deepseek_cost = self._deepseek_spend(rows)
-            if total > MAX_TOTAL_TOKENS or deepseek_cost > MAX_DEEPSEEK_COST or overrun:
+            qwen_cost = self._qwen_spend(rows)
+            if (
+                total > MAX_TOTAL_TOKENS
+                or deepseek_cost > MAX_DEEPSEEK_COST
+                or qwen_cost > MAX_QWEN_COST_CNY
+                or overrun
+            ):
                 connection.execute(
                     "UPDATE attempts SET overrun=1 WHERE receipt=?", (str(receipt),)
                 )
-        if total > MAX_TOTAL_TOKENS or deepseek_cost > MAX_DEEPSEEK_COST or overrun:
+        if (
+            total > MAX_TOTAL_TOKENS
+            or deepseek_cost > MAX_DEEPSEEK_COST
+            or qwen_cost > MAX_QWEN_COST_CNY
+            or overrun
+        ):
             raise BudgetExceeded("Actual provider usage exceeded the routed readiness cap")
 
     def record_result(self, report):
         safe = canonical_json(report)
+        qualified_openrouter = (
+            report.get("qualified_provider") == "openrouter"
+            and report.get("providers", {}).get("openrouter", {}).get("status") == "passed"
+        )
         with self._transaction() as connection:
             if connection.execute("SELECT 1 FROM result").fetchone():
                 raise ValueError("Readiness result is already frozen")
             rows = self._rows(connection)
             unresolved = self._unresolved(rows)
+            unresolved_providers = {row["provider"] for row in unresolved}
             if (
                 any(
                     row["status"] == "reserved"
@@ -787,7 +906,10 @@ class SqliteRoutedDiagnosticLedger:
                 )
                 or (
                     unresolved
-                    and not all(self._has_successful_recovery(row, rows) for row in unresolved)
+                    and not (
+                        qualified_openrouter
+                        and unresolved_providers == {self.identity["primary_provider"]}
+                    )
                 )
             ):
                 raise BudgetExceeded("Readiness result requires resolved attempt usage")
@@ -825,17 +947,30 @@ class SqliteRoutedDiagnosticLedger:
         used_calls = sum(row["dispatch_state"] != "not_sent" for row in rows)
         held_tokens = self._held_tokens(rows)
         deepseek_spend = self._deepseek_spend(rows)
+        qwen_spend = self._qwen_spend(rows)
+        qwen_calls = self._provider_calls(rows, self.identity["primary_provider"])
+        openrouter_calls = self._provider_calls(rows, "openrouter")
+        with self._connect() as connection:
+            started_at = self._batch_started_at(connection)
+        elapsed_seconds = max(0.0, (datetime.now(UTC) - started_at).total_seconds())
         attempts = []
         for row in rows:
-            row["reserved_cost_usd"] = row.pop("reserved_cost")
-            row["actual_cost_usd"] = row.pop("actual_cost")
+            row["reserved_cost_amount"] = row.pop("reserved_cost")
+            row["actual_cost_amount"] = row.pop("actual_cost")
             attempts.append(row)
         return {
             **self.identity,
             "used_calls": used_calls,
+            "qwen_calls": qwen_calls,
+            "openrouter_calls": openrouter_calls,
             "held_or_actual_tokens": held_tokens,
-            "deepseek_spend_usd": str(deepseek_spend),
+            "qwen_rate_estimate_cny": str(qwen_spend),
+            "deepseek_rate_estimate_usd": str(deepseek_spend),
             "remaining_calls": MAX_CALLS - used_calls,
+            "elapsed_seconds": round(elapsed_seconds, 3),
+            "remaining_wall_seconds": max(0.0, MAX_WALL_SECONDS - elapsed_seconds),
+            "rate_estimate_basis": "frozen_standard_rates; Qwen input uses uncached upper bound",
+            "provider_billed_cost_available": False,
             "blocked": any(
                 row["status"] in {"reserved", "unknown"} or row["overrun"] for row in rows
             ),
@@ -857,6 +992,7 @@ def _price_digest(price):
                 "version": price.version,
                 "input_per_million": str(price.input_per_million),
                 "output_per_million": str(price.output_per_million),
+                "currency": price.currency,
             }
         ).encode("utf-8")
     ).hexdigest()
@@ -885,6 +1021,13 @@ def _validate_profile(settings, config):
         raise ValueError("OpenRouter credentials are not configured")
     if config.main_price is None:
         raise ValueError("A versioned primary price or bounded reservation is required")
+    if (
+        config.main_price.version != QWEN_PRICE_VERSION
+        or config.main_price.input_per_million != QWEN_PRICE["input_per_million"]
+        or config.main_price.output_per_million != QWEN_PRICE["output_per_million"]
+        or config.main_price.currency != "CNY"
+    ):
+        raise ValueError("Routed readiness requires the frozen Qwen price profile")
     primary_endpoint = _endpoint(settings.main_base_url)
     parsed = urlsplit(primary_endpoint)
     if parsed.hostname != _PRIMARY_ENDPOINT_HOST or parsed.path != _PRIMARY_ENDPOINT_PATH:
@@ -914,38 +1057,95 @@ def _readiness_runtime_config(config, *, fallback_price):
     )
 
 
-def _primary_model(settings, *, max_output_tokens, tool_definitions=None, validator=None):
-    from decagent.models.primary import PrimaryModel
+def _readiness_provider_profile(settings, config, provider):
+    """Return an isolated single-provider profile for one readiness lane."""
+    if provider == "qwen":
+        return settings, replace(
+            config,
+            main_provider="qwen",
+            fallback_price=None,
+            unknown_fallback_reservation=None,
+            main_fallback_enabled=False,
+            max_primary_attempts=1,
+        )
+    if provider == "openrouter":
+        provider_settings = replace(
+            settings,
+            main_model=settings.fallback_model,
+            main_base_url=settings.fallback_base_url,
+            main_api_key=settings.resolved_fallback_api_key,
+        )
+        return provider_settings, replace(
+            config,
+            main_provider="openrouter",
+            main_price=config.fallback_price,
+            fallback_price=None,
+            unknown_main_reservation=None,
+            unknown_fallback_reservation=None,
+            main_fallback_enabled=False,
+            max_primary_attempts=1,
+        )
+    raise ValueError("Unsupported readiness provider")
 
-    return PrimaryModel.from_profile(
+
+def _readiness_one_shot_model(settings, config, *, provider, max_output_tokens,
+                              tool_definitions):
+    """Build a process-cancellable client for one metered readiness request."""
+    from decagent.evaluation.business.model_profiles import ModelProfile
+    from decagent.evaluation.business.public_models import OneShotPrimaryModel
+
+    price = config.main_price
+    if price is None:
+        raise ValueError("Routed readiness requires frozen prices before model creation")
+    price_source = QWEN_PRICE_SOURCE if provider == "qwen" else DEEPSEEK_PRICE_SOURCE
+    profile = ModelProfile(
+        role="primary",
+        provider=provider,
         model=settings.main_model,
-        base_url=settings.main_base_url,
-        api_key=settings.main_api_key,
+        endpoint=settings.main_base_url,
+        price_version=price.version,
+        price_source=price_source,
+        input_price_per_million=price.input_per_million,
+        output_price_per_million=price.output_per_million,
+        max_input_tokens=MAX_REQUEST_INPUT_TOKENS,
         max_output_tokens=max_output_tokens,
+        fallback_allowed=False,
+        max_provider_attempts=1,
+        temperature=None,
+        top_p=None,
+        seed=None,
+        unsupported_parameters=("temperature", "top_p", "seed"),
+        response_mode="chat_tool_or_text",
+        tool_choice="auto",
+        timeout_seconds=60,
+        provider_routing="direct_endpoint",
+        price_currency=price.currency,
+    )
+    return OneShotPrimaryModel(
+        profile,
+        api_key=settings.main_api_key,
         tool_definitions=tool_definitions,
-        validator=validator,
-        known_secrets=(
-            settings.main_api_key,
-            settings.resolved_fallback_api_key,
-            settings.jev_api_key,
-            settings.github_token,
-        ),
+        usage_include=provider == "openrouter",
     )
 
 
 def _budgeted_adapter(settings, config, ledger, *, purpose, max_output_tokens,
-                      tool_definitions=None, validator=None):
+                      provider="qwen", tool_definitions=None, validator=None):
     from decagent.runtime.model_factory import build_budgeted_primary
 
-    model = _primary_model(
-        settings,
+    provider_settings, provider_config = _readiness_provider_profile(
+        settings, config, provider
+    )
+    model = _readiness_one_shot_model(
+        provider_settings,
+        provider_config,
+        provider=provider,
         max_output_tokens=max_output_tokens,
         tool_definitions=tool_definitions,
-        validator=validator,
     )
-    return build_budgeted_primary(
-        settings,
-        config,
+    adapter = build_budgeted_primary(
+        provider_settings,
+        provider_config,
         ledger,
         purpose=purpose,
         request_role={"plan": "planning"}.get(purpose, purpose),
@@ -953,9 +1153,13 @@ def _budgeted_adapter(settings, config, ledger, *, purpose, max_output_tokens,
         model=model,
         tool_definitions=tool_definitions,
         validator=validator,
-        fallback_allowed=True,
-        force_fallback=True,
+        before_dispatch=ledger.assert_within_wall_limit,
+        fallback_allowed=False,
+        force_fallback=False,
+        max_same_provider_attempts=1,
+        request_timeout=ledger.request_timeout_seconds,
     )
+    return adapter
 
 
 def _validate_ping(name, params):
@@ -974,10 +1178,15 @@ def _attempt_models(ledger, phase):
     )
 
 
-def _diagnostic_actions(settings, config, ledger):
+def _diagnostic_actions(settings, config, ledger, *, provider="qwen"):
     def connection():
         adapter = _budgeted_adapter(
-            settings, config, ledger, purpose="connection", max_output_tokens=256
+            settings,
+            config,
+            ledger,
+            purpose="connection",
+            max_output_tokens=256,
+            provider=provider,
         )
         turn = adapter.respond(
             [
@@ -1000,6 +1209,7 @@ def _diagnostic_actions(settings, config, ledger):
             ledger,
             purpose="tool_contract",
             max_output_tokens=512,
+            provider=provider,
             tool_definitions=[_PING_TOOL],
             validator=_validate_ping,
         )
@@ -1021,15 +1231,34 @@ def _diagnostic_actions(settings, config, ledger):
     def plan():
         from decagent.business.contracts import PluginSpec
         from decagent.business.plans.compiler import default_input_schema
-        from decagent.business.plans.planner import budgeted_planner
+        from decagent.business.plans.planner import (
+            budgeted_planner,
+            plan_tool_definitions,
+        )
         from decagent.business.tickets import builtin_manifest
 
+        provider_settings, provider_config = _readiness_provider_profile(
+            settings, config, provider
+        )
+        model = _readiness_one_shot_model(
+            provider_settings,
+            provider_config,
+            provider=provider,
+            max_output_tokens=8192,
+            tool_definitions=plan_tool_definitions(),
+        )
         planner = budgeted_planner(
-            settings,
-            config,
+            provider_settings,
+            provider_config,
             PluginSpec.from_mapping(builtin_manifest()),
             ledger,
-            force_fallback=True,
+            before_dispatch=ledger.assert_within_wall_limit,
+            fallback_allowed=False,
+            force_fallback=False,
+            max_same_provider_attempts=1,
+            request_timeout=ledger.request_timeout_seconds,
+            allow_format_repair=False,
+            model=model,
         )
         proposal = planner.plan(
             _READINESS_CONTEXT, input_schema=default_input_schema()
@@ -1054,7 +1283,12 @@ def _diagnostic_actions(settings, config, ledger):
 
     def stream():
         adapter = _budgeted_adapter(
-            settings, config, ledger, purpose="stream", max_output_tokens=256
+            settings,
+            config,
+            ledger,
+            purpose="stream",
+            max_output_tokens=256,
+            provider=provider,
         )
         turn = adapter.respond(
             [
@@ -1104,44 +1338,75 @@ def run_routed_readiness(
     model_profile_digest,
     pricing_source,
 ):
-    """Run or safely continue the four bounded phases without replaying completed calls."""
+    """Qualify Qwen first, then OpenRouter only if Qwen does not qualify."""
     ledger.ensure_resumable()
-    phases = ("connection", "tool_contract", "plan", "stream")
-    actions = _diagnostic_actions(settings, runtime_config, ledger)
-    stop_reason = None
-    for phase in phases:
-        try:
-            prior = ledger.start_phase(phase)
-        except Exception as error:
-            stop_reason = {"phase": phase, **_failure_report(error)}
-            break
-        if prior is not None:
-            continue
-        try:
-            result = actions[phase]()
-            ledger.finish_phase(phase, "passed", result)
-        except Exception as error:
-            failure = _failure_report(error)
-            ledger.finish_phase(phase, "failed", failure)
-            stop_reason = {"phase": phase, **failure}
+    providers = {}
+    qualified_provider = None
+    for provider in ("qwen", "openrouter"):
+        actions = _diagnostic_actions(
+            settings, runtime_config, ledger, provider=provider
+        )
+        provider_failure = None
+        for phase in _DIAGNOSTIC_PHASES:
+            phase_key = f"{provider}_{phase}"
+            prior_row = next(
+                (
+                    row for row in ledger.snapshot()["phases"]
+                    if row["phase"] == phase_key
+                ),
+                None,
+            )
+            if prior_row and prior_row["status"] == "failed":
+                provider_failure = {
+                    "phase": phase,
+                    **(prior_row["report"] or {"error_type": "previously_failed"}),
+                }
+                break
+            try:
+                prior = ledger.start_phase(phase_key)
+            except Exception as error:
+                provider_failure = {"phase": phase, **_failure_report(error)}
+                break
+            if prior is not None:
+                continue
+            try:
+                result = actions[phase]()
+                ledger.finish_phase(phase_key, "passed", result)
+            except Exception as error:
+                failure = _failure_report(error)
+                ledger.finish_phase(phase_key, "failed", failure)
+                provider_failure = {"phase": phase, **failure}
+                break
+        providers[provider] = {
+            "status": "failed" if provider_failure else "passed",
+            "failure": provider_failure,
+        }
+        if provider_failure is None:
+            qualified_provider = provider
             break
     snapshot = ledger.snapshot()
-    passed = stop_reason is None and [row["status"] for row in snapshot["phases"]] == [
-        "passed", "passed", "passed", "passed"
-    ]
+    passed = qualified_provider is not None
     report = {
-        "schema_version": "routed-model-readiness-evidence-v1",
+        "schema_version": "routed-model-readiness-evidence-v2",
         "authorization_id": AUTHORIZATION_ID,
         "diagnostic_fingerprint": ledger.identity["diagnostic_fingerprint"],
         "model_profile_digest": model_profile_digest,
+        "primary_pricing_source": ledger.identity["primary_price_source"],
         "pricing_source": pricing_source,
         "status": "passed" if passed else "failed",
+        "qualified_provider": qualified_provider,
+        "providers": providers,
         "passed_criteria": (
-            ["complete response and usage", "tool contract", "read-only production plan compiler"]
+            [
+                "complete response and usage",
+                "tool contract",
+                "read-only production plan compiler",
+                "streaming response and usage",
+            ]
             if passed
             else []
         ),
-        "stop_reason": stop_reason,
+        "stop_reason": None if passed else providers.get("openrouter", {}).get("failure"),
         "ledger": snapshot,
         "raw_prompts_responses_credentials_saved": False,
     }
@@ -1166,6 +1431,9 @@ def diagnostic_fingerprint():
         )),
         ("decagent.models", ("primary.py", "validation_feedback.py")),
         ("decagent.runtime", ("model_calls.py", "model_factory.py", "config.py")),
+        ("decagent.evaluation.business", (
+            "cancellable_model.py", "model_profiles.py", "public_models.py",
+        )),
     )
     parts = []
     for package, names in modules:
@@ -1205,7 +1473,9 @@ def main(argv=None):
         help="Resume only a failed preflight whose ledger proves no request was dispatched",
     )
     parser.add_argument(
-        "--ledger", type=Path, default=Path(".decagent/routed-model-readiness-v1.sqlite")
+        "--ledger",
+        type=Path,
+        default=Path(".decagent/routed-model-readiness-v2-20261024.sqlite"),
     )
     parser.add_argument("--evidence", type=Path)
     args = parser.parse_args(argv)
@@ -1222,6 +1492,8 @@ def main(argv=None):
             "version": config.main_price.version,
             "input_per_million": str(config.main_price.input_per_million),
             "output_per_million": str(config.main_price.output_per_million),
+            "currency": config.main_price.currency,
+            "source": QWEN_PRICE_SOURCE,
         },
         "fallback_model": settings.fallback_model,
         "fallback_provider": "openrouter",
@@ -1230,6 +1502,7 @@ def main(argv=None):
             "version": fallback_price.version,
             "input_per_million": str(fallback_price.input_per_million),
             "output_per_million": str(fallback_price.output_per_million),
+            "currency": fallback_price.currency,
             "source": DEEPSEEK_PRICE_SOURCE,
         },
     }
@@ -1243,11 +1516,20 @@ def main(argv=None):
             "fallback_peak_rates_usd_per_million": {
                 key: str(value) for key, value in DEEPSEEK_PRICE.items()
             },
+            "qwen_rates_cny_per_million": {
+                "input_uncached": str(config.main_price.input_per_million),
+                "output": str(config.main_price.output_per_million),
+            },
             "fallback_rate_bound_provider": DEEPSEEK_PRICE_BOUND_PROVIDER,
             "primary_provider": config.main_provider,
+            "primary_currency": config.main_price.currency,
             "max_calls": MAX_CALLS,
+            "max_qwen_calls": MAX_QWEN_CALLS,
+            "max_openrouter_calls": MAX_OPENROUTER_CALLS,
             "max_total_tokens": MAX_TOTAL_TOKENS,
+            "max_qwen_cost_cny": str(MAX_QWEN_COST_CNY),
             "max_deepseek_cost_usd": str(MAX_DEEPSEEK_COST),
+            "max_wall_seconds": MAX_WALL_SECONDS,
             "live_requests": 0,
         }, ensure_ascii=False, indent=2))
         return 0
@@ -1264,6 +1546,7 @@ def main(argv=None):
         primary_price_digest=_price_digest(config.main_price),
         fallback_price_digest=_price_digest(fallback_price),
         primary_provider=config.main_provider,
+        primary_currency=config.main_price.currency,
         resume_known_not_sent=args.resume_known_not_sent,
     )
     try:
@@ -1283,7 +1566,8 @@ def main(argv=None):
             "evidence": str(evidence_path),
             "used_calls": report["ledger"]["used_calls"],
             "used_tokens": report["ledger"]["held_or_actual_tokens"],
-            "deepseek_spend_usd": report["ledger"]["deepseek_spend_usd"],
+            "qwen_rate_estimate_cny": report["ledger"]["qwen_rate_estimate_cny"],
+            "deepseek_rate_estimate_usd": report["ledger"]["deepseek_rate_estimate_usd"],
             "stop_reason": report["stop_reason"],
         }, ensure_ascii=False, indent=2))
         return 0 if report["status"] == "passed" else 1
