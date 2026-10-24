@@ -27,6 +27,7 @@ from .public_supervisor import PublicSupervisor, canonical_public_supervisor_loc
 from .public_trials import PublicRunPlan, canonical_public_trial_ledger_path
 
 _FIRST_WAVE_ROUTE_ORDER = ("react_skill_mcp", "plan_mcp")
+_DIAGNOSTIC_ROUTE_ORDER = ("plan_mcp", "react_skill_mcp")
 _SUPPORTED_PUBLIC_ROUTES = frozenset(route.value for route in Route)
 _TERMINAL_ROUTE_STATUSES = frozenset(
     {"completed", "failed", "unknown", "scoring_error", "not_applicable"}
@@ -770,7 +771,7 @@ def execute_public_phase(
         if (
             getattr(batch, "mode", None) != "smoke"
             or len(getattr(batch, "trials", ())) != 4
-            or tuple(getattr(batch, "routes", ())) != _FIRST_WAVE_ROUTE_ORDER
+            or tuple(getattr(batch, "routes", ())) != _DIAGNOSTIC_ROUTE_ORDER
             or limits.get("qwen_requests") != 6
             or limits.get("qwen_tokens") != 600_000
             or limits.get("wall_seconds") != 2_700

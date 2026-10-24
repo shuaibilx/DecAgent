@@ -453,7 +453,11 @@ def test_bounded_diagnostic_plan_has_four_cases_and_enforces_small_batch_caps():
     assert {
         record["resource_profile_digest"] for record in diagnostic.trials
     } == {digest(diagnostic.resource_limits)}
-    assert diagnostic.routes == ("react_skill_mcp", "plan_mcp")
+    assert diagnostic.routes == ("plan_mcp", "react_skill_mcp")
+    assert all(
+        diagnostic.routes_for_trial(record["trial_id"])[0] == "plan_mcp"
+        for record in diagnostic.trials
+    )
     assert diagnostic.route_slot_count() == 8
     assert diagnostic.batch_limits["qwen_requests"] == 6
     assert diagnostic.batch_limits["qwen_tokens"] == 600_000

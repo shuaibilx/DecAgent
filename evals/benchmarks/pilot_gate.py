@@ -27,7 +27,8 @@ DIAGNOSTIC_LIMITS = {
     "max_tokens": 600_000,
     "max_wall_seconds": 2_700,
 }
-_DIAGNOSTIC_ROUTES = ("react_skill_mcp", "plan_mcp")
+_SOURCE_ROUTE_ORDER = ("react_skill_mcp", "plan_mcp")
+_DIAGNOSTIC_ROUTES = ("plan_mcp", "react_skill_mcp")
 _GENERAL_ROLES = frozenset({"primary", "user_simulator", "judge"})
 _SCORE_SOURCES = frozenset(
     {
@@ -68,7 +69,7 @@ def build_bounded_diagnostic_plan(plan):
         not isinstance(plan, PublicRunPlan)
         or plan.mode != "smoke"
         or len(plan.initial_smoke_wave) != 4
-        or tuple(plan.routes) != _DIAGNOSTIC_ROUTES
+        or tuple(plan.routes) != _SOURCE_ROUTE_ORDER
     ):
         raise ValueError("A frozen four-domain smoke plan is required for diagnostics")
     records_by_id = {record["trial_id"]: record for record in plan.trials}
@@ -103,6 +104,7 @@ def build_bounded_diagnostic_plan(plan):
     return replace(
         plan,
         manifest_digest=diagnostic_manifest,
+        routes=_DIAGNOSTIC_ROUTES,
         trials=selected,
         initial_smoke_wave=selected,
         resource_limits=limits,

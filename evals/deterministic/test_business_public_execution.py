@@ -771,6 +771,46 @@ def test_first_wave_uses_frozen_order_and_continues_after_unknown_route(tmp_path
     assert loaded_trials == [item["trial_id"] for item in plan.initial_smoke_wave]
 
 
+def test_bounded_diagnostic_runs_plan_before_react_for_each_case(tmp_path):
+    from evals.benchmarks.pilot_gate import build_bounded_diagnostic_plan
+
+    base = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    plan = replace(build_bounded_diagnostic_plan(base), root=tmp_path)
+    ledger = FakeLedger(tmp_path)
+    ledger.bind_plan(plan)
+    controlled = PhaseControlledRoutes(ledger)
+
+    receipt = run_public_phase(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        phase="diagnostic",
+        max_machine_seconds=plan.resource_limits["agent_machine_seconds"],
+        trial_factory=lambda item: bound_trial(
+            item["trial_id"],
+            record=item,
+            branch_kind="semantic" if item["domain"] == "csm" else "structured",
+        ),
+        route_kwargs_factory=lambda trial, route: route_kwargs_for(
+            ledger, trial.trial_id, route
+        ),
+    )
+
+    expected = [
+        (item["trial_id"], route)
+        for item in plan.trials
+        for route in ("plan_mcp", "react_skill_mcp")
+    ]
+    assert controlled.calls == expected
+    assert receipt.scheduled_route_slots == 8
+
+
 def test_pilot_scheduler_runs_exact_per_trial_route_pairs(tmp_path):
     base = load_public_run_plan(
         ROOT,

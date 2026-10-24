@@ -1,6 +1,14 @@
 # Proposal
 
-## 最新工作区状态（2026-10-24，真实对比尚未启动）
+## 最新状态（2026-10-24，Qwen diagnostic 未通过 readiness 门槛）
+
+主 change 保持 **72/79**，未完成任务为 9.6.D/F/G 与 10.3–10.6。候选 `91d1cf0e25f87d3f74eb83674f6257c8004b8a98` 的 GitHub Actions [run 40068945541](https://github.com/shuaibilx/DecAgent/actions/runs/40068945541) 最终 attempt 2 为 12/12 jobs 成功；首轮 Python 3.13 PostgreSQL shard 有一次失败，失败 job 重跑后通过。该候选 deterministic 为 2,236 passed、19 skipped，Ruff 与 OpenSpec strict 6/6 通过。
+
+同一候选的 bounded Qwen diagnostic 实际只终结 2/8 路线：CSM/ReAct 因 malformed response failed，官方分数 0.0；CSM/Plan 在 Agent 角色 3 次请求额度耗尽后以 0 模型/0 工具调用失败；其余 6 条未派发。实际发送 3 次 Qwen 请求、22,191 Token，按冻结 profile 费率估算抵扣前 API 费 ¥0.0201905；usage unknown 为 0。MCP 调用 2 次，cleanup 对两条终态路线均 verified；禁止副作用数量未测量。运行时长 64.5 秒，停止原因 `agent_qwen_requests`。该诊断未通过“计划生成→MCP→官方评分”闭环，不是 24-task pilot，也不支持质量或 Jev 性能结论。详见[有界诊断报告](../../../evals/benchmarks/evidence/sop-agent-diagnostic-20261024-91d1cf0.md)。
+
+问题已定位到有限 Agent 请求由 ReAct 优先消耗，导致 Plan 就绪路径没有获得模型派发。工作区修正为 diagnostic 专用 Plan-first 顺序；正式路线及其比较顺序不变。当前工作树全量 deterministic 为 2,237 passed、19 skipped；Ruff、OpenSpec strict、diff check 与零派发 dry-run 通过，报告确认 Plan-first、4 个任务/8 个路线槽、0 ledger、0 模型/MCP（[机器报告](../../../evals/benchmarks/evidence/public-diagnostic-plan-first-dryrun-20261024.json)）。新候选同 SHA CI 仍待执行。原 diagnostic 窗口已经关闭，不续期、不重跑；24-task pilot manifest 尚未冻结，206+80 全量仍未开始。游客、部署、私有 CD、记忆消融与阈值扫描继续暂停。
+
+## Earlier worktree snapshot（2026-10-24 06:00 UTC，已被上方实测状态取代）
 
 主 change checkbox 为 **72/79**，仍待 9.6.D/F/G 与 10.3–10.6。评测切片候选 `7148a0d0bb5a14aa492cdec1d7d5633d291ad950` 已推送并通过同 SHA GitHub Actions [CI run 40066788788](https://github.com/shuaibilx/DecAgent/actions/runs/40066788788)（12/12）。该候选首次 diagnostic live preflight 在派发前因诊断资源摘要仍引用 smoke 值而停止；账本只记录 8 条 pending 路线、0 模型尝试、0 工具尝试。当前工作区修复资源摘要并加入严格的零派发候选接替，尚未提交/CI；其 2,234 passed、19 skipped 和其他验证属于旧候选，不代表当前修复已验证。尚未发出新 Qwen、DeepSeek 或 Jev 请求，没有生成/冻结 24-task pilot manifest，也没有获得任何新 live 评分。
 
