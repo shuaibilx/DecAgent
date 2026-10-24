@@ -708,3 +708,83 @@ def test_production_runtime_rejects_evaluation_only_completion_callback():
                 "business_goal_verified": False,
             },
         )
+
+
+def test_pinned_csm_find_entitlements_preserves_documented_nullable_product_id(monkeypatch):
+    from decagent.business.plans import evaluation_catalog as module
+
+    EvaluationCatalog, EvaluationScope = api()
+    image = (
+        "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm"
+        "@sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189"
+    )
+    tool = {
+        "name": "find_entitlements",
+        "description": "Find entitlements with filters.",
+        "inputSchema": {"type": "object", "properties": {}},
+        "outputSchema": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "entitlement_id": {"type": "integer"},
+                    "product_id": {
+                        "type": "integer",
+                        "description": (
+                            "Product ID linked to the entitlement "
+                            "(null means all products)."
+                        ),
+                    },
+                },
+            },
+        },
+    }
+    monkeypatch.setitem(
+        module._REVIEWED_ENTERPRISE_READ_TOOL_DIGESTS,
+        (image, "find_entitlements"),
+        digest(tool),
+    )
+    monkeypatch.setitem(
+        module._REVIEWED_ENTERPRISE_NULLABLE_OUTPUT_FIELDS,
+        (image, "find_entitlements", digest(tool)),
+        ("product_id",),
+    )
+    with EvaluationScope("enterpriseops-gym", "csm-v1", "case-1") as scope:
+        catalog = EvaluationCatalog.from_mcp_tools(
+            scope,
+            [tool],
+            benchmark_version=image,
+            result_contract_version="enterprise-mcp-observation-v3",
+        )
+        observed = catalog.observe(
+            "find_entitlements",
+            [{"entitlement_id": 11, "product_id": None}],
+        )
+
+        assert catalog.commands["find_entitlements"].effect == "read"
+        assert catalog.commands["find_entitlements"].upstream_output_schema[
+            "items"
+        ]["properties"]["product_id"]["type"] == "integer"
+        assert catalog.commands["find_entitlements"].observation_output_schema[
+            "items"
+        ]["properties"]["product_id"]["type"] == ["integer", "null"]
+        assert observed["raw"] == [{"entitlement_id": 11, "product_id": None}]
+        assert observed["value"] == [{"entitlement_id": 11, "product_id": None}]
+
+
+def test_csm_find_entitlements_compatibility_is_pinned_to_the_audited_tool_digest():
+    from decagent.business.plans import evaluation_catalog as module
+
+    image = (
+        "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm"
+        "@sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189"
+    )
+    source_digest = "cf9941b75174a6cb699916957f63b6fb566a83b520bc173d441e869f3586ff9c"
+
+    assert (
+        module._REVIEWED_ENTERPRISE_READ_TOOL_DIGESTS[(image, "find_entitlements")]
+        == source_digest
+    )
+    assert module._REVIEWED_ENTERPRISE_NULLABLE_OUTPUT_FIELDS[
+        (image, "find_entitlements", source_digest)
+    ] == ("product_id",)

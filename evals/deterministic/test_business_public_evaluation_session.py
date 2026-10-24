@@ -658,7 +658,7 @@ def test_enterprise_session_factory_fingerprints_catalog_before_building_session
             scope,
             tools,
             benchmark_version=spec.image,
-            result_contract_version="enterprise-mcp-observation-v2",
+            result_contract_version="enterprise-mcp-observation-v3",
         )
         facts = {
             "initial_state_digest": digest("live enterprise state"),

@@ -3,6 +3,7 @@ import pytest
 from decagent.evaluation.business.public_diagnostics import (
     safe_chained_exception_type,
     safe_chained_http_status,
+    safe_diagnostic_code,
     safe_exception_type,
     safe_failure_stage,
     safe_http_status,
@@ -53,6 +54,29 @@ def test_worker_failure_diagnostic_rejects_untrusted_attributes():
     error = UntrustedFailure("secret")
     assert safe_failure_stage(error) == "model_callback"
     assert safe_exception_type(error) == "UntrustedFailure"
+
+
+def test_diagnostic_code_is_allowlisted_across_wrappers_without_messages():
+    class CallbackFailure(ValueError):
+        diagnostic_code = "malformed_response"
+
+    try:
+        try:
+            raise CallbackFailure("private callback body")
+        except CallbackFailure as cause:
+            raise RuntimeError("private bridge detail") from cause
+    except RuntimeError as wrapped:
+        diagnostic = safe_diagnostic_code(wrapped)
+
+    assert diagnostic == "malformed_response"
+    assert "private" not in repr(diagnostic)
+
+
+def test_diagnostic_code_rejects_untrusted_text():
+    class UntrustedFailure(RuntimeError):
+        diagnostic_code = "private token=secret"
+
+    assert safe_diagnostic_code(UntrustedFailure("private")) is None
 
 
 def test_chained_diagnostics_follow_implicit_context_without_reading_messages():

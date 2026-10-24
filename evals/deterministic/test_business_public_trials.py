@@ -3,6 +3,7 @@ import sqlite3
 import subprocess
 import sys
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -26,6 +27,42 @@ def plan(mode="smoke"):
         check_runtime=False,
         check_source_files=False,
     )
+
+
+def test_batch_wall_clock_can_start_before_environment_preflight(tmp_path):
+    selected = plan()
+    started_at = datetime.now(UTC) - timedelta(seconds=120)
+    ledger = PublicTrialLedger.create(
+        tmp_path / "preflight-clock.sqlite3",
+        selected,
+        batch_started_at=started_at,
+    )
+    try:
+        snapshot = ledger.batch_snapshot()
+    finally:
+        ledger.close()
+
+    assert datetime.fromisoformat(snapshot["started_at_utc"]) == started_at
+    assert snapshot["remaining_wall_seconds"] <= selected.batch_limits["wall_seconds"] - 119
+
+
+def test_expired_preflight_wall_clock_persists_batch_stop(tmp_path):
+    selected = plan()
+    started_at = datetime.now(UTC) - timedelta(
+        seconds=selected.batch_limits["wall_seconds"] + 1
+    )
+    ledger = PublicTrialLedger.create(
+        tmp_path / "expired-preflight-clock.sqlite3",
+        selected,
+        batch_started_at=started_at,
+    )
+    try:
+        assert ledger.stop_for_batch_deadline() is True
+        snapshot = ledger.batch_snapshot()
+    finally:
+        ledger.close()
+
+    assert snapshot["stopped_reason"] == "wall_seconds"
 
 
 def test_default_plan_uses_cny_manifest_and_explicit_v7_stays_reproducible():
@@ -180,6 +217,61 @@ def test_first_wave_phase_selects_only_the_four_frozen_cases():
     ]
 
 
+def test_diagnostic_phase_dry_run_selects_the_same_four_cases_without_execution():
+    from evals.benchmarks.pilot_gate import build_bounded_diagnostic_plan
+
+    diagnostic_plan = build_bounded_diagnostic_plan(plan())
+    report = build_dry_run_report(diagnostic_plan, phase="diagnostic")
+
+    assert report["phase"] == "diagnostic"
+    assert report["task_denominator"] == 4
+    assert report["route_attempt_slots"] == 8
+    assert report["selected_task_count"] == 4
+    assert report["selected_route_attempt_slots"] == 8
+    assert report["batch_limits"]["qwen_requests"] == 6
+    assert report["batch_limits"]["qwen_tokens"] == 600_000
+    assert report["batch_limits"]["wall_seconds"] == 2_700
+    assert report["live_model_calls"] == report["mcp_calls"] == 0
+    assert report["ledger_created"] is False
+    assert report["selected_trial_ids"] == [
+        item["trial_id"] for item in report["initial_smoke_wave"]
+    ]
+
+
+def test_pilot_dry_run_uses_frozen_per_trial_route_schedule():
+    from decagent.decisions.contracts import digest
+
+    base = plan()
+    selected = list(base.trials)
+    csm_ids = [item["trial_id"] for item in selected if item["domain"] == "csm"][:10]
+    route_schedule = []
+    for trial in selected:
+        routes = ["react_skill_mcp", "plan_mcp"]
+        if trial["trial_id"] in csm_ids:
+            routes.extend(("plan_primary_semantic_mcp", "plan_jev_semantic_mcp"))
+        route_schedule.extend((trial["trial_id"], route) for route in routes)
+    pilot = replace(
+        base,
+        mode="pilot",
+        manifest_digest=digest({"pilot": "test"}),
+        trials=tuple(selected),
+        routes=(
+            "react_skill_mcp",
+            "plan_mcp",
+            "plan_primary_semantic_mcp",
+            "plan_jev_semantic_mcp",
+        ),
+        route_schedule=tuple(route_schedule),
+    )
+
+    report = build_dry_run_report(pilot, phase="pilot")
+
+    assert report["selected_task_count"] == 24
+    assert report["selected_route_attempt_slots"] == 68
+    assert report["route_attempt_slots"] == 68
+    assert report["route_schedule"] == [list(item) for item in route_schedule]
+
+
 def test_remaining_smoke_phase_excludes_every_first_wave_case():
     report = build_dry_run_report(plan(), phase="remaining-smoke")
 
@@ -202,7 +294,12 @@ def test_full_phase_selects_the_full_frozen_denominator():
 
 @pytest.mark.parametrize(
     ("mode", "phase"),
-    [("full", "first-wave"), ("full", "remaining-smoke"), ("smoke", "full")],
+    [
+        ("full", "first-wave"),
+        ("full", "remaining-smoke"),
+        ("smoke", "full"),
+        ("full", "diagnostic"),
+    ],
 )
 def test_phase_must_match_frozen_cohort(mode, phase):
     with pytest.raises(ValueError, match="phase is incompatible"):
@@ -246,6 +343,18 @@ def test_dry_run_cli_does_not_require_live_runtime_or_downloaded_benchmark_asset
     assert json.loads(capsys.readouterr().out)["dry_run"] is True
     assert calls["check_runtime"] is False
     assert calls["check_source_files"] is False
+    assert run_public_trials.main(
+        ["--root", str(ROOT), "--mode", "smoke", "--phase", "diagnostic"]
+    ) == 0
+    diagnostic = json.loads(capsys.readouterr().out)
+    assert diagnostic["phase"] == "diagnostic"
+    assert diagnostic["selected_task_count"] == 4
+    assert diagnostic["selected_route_attempt_slots"] == 8
+    assert diagnostic["task_denominator"] == 4
+    assert diagnostic["batch_limits"]["qwen_requests"] == 6
+    assert diagnostic["batch_limits"]["qwen_tokens"] == 600_000
+    assert diagnostic["batch_limits"]["wall_seconds"] == 2_700
+    assert diagnostic["live_model_calls"] == diagnostic["mcp_calls"] == 0
 
 
 def test_dry_run_report_is_exclusive_and_confined_to_evidence(tmp_path):
@@ -408,7 +517,7 @@ def test_first_wave_ledger_requires_canonical_lock_and_preserves_canonical_state
     with pytest.raises(ValueError, match="canonical cohort ledger"):
         validate_public_trial_ledger_path(project_root, tmp_path / "alternate.sqlite3")
     with PublicSupervisor(canonical_lock) as supervisor:
-        with pytest.raises(ValueError, match="Only the frozen smoke cohort"):
+        with pytest.raises(ValueError, match="smoke or pilot cohort"):
             open_first_wave_public_trial_ledger(
                 project_root,
                 replace(plan_root, mode="full"),
@@ -827,6 +936,105 @@ def test_qwen_batch_cap_is_shared_across_routes_and_survives_resume(tmp_path):
         )
     assert resumed.batch_snapshot()["stopped_reason"] == "agent_qwen_requests"
     resumed.close()
+
+
+def test_qwen_fee_cap_reserves_unknown_cost_before_dispatch(tmp_path):
+    selected = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    limits = dict(selected.batch_limits)
+    limits["qwen_cost_cny"] = "0.001"
+    selected = replace(selected, batch_limits=limits)
+    ledger = PublicTrialLedger.create(tmp_path / "qwen-fee-cap.sqlite3", selected)
+    trial = selected.trials[0]
+    first_route, second_route = selected.routes
+
+    ledger.start_route(trial["trial_id"], first_route)
+    first = ledger.reserve_model_attempt(
+        trial_id=trial["trial_id"],
+        route=first_route,
+        role="primary",
+        estimated_input_tokens=100,
+        max_output_tokens=256,
+        reserved_cost_usd=None,
+        reserved_cost_amount=Decimal("0.0007712"),
+        reserved_cost_currency="CNY",
+        profile_digest=selected.profiles.primary.fingerprint,
+    )
+    ledger.mark_model_dispatched(first)
+    ledger.mark_model_unknown(first, error_category="transport_timeout")
+
+    ledger.start_route(trial["trial_id"], second_route)
+    with pytest.raises(ValueError, match="qwen_cost_cny"):
+        ledger.reserve_model_attempt(
+            trial_id=trial["trial_id"],
+            route=second_route,
+            role="primary",
+            estimated_input_tokens=100,
+            max_output_tokens=256,
+            reserved_cost_usd=None,
+            reserved_cost_amount=Decimal("0.0007712"),
+            reserved_cost_currency="CNY",
+            profile_digest=selected.profiles.primary.fingerprint,
+        )
+
+    snapshot = ledger.batch_snapshot()
+    assert snapshot["qwen_reserved_cost_cny"] == Decimal("0.0007712")
+    assert snapshot["qwen_cost_cny"] == Decimal("0.0007712")
+    assert snapshot["stopped_reason"] == "qwen_cost_cny"
+    ledger.close()
+
+
+def test_settled_qwen_fee_overrun_stops_all_pending_routes(tmp_path):
+    selected = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    limits = dict(selected.batch_limits)
+    limits["qwen_cost_cny"] = "0.001"
+    selected = replace(selected, batch_limits=limits)
+    ledger = PublicTrialLedger.create(tmp_path / "qwen-fee-overrun.sqlite3", selected)
+    trial = selected.trials[0]
+    first_route, second_route = selected.routes
+    ledger.start_route(trial["trial_id"], first_route)
+    attempt = ledger.reserve_model_attempt(
+        trial_id=trial["trial_id"],
+        route=first_route,
+        role="primary",
+        estimated_input_tokens=100,
+        max_output_tokens=256,
+        reserved_cost_usd=None,
+        reserved_cost_amount=Decimal("0.0007712"),
+        reserved_cost_currency="CNY",
+        profile_digest=selected.profiles.primary.fingerprint,
+    )
+    ledger.mark_model_dispatched(attempt)
+    with pytest.raises(ValueError, match="exceeded its pre-dispatch resource reservation"):
+        ledger.settle_model_attempt(
+            attempt,
+            actual_input_tokens=100,
+            actual_output_tokens=500,
+            actual_cost_usd=None,
+            actual_cost_amount=Decimal("0.00143"),
+            actual_cost_currency="CNY",
+            actual_cost_basis="frozen_rate_upper_bound",
+            actual_cost_source="frozen_profile",
+            provider_request_id="qwen-fee-overrun",
+        )
+
+    snapshot = ledger.batch_snapshot()
+    assert snapshot["qwen_actual_cost_cny"] == Decimal("0.00143")
+    assert snapshot["stopped_reason"] == "qwen_cost_cny"
+    with pytest.raises(ValueError, match="batch is stopped"):
+        ledger.start_route(trial["trial_id"], second_route)
+    ledger.close()
 
 
 def test_qwen_actual_token_overrun_stops_the_persisted_batch(tmp_path):

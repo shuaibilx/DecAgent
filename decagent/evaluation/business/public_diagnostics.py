@@ -44,6 +44,30 @@ FAILURE_STAGES = frozenset(
         "tau_worker_protocol",
     }
 )
+MODEL_RESPONSE_DIAGNOSTIC_CODES = frozenset(
+    {
+        "tool_schema",
+        "tool_identity",
+        "invalid_tool_calls",
+        "content_type",
+        "unsafe_tool_proposal",
+        "malformed_response",
+        "empty_stream",
+        "usage_invalid",
+        "usage_missing",
+    }
+)
+DIAGNOSTIC_CODES = MODEL_RESPONSE_DIAGNOSTIC_CODES | frozenset(
+    {
+        "tau_callback_event",
+        "tau_callback_payload",
+        "tau_callback_reply",
+        "tau_callback_model",
+        "tau_callback_content",
+        "tau_callback_tool_calls",
+        "tau_callback_tool_call",
+    }
+)
 
 
 def safe_exception_type(error: BaseException | None) -> str | None:
@@ -105,6 +129,18 @@ def safe_failure_stage(error: BaseException | None, *, default="model_callback")
         if type(stage) is str and stage in FAILURE_STAGES:
             return stage
     return default
+
+
+def safe_diagnostic_code(error: BaseException | None) -> str | None:
+    """Return only an explicitly allowlisted diagnostic code from an exception chain."""
+    for item in _exception_chain(error):
+        try:
+            code = getattr(item, "diagnostic_code", None)
+        except Exception:
+            continue
+        if type(code) is str and code in DIAGNOSTIC_CODES:
+            return code
+    return None
 
 
 def safe_http_status(error: BaseException | None) -> int | None:

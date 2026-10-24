@@ -19,14 +19,13 @@ from decagent.decisions.contracts import digest
 
 OPEN_RESULT_PATH = "x-decagent-open-result-path"
 _ANY_JSON = {"type": ["string", "integer", "number", "boolean", "object", "array", "null"]}
-ENTERPRISE_MCP_OBSERVATION_CONTRACT_VERSION = "enterprise-mcp-observation-v2"
+ENTERPRISE_MCP_OBSERVATION_CONTRACT_VERSION = "enterprise-mcp-observation-v3"
 _NEVER_IN_AGENT_INPUT = frozenset(
     {"endpoint", "endpoint_ref", "url", "base_url", "headers", "authorization", "token"}
 )
 _UNSET = object()
-# The pinned CSM image's `find_user` handler was audited in its bytecode and
-# executes a parameterized SELECT only. This exact MCP tool schema digest keeps
-# the read classification scoped to that image and schema version.
+# Pinned CSM handlers were audited in their bytecode and execute SELECT-only
+# queries. Exact tool schema digests keep read classification image-specific.
 _REVIEWED_ENTERPRISE_READ_TOOL_DIGESTS = {
     (
         "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm"
@@ -43,6 +42,19 @@ _REVIEWED_ENTERPRISE_READ_TOOL_DIGESTS = {
         "@sha256:a234ae3fb7cee196ba25e6b9957969dea829919b6e8271dddae128f065aaf39f",
         "list_users",
     ): "af0f958626854fbcf94636b7a41ee809b901f90de7a5beed2ffeaee35d9e5be7",
+    (
+        "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm"
+        "@sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189",
+        "find_entitlements",
+    ): "cf9941b75174a6cb699916957f63b6fb566a83b520bc173d441e869f3586ff9c",
+}
+_REVIEWED_ENTERPRISE_NULLABLE_OUTPUT_FIELDS = {
+    (
+        "docker.io/shivakrishnareddyma225/enterpriseops-gym-mcp-csm"
+        "@sha256:eaa456ac9aa85728426e7d3813a0bbca0949d6a8695be30e26f03894e6e6b189",
+        "find_entitlements",
+        "cf9941b75174a6cb699916957f63b6fb566a83b520bc173d441e869f3586ff9c",
+    ): ("product_id",),
 }
 
 
@@ -162,6 +174,47 @@ def _normalize_declared_boolean_values(schema, value, path=""):
     return value, normalizations
 
 
+def _reviewed_observation_output_schema(
+    benchmark,
+    benchmark_version,
+    result_contract_version,
+    name,
+    source_digest,
+    output_schema,
+):
+    """Correct only the pinned CSM tool's documented nullable product field."""
+    fields = _REVIEWED_ENTERPRISE_NULLABLE_OUTPUT_FIELDS.get(
+        (benchmark_version, name, source_digest)
+    )
+    if fields is None:
+        return output_schema
+    if (
+        benchmark != "enterpriseops-gym"
+        or result_contract_version != ENTERPRISE_MCP_OBSERVATION_CONTRACT_VERSION
+    ):
+        return output_schema
+    if (
+        not isinstance(output_schema, dict)
+        or output_schema.get("type") != "array"
+        or not isinstance(output_schema.get("items"), dict)
+        or not isinstance(output_schema["items"].get("properties"), dict)
+    ):
+        raise ValueError("Reviewed CSM nullable output contract no longer matches its schema")
+    corrected = deepcopy(output_schema)
+    properties = corrected["items"]["properties"]
+    for field in fields:
+        schema = properties.get(field)
+        description = schema.get("description", "") if isinstance(schema, dict) else ""
+        if (
+            not isinstance(schema, dict)
+            or schema.get("type") != "integer"
+            or "null means all products" not in description.lower()
+        ):
+            raise ValueError("Reviewed CSM nullable output compatibility is no longer valid")
+        schema["type"] = ["integer", "null"]
+    return corrected
+
+
 class EvaluationScope:
     """One single-use active benchmark task lifetime."""
 
@@ -234,6 +287,10 @@ class EvaluationCommand:
     def upstream_output_schema(self):
         return self._contract["upstream_output_schema"]
 
+    @property
+    def observation_output_schema(self):
+        return self._contract["observation_output_schema"]
+
 
 class EvaluationCatalog:
     """A read-only projection of a fixed upstream catalog while scope is active."""
@@ -264,6 +321,16 @@ class EvaluationCatalog:
             self._check_local_schema(input_schema)
             if output_schema is not None:
                 self._check_local_schema(output_schema)
+            observation_output_schema = _reviewed_observation_output_schema(
+                scope.benchmark,
+                benchmark_version,
+                result_contract_version,
+                name,
+                digest(original),
+                output_schema,
+            )
+            if observation_output_schema is not None:
+                self._check_local_schema(observation_output_schema)
             effect = (
                 "read"
                 if annotations.get("readOnlyHint") is True
@@ -299,6 +366,7 @@ class EvaluationCatalog:
                 },
                 "upstream_schema": original,
                 "upstream_output_schema": output_schema,
+                "observation_output_schema": observation_output_schema,
             }
             commands[name] = EvaluationCommand(name, canonical(contract))
             public_tools.append(original)
@@ -482,7 +550,7 @@ class EvaluationCatalog:
         if value is _UNSET:
             value = deepcopy(raw)
         command_spec = self._commands[command]
-        output_schema = command_spec.upstream_output_schema
+        output_schema = command_spec.observation_output_schema
         normalizations = []
         if output_schema is not None and not is_error:
             value, normalizations = _normalize_declared_boolean_values(

@@ -12,6 +12,7 @@ from decagent.decisions.contracts import digest, jev_model_matches
 from decagent.models.primary import PrimaryRequestNotDispatched
 
 from .public_diagnostics import (
+    MODEL_RESPONSE_DIAGNOSTIC_CODES,
     safe_chained_exception_type,
     safe_chained_http_status,
     safe_exception_type,
@@ -34,6 +35,9 @@ class PublicModelNotDispatched(RuntimeError):
 
 class PublicModelProfileDrift(RuntimeError):
     """A response came from a model identity outside the frozen evaluation profile."""
+
+
+_SAFE_RESPONSE_DIAGNOSTICS = MODEL_RESPONSE_DIAGNOSTIC_CODES
 
 
 class PublicModelAdapters(dict):
@@ -388,7 +392,7 @@ class LedgeredModelCallback:
                     attempt_id,
                     measured,
                     started,
-                    error_category="model_response_error",
+                    error_category=self._response_error_category(exc),
                     failure=exc,
                 )
             else:
@@ -437,6 +441,13 @@ class LedgeredModelCallback:
                 "Model response identity differs from the frozen evaluation profile"
             )
         return reply
+
+    @staticmethod
+    def _response_error_category(error):
+        code = getattr(error, "diagnostic_code", None)
+        if code in _SAFE_RESPONSE_DIAGNOSTICS:
+            return "model_response_" + code
+        return "model_response_error"
 
     def _settle(self, attempt_id, reply, started, *, error_category=None, failure=None):
         profile = self.profile

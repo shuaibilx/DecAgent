@@ -9,21 +9,25 @@ auditable entry point.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import isfinite
 from pathlib import Path
 from time import perf_counter
 
+from decagent.business.plans.contracts import Plan
 from decagent.decisions.contracts import digest
 
-from .comparison import PublicComparisonTrial
-from .public_diagnostics import safe_exception_type
+from .comparison import PublicComparisonTrial, Route
+from .public_diagnostics import (
+    DIAGNOSTIC_CODES,
+    safe_exception_type,
+)
 from .public_resources import LedgeredModelAdapterFactory, LedgeredToolGateway
 from .public_supervisor import PublicSupervisor, canonical_public_supervisor_lock_path
 from .public_trials import PublicRunPlan, canonical_public_trial_ledger_path
 
 _FIRST_WAVE_ROUTE_ORDER = ("react_skill_mcp", "plan_mcp")
-_FIRST_WAVE_ROUTES = frozenset(_FIRST_WAVE_ROUTE_ORDER)
+_SUPPORTED_PUBLIC_ROUTES = frozenset(route.value for route in Route)
 _TERMINAL_ROUTE_STATUSES = frozenset(
     {"completed", "failed", "unknown", "scoring_error", "not_applicable"}
 )
@@ -53,6 +57,12 @@ def _trial_matches_record(trial, record):
 
 
 @dataclass(frozen=True)
+class _SemanticPlanReference:
+    plan: Plan
+    receipt: PublicRouteReceipt
+
+
+@dataclass(frozen=True)
 class PublicRouteReceipt:
     """Non-sensitive persisted outcome of one supervised route attempt."""
 
@@ -68,6 +78,11 @@ class PublicRouteReceipt:
     tau_steps: int = 0
     failure_stage: str | None = None
     exception_type: str | None = None
+    plan_digest: str | None = None
+    decision_input_digest: str | None = None
+    evidence_scope: str | None = None
+    pair_status: str | None = None
+    diagnostic_code: str | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +99,117 @@ class PublicPhaseReceipt:
 
 def _failure_category(value):
     return value if type(value) is str and _ERROR_CATEGORY.fullmatch(value) else "route_failed"
+
+
+def _comparison_evidence(result):
+    run = getattr(result, "run", None)
+    plan_digest = getattr(result, "plan_digest", None) or getattr(run, "plan_digest", None)
+    decision_digest = getattr(result, "decision_input_digest", None) or getattr(
+        run, "decision_input_digest", None
+    )
+    evidence_scope = getattr(result, "evidence_scope", None) or getattr(
+        run, "evidence_scope", None
+    )
+    def valid_digest(value):
+        return type(value) is str and re.fullmatch(r"[a-f0-9]{64}", value) is not None
+
+    return (
+        plan_digest if valid_digest(plan_digest) else None,
+        decision_digest if valid_digest(decision_digest) else None,
+        evidence_scope if evidence_scope in {"full_workflow", "execution_only"} else None,
+    )
+
+
+def _mark_semantic_route_not_applicable(ledger, trial_id, route, reason):
+    """Finalize a scheduled semantic slot without opening an environment or dispatching."""
+    if reason not in {
+        "semantic_decision_not_observed",
+        "semantic_reference_unavailable",
+    }:
+        raise ValueError("Unsupported semantic non-applicability reason")
+    ledger.start_route(trial_id, route)
+    result_evidence = {
+        "route": route,
+        "status": "not_applicable",
+        "reason": reason,
+        "model_dispatched": False,
+        "tool_dispatched": False,
+        "environment_opened": False,
+    }
+    cleanup_evidence = {
+        "verified": True,
+        "session_closed": True,
+        "environment_closed": True,
+        "environment_opened": False,
+        "cleanup_required": False,
+    }
+    result_hash = digest(result_evidence)
+    ledger.finish_route(
+        trial_id,
+        route,
+        status="not_applicable",
+        result_digest=result_hash,
+        error_category=reason,
+        cleanup_verified=True,
+        cleanup_evidence_digest=digest(cleanup_evidence),
+        score_status="not_applicable",
+    )
+    return PublicRouteReceipt(
+        trial_id=trial_id,
+        route=route,
+        status="not_applicable",
+        score_status="not_applicable",
+        cleanup_verified=True,
+        result_digest=result_hash,
+        score_digest=None,
+        machine_seconds=0.0,
+        error_category=reason,
+        pair_status="not_applicable",
+    )
+
+
+def _mark_semantic_route_incomplete(ledger, trial_id, route):
+    """Keep a scheduled comparison slot visible when its primary evidence failed."""
+    ledger.start_route(trial_id, route)
+    result_evidence = {
+        "route": route,
+        "status": "failed",
+        "reason": "semantic_reference_incomplete",
+        "model_dispatched": False,
+        "tool_dispatched": False,
+        "environment_opened": False,
+    }
+    cleanup_evidence = {
+        "verified": True,
+        "session_closed": True,
+        "environment_closed": True,
+        "environment_opened": False,
+        "cleanup_required": False,
+    }
+    result_hash = digest(result_evidence)
+    cleanup_hash = digest(cleanup_evidence)
+    ledger.finish_route(
+        trial_id,
+        route,
+        status="failed",
+        result_digest=result_hash,
+        error_category="semantic_reference_incomplete",
+        cleanup_verified=True,
+        cleanup_evidence_digest=cleanup_hash,
+        score_status="not_attempted",
+    )
+    return PublicRouteReceipt(
+        trial_id=trial_id,
+        route=route,
+        status="failed",
+        score_status="not_attempted",
+        cleanup_verified=True,
+        result_digest=result_hash,
+        score_digest=None,
+        machine_seconds=0.0,
+        error_category="semantic_reference_incomplete",
+        pair_status="incomplete",
+    )
 
 
 def _score_evidence(trial, result):
@@ -172,6 +298,23 @@ def _unknown_route_score_status(ledger, trial_id, route):
     return "not_attempted"
 
 
+def _batch_stop_reason(ledger, batch):
+    reason = batch.get("stopped_reason")
+    if reason is not None:
+        return reason
+    remaining = batch.get("remaining_wall_seconds")
+    if type(remaining) not in {int, float} or not isfinite(remaining):
+        raise TypeError("A finite public batch wall-clock remainder is required")
+    if remaining > 0:
+        return None
+    stop_for_deadline = getattr(ledger, "stop_for_batch_deadline", None)
+    if not callable(stop_for_deadline):
+        raise TypeError("A durable public batch deadline stop is required")
+    stop_for_deadline()
+    refreshed = ledger.batch_snapshot()
+    return refreshed.get("stopped_reason") or "wall_seconds"
+
+
 def _failure_diagnostics(result, failure):
     stages = {
         "environment_failure": "environment_setup",
@@ -184,9 +327,14 @@ def _failure_diagnostics(result, failure):
     }
     stage = getattr(result, "failure_stage", None) if result is not None else None
     exception_type = getattr(result, "exception_type", None) if result is not None else None
+    diagnostic_code = (
+        getattr(result, "diagnostic_code", None) if result is not None else None
+    )
+    if type(diagnostic_code) is not str or diagnostic_code not in DIAGNOSTIC_CODES:
+        diagnostic_code = None
     if stage is None:
         stage = stages.get(failure)
-    return stage, exception_type
+    return stage, exception_type, diagnostic_code
 
 
 def execute_public_route(
@@ -208,8 +356,8 @@ def execute_public_route(
     Unknown routes are terminal and receive cleanup evidence only.
     """
     route_name = getattr(route, "value", route)
-    if type(route_name) is not str or route_name not in _FIRST_WAVE_ROUTES:
-        raise ValueError("Public route supervisor currently accepts only first-wave ReAct/Plan")
+    if type(route_name) is not str or route_name not in _SUPPORTED_PUBLIC_ROUTES:
+        raise ValueError("Public route is not registered")
     if type(trial_id) is not str or not trial_id.strip() or len(trial_id) > 256:
         raise ValueError("A bounded frozen trial ID is required")
     if (
@@ -220,6 +368,15 @@ def execute_public_route(
         raise ValueError("A positive finite route machine-time limit is required")
     if not isinstance(trial, PublicComparisonTrial) or trial.trial_id != trial_id:
         raise ValueError("Public route requires a comparison trial bound to the frozen manifest ID")
+    plan = getattr(ledger, "plan", None)
+    routes_for_trial = getattr(plan, "routes_for_trial", None)
+    allowed_routes = (
+        routes_for_trial(trial_id)
+        if callable(routes_for_trial)
+        else getattr(plan, "routes", _FIRST_WAVE_ROUTE_ORDER)
+    )
+    if route_name not in allowed_routes:
+        raise ValueError("Public route is not scheduled for this frozen trial")
     if type(route_kwargs) is not dict:
         if route_kwargs is not None:
             raise TypeError("Route dependencies must be provided as a mapping")
@@ -283,7 +440,7 @@ def execute_public_route(
         else canonical_public_trial_ledger_path(project_root)
     )
     if (
-        getattr(plan, "mode", None) != "smoke"
+        getattr(plan, "mode", None) not in {"smoke", "pilot"}
         or Path(getattr(plan, "root", "")).resolve() != project_root
         or ledger_path is None
         or Path(ledger_path).resolve(strict=False)
@@ -529,9 +686,15 @@ def execute_public_route(
     )
     if overrun:
         failure = "resource_overrun"
-    failure_stage, exception_type = _failure_diagnostics(result, failure)
+    failure_stage, exception_type, diagnostic_code = _failure_diagnostics(
+        result, failure
+    )
     if overrun:
         failure_stage = "route_deadline"
+    if diagnostic_code is not None and not success and not overrun:
+        detailed_failure = f"{failure}_{diagnostic_code}"
+        if _ERROR_CATEGORY.fullmatch(detailed_failure):
+            failure = detailed_failure
     score_hash = digest(score_evidence) if score_evidence is not None else None
     result_hash = digest(
         {
@@ -542,6 +705,7 @@ def execute_public_route(
             "score_digest": score_hash,
             "cleanup_verified": cleanup_verified,
             "failure_kind": getattr(result, "failure_kind", None),
+            "diagnostic_code": diagnostic_code,
             "tau_steps": tau_steps,
         }
     )
@@ -574,6 +738,9 @@ def execute_public_route(
         tau_steps,
         None if status == "completed" else failure_stage,
         None if status == "completed" else exception_type,
+        *_comparison_evidence(result),
+        None,
+        None if status == "completed" else diagnostic_code,
     )
 
 
@@ -595,8 +762,20 @@ def execute_public_phase(
     deliberately supports only the first-wave phase until the wider cohort
     phases have their own live gates.
     """
-    if phase != "first-wave":
-        raise ValueError("Live phase scheduler currently accepts first-wave only")
+    if phase not in {"diagnostic", "first-wave", "pilot"}:
+        raise ValueError("Live phase scheduler requires a registered frozen phase")
+    if phase == "diagnostic":
+        batch = getattr(ledger, "plan", None)
+        limits = getattr(batch, "batch_limits", {})
+        if (
+            getattr(batch, "mode", None) != "smoke"
+            or len(getattr(batch, "trials", ())) != 4
+            or tuple(getattr(batch, "routes", ())) != _FIRST_WAVE_ROUTE_ORDER
+            or limits.get("qwen_requests") != 6
+            or limits.get("qwen_tokens") != 600_000
+            or limits.get("wall_seconds") != 2_700
+        ):
+            raise ValueError("Diagnostic dispatch requires its bounded four-case cohort")
     project_root = Path(root).resolve()
     if (
         not isinstance(supervisor, PublicSupervisor)
@@ -620,10 +799,14 @@ def execute_public_phase(
     )
     if (
         not isinstance(plan, PublicRunPlan)
-        or plan.mode != "smoke"
+        or (phase == "first-wave" and plan.mode != "smoke")
+        or (phase == "pilot" and (plan.mode != "pilot" or plan.route_schedule is None))
         or Path(plan.root).resolve() != project_root
-        or plan.routes != _FIRST_WAVE_ROUTE_ORDER
-        or len(plan.initial_smoke_wave) != 4
+        or (
+            phase == "first-wave"
+            and (plan.routes != _FIRST_WAVE_ROUTE_ORDER or len(plan.initial_smoke_wave) != 4)
+        )
+        or (phase == "pilot" and (len(plan.trials) != 24 or plan.route_slot_count() != 68))
         or ledger_path is None
         or Path(ledger_path).resolve(strict=False)
         != expected_ledger_path
@@ -635,7 +818,8 @@ def execute_public_phase(
         raise TypeError("A durable public batch ledger is required")
 
     trials_by_id = {trial["trial_id"]: trial for trial in plan.trials}
-    selected_ids = [trial["trial_id"] for trial in plan.initial_smoke_wave]
+    selected_records = plan.initial_smoke_wave if phase == "first-wave" else plan.trials
+    selected_ids = [trial["trial_id"] for trial in selected_records]
     if (
         len(set(selected_ids)) != len(selected_ids)
         or any(trial_id not in trials_by_id for trial_id in selected_ids)
@@ -646,9 +830,15 @@ def execute_public_phase(
     skipped = []
     stopped_reason = None
     loaded_trials = {}
+    semantic_references = {}
     for trial_id in selected_ids:
         frozen_trial = trials_by_id[trial_id]
-        for route_name in _FIRST_WAVE_ROUTE_ORDER:
+        route_order = (
+            _FIRST_WAVE_ROUTE_ORDER
+            if phase == "first-wave"
+            else plan.routes_for_trial(trial_id)
+        )
+        for route_name in route_order:
             status = ledger.route_status(trial_id, route_name)
             if status in _TERMINAL_ROUTE_STATUSES:
                 skipped.append((trial_id, route_name, status))
@@ -658,8 +848,64 @@ def execute_public_phase(
                     "A nonterminal route must be recovered before phase scheduling"
                 )
 
+            semantic_reference = semantic_references.get(trial_id)
+            if route_name == Route.PLAN_JEV_SEMANTIC.value:
+                if semantic_reference is None:
+                    primary_receipt = next(
+                        (
+                            item
+                            for item in reversed(receipts)
+                            if item.trial_id == trial_id
+                            and item.route == Route.PLAN_PRIMARY_SEMANTIC.value
+                        ),
+                        None,
+                    )
+                    if (
+                        primary_receipt is not None
+                        and primary_receipt.status == "completed"
+                        and primary_receipt.plan_digest is not None
+                        and primary_receipt.decision_input_digest is None
+                    ):
+                        receipts.append(
+                            _mark_semantic_route_not_applicable(
+                                ledger,
+                                trial_id,
+                                route_name,
+                                "semantic_decision_not_observed",
+                            )
+                        )
+                    elif primary_receipt is not None:
+                        receipts.append(
+                            _mark_semantic_route_incomplete(
+                                ledger, trial_id, route_name
+                            )
+                        )
+                    else:
+                        primary_status = ledger.route_status(
+                            trial_id, Route.PLAN_PRIMARY_SEMANTIC.value
+                        )
+                        if primary_status in _TERMINAL_ROUTE_STATUSES:
+                            # A resumed scheduler cannot recover the original in-memory
+                            # plan from a terminal primary route. Keep the pair visible
+                            # as incomplete instead of claiming Jev was not applicable.
+                            receipts.append(
+                                _mark_semantic_route_incomplete(
+                                    ledger, trial_id, route_name
+                                )
+                            )
+                        else:
+                            receipts.append(
+                                _mark_semantic_route_not_applicable(
+                                    ledger,
+                                    trial_id,
+                                    route_name,
+                                    "semantic_reference_unavailable",
+                                )
+                            )
+                    continue
+
             batch = ledger.batch_snapshot()
-            stopped_reason = batch.get("stopped_reason")
+            stopped_reason = _batch_stop_reason(ledger, batch)
             if stopped_reason is not None:
                 skipped.append((trial_id, route_name, "batch_stopped"))
                 continue
@@ -673,8 +919,15 @@ def execute_public_phase(
             route_kwargs = route_kwargs_factory(trial, route_name)
             if type(route_kwargs) is not dict:
                 raise TypeError("Route dependencies must be returned as a mapping")
-            receipts.append(
-                execute_public_route(
+            if route_name == Route.PLAN_JEV_SEMANTIC.value:
+                route_kwargs = {**route_kwargs, "frozen_plan": semantic_reference.plan}
+            batch = ledger.batch_snapshot()
+            stopped_reason = _batch_stop_reason(ledger, batch)
+            if stopped_reason is not None:
+                skipped.append((trial_id, route_name, "batch_stopped"))
+                continue
+            try:
+                route_receipt = execute_public_route(
                     root=project_root,
                     supervisor=supervisor,
                     ledger=ledger,
@@ -685,13 +938,57 @@ def execute_public_phase(
                     max_machine_seconds=max_machine_seconds,
                     route_kwargs=route_kwargs,
                 )
-            )
+            except ValueError:
+                # The ledger atomically checks the absolute deadline when claiming a
+                # route. If it expires between this snapshot and that claim, preserve
+                # the stop and return an auditable skipped receipt.
+                batch = ledger.batch_snapshot()
+                stopped_reason = _batch_stop_reason(ledger, batch)
+                if stopped_reason is None:
+                    raise
+                skipped.append((trial_id, route_name, "batch_stopped"))
+                continue
+            if route_name == Route.PLAN_PRIMARY_SEMANTIC.value:
+                candidate_plan = getattr(controlled_routes, "last_plan", None)
+                if (
+                    candidate_plan is not None
+                    and route_receipt.plan_digest == getattr(candidate_plan, "digest", None)
+                    and route_receipt.decision_input_digest is not None
+                    and route_receipt.evidence_scope == "full_workflow"
+                ):
+                    semantic_references[trial_id] = _SemanticPlanReference(
+                        plan=candidate_plan,
+                        receipt=route_receipt,
+                    )
+            elif route_name == Route.PLAN_JEV_SEMANTIC.value:
+                reference_receipt = semantic_reference.receipt
+                is_paired = (
+                    route_receipt.plan_digest == reference_receipt.plan_digest
+                    and route_receipt.decision_input_digest
+                    == reference_receipt.decision_input_digest
+                    and route_receipt.evidence_scope == "execution_only"
+                )
+                route_receipt = replace(
+                    route_receipt,
+                    pair_status="paired" if is_paired else (
+                        "mismatch"
+                        if route_receipt.plan_digest is not None
+                        and route_receipt.decision_input_digest is not None
+                        else "incomplete"
+                    ),
+                )
+            receipts.append(route_receipt)
             stopped_reason = ledger.batch_snapshot().get("stopped_reason")
 
     return PublicPhaseReceipt(
         phase=phase,
         cohort_digest=plan.cohort_digest,
-        scheduled_route_slots=len(selected_ids) * len(_FIRST_WAVE_ROUTE_ORDER),
+        scheduled_route_slots=sum(
+            len(_FIRST_WAVE_ROUTE_ORDER)
+            if phase == "first-wave"
+            else len(plan.routes_for_trial(trial_id))
+            for trial_id in selected_ids
+        ),
         executed_routes=tuple(receipts),
         skipped_routes=tuple(skipped),
         stopped_reason=stopped_reason,

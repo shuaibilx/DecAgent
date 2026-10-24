@@ -274,6 +274,7 @@ class PairedComparison:
     axis: AblationAxis | None = None
     plan_digest: str | None = None
     decision_input_digest: str | None = None
+    evidence_scope: str = "full_workflow"
 
 
 def _require_routes(left, right, expected):
@@ -281,8 +282,14 @@ def _require_routes(left, right, expected):
         raise ValueError("Comparison routes do not match the declared experiment")
 
 
-def _require_trial_match(left, right, *, allowed_differences=()):
-    if left.evidence_scope != right.evidence_scope:
+def _require_trial_match(
+    left, right, *, allowed_differences=(), allowed_evidence_scope_pairs=None
+):
+    scopes = (left.evidence_scope, right.evidence_scope)
+    if (
+        scopes[0] != scopes[1]
+        and (allowed_evidence_scope_pairs is None or scopes not in allowed_evidence_scope_pairs)
+    ):
         raise ValueError("Comparison evidence scope must match")
     allowed = set(allowed_differences)
     mismatches = [
@@ -359,15 +366,30 @@ def compare_full_workflow(left, right):
 
 
 def compare_semantic_judgment(left, right):
-    """Pair Jev and primary re-judgments only at the exact same semantic node."""
+    """Pair the same semantic node; Jev replay excludes the already-measured plan."""
     _require_routes(
         left, right, {Route.PLAN_JEV_SEMANTIC, Route.PLAN_PRIMARY_SEMANTIC}
     )
-    _require_trial_match(left, right)
-    _require_primary_model_match(left, right)
-    _require_model_profile_match(left, right)
     if left.trial.branch_kind != "semantic":
         raise ValueError("Structured branches must not be counted as semantic Jev trials")
+    _require_trial_match(
+        left,
+        right,
+        allowed_evidence_scope_pairs={
+            ("execution_only", "full_workflow"),
+            ("full_workflow", "execution_only"),
+        },
+    )
+    scopes = {left.route: left.evidence_scope, right.route: right.evidence_scope}
+    if (
+        scopes[Route.PLAN_PRIMARY_SEMANTIC] != "full_workflow"
+        or scopes[Route.PLAN_JEV_SEMANTIC] != "execution_only"
+    ):
+        raise ValueError(
+            "Semantic judgment comparison requires primary full_workflow and Jev execution_only"
+        )
+    _require_primary_model_match(left, right)
+    _require_model_profile_match(left, right)
     if not left.plan_digest or left.plan_digest != right.plan_digest:
         raise ValueError("Semantic model comparisons require the same plan_digest")
     if not left.decision_input_digest or left.decision_input_digest != right.decision_input_digest:
@@ -379,6 +401,7 @@ def compare_semantic_judgment(left, right):
         left.trial.fingerprint,
         plan_digest=left.plan_digest,
         decision_input_digest=left.decision_input_digest,
+        evidence_scope="execution_only",
     )
 
 

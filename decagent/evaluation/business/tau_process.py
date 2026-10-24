@@ -22,7 +22,12 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from .manifest_hashing import task_inventory_sha256
-from .public_diagnostics import safe_exception_type, safe_failure_stage
+from .public_diagnostics import (
+    DIAGNOSTIC_CODES,
+    safe_diagnostic_code,
+    safe_exception_type,
+    safe_failure_stage,
+)
 
 MAX_FRAME = 4 * 1024 * 1024
 TAU_WORKER_FAILURE_STAGES = frozenset(
@@ -62,7 +67,14 @@ _SAFE_EXCEPTION_TYPE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}\Z")
 class TauBridgeError(RuntimeError):
     """The trial transport is unusable; a dispatched write may be unknown."""
 
-    def __init__(self, message, *, failure_stage=None, diagnostic_exception_type=None):
+    def __init__(
+        self,
+        message,
+        *,
+        failure_stage=None,
+        diagnostic_exception_type=None,
+        diagnostic_code=None,
+    ):
         super().__init__(message)
         self.failure_stage = (
             failure_stage
@@ -73,6 +85,11 @@ class TauBridgeError(RuntimeError):
             diagnostic_exception_type
             if type(diagnostic_exception_type) is str
             and _SAFE_EXCEPTION_TYPE.fullmatch(diagnostic_exception_type)
+            else None
+        )
+        self.diagnostic_code = (
+            diagnostic_code
+            if type(diagnostic_code) is str and diagnostic_code in DIAGNOSTIC_CODES
             else None
         )
 
@@ -259,6 +276,7 @@ class _StdioChannel:
                                 f"tau evaluator callback failed ({exception_type})",
                                 failure_stage=callback_stage,
                                 diagnostic_exception_type=exception_type,
+                                diagnostic_code=safe_diagnostic_code(exc),
                             ) from exc
                         if time.monotonic() >= deadline:
                             raise TauBridgeError("tau worker callback timed out")
@@ -309,6 +327,7 @@ class _StdioChannel:
                     f"tau {method} failed ({error_type}); no automatic replay",
                     failure_stage=error_stage,
                     diagnostic_exception_type=error_type,
+                    diagnostic_code=safe_diagnostic_code(exc),
                 ) from exc
 
     def close(self):

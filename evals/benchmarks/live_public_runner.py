@@ -10,11 +10,17 @@ from collections import Counter
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import asdict, is_dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from time import perf_counter
 
 from decagent.decisions.contracts import digest
-from decagent.evaluation.business.comparison import ComparisonTrial, PublicComparisonTrial
+from decagent.evaluation.business.comparison import (
+    ComparisonTrial,
+    PublicComparisonTrial,
+    Route,
+)
 from decagent.evaluation.business.enterprise_environment import (
     EnterpriseEnvironment,
     spec_from_pinned_row,
@@ -33,7 +39,12 @@ from decagent.evaluation.business.public_supervisor import (
 from decagent.evaluation.business.public_trials import (
     TERMINAL_ROUTE_STATUSES,
     PublicRunPlan,
+    canonical_public_trial_ledger_path,
     open_first_wave_public_trial_ledger,
+)
+from decagent.evaluation.business.public_weekly_budget import (
+    PUBLIC_EVALUATION_BUDGET_ID,
+    authorize_public_evaluation_phase,
 )
 from decagent.evaluation.business.routes import ControlledRoutes
 
@@ -111,8 +122,8 @@ def require_verified_candidate(root):
 
 def build_public_comparison_trial(plan, record, *, dataset_checksum, boundary_facts):
     """Bind measured environment facts to one exact row of the frozen first wave."""
-    if not isinstance(plan, PublicRunPlan) or plan.mode != "smoke":
-        raise ValueError("A frozen smoke public run plan is required")
+    if not isinstance(plan, PublicRunPlan) or plan.mode not in {"smoke", "pilot"}:
+        raise ValueError("A frozen smoke or pilot public run plan is required")
     if type(record) is not dict or type(boundary_facts) is not dict:
         raise ValueError("Frozen public cohort record and measured boundary are required")
     if set(boundary_facts) != _BOUNDARY_FIELDS:
@@ -136,9 +147,10 @@ def build_public_comparison_trial(plan, record, *, dataset_checksum, boundary_fa
     )
     if frozen is None or frozen != record:
         raise ValueError("Trial record does not belong to the frozen public cohort")
-    wave_ids = {item["trial_id"] for item in plan.initial_smoke_wave}
-    if frozen["trial_id"] not in wave_ids:
-        raise ValueError("Only a frozen first-wave trial can be dispatched")
+    if plan.mode == "smoke":
+        wave_ids = {item["trial_id"] for item in plan.initial_smoke_wave}
+        if frozen["trial_id"] not in wave_ids:
+            raise ValueError("Only a frozen first-wave trial can be dispatched")
     if not _PROFILE_FIELDS <= set(frozen) or any(
         frozen[name] != plan.profiles.digests[name] for name in _PROFILE_FIELDS
     ):
@@ -151,7 +163,11 @@ def build_public_comparison_trial(plan, record, *, dataset_checksum, boundary_fa
         dataset_version=frozen["version"],
         dataset_checksum=dataset_checksum,
         case_id=frozen["case_id"],
-        branch_kind="structured",
+        branch_kind=(
+            "semantic"
+            if frozen["benchmark"] == "enterpriseops-gym" and frozen["domain"] == "csm"
+            else "structured"
+        ),
         memory_mode="disabled",
         workflow_mode="cold",
         exposure_group=frozen["exposure_group"],
@@ -280,8 +296,8 @@ class FirstWaveRuntime:
     """Construct fresh, source-pinned benchmark sessions for each frozen task."""
 
     def __init__(self, plan, *, tau_python, journal_root):
-        if not isinstance(plan, PublicRunPlan) or plan.mode != "smoke":
-            raise ValueError("A frozen smoke plan is required")
+        if not isinstance(plan, PublicRunPlan) or plan.mode not in {"smoke", "pilot"}:
+            raise ValueError("A frozen smoke or pilot plan is required")
         if type(tau_python) is not str or not tau_python.strip():
             raise ValueError("A dedicated pinned τ Python 3.12 executable is required")
         self.plan = plan
@@ -305,20 +321,20 @@ class FirstWaveRuntime:
 
     def trial_factory(self, record):
         if type(record) is not dict or record.get("trial_id") not in {
-            item["trial_id"] for item in self.plan.initial_smoke_wave
+            item["trial_id"] for item in self.plan.trials
         }:
-            raise ValueError("Only fixed first-wave trial records are accepted")
+            raise ValueError("Trial record is outside the frozen public cohort")
         prepared = self._trials.get(record["trial_id"])
         if prepared is not None:
             if prepared[0] != record:
-                raise ValueError("Prepared first-wave trial differs from its frozen record")
+                raise ValueError("Prepared trial differs from its frozen record")
             return prepared[1]
         if record["benchmark"] == "enterpriseops-gym":
             trial = self._enterprise_trial(record)
         elif record["benchmark"] == "tau-bench":
             trial = self._tau_trial(record)
         else:
-            raise ValueError("Unknown first-wave benchmark")
+            raise ValueError("Unknown public benchmark")
         self._trials[record["trial_id"]] = (deepcopy(record), trial)
         return trial
 
@@ -346,8 +362,9 @@ class FirstWaveRuntime:
     def _tau_trial(self, record):
         runtime = self.tau_runtime
         domain, case_id, split = record["domain"], record["case_id"], record["split"]
-        if split != "train" or case_id not in runtime.case_ids(domain, split=split):
-            raise ValueError("τ first-wave case differs from the pinned smoke split")
+        expected_split = "test" if self.plan.mode == "pilot" else "train"
+        if split != expected_split or case_id not in runtime.case_ids(domain, split=split):
+            raise ValueError("τ case differs from the frozen benchmark split")
         task_input = {"instruction": _TAU_INSTRUCTION}
         from decagent.evaluation.business.tau_tools import TauMCPEnvironment
 
@@ -433,8 +450,12 @@ class FirstWaveRuntime:
 
 
 def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_dirty):
-    if not isinstance(plan, PublicRunPlan) or phase.phase != "first-wave":
-        raise ValueError("A first-wave phase receipt is required for reporting")
+    if (
+        not isinstance(plan, PublicRunPlan)
+        or phase.phase not in {"diagnostic", "first-wave", "pilot"}
+        or (phase.phase == "pilot" and plan.mode != "pilot")
+    ):
+        raise ValueError("A frozen live phase receipt is required for reporting")
     if getattr(ledger, "candidate_sha", None) != candidate_sha:
         raise ValueError("Live report candidate SHA differs from the canonical ledger")
     receipts = {
@@ -444,9 +465,12 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
     route_metrics = {}
     model_attempts = getattr(ledger, "model_attempts_snapshot", None)
     tool_attempts = getattr(ledger, "tool_attempts_snapshot", None)
-    for selected in plan.initial_smoke_wave:
+    selected_trials = (
+        plan.initial_smoke_wave if phase.phase == "first-wave" else plan.trials
+    )
+    for selected in selected_trials:
         trial_id = selected["trial_id"]
-        for route in plan.routes:
+        for route in plan.routes_for_trial(trial_id):
             key = trial_id + ":" + route
             route_metrics[key] = {
                 "trial_id": trial_id,
@@ -476,26 +500,103 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
     terminal_route_count = sum(
         route_status_counts.get(status, 0) for status in TERMINAL_ROUTE_STATUSES
     )
-    selected_route_slots = len(plan.initial_smoke_wave) * len(plan.routes)
+    not_applicable_route_count = route_status_counts.get("not_applicable", 0)
+    evaluated_route_count = max(0, terminal_route_count - not_applicable_route_count)
+    selected_route_slots = sum(
+        len(plan.routes_for_trial(item["trial_id"])) for item in selected_trials
+    )
+    semantic_pairing = None
+    if phase.phase == "pilot":
+        semantic_pair_records = []
+        for selected in selected_trials:
+            if selected.get("domain") != "csm":
+                continue
+            trial_id = selected["trial_id"]
+            jev_record = route_metrics.get(
+                trial_id + ":" + Route.PLAN_JEV_SEMANTIC.value
+            )
+            if jev_record is None:
+                continue
+            execution_receipt = jev_record.get("execution_receipt") or {}
+            lifecycle = jev_record.get("lifecycle") or {}
+            primary_record = route_metrics.get(
+                trial_id + ":" + Route.PLAN_PRIMARY_SEMANTIC.value, {}
+            )
+            primary_receipt = primary_record.get("execution_receipt") or {}
+            pair_status = execution_receipt.get("pair_status") or (
+                "not_applicable"
+                if lifecycle.get("status") == "not_applicable"
+                else "incomplete"
+            )
+            semantic_pair_records.append({
+                "trial_id": trial_id,
+                "case_id": selected.get("case_id"),
+                "status": pair_status,
+                "reason": execution_receipt.get("error_category")
+                or lifecycle.get("error_category"),
+                "primary_plan_digest": primary_receipt.get("plan_digest"),
+                "jev_plan_digest": execution_receipt.get("plan_digest"),
+                "primary_decision_input_digest": primary_receipt.get(
+                    "decision_input_digest"
+                ),
+                "jev_decision_input_digest": execution_receipt.get(
+                    "decision_input_digest"
+                ),
+                "primary_evidence_scope": primary_receipt.get("evidence_scope"),
+                "jev_evidence_scope": execution_receipt.get("evidence_scope"),
+            })
+        pair_status_counts = dict(
+            sorted(Counter(item["status"] for item in semantic_pair_records).items())
+        )
+        semantic_pairing = {
+            "scope": "execution_only",
+            "planned_cases": len(semantic_pair_records),
+            "paired_cases": pair_status_counts.get("paired", 0),
+            "not_applicable_cases": pair_status_counts.get("not_applicable", 0),
+            "mismatched_cases": pair_status_counts.get("mismatch", 0),
+            "incomplete_cases": pair_status_counts.get("incomplete", 0),
+            "status_counts": pair_status_counts,
+            "cases": semantic_pair_records,
+        }
     return {
-        "schema_version": "public-evaluation-live-first-wave-v4",
+        "schema_version": (
+            "public-evaluation-live-pilot-v2"
+            if phase.phase == "pilot"
+            else "public-evaluation-live-diagnostic-v1"
+            if phase.phase == "diagnostic"
+            else "public-evaluation-live-first-wave-v4"
+        ),
         "dry_run": False,
-        "phase": "first-wave",
+        "phase": phase.phase,
         "candidate_sha": candidate_sha,
+        "cohort_digest": plan.cohort_digest,
+        "evaluation_budget_id": PUBLIC_EVALUATION_BUDGET_ID,
         "working_tree_dirty": working_tree_dirty,
         "manifest_digest": plan.manifest_digest,
         "source_manifest_digest": plan.source_manifest_digest,
         "task_inventory_digest": plan.inventory_digest,
         "model_profiles_digest": plan.profiles.fingerprint,
         "task_denominator": len(plan.trials),
-        "selected_task_count": len(plan.initial_smoke_wave),
+        "selected_task_count": len(selected_trials),
         "selected_route_slots": selected_route_slots,
         "successful_route_count": successful_route_count,
         "terminal_route_count": terminal_route_count,
+        "evaluated_route_count": evaluated_route_count,
+        "not_applicable_route_count": not_applicable_route_count,
         "route_status_counts": route_status_counts,
         "completed_route_count": successful_route_count,
-        "route_success_rate": successful_route_count / selected_route_slots,
-        "route_denominator": len(plan.trials) * len(plan.routes),
+        "route_success_rate": (
+            successful_route_count / evaluated_route_count
+            if evaluated_route_count
+            else None
+        ),
+        "route_coverage_rate": (
+            evaluated_route_count / selected_route_slots
+            if selected_route_slots
+            else 0.0
+        ),
+        "semantic_pairing": semantic_pairing,
+        "route_denominator": plan.route_slot_count(),
         "routes": route_metrics,
         "skipped_routes": [list(item) for item in phase.skipped_routes],
         "batch": ledger.batch_snapshot(),
@@ -528,19 +629,196 @@ def write_live_report(root, target, report):
 
 def validate_live_report_target(root, target):
     root = Path(root).resolve()
-    evidence = (root / "evals/benchmarks/evidence").resolve()
+    evidence = root / ".decagent/evaluation/evidence"
     requested = Path(target)
     requested = (root / requested) if not requested.is_absolute() else requested
-    if requested.is_symlink():
-        raise ValueError("Live report target cannot be a symlink")
-    target = requested.resolve()
+    try:
+        relative = requested.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(
+            "Live evaluation reports must be inside the project state directory"
+        ) from exc
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("Live report target path cannot contain symlinks")
+    target = requested.resolve(strict=False)
     if not target.is_relative_to(evidence) or target.suffix.lower() != ".json":
-        raise ValueError("Live evaluation reports must be JSON under benchmark evidence")
-    if not target.parent.is_dir():
-        raise ValueError("Benchmark evidence directory must already exist")
+        raise ValueError("Live evaluation reports must be JSON under ignored .decagent evidence")
     if target.exists():
         raise FileExistsError("Live evaluation reports are immutable and cannot be overwritten")
+    target.parent.mkdir(parents=True, exist_ok=True)
     return target
+
+
+def execute_live_public_phase(
+    plan,
+    *,
+    settings,
+    tau_python,
+    journal_root,
+    candidate_sha,
+    working_tree_dirty,
+    phase="first-wave",
+    candidate_ci_verified=False,
+    diagnostic_evidence=None,
+):
+    """Run one frozen live phase under the canonical process and SQLite locks."""
+    from evals.benchmarks.pilot_gate import (
+        DIAGNOSTIC_BATCH_LIMITS,
+        DIAGNOSTIC_LIMITS,
+        DIAGNOSTIC_RESOURCE_LIMITS,
+        apply_remaining_pilot_budget,
+        evaluation_source_digest,
+        is_bounded_diagnostic_plan,
+        validate_diagnostic_evidence,
+    )
+
+    phase_name = phase
+    if candidate_ci_verified is not True:
+        raise ValueError("Live evaluation requires a CI-verified immutable candidate")
+    if phase_name == "first-wave":
+        raise ValueError("Unbounded historical first-wave dispatch is closed; use diagnostic")
+    if phase_name == "diagnostic":
+        if not is_bounded_diagnostic_plan(plan):
+            raise ValueError("Diagnostic dispatch requires the approved bounded cohort")
+        diagnostic_gate = None
+    elif phase_name == "pilot":
+        if candidate_ci_verified is not True or not diagnostic_evidence:
+            raise ValueError(
+                "Pilot dispatch requires a CI-verified candidate and diagnostic evidence"
+            )
+        diagnostic_gate = validate_diagnostic_evidence(
+            plan.root,
+            diagnostic_evidence,
+            candidate_sha=candidate_sha,
+            model_profiles_digest=plan.profiles.fingerprint,
+            expected_source_digest=evaluation_source_digest(plan.root),
+            expected_source_manifest_digest=plan.source_manifest_digest,
+            expected_inventory_digest=plan.inventory_digest,
+        )
+        if (
+            plan.diagnostic_evidence_sha256 != diagnostic_gate["report_sha256"]
+            or plan.diagnostic_candidate_sha != candidate_sha
+            or diagnostic_gate["candidate_sha"] != candidate_sha
+        ):
+            raise ValueError("Pilot diagnostic evidence differs from the frozen candidate")
+        plan = apply_remaining_pilot_budget(plan, diagnostic_gate)
+    else:
+        raise ValueError("Live runner phase is not registered")
+    if phase_name == "pilot" and plan.mode != "pilot":
+        raise ValueError("Pilot dispatch requires the frozen pilot plan")
+
+    from decagent.evaluation.business.public_models import (
+        public_first_wave_model_adapter_factory,
+    )
+
+    batch_started_at = datetime.now(UTC)
+    started = perf_counter()
+    with PublicSupervisor(canonical_public_supervisor_lock_path(plan.root)) as supervisor:
+        ledger_path = canonical_public_trial_ledger_path(
+            plan.root,
+            cohort_digest=plan.cohort_digest,
+            candidate_sha=candidate_sha,
+        )
+        authorize_public_evaluation_phase(
+            plan.root,
+            phase=phase_name,
+            candidate_sha=candidate_sha,
+            cohort_digest=plan.cohort_digest,
+            ledger_path=ledger_path,
+            diagnostic_report_sha256=(
+                diagnostic_gate["report_sha256"] if diagnostic_gate is not None else None
+            ),
+        )
+        ledger = open_first_wave_public_trial_ledger(
+            plan.root,
+            plan,
+            supervisor=supervisor,
+            candidate_sha=candidate_sha,
+            batch_started_at=batch_started_at,
+        )
+        try:
+            runtime = FirstWaveRuntime(
+                plan, tau_python=tau_python, journal_root=journal_root
+            )
+            trials_by_id = {record["trial_id"]: record for record in plan.trials}
+            selected_trials = (
+                plan.initial_smoke_wave if phase_name == "first-wave" else plan.trials
+            )
+            prepared = {
+                selection["trial_id"]: runtime.trial_factory(
+                    trials_by_id[selection["trial_id"]]
+                )
+                for selection in selected_trials
+            }
+            if len(prepared) != len(selected_trials):
+                raise ValueError(
+                    "Every frozen live-phase environment must preflight successfully"
+                )
+            model_adapter_factory = public_first_wave_model_adapter_factory(
+                settings,
+                ledger,
+                plan.profiles,
+                trial_id_for=lambda trial: trial.trial_id,
+                include_jev_semantic_callback=phase_name == "pilot",
+                include_primary_semantic_callback=phase_name == "pilot",
+            )
+            routes = ControlledRoutes(
+                runtime.environment_factory,
+                max_plan_control_steps=32,
+                max_react_turns=plan.resource_limits["agent_model_requests"],
+                max_tau_steps=plan.resource_limits["tau_steps"],
+            )
+            phase_receipt = execute_public_phase(
+                root=plan.root,
+                supervisor=supervisor,
+                ledger=ledger,
+                controlled_routes=routes,
+                phase=phase_name,
+                max_machine_seconds=plan.resource_limits["agent_machine_seconds"],
+                trial_factory=lambda record: prepared[record["trial_id"]],
+                route_kwargs_factory=lambda trial, route: runtime.route_kwargs_factory(
+                    model_adapter_factory, trial, route
+                ),
+            )
+            report = live_first_wave_report(
+                plan,
+                phase_receipt,
+                ledger,
+                candidate_sha=candidate_sha,
+                working_tree_dirty=working_tree_dirty,
+            )
+            if phase_name == "diagnostic":
+                report["diagnostic_limits"] = dict(DIAGNOSTIC_LIMITS)
+                report["diagnostic_batch_limits"] = dict(DIAGNOSTIC_BATCH_LIMITS)
+                report["diagnostic_resource_limits"] = dict(DIAGNOSTIC_RESOURCE_LIMITS)
+                report["evaluation_source_digest"] = evaluation_source_digest(plan.root)
+                report["diagnostic_elapsed_seconds"] = max(0.0, perf_counter() - started)
+                report["diagnostic_task_records"] = [
+                    {
+                        key: record[key]
+                        for key in (
+                            "trial_id",
+                            "benchmark",
+                            "domain",
+                            "split",
+                            "case_id",
+                            "version",
+                        )
+                    }
+                    for record in plan.trials
+                ]
+            report["candidate_ci_verified"] = candidate_ci_verified
+            if diagnostic_gate is not None:
+                report["diagnostic_gate"] = diagnostic_gate
+                report["diagnostic_gate"]["remaining_pilot_batch_limits"] = dict(
+                    plan.batch_limits
+                )
+            return phase_receipt, report
+        finally:
+            ledger.close()
 
 
 def execute_live_first_wave(
@@ -551,58 +829,18 @@ def execute_live_first_wave(
     journal_root,
     candidate_sha,
     working_tree_dirty,
+    candidate_ci_verified=False,
 ):
-    """Run only the frozen first wave under the canonical process and SQLite locks."""
-    from decagent.evaluation.business.public_models import (
-        public_first_wave_model_adapter_factory,
-    )
+    """Compatibility wrapper that now executes only the bounded diagnostic cohort."""
+    from evals.benchmarks.pilot_gate import build_bounded_diagnostic_plan
 
-    runtime = FirstWaveRuntime(plan, tau_python=tau_python, journal_root=journal_root)
-    trials_by_id = {record["trial_id"]: record for record in plan.trials}
-    prepared = {
-        selection["trial_id"]: runtime.trial_factory(
-            trials_by_id[selection["trial_id"]]
-        )
-        for selection in plan.initial_smoke_wave
-    }
-    if len(prepared) != 4:
-        raise ValueError("All four fixed first-wave environments must preflight successfully")
-    with PublicSupervisor(canonical_public_supervisor_lock_path(plan.root)) as supervisor:
-        ledger = open_first_wave_public_trial_ledger(
-            plan.root, plan, supervisor=supervisor, candidate_sha=candidate_sha
-        )
-        try:
-            model_adapter_factory = public_first_wave_model_adapter_factory(
-                settings,
-                ledger,
-                plan.profiles,
-                trial_id_for=lambda trial: trial.trial_id,
-            )
-            routes = ControlledRoutes(
-                runtime.environment_factory,
-                max_plan_control_steps=32,
-                max_react_turns=plan.resource_limits["agent_model_requests"],
-                max_tau_steps=plan.resource_limits["tau_steps"],
-            )
-            phase = execute_public_phase(
-                root=plan.root,
-                supervisor=supervisor,
-                ledger=ledger,
-                controlled_routes=routes,
-                phase="first-wave",
-                max_machine_seconds=plan.resource_limits["agent_machine_seconds"],
-                trial_factory=lambda record: prepared[record["trial_id"]],
-                route_kwargs_factory=lambda trial, route: runtime.route_kwargs_factory(
-                    model_adapter_factory, trial, route
-                ),
-            )
-            report = live_first_wave_report(
-                plan,
-                phase,
-                ledger,
-                candidate_sha=candidate_sha,
-                working_tree_dirty=working_tree_dirty,
-            )
-            return phase, report
-        finally:
-            ledger.close()
+    return execute_live_public_phase(
+        build_bounded_diagnostic_plan(plan),
+        settings=settings,
+        tau_python=tau_python,
+        journal_root=journal_root,
+        candidate_sha=candidate_sha,
+        working_tree_dirty=working_tree_dirty,
+        phase="diagnostic",
+        candidate_ci_verified=candidate_ci_verified,
+    )

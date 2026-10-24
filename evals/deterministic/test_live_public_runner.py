@@ -8,10 +8,30 @@ import pytest
 
 from decagent.decisions.contracts import digest
 from decagent.evaluation.business.comparison import PublicComparisonTrial
-from decagent.evaluation.business.public_execution import _trial_matches_record
+from decagent.evaluation.business.public_execution import (
+    PublicRouteReceipt,
+    _trial_matches_record,
+)
 from decagent.evaluation.business.public_trials import load_public_run_plan
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_live_report_target_uses_ignored_state_and_rejects_tracked_evidence(tmp_path):
+    from evals.benchmarks.live_public_runner import validate_live_report_target
+
+    target = validate_live_report_target(
+        tmp_path,
+        ".decagent/evaluation/evidence/diagnostic.json",
+    )
+
+    assert target.is_relative_to(tmp_path / ".decagent/evaluation/evidence")
+    assert target.parent.is_dir()
+    with pytest.raises(ValueError, match="ignored .decagent"):
+        validate_live_report_target(
+            tmp_path,
+            "evals/benchmarks/evidence/diagnostic.json",
+        )
 
 
 def test_live_settings_loader_uses_only_the_selected_project_dotenv(monkeypatch, tmp_path):
@@ -64,7 +84,7 @@ def test_build_public_trial_binds_environment_fingerprints_and_frozen_cohort():
 
     assert isinstance(trial, PublicComparisonTrial)
     assert trial.trial_id == record["trial_id"]
-    assert trial.branch_kind == "structured"
+    assert trial.branch_kind == "semantic"
     assert trial.memory_mode == "disabled" and trial.workflow_mode == "cold"
     assert trial.initial_state_digest == boundary["initial_state_digest"]
     assert trial.goal_digest == boundary["goal_digest"]
@@ -184,11 +204,11 @@ def test_live_cli_requires_fixed_first_wave_and_report_before_candidate_gate(
     with pytest.raises(SystemExit) as no_phase:
         run_public_trials.main(["--root", str(tmp_path), "--execute"])
     assert no_phase.value.code == 2
-    assert "--phase first-wave" in capsys.readouterr().err
+    assert "--phase diagnostic" in capsys.readouterr().err
 
     with pytest.raises(SystemExit) as no_report:
         run_public_trials.main(
-            ["--root", str(tmp_path), "--execute", "--phase", "first-wave"]
+            ["--root", str(tmp_path), "--execute", "--phase", "diagnostic"]
         )
     assert no_report.value.code == 2
     assert "--report" in capsys.readouterr().err
@@ -196,7 +216,7 @@ def test_live_cli_requires_fixed_first_wave_and_report_before_candidate_gate(
     with pytest.raises(SystemExit) as alternate_state:
         run_public_trials.main(
             [
-                "--root", str(tmp_path), "--execute", "--phase", "first-wave",
+                "--root", str(tmp_path), "--execute", "--phase", "diagnostic",
                 "--report", "evals/benchmarks/evidence/new.json",
                 "--state", str(tmp_path / "alternate.sqlite3"),
             ]
@@ -213,11 +233,12 @@ def test_live_cli_requires_images_readiness_runtime_and_credentials_before_dispa
 
     from evals.benchmarks import live_public_runner, run_public_trials
 
-    evidence = tmp_path / "evals" / "benchmarks" / "evidence"
+    evidence = tmp_path / ".decagent" / "evaluation" / "evidence"
     evidence.mkdir(parents=True)
     tau_python = tmp_path / "tau-python.exe"
     tau_python.write_bytes(b"test executable placeholder")
     calls = []
+    finalized = []
 
     monkeypatch.setattr(live_public_runner, "require_verified_candidate", lambda _root: "a" * 40)
     monkeypatch.setattr(
@@ -229,21 +250,34 @@ def test_live_cli_requires_images_readiness_runtime_and_credentials_before_dispa
         calls.append(("plan", kwargs))
         return object()
 
+    def bounded_plan(plan):
+        calls.append(("bounded", plan))
+        return plan
+
     def execute(plan, **kwargs):
         calls.append(("execute", kwargs))
         return SimpleNamespace(), {
             "dry_run": False,
-            "phase": "first-wave",
+            "phase": "diagnostic",
+            "candidate_sha": "a" * 40,
+            "cohort_digest": "c" * 64,
+            "evaluation_budget_id": "sop-pilot-20261024-v1",
             "actual_cost_usd": Decimal("0.00001"),
         }
 
     monkeypatch.setattr(run_public_trials, "load_public_run_plan", load_plan)
-    monkeypatch.setattr(live_public_runner, "execute_live_first_wave", execute)
+    monkeypatch.setattr(run_public_trials, "build_bounded_diagnostic_plan", bounded_plan)
+    monkeypatch.setattr(live_public_runner, "execute_live_public_phase", execute)
+    monkeypatch.setattr(
+        run_public_trials,
+        "complete_public_evaluation_phase",
+        lambda *args, **kwargs: finalized.append((args, kwargs)),
+    )
 
-    report = Path("evals/benchmarks/evidence/first-wave.json")
+    report = Path(".decagent/evaluation/evidence/diagnostic.json")
     assert run_public_trials.main(
         [
-            "--root", str(tmp_path), "--execute", "--phase", "first-wave",
+            "--root", str(tmp_path), "--execute", "--phase", "diagnostic",
             "--mode", "smoke", "--tau-python", str(tau_python), "--report", str(report),
         ]
     ) == 0
@@ -252,15 +286,53 @@ def test_live_cli_requires_images_readiness_runtime_and_credentials_before_dispa
     assert calls[0][1]["check_images"] is True
     assert calls[0][1]["check_runtime"] is True
     assert calls[0][1]["check_source_files"] is True
-    assert calls[1][0] == "execute"
-    assert calls[1][1]["candidate_sha"] == "a" * 40
+    assert calls[1][0] == "bounded"
+    assert calls[2][0] == "execute"
+    assert calls[2][1]["candidate_sha"] == "a" * 40
+    assert calls[2][1]["phase"] == "diagnostic"
+    assert calls[2][1]["candidate_ci_verified"] is True
+    assert finalized[0][1]["phase"] == "diagnostic"
+    assert finalized[0][1]["candidate_sha"] == "a" * 40
     assert json.loads((tmp_path / report).read_text(encoding="utf-8"))["dry_run"] is False
     output = capsys.readouterr()
     assert json.loads(output.out)["actual_cost_usd"] == "0.00001"
-    assert "first-wave.json" in output.err
+    assert "diagnostic.json" in output.err
+
+
+def test_live_pilot_requires_diagnostic_evidence_before_loading_any_model_or_tools(
+    monkeypatch, tmp_path, capsys
+):
+    from evals.benchmarks import live_public_runner, run_public_trials
+
+    calls = []
+    monkeypatch.setattr(
+        live_public_runner,
+        "require_verified_candidate",
+        lambda _root: calls.append("candidate") or "a" * 40,
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        run_public_trials.main(
+            [
+                "--root",
+                str(tmp_path),
+                "--execute",
+                "--phase",
+                "pilot",
+                "--mode",
+                "pilot",
+                "--report",
+                "evals/benchmarks/evidence/pilot.json",
+            ]
+        )
+
+    assert raised.value.code == 2
+    assert calls == []
+    assert "--diagnostic-evidence" in capsys.readouterr().err
 
 
 def test_live_runner_preflights_all_four_environments_before_opening_ledger(monkeypatch):
+    from datetime import UTC, datetime
     from types import SimpleNamespace
 
     from decagent.evaluation.business.public_trials import load_public_run_plan
@@ -274,6 +346,7 @@ def test_live_runner_preflights_all_four_environments_before_opening_ledger(monk
         check_source_files=False,
     )
     events = []
+    ledger_kwargs = {}
 
     class Runtime:
         def __init__(self, *_args, **_kwargs):
@@ -299,6 +372,11 @@ def test_live_runner_preflights_all_four_environments_before_opening_ledger(monk
 
     ledger = SimpleNamespace(close=lambda: events.append(("close-ledger",)))
     monkeypatch.setattr(live_public_runner, "FirstWaveRuntime", Runtime)
+    monkeypatch.setattr(
+        live_public_runner,
+        "authorize_public_evaluation_phase",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(live_public_runner, "PublicSupervisor", Supervisor)
     monkeypatch.setattr(
         live_public_runner, "canonical_public_supervisor_lock_path", lambda _root: "lock"
@@ -306,7 +384,9 @@ def test_live_runner_preflights_all_four_environments_before_opening_ledger(monk
     monkeypatch.setattr(
         live_public_runner,
         "open_first_wave_public_trial_ledger",
-        lambda *_args, **_kwargs: events.append(("ledger",)) or ledger,
+        lambda *_args, **kwargs: events.append(("ledger",))
+        or ledger_kwargs.update(kwargs)
+        or ledger,
     )
     monkeypatch.setattr(
         "decagent.evaluation.business.public_models.public_first_wave_model_adapter_factory",
@@ -330,12 +410,117 @@ def test_live_runner_preflights_all_four_environments_before_opening_ledger(monk
         journal_root=ROOT / ".decagent/test-journal",
         candidate_sha="a" * 40,
         working_tree_dirty=False,
+        candidate_ci_verified=True,
     )
 
-    assert [event[0] for event in events[:4]] == ["preflight"] * 4
-    assert [event[0] for event in events[4:]] == [
-        "lock", "ledger", "execute", "close-ledger", "unlock"
+    assert [event[0] for event in events] == [
+        "lock",
+        "ledger",
+        "preflight",
+        "preflight",
+        "preflight",
+        "preflight",
+        "execute",
+        "close-ledger",
+        "unlock",
     ]
+    assert isinstance(ledger_kwargs["batch_started_at"], datetime)
+    assert ledger_kwargs["batch_started_at"].tzinfo is UTC
+
+
+def test_diagnostic_report_includes_the_bounded_phase_evidence(monkeypatch):
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+    from evals.benchmarks import live_public_runner
+    from evals.benchmarks.pilot_gate import build_bounded_diagnostic_plan
+
+    base = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    plan = build_bounded_diagnostic_plan(base)
+
+    class Runtime:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def trial_factory(self, record):
+            return record["trial_id"]
+
+        def route_kwargs_factory(self, *_args):
+            return {}
+
+        def environment_factory(self, *_args):
+            return None
+
+    class Supervisor:
+        def __init__(self, *_args):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    ledger = SimpleNamespace(candidate_sha="a" * 40, close=lambda: None)
+    monkeypatch.setattr(live_public_runner, "FirstWaveRuntime", Runtime)
+    monkeypatch.setattr(
+        live_public_runner,
+        "authorize_public_evaluation_phase",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(live_public_runner, "PublicSupervisor", Supervisor)
+    monkeypatch.setattr(
+        live_public_runner,
+        "canonical_public_supervisor_lock_path",
+        lambda _root: "lock",
+    )
+    monkeypatch.setattr(
+        live_public_runner,
+        "open_first_wave_public_trial_ledger",
+        lambda *_args, **_kwargs: ledger,
+    )
+    monkeypatch.setattr(
+        "decagent.evaluation.business.public_models.public_first_wave_model_adapter_factory",
+        lambda *_args, **_kwargs: SimpleNamespace(ledger=ledger),
+    )
+    monkeypatch.setattr(
+        live_public_runner,
+        "ControlledRoutes",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        live_public_runner,
+        "execute_public_phase",
+        lambda **_kwargs: SimpleNamespace(
+            phase="diagnostic", executed_routes=(), skipped_routes=()
+        ),
+    )
+    monkeypatch.setattr(
+        live_public_runner,
+        "live_first_wave_report",
+        lambda _plan, phase, *_args, **_kwargs: {"phase": phase.phase},
+    )
+
+    _, report = live_public_runner.execute_live_public_phase(
+        plan,
+        settings=object(),
+        tau_python="unused.exe",
+        journal_root=ROOT / ".decagent/test-journal",
+        candidate_sha="a" * 40,
+        working_tree_dirty=False,
+        phase="diagnostic",
+        candidate_ci_verified=True,
+    )
+
+    assert report["phase"] == "diagnostic"
+    assert report["diagnostic_limits"]["max_qwen_requests"] == 6
+    assert report["diagnostic_batch_limits"]["qwen_cost_cny"] == "13.50"
+    assert report["evaluation_source_digest"]
+    assert len(report["diagnostic_task_records"]) == 4
 
 
 def test_live_report_contains_only_whitelisted_attempt_diagnostics():
@@ -426,6 +611,10 @@ def test_live_report_contains_only_whitelisted_attempt_diagnostics():
     assert route_record["model_attempts"][0]["exception_type"] == "TimeoutError"
     assert route_record["tool_attempts"] == []
     assert "PRIVATE RESPONSE BODY" not in repr(report)
+    assert report["evaluated_route_count"] == 8
+    assert report["not_applicable_route_count"] == 0
+    assert report["route_coverage_rate"] == 1.0
+    assert report["semantic_pairing"] is None
 
     with pytest.raises(ValueError, match="candidate SHA differs"):
         live_first_wave_report(
@@ -435,3 +624,96 @@ def test_live_report_contains_only_whitelisted_attempt_diagnostics():
             candidate_sha="b" * 40,
             working_tree_dirty=False,
         )
+
+
+def test_pilot_report_separates_semantic_pairs_and_natural_not_applicable_routes(tmp_path):
+    from evals.benchmarks.live_public_runner import live_first_wave_report
+    from evals.benchmarks.pilot_manifest import build_pilot_manifest, load_public_pilot_plan
+
+    base_path = ROOT / "evals/benchmarks/manifests/comparison_trial_manifest_v10.json"
+    base = json.loads(base_path.read_text(encoding="utf-8"))
+    frozen = build_pilot_manifest(base)
+    manifest_path = tmp_path / "pilot.json"
+    manifest_path.write_text(json.dumps(frozen), encoding="utf-8")
+    plan = load_public_pilot_plan(
+        ROOT,
+        pilot_manifest_path=manifest_path,
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    first_csm = next(item for item in plan.trials if item["domain"] == "csm")
+    n_a_receipt = PublicRouteReceipt(
+        trial_id=first_csm["trial_id"],
+        route="plan_jev_semantic_mcp",
+        status="not_applicable",
+        score_status="not_applicable",
+        cleanup_verified=True,
+        result_digest="a" * 64,
+        score_digest=None,
+        machine_seconds=0.0,
+        error_category="semantic_decision_not_observed",
+        pair_status="not_applicable",
+    )
+
+    class Ledger:
+        candidate_sha = "a" * 40
+
+        def route_lifecycle(self, trial_id, route):
+            not_applicable = (
+                trial_id == first_csm["trial_id"]
+                and route == "plan_jev_semantic_mcp"
+            )
+            return {
+                "status": "not_applicable" if not_applicable else "unknown",
+                "error_category": (
+                    "semantic_decision_not_observed" if not_applicable else None
+                ),
+                "failure_stage": None,
+                "exception_type": None,
+                "score_status": "not_applicable" if not_applicable else "unknown",
+                "cleanup_status": "verified" if not_applicable else "unknown",
+            }
+
+        def usage_snapshot(self, *_args):
+            return {}
+
+        def resource_snapshot(self, *_args):
+            return {}
+
+        def billing_snapshot(self, *_args):
+            return {"settled_attempts": 0, "cost_by_currency": {}, "cost_records": []}
+
+        def model_attempts_snapshot(self, *_args):
+            return []
+
+        def tool_attempts_snapshot(self, *_args):
+            return []
+
+        def batch_snapshot(self):
+            return {}
+
+        def status_snapshot(self):
+            return {}
+
+    report = live_first_wave_report(
+        plan,
+        SimpleNamespace(
+            phase="pilot",
+            executed_routes=(n_a_receipt,),
+            skipped_routes=(),
+        ),
+        Ledger(),
+        candidate_sha="a" * 40,
+        working_tree_dirty=False,
+    )
+
+    assert report["schema_version"] == "public-evaluation-live-pilot-v2"
+    assert report["not_applicable_route_count"] == 1
+    assert report["evaluated_route_count"] == 67
+    assert report["route_coverage_rate"] == 67 / 68
+    pairing = report["semantic_pairing"]
+    assert pairing["scope"] == "execution_only"
+    assert pairing["planned_cases"] == 10
+    assert pairing["not_applicable_cases"] == 1
+    assert pairing["incomplete_cases"] == 9

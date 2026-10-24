@@ -310,13 +310,16 @@ def test_transport_failure_identifies_method_and_cause_type_without_payload(tmp_
     )
 
     def fail(_event, *, timeout_seconds):
-        raise ValueError("private context must not be copied to diagnostics")
+        error = ValueError("private context must not be copied to diagnostics")
+        error.diagnostic_code = "malformed_response"
+        raise error
 
     with channel(script) as client:
         with pytest.raises(module.TauBridgeError) as failure:
             client.request("simulate_user_turn", {}, on_callback=fail)
     assert "simulate_user_turn" in str(failure.value)
     assert "ValueError" in str(failure.value)
+    assert failure.value.diagnostic_code == "malformed_response"
     assert "private context" not in str(failure.value)
     assert failure.value.failure_stage == "tau_worker_user_model_callback"
     assert failure.value.diagnostic_exception_type == "ValueError"

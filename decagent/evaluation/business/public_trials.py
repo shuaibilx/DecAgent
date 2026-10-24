@@ -158,6 +158,44 @@ class PublicRunPlan:
     resource_limits: dict
     batch_limits: dict
     jev_semantic_status: str
+    route_schedule: tuple[tuple[str, str], ...] | None = None
+    diagnostic_evidence_sha256: str | None = None
+    diagnostic_candidate_sha: str | None = None
+
+    def __post_init__(self):
+        if self.route_schedule is None:
+            return
+        trial_ids = {item.get("trial_id") for item in self.trials}
+        scheduled_ids, scheduled_routes, seen = set(), set(), set()
+        for item in self.route_schedule:
+            if (
+                type(item) is not tuple
+                or len(item) != 2
+                or type(item[0]) is not str
+                or type(item[1]) is not str
+                or item[0] not in trial_ids
+                or item[1] not in self.routes
+                or item in seen
+            ):
+                raise ValueError("Frozen per-trial route schedule is invalid")
+            seen.add(item)
+            scheduled_ids.add(item[0])
+            scheduled_routes.add(item[1])
+        if scheduled_ids != trial_ids or scheduled_routes != set(self.routes):
+            raise ValueError("Frozen per-trial route schedule is incomplete")
+
+    def routes_for_trial(self, trial_id):
+        if self.route_schedule is None:
+            return self.routes
+        return tuple(
+            route
+            for selected_id, route in self.route_schedule
+            if selected_id == trial_id
+        )
+
+    def route_slot_count(self, trials=None):
+        selected = self.trials if trials is None else trials
+        return sum(len(self.routes_for_trial(item["trial_id"])) for item in selected)
 
     @property
     def cohort_digest(self):
@@ -170,8 +208,11 @@ class PublicRunPlan:
                 "inventory": self.inventory_digest,
                 "profiles": self.profiles.fingerprint,
                 "routes": self.routes,
+                "route_schedule": self.route_schedule,
                 "resource_limits": self.resource_limits,
                 "batch_limits": self.batch_limits,
+                "diagnostic_evidence_sha256": self.diagnostic_evidence_sha256,
+                "diagnostic_candidate_sha": self.diagnostic_candidate_sha,
             }
         )
 
@@ -226,15 +267,15 @@ def validate_public_trial_ledger_path(
 
 
 def open_first_wave_public_trial_ledger(
-    root, plan, *, supervisor, candidate_sha, lease_seconds=60
+    root, plan, *, supervisor, candidate_sha, batch_started_at=None, lease_seconds=60
 ):
     """Open the sole first-wave ledger while holding the process-lifetime lock."""
     from .ledger import open_existing_global_jev_ledger
     from .public_supervisor import PublicSupervisor
 
     project_root = Path(root).resolve()
-    if not isinstance(plan, PublicRunPlan) or plan.mode != "smoke":
-        raise ValueError("Only the frozen smoke cohort can enter the first-wave phase")
+    if not isinstance(plan, PublicRunPlan) or plan.mode not in {"smoke", "pilot"}:
+        raise ValueError("Only a frozen smoke or pilot cohort can enter live execution")
     if Path(plan.root).resolve() != project_root:
         raise ValueError("Public run plan root does not match the canonical ledger root")
     if (
@@ -272,6 +313,7 @@ def open_first_wave_public_trial_ledger(
             path,
             plan,
             global_jev_ledger=global_jev_ledger,
+            batch_started_at=batch_started_at,
             lease_seconds=lease_seconds,
         )
     try:
@@ -592,13 +634,21 @@ def load_public_run_plan(
 def _trials_for_phase(plan, phase):
     if phase is None:
         phase = plan.mode
-    if phase not in {"first-wave", "remaining-smoke", "full", "smoke"}:
+    if phase not in {
+        "diagnostic", "first-wave", "remaining-smoke", "full", "smoke", "pilot"
+    }:
         raise ValueError("Public evaluation phase is not registered")
-    if phase in {"first-wave", "remaining-smoke", "smoke"} and plan.mode != "smoke":
+    if phase == "pilot":
+        if plan.mode != "pilot" or plan.route_schedule is None:
+            raise ValueError("A frozen per-trial public pilot schedule is required")
+        return phase, plan.trials
+    if phase in {
+        "diagnostic", "first-wave", "remaining-smoke", "smoke"
+    } and plan.mode != "smoke":
         raise ValueError("Public evaluation phase is incompatible with this cohort mode")
     if phase == "full" and plan.mode != "full":
         raise ValueError("Public evaluation phase is incompatible with this cohort mode")
-    if phase == "first-wave":
+    if phase in {"diagnostic", "first-wave"}:
         by_id = {item["trial_id"]: item for item in plan.trials}
         selected = tuple(
             by_id[item["trial_id"]]
@@ -632,17 +682,30 @@ def build_dry_run_report(plan, *, phase=None):
         "model_profiles_digest": plan.profiles.fingerprint,
         "task_denominator": len(plan.trials),
         "route_pair": list(plan.routes),
-        "route_attempt_slots": len(plan.trials) * len(plan.routes),
+        "route_schedule": (
+            [list(item) for item in plan.route_schedule]
+            if plan.route_schedule is not None
+            else None
+        ),
+        "route_attempt_slots": plan.route_slot_count(),
         "selected_task_count": len(selected),
-        "selected_route_attempt_slots": len(selected) * len(plan.routes),
+        "selected_route_attempt_slots": plan.route_slot_count(selected),
         "selected_by_benchmark": counts,
         "selected_trial_ids": [trial["trial_id"] for trial in selected],
         "initial_wave_task_count": len(plan.initial_smoke_wave),
-        "initial_wave_route_attempt_slots": len(plan.initial_smoke_wave) * len(plan.routes),
+        "initial_wave_route_attempt_slots": plan.route_slot_count(
+            tuple(
+                item
+                for item in plan.trials
+                if item["trial_id"] in {wave["trial_id"] for wave in plan.initial_smoke_wave}
+            )
+        ),
         "initial_smoke_wave": list(plan.initial_smoke_wave),
         "by_benchmark": counts,
         "resource_limits": plan.resource_limits,
         "batch_limits": plan.batch_limits,
+        "diagnostic_evidence_sha256": plan.diagnostic_evidence_sha256,
+        "diagnostic_candidate_sha": plan.diagnostic_candidate_sha,
         "jev_semantic_status": plan.jev_semantic_status,
         "live_model_calls": 0,
         "mcp_calls": 0,
@@ -671,12 +734,30 @@ class PublicTrialLedger:
         self._heartbeat_thread.start()
 
     @classmethod
-    def create(cls, path, plan, *, global_jev_ledger=None, lease_seconds=60):
+    def create(
+        cls,
+        path,
+        plan,
+        *,
+        global_jev_ledger=None,
+        batch_started_at=None,
+        lease_seconds=60,
+    ):
         if not isinstance(plan, PublicRunPlan):
             raise TypeError("A validated public run plan is required")
         _validate_lease_seconds(lease_seconds)
         if global_jev_ledger is not None and not isinstance(global_jev_ledger, GlobalJevLedger):
             raise TypeError("A shared GlobalJevLedger is required when one is supplied")
+        if batch_started_at is None:
+            batch_started_at = datetime.now(UTC)
+        elif (
+            type(batch_started_at) is not datetime
+            or batch_started_at.tzinfo is None
+            or batch_started_at.utcoffset() != timedelta(0)
+        ):
+            raise ValueError("Public batch start time must be timezone-aware UTC")
+        else:
+            batch_started_at = batch_started_at.astimezone(UTC)
         target = Path(path)
         if target.is_symlink():
             raise ValueError("Public evaluation ledger must be a regular file")
@@ -819,7 +900,7 @@ class PublicTrialLedger:
                 "VALUES(?,?,?,?)",
                 (_LEASE_NAME, owner_id, generation, _lease_expiry(lease_seconds)),
             )
-            batch_started = datetime.now(UTC)
+            batch_started = batch_started_at
             batch_deadline = batch_started + timedelta(
                 seconds=plan.batch_limits["wall_seconds"]
             )
@@ -831,7 +912,7 @@ class PublicTrialLedger:
             now = batch_started.isoformat()
             rows = []
             for trial in plan.trials:
-                for route in plan.routes:
+                for route in plan.routes_for_trial(trial["trial_id"]):
                     rows.append(
                         (
                             trial["trial_id"],
@@ -1092,7 +1173,9 @@ class PublicTrialLedger:
         pending = {"reserved", "dispatched", "unknown"}
         qwen_roles = {"primary", "user_simulator", "judge"}
         rows = self._connection.execute(
-            "SELECT role,status,actual_input_tokens,actual_output_tokens,reserved_tokens "
+            "SELECT role,status,provider,actual_input_tokens,actual_output_tokens,"
+            "reserved_tokens,actual_cost_amount,actual_cost_currency,"
+            "reserved_cost_amount,reserved_cost_currency "
             "FROM model_attempts"
         ).fetchall()
         by_role = {}
@@ -1120,6 +1203,33 @@ class PublicTrialLedger:
         tool_rows = self._connection.execute(
             "SELECT status FROM tool_attempts"
         ).fetchall()
+        qwen_actual_cost = Decimal(0)
+        qwen_reserved_cost = Decimal(0)
+        qwen_cost_unknown = 0
+        for row in rows:
+            if row["role"] not in qwen_roles or row["provider"].lower() not in {
+                "qwen", "dashscope"
+            }:
+                continue
+            if row["status"] in pending:
+                if row["reserved_cost_currency"] == "CNY" and row[
+                    "reserved_cost_amount"
+                ] is not None:
+                    qwen_reserved_cost += Decimal(row["reserved_cost_amount"])
+                else:
+                    qwen_cost_unknown += 1
+            elif row["status"] in {"settled", "settled_overrun"}:
+                if row["actual_cost_currency"] == "CNY" and row[
+                    "actual_cost_amount"
+                ] is not None:
+                    qwen_actual_cost += Decimal(row["actual_cost_amount"])
+                else:
+                    qwen_cost_unknown += 1
+        qwen_cost = (
+            qwen_actual_cost + qwen_reserved_cost
+            if qwen_cost_unknown == 0
+            else None
+        )
         return {
             "qwen_requests": sum(by_role[role]["requests"] for role in qwen_roles),
             "qwen_tokens": sum(by_role[role]["tokens"] for role in qwen_roles),
@@ -1129,6 +1239,10 @@ class PublicTrialLedger:
             "qwen_reserved_tokens": sum(
                 by_role[role]["reserved_tokens"] for role in qwen_roles
             ),
+            "qwen_cost_cny": qwen_cost,
+            "qwen_actual_cost_cny": qwen_actual_cost,
+            "qwen_reserved_cost_cny": qwen_reserved_cost,
+            "qwen_cost_unknown_attempts": qwen_cost_unknown,
             "by_role": by_role,
             "tool_calls": sum(row["status"] in counted for row in tool_rows),
         }
@@ -1153,6 +1267,29 @@ class PublicTrialLedger:
             "stopped_at_utc": control["stopped_at_utc"],
         }
 
+    def stop_for_batch_deadline(self):
+        """Persist the wall stop when setup consumed the full frozen batch window."""
+        self._transaction()
+        try:
+            row = self._connection.execute(
+                "SELECT deadline_at_utc,stopped_reason FROM batch_control WHERE singleton=1"
+            ).fetchone()
+            if row is None:
+                raise ValueError("First-wave batch clock is missing")
+            expired = datetime.now(UTC) >= datetime.fromisoformat(row["deadline_at_utc"])
+            if expired:
+                self._connection.execute(
+                    "UPDATE batch_control SET stopped_reason=COALESCE(stopped_reason,?),"
+                    "stopped_at_utc=COALESCE(stopped_at_utc,?) WHERE singleton=1",
+                    ("wall_seconds", _now()),
+                )
+            self._connection.execute("COMMIT")
+            return expired
+        except BaseException:
+            if self._connection.in_transaction:
+                self._connection.execute("ROLLBACK")
+            raise
+
     def stop_for_model_profile_drift(self):
         """Persist a cohort stop when a resolved provider identity changes."""
         self._active()
@@ -1169,7 +1306,15 @@ class PublicTrialLedger:
                 self._connection.execute("ROLLBACK")
             raise
 
-    def _require_batch_admission(self, *, role=None, qwen_tokens=0, tool_calls=0):
+    def _require_batch_admission(
+        self,
+        *,
+        role=None,
+        qwen_tokens=0,
+        qwen_cost_attempt=False,
+        qwen_cost_amount=None,
+        tool_calls=0,
+    ):
         self._active()
         if not self._connection.in_transaction:
             raise RuntimeError("Batch admission must share the resource reservation transaction")
@@ -1219,6 +1364,14 @@ class PublicTrialLedger:
                 > self.plan.batch_limits[f"{role_prefix}_qwen_tokens"]
             ):
                 exceeded = f"{role_prefix}_qwen_tokens"
+            qwen_cost_limit = self.plan.batch_limits.get("qwen_cost_cny")
+            if qwen_cost_limit is not None and qwen_cost_attempt:
+                if usage["qwen_cost_cny"] is None or qwen_cost_amount is None:
+                    exceeded = exceeded or "qwen_cost_unknown"
+                elif usage["qwen_cost_cny"] + qwen_cost_amount > Decimal(
+                    str(qwen_cost_limit)
+                ):
+                    exceeded = exceeded or "qwen_cost_cny"
         if usage["tool_calls"] + tool_calls > self.plan.batch_limits["tool_calls"]:
             exceeded = exceeded or "tool_calls"
         if exceeded is not None:
@@ -1831,7 +1984,22 @@ class PublicTrialLedger:
         self._transaction()
         global_reservation_id = None
         try:
-            self._require_batch_admission(role=role, qwen_tokens=requested_tokens)
+            qwen_cost_reservation = None
+            qwen_cost_attempt = (
+                role in {"primary", "user_simulator", "judge"}
+                and profile.provider.lower() in {"qwen", "dashscope"}
+            )
+            if (
+                qwen_cost_attempt
+                and profile.currency == "CNY"
+            ):
+                qwen_cost_reservation = reserved_cost_amount
+            self._require_batch_admission(
+                role=role,
+                qwen_tokens=requested_tokens,
+                qwen_cost_attempt=qwen_cost_attempt,
+                qwen_cost_amount=qwen_cost_reservation,
+            )
             route_row = self._connection.execute(
                 "SELECT status FROM route_trials WHERE trial_id=? AND route=?",
                 (trial_id, route),
@@ -2178,6 +2346,12 @@ class PublicTrialLedger:
                     > self.plan.batch_limits[f"{role_prefix}_qwen_tokens"]
                 ):
                     stop_reason = f"{role_prefix}_qwen_tokens"
+                qwen_cost_limit = self.plan.batch_limits.get("qwen_cost_cny")
+                if qwen_cost_limit is not None and (
+                    batch_usage["qwen_cost_cny"] is None
+                    or batch_usage["qwen_cost_cny"] > Decimal(str(qwen_cost_limit))
+                ):
+                    stop_reason = stop_reason or "qwen_cost_cny"
                 if stop_reason is not None:
                     self._connection.execute(
                         "UPDATE batch_control SET stopped_reason=COALESCE(stopped_reason,?), "
@@ -2271,7 +2445,8 @@ class PublicTrialLedger:
         self._active()
         rows = self._connection.execute(
             "SELECT attempt_id,role,status,provider,model,actual_provider,actual_model,"
-            "actual_input_tokens,actual_output_tokens,actual_cost_usd,actual_cost_source,"
+            "actual_input_tokens,actual_output_tokens,actual_cost_usd,actual_cost_amount,"
+            "actual_cost_currency,reserved_cost_amount,reserved_cost_currency,actual_cost_source,"
             "provider_request_id,generation_id,error_category,http_status,failure_stage,"
             "exception_type,attempt_seconds FROM model_attempts "
             "WHERE trial_id=? AND route=? ORDER BY created_at_utc,attempt_number",

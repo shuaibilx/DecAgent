@@ -14,6 +14,7 @@ from decagent.evaluation.business.comparison import (
 )
 from decagent.evaluation.business.final_response import DEFAULT_RESPONSE_POLICY
 from decagent.evaluation.business.public_execution import (
+    _comparison_evidence,
     execute_public_phase,
     execute_public_route,
 )
@@ -42,6 +43,7 @@ def bound_trial(
     dataset=None,
     dataset_version=None,
     case_id=None,
+    branch_kind="structured",
 ):
     record = record or {}
     dataset = dataset or record.get("benchmark", "tau-bench")
@@ -52,7 +54,7 @@ def bound_trial(
         dataset_version=dataset_version,
         dataset_checksum=digest({"fixture": dataset}),
         case_id=case_id,
-        branch_kind="structured",
+        branch_kind=branch_kind,
         initial_state_digest="a" * 64,
         goal_digest="b" * 64,
         actor_profile_digest="c" * 64,
@@ -109,6 +111,7 @@ class FakeLedger:
     def start_route(self, _trial_id, _route):
         self.events.append("start_route")
         self.status = "running"
+        self.statuses[(_trial_id, _route)] = "running"
 
     def start_route_with_machine_time(self, trial_id, route, *, max_seconds):
         self.events.append(("claim_reserve", trial_id, route, max_seconds))
@@ -157,8 +160,13 @@ class FakeLedger:
     def batch_snapshot(self):
         return {
             "stopped_reason": self.stopped_reason,
-            "remaining_wall_seconds": 3_600.0,
+            "remaining_wall_seconds": getattr(self, "remaining_wall_seconds", 3_600.0),
         }
+
+    def stop_for_batch_deadline(self):
+        self.events.append(("stop_batch", "wall_seconds"))
+        self.stopped_reason = "wall_seconds"
+        return True
 
     def reserve_tool_call(self, **_kwargs):
         return "tool-attempt"
@@ -269,7 +277,9 @@ class FakeControlledRoutes:
 def execution_result(
     *, score=True, cleanup=True, status="complete", failure_kind=None,
     machine_seconds=12.5, tau_steps=0, failure_stage=None, exception_type=None,
-    error=None,
+    error=None, plan_digest=None, decision_input_digest=None,
+    evidence_scope="full_workflow",
+    diagnostic_code=None,
 ):
     benchmark_score = 1.0 if score else 0.0
     score_value = SimpleNamespace(
@@ -280,14 +290,23 @@ def execution_result(
     )
     return SimpleNamespace(
         status=status,
-        run=SimpleNamespace(task_success=score) if score else None,
+        run=SimpleNamespace(
+            task_success=score,
+            plan_digest=plan_digest,
+            decision_input_digest=decision_input_digest,
+            evidence_scope=evidence_scope,
+        ) if score else None,
         score=score_value if score else None,
         timing=SimpleNamespace(
             agent_started=True, agent_wall_seconds=machine_seconds
         ),
         failure_kind=failure_kind,
+        plan_digest=plan_digest,
+        decision_input_digest=decision_input_digest,
+        evidence_scope=evidence_scope,
         failure_stage=failure_stage,
         exception_type=exception_type,
+        diagnostic_code=diagnostic_code,
         error=error,
         tau_steps=tau_steps,
         cleanup_verified=cleanup,
@@ -368,6 +387,7 @@ def test_public_route_persists_failure_stage_and_type_without_exception_message(
             failure_stage="agent_execution",
             exception_type="ValueError",
             error="PRIVATE_RESPONSE_BODY",
+            diagnostic_code="malformed_response",
         )
     )
 
@@ -386,6 +406,12 @@ def test_public_route_persists_failure_stage_and_type_without_exception_message(
     assert receipt.status == "failed"
     assert terminal["failure_stage"] == receipt.failure_stage == "agent_execution"
     assert terminal["exception_type"] == receipt.exception_type == "ValueError"
+    assert (
+        terminal["error_category"]
+        == receipt.error_category
+        == "agent_failure_malformed_response"
+    )
+    assert receipt.diagnostic_code == "malformed_response"
     assert "PRIVATE_RESPONSE_BODY" not in repr(terminal)
 
 
@@ -628,16 +654,28 @@ def test_agent_time_overrun_fails_route_but_keeps_score_and_cleanup(tmp_path):
 
 
 class PhaseControlledRoutes:
-    def __init__(self, ledger, *, fail_first_route=False):
+    def __init__(
+        self, ledger, *, fail_first_route=False, semantic_decision=True,
+        primary_score_error=False,
+    ):
         self.ledger = ledger
         self.fail_first_route = fail_first_route
+        self.semantic_decision = semantic_decision
+        self.primary_score_error = primary_score_error
         self.calls = []
         self.max_tau_steps = 200
+        self.last_plan = None
+        self.shared_plan = SimpleNamespace(digest="1" * 64)
 
     def run(self, route, trial, **kwargs):
         route_name = getattr(route, "value", route)
         trial_id = trial.trial_id
         self.calls.append((trial_id, route_name))
+        self.last_plan = None
+        if route_name == "plan_primary_semantic_mcp":
+            self.last_plan = self.shared_plan
+        if route_name == "plan_jev_semantic_mcp":
+            assert kwargs["frozen_plan"] is self.shared_plan
         kwargs["model_adapter_factory"](None, trial, route)
         kwargs["gateway_factory"](FakeGateway(), None, trial, route)
         kwargs["on_agent_start"]()
@@ -648,6 +686,28 @@ class PhaseControlledRoutes:
         if self.fail_first_route and len(self.calls) == 1:
             self.ledger.mark_route_unknown(trial_id, route_name)
             raise RuntimeError("simulated dispatched model outcome unknown")
+        if route_name == "plan_primary_semantic_mcp":
+            if self.primary_score_error:
+                return execution_result(
+                    score=False,
+                    status="failed",
+                    failure_kind="scoring_failure",
+                    tau_steps=tau_steps,
+                    plan_digest="1" * 64,
+                    decision_input_digest="2" * 64,
+                )
+            return execution_result(
+                tau_steps=tau_steps,
+                plan_digest="1" * 64,
+                decision_input_digest=("2" * 64 if self.semantic_decision else None),
+            )
+        if route_name == "plan_jev_semantic_mcp":
+            return execution_result(
+                tau_steps=tau_steps,
+                plan_digest="1" * 64,
+                decision_input_digest="2" * 64,
+                evidence_scope="execution_only",
+            )
         return execution_result(tau_steps=tau_steps)
 
 
@@ -688,6 +748,7 @@ def test_first_wave_uses_frozen_order_and_continues_after_unknown_route(tmp_path
             or bound_trial(
                 item["trial_id"],
                 record=item,
+                branch_kind="semantic" if item["domain"] == "csm" else "structured",
             )
         ),
         route_kwargs_factory=lambda trial, route: route_kwargs_for(
@@ -708,6 +769,310 @@ def test_first_wave_uses_frozen_order_and_continues_after_unknown_route(tmp_path
     assert receipt.scheduled_route_slots == 8
     assert receipt.stopped_reason is None
     assert loaded_trials == [item["trial_id"] for item in plan.initial_smoke_wave]
+
+
+def test_pilot_scheduler_runs_exact_per_trial_route_pairs(tmp_path):
+    base = load_public_run_plan(
+        ROOT,
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    trials = tuple(base.trials)
+    csm_ids = {
+        item["trial_id"] for item in trials if item["domain"] == "csm"
+    }
+    schedule = tuple(
+        (item["trial_id"], route)
+        for item in trials
+        for route in (
+            ("react_skill_mcp", "plan_mcp", "plan_primary_semantic_mcp", "plan_jev_semantic_mcp")
+            if item["trial_id"] in csm_ids
+            else ("react_skill_mcp", "plan_mcp")
+        )
+    )
+    pilot = replace(
+        base,
+        root=tmp_path,
+        mode="pilot",
+        trials=trials,
+        routes=(
+            "react_skill_mcp",
+            "plan_mcp",
+            "plan_primary_semantic_mcp",
+            "plan_jev_semantic_mcp",
+        ),
+        route_schedule=schedule,
+    )
+    ledger = FakeLedger(tmp_path)
+    ledger.bind_plan(pilot)
+    controlled = PhaseControlledRoutes(ledger)
+    loaded_trials = []
+
+    receipt = run_public_phase(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        phase="pilot",
+        max_machine_seconds=1_800,
+        trial_factory=lambda item: (
+            loaded_trials.append(item["trial_id"])
+            or bound_trial(
+                item["trial_id"],
+                record=item,
+                branch_kind="semantic" if item["domain"] == "csm" else "structured",
+            )
+        ),
+        route_kwargs_factory=lambda trial, route: route_kwargs_for(
+            ledger, trial.trial_id, route
+        ),
+    )
+
+    assert len(controlled.calls) == 68
+    assert controlled.calls == [
+        (item["trial_id"], route) for item in trials
+        for route in pilot.routes_for_trial(item["trial_id"])
+    ]
+    assert receipt.scheduled_route_slots == 68
+    assert loaded_trials == [item["trial_id"] for item in trials]
+    semantic_receipts = {
+        (item.trial_id, item.route): item for item in receipt.executed_routes
+    }
+    for trial_id in csm_ids:
+        primary = semantic_receipts[(trial_id, "plan_primary_semantic_mcp")]
+        jev = semantic_receipts[(trial_id, "plan_jev_semantic_mcp")]
+        assert primary.plan_digest == jev.plan_digest == "1" * 64
+        assert primary.decision_input_digest == jev.decision_input_digest == "2" * 64
+        assert jev.evidence_scope == "execution_only"
+        assert jev.pair_status == "paired"
+
+
+def test_pilot_scheduler_marks_jev_not_applicable_without_natural_decision(tmp_path):
+    base = load_public_run_plan(
+        ROOT,
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    trials = tuple(base.trials)
+    csm_ids = {item["trial_id"] for item in trials if item["domain"] == "csm"}
+    schedule = tuple(
+        (item["trial_id"], route)
+        for item in trials
+        for route in (
+            ("react_skill_mcp", "plan_mcp", "plan_primary_semantic_mcp", "plan_jev_semantic_mcp")
+            if item["trial_id"] in csm_ids
+            else ("react_skill_mcp", "plan_mcp")
+        )
+    )
+    pilot = replace(
+        base,
+        root=tmp_path,
+        mode="pilot",
+        trials=trials,
+        routes=(
+            "react_skill_mcp",
+            "plan_mcp",
+            "plan_primary_semantic_mcp",
+            "plan_jev_semantic_mcp",
+        ),
+        route_schedule=schedule,
+    )
+    ledger_path = canonical_public_trial_ledger_path(
+        tmp_path,
+        cohort_digest=pilot.cohort_digest,
+        candidate_sha="a" * 40,
+    )
+    ledger = PublicTrialLedger.create(ledger_path, pilot)
+    ledger.bind_candidate_sha("a" * 40)
+    controlled = PhaseControlledRoutes(ledger, semantic_decision=False)
+
+    try:
+        receipt = run_public_phase(
+            root=tmp_path,
+            ledger=ledger,
+            controlled_routes=controlled,
+            phase="pilot",
+            max_machine_seconds=1_800,
+            trial_factory=lambda item: bound_trial(
+                item["trial_id"],
+                record=item,
+                branch_kind="semantic" if item["domain"] == "csm" else "structured",
+            ),
+            route_kwargs_factory=lambda trial, route: route_kwargs_for(
+                ledger, trial.trial_id, route
+            ),
+        )
+        jev_statuses = {
+            item.trial_id: ledger.route_status(item.trial_id, item.route)
+            for item in receipt.executed_routes
+            if item.route == "plan_jev_semantic_mcp"
+        }
+    finally:
+        ledger.close()
+
+    jev_ids = {trial_id for trial_id in csm_ids}
+    jev_receipts = [
+        item for item in receipt.executed_routes
+        if item.route == "plan_jev_semantic_mcp"
+    ]
+    assert {item.trial_id for item in jev_receipts} == jev_ids
+    assert all(item.status == "not_applicable" for item in jev_receipts)
+    assert all(item.pair_status == "not_applicable" for item in jev_receipts)
+    assert all(item.error_category == "semantic_decision_not_observed" for item in jev_receipts)
+    assert set(jev_statuses.values()) == {"not_applicable"}
+    assert all(
+        route != "plan_jev_semantic_mcp" for _trial_id, route in controlled.calls
+    )
+
+
+def test_pilot_resume_marks_jev_incomplete_when_primary_plan_is_not_restored(tmp_path):
+    base = load_public_run_plan(
+        ROOT,
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    trials = tuple(base.trials)
+    csm_ids = {item["trial_id"] for item in trials if item["domain"] == "csm"}
+    schedule = tuple(
+        (item["trial_id"], route)
+        for item in trials
+        for route in (
+            ("react_skill_mcp", "plan_mcp", "plan_primary_semantic_mcp", "plan_jev_semantic_mcp")
+            if item["trial_id"] in csm_ids
+            else ("react_skill_mcp", "plan_mcp")
+        )
+    )
+    pilot = replace(
+        base,
+        root=tmp_path,
+        mode="pilot",
+        trials=trials,
+        routes=(
+            "react_skill_mcp",
+            "plan_mcp",
+            "plan_primary_semantic_mcp",
+            "plan_jev_semantic_mcp",
+        ),
+        route_schedule=schedule,
+    )
+    ledger = FakeLedger(tmp_path)
+    ledger.bind_plan(pilot)
+    target_trial = next(iter(sorted(csm_ids)))
+    ledger.statuses.update({slot: "completed" for slot in schedule})
+    ledger.statuses[(target_trial, "plan_jev_semantic_mcp")] = "pending"
+    controlled = PhaseControlledRoutes(ledger)
+
+    receipt = run_public_phase(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        phase="pilot",
+        max_machine_seconds=1_800,
+        trial_factory=lambda item: bound_trial(
+            item["trial_id"],
+            record=item,
+            branch_kind="semantic" if item["domain"] == "csm" else "structured",
+        ),
+        route_kwargs_factory=lambda trial, route: route_kwargs_for(
+            ledger, trial.trial_id, route
+        ),
+    )
+
+    jev_receipt = next(
+        item for item in receipt.executed_routes
+        if item.trial_id == target_trial and item.route == "plan_jev_semantic_mcp"
+    )
+    assert jev_receipt.status == "failed"
+    assert jev_receipt.pair_status == "incomplete"
+    assert jev_receipt.error_category == "semantic_reference_incomplete"
+    assert ledger.route_status(target_trial, "plan_jev_semantic_mcp") == "failed"
+    assert controlled.calls == []
+
+
+def test_primary_scoring_failure_keeps_semantic_pair_evidence_and_does_not_mark_jev_na(
+    tmp_path,
+):
+    base = load_public_run_plan(
+        ROOT,
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    trials = tuple(base.trials)
+    csm_ids = {item["trial_id"] for item in trials if item["domain"] == "csm"}
+    trial_record = next(item for item in trials if item["domain"] == "csm")
+    schedule = tuple(
+        (item["trial_id"], route)
+        for item in trials
+        for route in (
+            (
+                "react_skill_mcp",
+                "plan_mcp",
+                "plan_primary_semantic_mcp",
+                "plan_jev_semantic_mcp",
+            )
+            if item["trial_id"] in csm_ids
+            else ("react_skill_mcp", "plan_mcp")
+        )
+    )
+    pilot = replace(
+        base,
+        root=tmp_path,
+        mode="pilot",
+        trials=trials,
+        routes=(
+            "react_skill_mcp",
+            "plan_mcp",
+            "plan_primary_semantic_mcp",
+            "plan_jev_semantic_mcp",
+        ),
+        route_schedule=schedule,
+    )
+    ledger = FakeLedger(tmp_path)
+    ledger.bind_plan(pilot)
+    controlled = PhaseControlledRoutes(ledger, primary_score_error=True)
+
+    receipt = run_public_phase(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        phase="pilot",
+        max_machine_seconds=1_800,
+        trial_factory=lambda item: bound_trial(
+            item["trial_id"], record=item, branch_kind="semantic"
+        ),
+        route_kwargs_factory=lambda trial, route: route_kwargs_for(
+            ledger, trial.trial_id, route
+        ),
+    )
+
+    by_route = {
+        (item.trial_id, item.route): item for item in receipt.executed_routes
+    }
+    primary = by_route[(trial_record["trial_id"], "plan_primary_semantic_mcp")]
+    jev = by_route[(trial_record["trial_id"], "plan_jev_semantic_mcp")]
+    assert primary.status == "scoring_error"
+    assert primary.plan_digest == "1" * 64
+    assert primary.decision_input_digest == "2" * 64
+    assert jev.status == "completed"
+    assert jev.pair_status == "paired"
+
+
+def test_comparison_evidence_survives_without_a_scored_route_run():
+    result = SimpleNamespace(
+        run=None,
+        plan_digest="3" * 64,
+        decision_input_digest="4" * 64,
+        evidence_scope="full_workflow",
+    )
+
+    assert _comparison_evidence(result) == (
+        "3" * 64,
+        "4" * 64,
+        "full_workflow",
+    )
 
 
 def test_first_wave_resume_skips_terminal_routes_without_replay(tmp_path):
@@ -783,6 +1148,44 @@ def test_first_wave_scheduler_honors_persisted_batch_stop_without_loading_trials
     assert len(receipt.skipped_routes) == 8
     assert {item[2] for item in receipt.skipped_routes} == {"batch_stopped"}
     assert receipt.stopped_reason == "model_profile_drift"
+    assert factory_calls == []
+    assert controlled.calls == []
+
+
+def test_first_wave_scheduler_persists_expired_preflight_deadline_and_skips_routes(
+    tmp_path,
+):
+    plan = replace(
+        load_public_run_plan(
+            ROOT,
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+        ),
+        root=tmp_path,
+    )
+    ledger = FakeLedger(tmp_path)
+    ledger.bind_plan(plan)
+    ledger.remaining_wall_seconds = 0
+    controlled = PhaseControlledRoutes(ledger)
+    factory_calls = []
+
+    receipt = run_public_phase(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        phase="first-wave",
+        max_machine_seconds=1_800,
+        trial_factory=lambda _item: factory_calls.append("trial"),
+        route_kwargs_factory=lambda *_args: factory_calls.append("route_kwargs"),
+    )
+
+    assert receipt.scheduled_route_slots == 8
+    assert receipt.executed_routes == ()
+    assert len(receipt.skipped_routes) == 8
+    assert {item[2] for item in receipt.skipped_routes} == {"batch_stopped"}
+    assert receipt.stopped_reason == "wall_seconds"
+    assert ("stop_batch", "wall_seconds") in ledger.events
     assert factory_calls == []
     assert controlled.calls == []
 

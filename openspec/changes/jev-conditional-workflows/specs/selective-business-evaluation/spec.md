@@ -38,6 +38,10 @@ EnterpriseOps-Gym CSM/ITSM MUST 作为主要端到端工作流 benchmark；τ-Be
 - **WHEN** 资源限制只允许执行 benchmark 的固定子集
 - **THEN** 报告选择规则、全部任务 ID 和未运行部分，不修改样本目标来迎合某条策略
 
+#### Scenario: Pre-registered metadata-only pilot sample
+- **WHEN** 从冻结的 v10 inventory 生成本阶段 24-task pilot
+- **THEN** 仅按 benchmark、domain、split、exposure 和 case ID 以固定 seed `sop-pilot-20261024-v1` 做 SHA-256 稳定排序，选择 CSM 10、ITSM 10、τ retail test 2、τ telecom test 2；不得读取任务 prompt、目标状态、reference action 或评分材料来抽样、替换或排序。每任务运行 ReAct 与一次规划确定性路线，另为全部 CSM 安排 primary semantic 与 Jev semantic 配对槽，冻结总分母 68；失败、unknown、N/A 均保留。
+
 #### Scenario: Upstream and MCP dependency locks conflict
 - **WHEN** 固定 τ2 运行时依赖与应用 MCP SDK 不能安装在同一环境
 - **THEN** 保留各自依赖锁，通过每试验独立、无模型凭据且禁止外网的专用子进程桥连接原始工具与 MCP；保留原 schema、参数、结果、错误和可变状态元数据，限制帧大小/等待时间，协议或传输失败不重放工具，关闭与启动失败均回收所属子进程
@@ -179,6 +183,10 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 #### Scenario: Jev compared with a second primary-model decision
 - **WHEN** 运行时语义分支分别由 Jev 和主模型作出判断
 - **THEN** 使用同一输入与选项测量质量、延迟和真实用量；质量未达到目标或没有可测成本/延迟改善时，不宣称 Jev 优于主模型
+
+#### Scenario: Jev replay uses the exact primary plan and decision input
+- **WHEN** 对同一试次安排 primary semantic full-workflow 与 Jev semantic execution-only 路线
+- **THEN** Jev MUST 接收 primary 路线本进程保留的同一冻结 Plan；两路线只有在 Plan digest 和 decision-input digest 均相同时才计为配对。若 primary 尚未产生可复用 Plan、运行失败或评分失败，Jev 槽 MUST 保留为 failed/incomplete，不得把缺失证据记成 `not_applicable`。仅当当前执行进程已持有 primary receipt 且其已完成、明确没有 decision-input digest 时，Jev 槽才可标记 `not_applicable`。若恢复后 primary 已终态但原 Plan/决策输入不可恢复，且账本没有持久化的“未观察到语义决策”证据，Jev 槽 MUST 标为 incomplete；不得仅凭缺失的内存对象推断 N/A，也不得为配对而重规划、打开环境或派发模型/工具。N/A 单独计数，不作为零成本成功或 evaluated-route 成功率分母；路线覆盖率须另行报告。
 
 #### Scenario: ReAct is not truncated by production-specific limits
 - **WHEN** 三条路线进行主质量对照
@@ -389,6 +397,10 @@ callback、官方 scorer、清理逻辑和资源门禁接通前 MUST 被拒绝�
 - **WHEN** 上游工具适配、真实模型计量或官方评分闭环尚未连接
 - **THEN** `--execute` 必须 fail closed，且不得创建新 ledger 或向任何模型/业务工具派发
 
+#### Scenario: Bounded live diagnostic precedes pilot freeze and dispatch under a shared budget
+- **WHEN** 通过 `--phase diagnostic` 对已暴露的四个固定开发案例做实时模型诊断
+- **THEN** 只允许同一干净且已通过同 SHA CI 的候选，最多 12 次通用模型请求、600,000 Token 和 2,700 秒；Qwen 最多 6 次/600,000 Token/¥13.50，Qwen Agent、模拟器和裁判分别受冻结的角色限额约束；批次工具调用上限为 1,600，每路线资源仍独立限制。Qwen 费用预留、已结算费用和 unknown 预留须在同一持久账本事务中准入/结算，越线后停止所有后续派发。诊断开始时间和绝对 deadline MUST 在创建环境/预检前持久化；预检耗尽 deadline 时 MUST 写入批次停止原因并跳过所有未派发路线。诊断结果和 runtime pilot manifest MUST 写入 Git 忽略的 `.decagent/evaluation/` 状态目录，避免冻结证据让候选 SHA 变脏；报告必须包含 4 个任务、8 个路线槽、实际时间和模型/数据/源代码指纹；旧 `first-wave` live phase 必须拒绝。Pilot manifest 冻结及执行均要求通过该候选和相同 profile、inventory、source manifest 与执行代码摘要校验的完成诊断证据，并将该报告 SHA-256 和剩余额度绑定进冻结 manifest。诊断与 pilot 共用一周累计的 500 次 Qwen 请求、500 万 Token、1,600 次工具调用、4 小时和 ¥13.50 上限；pilot 的新账本必须先扣除诊断已用值及 unknown 预留，机器时间按已耗秒数向上取整，任何 phase 或 state 路径都不得重置累计额度。实现 MUST 使用 checkout 之外的规范用户级授权记录，将当前预算 ID 固定到唯一项目路径、候选 SHA、diagnostic cohort、pilot cohort 和对应报告摘要；新的候选/cohort 不得取得新预算，已登记账本丢失时 MUST 拒绝重建。诊断结束后，pilot 只能使用与授权中 diagnostic report SHA 相同的证据。
+
 #### Scenario: Immutable first-wave smoke scope
 - **WHEN** runner 加载公开冒烟 manifest
 - **THEN** 它必须校验固定的 CSM、ITSM、τ retail、τ telecom 四个首波 case ID 与 ReAct/Plan 路线顺序，报告 4 个任务和 8 个路线槽位；即使 manifest digest 被重算，改动首波身份也必须被拒绝
@@ -427,6 +439,10 @@ callback、官方 scorer、清理逻辑和资源门禁接通前 MUST 被拒绝�
 #### Scenario: Interrupted or unknown dispatch
 - **WHEN** provider/tool attempt 在 dispatch 后中断，或其用量/结果未知
 - **THEN** 未决额度保留为 unknown，route 不得自动 replay；仅可基于可验证原回执的显式恢复流程继续
+
+#### Scenario: Diagnostic CNY fee hard stop
+- **WHEN** 诊断批次准备派发 Qwen 请求、收到计费用量，或请求进入 unknown
+- **THEN** dispatch 前必须把该请求的 profile 费用上界原子预留到批次 ¥13.50 上限；结算后按冻结费率的抵扣前 API 费用或可核验提供方费用记录实际金额，unknown 保留原预留。累计 actual+reserved 超限、价格或金额无法核验、或结算显示超限时，持久停止整个批次；报告分别列实际费用、预留费用及总额度，不得将 unknown 记为零。
 
 #### Scenario: Natural Jev eligibility
 - **WHEN** 基准任务没有自然适用且已审核的可信语义决策模板
@@ -712,11 +728,15 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 
 ### Requirement: Public failure diagnostics are allowlisted and immutable
 
-公开评测 attempt 诊断 MUST 使用白名单阶段码、异常类名和 100–599 HTTP 状态码，且 MUST NOT 保存异常消息、请求/响应正文、工具参数或凭证。route 仅可镜像阶段码和异常类名；快照只导出安全字段。升级 MUST 追加 nullable 列，历史缺失保持 null。unknown 清理不得改写失败证据或重放。可信证明模型请求未发送的 attempt MUST 保持 `not_sent`，HTTP 状态为 null，且不改变 route 状态。
+公开评测 attempt 诊断 MUST 使用白名单阶段码、异常类名、100–599 HTTP 状态码及有限的诊断原因码，且 MUST NOT 保存异常消息、请求/响应正文、工具参数或凭证。route 仅可镜像允许列表中的原因码、阶段码和异常类名；快照只导出安全字段。升级 MUST 追加 nullable 列，历史缺失保持 null。unknown 清理不得改写失败证据或重放。可信证明模型请求未发送的 attempt MUST 保持 `not_sent`，HTTP 状态为 null，且不改变 route 状态。
 
 #### Scenario: Model callback fails after dispatch
 - **WHEN** 已派发模型请求后遇到超时或传输异常，且服务端 usage 无法核实
 - **THEN** attempt 与 route 进入 unknown，记录 `model_callback`、安全异常类名及可获得的 HTTP 状态码；异常消息和模型输入/输出正文不进入账本或报告
+
+#### Scenario: τ callback contract failure carries a safe reason code
+- **WHEN** τ simulator/judge bridge 收到不符合冻结 callback 契约的事件、模型身份、文本或工具调用响应
+- **THEN** route 只记录对应白名单原因码、允许的 failure stage 和异常类名；原始异常消息、模型正文、工具参数及凭证不得进入 ledger/report，历史终态不得因新增诊断被改写
 
 #### Scenario: Verified model preflight failure records safe diagnostics
 - **WHEN** one-shot 模型客户端构造或输入校验在发出任何 HTTP 请求前失败，且本机可确认请求未发送

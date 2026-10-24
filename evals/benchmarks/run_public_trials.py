@@ -1,6 +1,7 @@
 """Preflight the frozen public comparison; this command is offline by default."""
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -8,8 +9,19 @@ from pathlib import Path
 
 from decagent.evaluation.business.public_trials import (
     build_dry_run_report,
+    canonical_public_trial_ledger_path,
     load_public_run_plan,
 )
+from decagent.evaluation.business.public_weekly_budget import (
+    complete_public_evaluation_phase,
+)
+
+from evals.benchmarks.pilot_gate import (
+    build_bounded_diagnostic_plan,
+    evaluation_source_digest,
+    validate_diagnostic_evidence,
+)
+from evals.benchmarks.pilot_manifest import load_public_pilot_plan
 
 
 def parser():
@@ -17,16 +29,22 @@ def parser():
     command.add_argument(
         "--root", type=Path, default=Path(__file__).resolve().parents[2]
     )
-    command.add_argument("--mode", choices=("smoke", "full"))
+    command.add_argument("--mode", choices=("smoke", "full", "pilot"))
     command.add_argument(
         "--phase",
-        choices=("first-wave", "remaining-smoke", "full"),
+        choices=("diagnostic", "first-wave", "remaining-smoke", "full", "pilot"),
         help="show the fixed task slice selected for this offline phase",
     )
     command.add_argument("--manifest", type=Path)
+    command.add_argument("--pilot-manifest", type=Path)
     command.add_argument("--source-manifest", type=Path)
     command.add_argument("--model-profiles", type=Path)
     command.add_argument("--readiness-evidence", type=Path)
+    command.add_argument(
+        "--diagnostic-evidence",
+        type=Path,
+        help="CI-verified bounded diagnostic required before pilot freeze or dispatch",
+    )
     command.add_argument(
         "--check-images",
         action="store_true",
@@ -35,7 +53,7 @@ def parser():
     command.add_argument(
         "--execute",
         action="store_true",
-        help="execute only the fixed, supervised first-wave after all live gates pass",
+        help="execute only a bounded diagnostic or a gated frozen public pilot",
     )
     command.add_argument(
         "--state",
@@ -50,7 +68,10 @@ def parser():
     command.add_argument(
         "--report",
         type=Path,
-        help="write the dry-run report as a new JSON file under evals/benchmarks/evidence",
+        help=(
+            "write a new JSON report; dry-run uses evals/benchmarks/evidence and live "
+            "uses the ignored .decagent/evaluation/evidence directory"
+        ),
     )
     return command
 
@@ -72,19 +93,62 @@ def _settings_for_project(root):
             os.environ["PYTHON_DOTENV_DISABLED"] = previous
 
 
-def _execute_live_first_wave(args, command):
-    if args.phase != "first-wave":
-        command.error("live execution requires --phase first-wave")
-    if args.mode not in {None, "smoke"}:
-        command.error("live first-wave execution requires --mode smoke")
+def _load_plan(args, root, *, live=False):
+    mode = args.mode or (
+        "pilot"
+        if args.phase == "pilot"
+        else "full"
+        if args.phase == "full"
+        else "smoke"
+    )
+    if mode == "pilot":
+        return load_public_pilot_plan(
+            root,
+            pilot_manifest_path=(
+                args.pilot_manifest
+                or root
+                / ".decagent/evaluation/manifests/sop_agent_public_pilot_20261024_v1.json"
+            ),
+            base_manifest_path=args.manifest,
+            source_manifest_path=args.source_manifest,
+            profiles_path=args.model_profiles,
+            readiness_path=args.readiness_evidence,
+            diagnostic_evidence_path=args.diagnostic_evidence,
+            check_images=args.check_images or live,
+            check_runtime=live,
+            check_source_files=live,
+        )
+    return load_public_run_plan(
+        root,
+        mode=mode,
+        manifest_path=args.manifest,
+        source_manifest_path=args.source_manifest,
+        profiles_path=args.model_profiles,
+        readiness_path=args.readiness_evidence,
+        check_images=args.check_images or live,
+        check_runtime=live,
+        check_source_files=live,
+    )
+
+
+def _execute_live_phase(args, command):
+    if args.phase not in {"diagnostic", "pilot"}:
+        command.error(
+            "unbounded historical live phases are closed; use --phase diagnostic or pilot"
+        )
+    required_mode = "smoke" if args.phase == "diagnostic" else "pilot"
+    if args.mode not in {None, required_mode}:
+        command.error(f"live {args.phase} execution requires --mode {required_mode}")
+    if args.phase == "pilot" and not args.diagnostic_evidence:
+        command.error("live pilot execution requires --diagnostic-evidence")
     if args.state:
         command.error("--state is unsupported; live execution uses the canonical ledger")
     if not args.report:
-        command.error("live first-wave execution requires a new --report under benchmark evidence")
+        command.error("live evaluation requires a new --report under benchmark evidence")
 
     from evals.benchmarks.live_public_runner import (
         _json_ready,
-        execute_live_first_wave,
+        execute_live_public_phase,
         require_verified_candidate,
         validate_live_report_target,
         write_live_report,
@@ -112,26 +176,58 @@ def _execute_live_first_wave(args, command):
         if not tau_python.is_file():
             raise ValueError("The pinned τ-Bench Python executable is unavailable")
 
-        run_plan = load_public_run_plan(
-            root,
-            mode="smoke",
-            manifest_path=args.manifest,
-            source_manifest_path=args.source_manifest,
-            profiles_path=args.model_profiles,
-            readiness_path=args.readiness_evidence,
-            check_images=True,
-            check_runtime=True,
-            check_source_files=True,
-        )
-        phase, report = execute_live_first_wave(
-            run_plan,
-            settings=settings,
-            tau_python=str(tau_python),
-            journal_root=root / ".decagent/evaluation/journals",
-            candidate_sha=candidate_sha,
-            working_tree_dirty=False,
-        )
+        run_plan = _load_plan(args, root, live=True)
+        if args.phase == "diagnostic":
+            run_plan = build_bounded_diagnostic_plan(run_plan)
+        else:
+            validate_diagnostic_evidence(
+                root,
+                args.diagnostic_evidence,
+                model_profiles_digest=run_plan.profiles.fingerprint,
+                expected_source_digest=evaluation_source_digest(root),
+                expected_source_manifest_digest=run_plan.source_manifest_digest,
+                expected_inventory_digest=run_plan.inventory_digest,
+            )
+        call = {
+            "settings": settings,
+            "tau_python": str(tau_python),
+            "journal_root": root / ".decagent/evaluation/journals",
+            "candidate_sha": candidate_sha,
+            "working_tree_dirty": False,
+            "candidate_ci_verified": True,
+            "phase": args.phase,
+        }
+        if args.phase == "pilot":
+            call["diagnostic_evidence"] = args.diagnostic_evidence
+        phase, report = execute_live_public_phase(run_plan, **call)
         report_path = write_live_report(root, args.report, report)
+        if (
+            report.get("phase") != args.phase
+            or report.get("evaluation_budget_id")
+            != "sop-pilot-20261024-v1"
+            or type(report.get("cohort_digest")) is not str
+            or type(report.get("candidate_sha")) is not str
+        ):
+            raise ValueError("Live report is missing its weekly budget identity")
+        diagnostic_report_sha256 = None
+        if args.phase == "pilot":
+            gate = report.get("diagnostic_gate")
+            diagnostic_report_sha256 = (
+                gate.get("report_sha256") if type(gate) is dict else None
+            )
+        complete_public_evaluation_phase(
+            root,
+            phase=args.phase,
+            candidate_sha=report["candidate_sha"],
+            cohort_digest=report["cohort_digest"],
+            ledger_path=canonical_public_trial_ledger_path(
+                root,
+                cohort_digest=report["cohort_digest"],
+                candidate_sha=report["candidate_sha"],
+            ),
+            report_sha256=hashlib.sha256(report_path.read_bytes()).hexdigest(),
+            diagnostic_report_sha256=diagnostic_report_sha256,
+        )
     except (OSError, RuntimeError, ValueError) as exc:
         command.error(str(exc))
 
@@ -146,7 +242,7 @@ def _execute_live_first_wave(args, command):
             allow_nan=False,
         )
     )
-    print(f"Live first-wave report: {report_path}", file=sys.stderr)
+    print(f"Live {args.phase} report: {report_path}", file=sys.stderr)
     return 0
 
 
@@ -175,26 +271,17 @@ def main(argv=None):
     command = parser()
     args = command.parse_args(argv)
     if args.execute:
-        return _execute_live_first_wave(args, command)
+        return _execute_live_phase(args, command)
     if args.state:
         command.error("--state is unavailable in dry-run mode; no ledger is created")
-    mode = args.mode or ("full" if args.phase == "full" else "smoke")
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    run_plan = load_public_run_plan(
-        args.root,
-        mode=mode,
-        manifest_path=args.manifest,
-        source_manifest_path=args.source_manifest,
-        profiles_path=args.model_profiles,
-        readiness_path=args.readiness_evidence,
-        check_images=args.check_images,
-        check_runtime=False,
-        check_source_files=False,
-    )
     try:
+        run_plan = _load_plan(args, args.root.resolve(), live=False)
+        if args.phase == "diagnostic":
+            run_plan = build_bounded_diagnostic_plan(run_plan)
         report = build_dry_run_report(run_plan, phase=args.phase)
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         command.error(str(exc))
     if args.report:
         try:

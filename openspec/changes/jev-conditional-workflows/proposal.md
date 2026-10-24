@@ -1,6 +1,14 @@
 # Proposal
 
-## 当前实施状态（2026-10-24，v10 首波已 live 执行，验收门槛未通过）
+## 最新工作区状态（2026-10-24，真实对比尚未启动）
+
+主 change checkbox 为 **72/79**，仍待 9.6.D/F/G 与 10.3–10.6。当前开发 HEAD `466ec97f5a63520bc50d2d02a0b56e70cf51f268` 上仍有未提交工作区修改；本轮评测改动尚无同 SHA CI。完整 deterministic 套件 `2,234 passed, 19 skipped`，全仓 Ruff 与 OpenSpec strict `6/6` 通过。`diagnostic` dry-run 与 digest-pinned 镜像预检通过，选择四个开发任务/八条路线，不创建 ledger、不发出模型或 MCP 请求。尚未发出新 Qwen、DeepSeek 或 Jev 请求，没有生成/冻结 24-task pilot manifest，也没有启动新 live cohort。
+
+本地实现进度包括：24 个未暴露任务的 metadata-only 固定种子 sampler 与 68 条路线安排；primary semantic full-workflow 与 Jev execution-only 使用同一已编译 Plan 和同一判断输入摘要；无自然判断的 N/A 与 primary 失败/评分失败的 incomplete 配对状态已区分；ReAct/τ callback 响应原因码只允许列表值进入 route 终态；CSM pinned MCP `find_entitlements.product_id` 的 nullable observation 契约修正及回归；bounded diagnostic 的 Qwen CNY ¥13.50 预留/结算门禁；诊断与 pilot 共享全周额度并将 runtime 清单/报告写入 Git 忽略目录以保持候选 SHA 干净。新增的本轮门禁将周授权状态保存在用户级 `.decagent/evaluation/authorizations/`，只接受一个候选、一个 diagnostic cohort 及其绑定 pilot；更换候选/cohort、改账本路径或删除已绑定账本都会失败关闭。批次绝对墙钟先于环境预检写入账本，模型、MCP、官方评分和清理的就绪证据必须来自同一冻结路线。恢复后主路线终态但无可恢复决策证据的 Jev 配对保守标为 incomplete。`diagnostic` dry-run 已修复 phase 注册和预算继承：显示四个固定开发案例/八条路线，且明确报告诊断硬上限为 Qwen 6 次请求、600,000 token、2,700 秒（45 分钟），不创建 ledger、不发模型/MCP 请求；全周 500 次请求等上限不会误报为本次诊断额度。上述实现须先经切片代码审查、同 SHA CI 和新诊断门禁验证，不能视为真实模型质量、四域闭环或 Jev 收益结果。
+
+下一执行门槛：切片代码审查、本轮代码同 SHA CI，以及四个已暴露开发案例的故障复核回归；随后在 12 次通用模型请求、60 万 Token、45 分钟总诊断子上限内，Qwen 最多 6 次/¥13.50，若 Qwen 不就绪，再用独立冻结的 OpenRouter DeepSeek 配置最多 6 次。至少一个固定模型通过实际 MCP 执行和官方评分闭环后，才冻结并执行 24-task pilot；pilot 必须绑定诊断报告 SHA，并从全周共享的 500 次 Qwen 请求、500 万 Token、1,600 工具调用、4 小时、¥13.50 上限中扣除诊断的实际与 unknown 预留，不允许新 cohort 重置额度。官方分数 0 仍记录为有效失败，不因分数继续无界调参。旧首波的 3 failed、5 unknown、0 success 继续只作历史开发记录，unknown 不重放。游客、本机部署、私有 CD、记忆消融和阈值扫描暂停。
+
+## 历史基线（2026-10-24，v10 首波已 live 执行且验收门槛未通过）
 
 主 change 为 **72/79，仍有 7 项待完成**：9.6.D、9.6.F、9.6.G、10.3–10.6；`guest-sop-local-trial` 为 22/28。候选 `9d61688c52ee66435a22e18c4fa1c8348a70095a` 的同 SHA GitHub Actions [CI run 39784378797](https://github.com/shuaibilx/DecAgent/actions/runs/39784378797) 9/9 jobs 成功。冻结 v10 四域首波已运行 4 个任务、8 条 ReAct/Plan 路线：3 failed、5 unknown、0 success；清理 8/8 verified，仅 τ telecom/ReAct 获得官方评分且为 0.0。Plan 路线均遇到 120 秒 Qwen timeout；CSM/ReAct MCP dispatch 为 unknown。批次没有 Jev 或 LLM judge 请求，公开基准仍为 0/286，不支持质量或 Jev 收益结论。
 

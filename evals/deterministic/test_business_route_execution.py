@@ -1353,38 +1353,46 @@ def semantic_plan():
 
 
 def test_semantic_jev_and_primary_share_exact_plan_question_state_and_candidates():
+    from decagent.business.plans.contracts import Plan
+
     inputs = []
-    results = []
-    for route in (Route.PLAN_JEV_SEMANTIC, Route.PLAN_PRIMARY_SEMANTIC):
-        session = Session(plan=semantic_plan())
-
-        def semantic(request):
-            inputs.append(deepcopy(request))
-            probabilities = {name: 0.0 for name in request["question"]["criteria"]}
-            probabilities["directory"] = 0.99
-            probabilities["no_match"] = 0.01
-            return reply(
-                {
-                    "type": "choice",
-                    "choice": "directory",
-                    "confidence": 0.99,
-                    "probabilities": probabilities,
-                }
-            )
-
-        results.append(
-            execute(
-                session,
-                route=route,
-                context=trial(session, branch_kind="semantic"),
-                semantic=semantic,
-            )
+    def semantic(request):
+        inputs.append(deepcopy(request))
+        probabilities = {name: 0.0 for name in request["question"]["criteria"]}
+        probabilities["directory"] = 0.99
+        probabilities["no_match"] = 0.01
+        return reply(
+            {
+                "type": "choice",
+                "choice": "directory",
+                "confidence": 0.99,
+                "probabilities": probabilities,
+            }
         )
+
+    primary_session = Session(plan=semantic_plan())
+    primary = execute(
+        primary_session,
+        route=Route.PLAN_PRIMARY_SEMANTIC,
+        context=trial(primary_session, branch_kind="semantic"),
+        semantic=semantic,
+    )
+    frozen_plan = Plan.from_mapping(primary_session.plan)
+    jev_session = Session(plan=semantic_plan())
+    jev = execute(
+        jev_session,
+        route=Route.PLAN_JEV_SEMANTIC,
+        context=trial(jev_session, branch_kind="semantic"),
+        frozen_plan=frozen_plan,
+        semantic=semantic,
+    )
+
+    results = (jev, primary)
     assert all(result.status == "complete" for result in results)
     assert inputs[0] == inputs[1]
-    assert results[0].run.jev_requests == 1 and results[1].run.jev_requests == 0
+    assert jev.run.jev_requests == 1 and primary.run.jev_requests == 0
     assert compare_semantic_judgment(
-        results[0].run, results[1].run
+        jev.run, primary.run
     ).decision_input_digest == digest(inputs[0])
 
 

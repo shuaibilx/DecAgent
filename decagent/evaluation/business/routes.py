@@ -52,7 +52,14 @@ from decagent.evaluation.business.public_resources import (
 from .comparison import ComparisonTrial, Route, RouteRun, TauStepLimitReached
 from .final_response import DEFAULT_RESPONSE_POLICY, FinalResponsePolicy, accept_summary
 from .model_profiles import ModelProfile
-from .public_diagnostics import FAILURE_STAGES, safe_exception_type, safe_failure_stage
+from .public_diagnostics import (
+    DIAGNOSTIC_CODES,
+    FAILURE_STAGES,
+    MODEL_RESPONSE_DIAGNOSTIC_CODES,
+    safe_diagnostic_code,
+    safe_exception_type,
+    safe_failure_stage,
+)
 
 
 def _money(value):
@@ -300,7 +307,11 @@ class ModelReply:
 class ModelCallError(Exception):
     """An unsuccessful dispatch with known usage; omit reply when still unknown."""
 
-    def __init__(self, message, *, reply=None, failure_stage=None):
+    _DIAGNOSTIC_CODES = MODEL_RESPONSE_DIAGNOSTIC_CODES
+
+    def __init__(
+        self, message, *, reply=None, failure_stage=None, diagnostic_code=None
+    ):
         super().__init__(message)
         if reply is not None and not isinstance(reply, ModelReply):
             raise TypeError("Failed-call usage must be a ModelReply")
@@ -310,6 +321,19 @@ class ModelCallError(Exception):
             raise ValueError("Model call failure stage must be allowlisted")
         self.reply = reply
         self.failure_stage = failure_stage
+        if diagnostic_code is not None and diagnostic_code not in self._DIAGNOSTIC_CODES:
+            raise ValueError("Model response diagnostic code must be allowlisted")
+        self.diagnostic_code = diagnostic_code
+
+
+class _TauCallbackContractError(ValueError):
+    """A rejected τ callback frame with a safe, allowlisted reason code."""
+
+    def __init__(self, message, diagnostic_code):
+        if diagnostic_code not in DIAGNOSTIC_CODES:
+            raise ValueError("τ callback diagnostic code must be allowlisted")
+        self.diagnostic_code = diagnostic_code
+        super().__init__(message)
 
 
 class _PublicRouteStageFailure(Exception):
@@ -484,37 +508,60 @@ def _tau_model_callback(
 ):
     """Adapt a measured application model call to the isolated τ2 callback wire."""
     if callback is None:
-        raise ValueError("Missing evaluator model adapter for " + expected_name)
+        raise _TauCallbackContractError(
+            "Missing evaluator model adapter for " + expected_name,
+            "tau_callback_event",
+        )
 
     def invoke(event, *, timeout_seconds=None):
-        if not isinstance(event, dict) or event.get("name") != expected_name:
-            raise ValueError("Unexpected τ2 evaluator callback")
+        if type(event) is not dict or event.get("name") != expected_name:
+            raise _TauCallbackContractError(
+                "Unexpected τ2 evaluator callback", "tau_callback_event"
+            )
+        payload = event.get("payload")
+        if type(payload) is not dict:
+            raise _TauCallbackContractError(
+                "Invalid τ2 evaluator callback payload", "tau_callback_payload"
+            )
         if usage is None:
             if timeout_seconds is None:
-                reply = callback(deepcopy(event["payload"]))
+                reply = callback(deepcopy(payload))
             else:
                 reply = callback(
-                    deepcopy(event["payload"]), timeout_seconds=timeout_seconds
+                    deepcopy(payload), timeout_seconds=timeout_seconds
                 )
         else:
             reply = usage.call_reply(
                 role,
                 callback,
-                event["payload"],
+                payload,
                 timeout_seconds=timeout_seconds,
             )
         if not isinstance(reply, ModelReply) or not isinstance(reply.value, dict):
-            raise TypeError("τ2 model adapter must return a measured structured ModelReply")
+            raise _TauCallbackContractError(
+                "τ2 model adapter must return a measured structured ModelReply",
+                "tau_callback_reply",
+            )
         if expected_model is not None and reply.model is not None and reply.model != expected_model:
-            raise ValueError("τ2 evaluator callback returned an unexpected model version")
+            raise _TauCallbackContractError(
+                "τ2 evaluator callback returned an unexpected model version",
+                "tau_callback_model",
+            )
         content = reply.value.get("content")
         if require_text and type(content) is not str:
-            raise ValueError("τ2 model adapter must return textual content")
+            raise _TauCallbackContractError(
+                "τ2 model adapter must return textual content", "tau_callback_content"
+            )
         if content is not None and type(content) is not str:
-            raise ValueError("τ2 model adapter content must be text or null")
+            raise _TauCallbackContractError(
+                "τ2 model adapter content must be text or null", "tau_callback_content"
+            )
         tool_calls = reply.value.get("tool_calls", [])
         if type(tool_calls) is not list or len(tool_calls) > 8:
-            raise ValueError("τ2 model adapter tool calls must be an array")
+            raise _TauCallbackContractError(
+                "τ2 model adapter tool calls must be an array",
+                "tau_callback_tool_calls",
+            )
         for call in tool_calls:
             if (
                 type(call) is not dict
@@ -526,9 +573,15 @@ def _tau_model_callback(
                 or len(call["name"]) > 128
                 or type(call.get("arguments")) is not dict
             ):
-                raise ValueError("τ2 model adapter returned an invalid tool call")
+                raise _TauCallbackContractError(
+                    "τ2 model adapter returned an invalid tool call",
+                    "tau_callback_tool_call",
+                )
         if content is not None and len(content) > 16_384:
-            raise ValueError("τ2 model adapter content exceeds its bounded size")
+            raise _TauCallbackContractError(
+                "τ2 model adapter content exceeds its bounded size",
+                "tau_callback_content",
+            )
         result = {
             "content": content,
             "tool_calls": deepcopy(tool_calls),
@@ -637,6 +690,10 @@ class ExecutionResult:
     tau_steps: int = 0
     failure_stage: str | None = None
     exception_type: str | None = None
+    diagnostic_code: str | None = None
+    plan_digest: str | None = None
+    decision_input_digest: str | None = None
+    evidence_scope: str | None = None
 
 
 class _ObservedGateway:
@@ -688,6 +745,7 @@ class ControlledRoutes:
         self.max_plan_control_steps = max_plan_control_steps
         self.max_react_turns = max_react_turns
         self.max_tau_steps = max_tau_steps
+        self.last_plan = None
 
     def run(
         self,
@@ -711,13 +769,16 @@ class ControlledRoutes:
         deadline_provider=None,
     ):
         route = Route(route)
+        # The supervised pilot uses this ephemeral handle to replay the exact
+        # primary-planned workflow for its paired Jev semantic judgment.
+        self.last_plan = None
         if not isinstance(trial, ComparisonTrial):
             raise TypeError("A frozen comparison trial is required")
         started, isolation_id = perf_counter(), str(uuid4())
         usage, calls, decisions = ObservedUsage(), [], []
         status, error, terminal = "failed", None, {}
         failure_kind = None
-        failure_stage, exception_type = None, None
+        failure_stage, exception_type, diagnostic_code = None, None, None
         plan, score, preparation, reused = None, None, 0.0, False
         managed_adapters = None
         tau_step_count = 0
@@ -949,6 +1010,7 @@ class ControlledRoutes:
                         if not reused and _uses_memory(plan.to_mapping()):
                             raise ValueError("Memory slots require a validated published workflow")
                         compiled = compile_plan(plan, session.spec, input_schema=input_schema)
+                        self.last_plan = plan
                         if any(compiled.node(name)["type"] == "decide" for name in compiled.order):
                             if route not in {Route.PLAN_JEV_SEMANTIC, Route.PLAN_PRIMARY_SEMANTIC}:
                                 raise ValueError(
@@ -1037,6 +1099,7 @@ class ControlledRoutes:
                     failure_kind = "model_usage_unknown"
                     failure_stage = safe_failure_stage(exc, default="model_callback")
                     exception_type = safe_exception_type(exc)
+                    diagnostic_code = safe_diagnostic_code(exc)
                 except PublicModelProfileDrift as exc:
                     error = type(exc).__name__ + ": " + str(exc)
                     status = "failed"
@@ -1044,6 +1107,7 @@ class ControlledRoutes:
                     failure_kind = "model_profile_drift"
                     failure_stage = "model_response_validation"
                     exception_type = safe_exception_type(exc)
+                    diagnostic_code = safe_diagnostic_code(exc)
                     skip_scoring = True
                 except TauStepLimitReached as exc:
                     error = type(exc).__name__ + ": " + str(exc)
@@ -1055,6 +1119,7 @@ class ControlledRoutes:
                     failure_kind = "tau_step_limit"
                     failure_stage = "agent_execution"
                     exception_type = safe_exception_type(exc)
+                    diagnostic_code = safe_diagnostic_code(exc)
                 except Exception as exc:
                     error = type(exc).__name__ + ": " + str(exc)
                     status = "failed"
@@ -1068,6 +1133,7 @@ class ControlledRoutes:
                         ),
                     )
                     exception_type = safe_exception_type(exc)
+                    diagnostic_code = safe_diagnostic_code(exc)
                 finally:
                     execution_finished = perf_counter()
                     if agent_started is not None:
@@ -1098,6 +1164,7 @@ class ControlledRoutes:
                                 exc, default="official_scoring"
                             )
                             exception_type = safe_exception_type(exc)
+                            diagnostic_code = safe_diagnostic_code(exc)
                         finally:
                             scoring_seconds = perf_counter() - scoring_started
                             scoring_usage = getattr(session, "scoring_model_usage", None)
@@ -1118,6 +1185,7 @@ class ControlledRoutes:
                                         exc, default="official_scoring"
                                     )
                                     exception_type = safe_exception_type(exc)
+                                    diagnostic_code = safe_diagnostic_code(exc)
                     close_adapters = getattr(managed_adapters, "close", None)
                     if callable(close_adapters):
                         try:
@@ -1134,6 +1202,7 @@ class ControlledRoutes:
                                 exc, default="model_resource_cleanup"
                             )
                             exception_type = safe_exception_type(exc)
+                            diagnostic_code = safe_diagnostic_code(exc)
             session_context_exited = True
             cleanup_report = getattr(session, "cleanup_evidence", None)
             if callable(cleanup_report):
@@ -1159,6 +1228,7 @@ class ControlledRoutes:
                         exc, default="environment_cleanup"
                     )
                     exception_type = safe_exception_type(exc)
+                    diagnostic_code = safe_diagnostic_code(exc)
                     error = (error + "; " if error else "") + (
                         "Environment cleanup verification failed: " + type(exc).__name__
                     )
@@ -1270,6 +1340,10 @@ class ControlledRoutes:
             tau_step_count,
             failure_stage,
             exception_type,
+            diagnostic_code,
+            plan.digest if isinstance(plan, Plan) else None,
+            decision_digest,
+            "execution_only" if frozen_plan is not None and not reused else "full_workflow",
         )
 
     def _react(

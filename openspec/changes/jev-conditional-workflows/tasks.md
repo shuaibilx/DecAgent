@@ -1,11 +1,12 @@
 # Tasks
 
-## 当前状态（2026-10-24）
+## 当前状态（2026-10-24，评测切片本地验证完成，CI/live 待执行）
 
-- **完成：72/79。** 未完成：9.6.D、9.6.F、9.6.G、10.3、10.4、10.5、10.6。
-- **最新真实首波：** 候选 `5b43a45962ee16bc0f61015d1063ee9ad6c676fe` 上固定 4 个任务/8 条 ReAct 与 Plan 路线，3 failed、5 unknown、0 success；清理 8/8 verified。仅 ITSM/ReAct 与 τ telecom/ReAct 获官方评分，均为 0.0。Jev 未纳入。详见[首波报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261024-5b43a45-100qwen.md)。
-- **当前阻塞：** 计划路线的 Qwen 超时原因仍未确认，unknown 不重放，剩余 smoke 与全量暂停。共享 monotonic deadline 的离线诊断修复已通过本地回归，但尚未纳入远端 CI，也未用新 cohort 验证提供方行为；不关闭 9.6.F/G。
-- **候选 CI：** 首波源 SHA 的同 SHA CI run [40043584670](https://github.com/shuaibilx/DecAgent/actions/runs/40043584670) 通过；该结果不覆盖上述后续本地修改。
+- **OpenSpec checkbox：72/79 完成。** 未完成：9.6.D、9.6.F、9.6.G、10.3、10.4、10.5、10.6。
+- **历史真实首波：** 候选 `5b43a45962ee16bc0f61015d1063ee9ad6c676fe` 上 4 个任务/8 条 ReAct 与 Plan 路线为 3 failed、5 unknown、0 success；清理 8/8 verified。仅 ITSM/ReAct 与 τ telecom/ReAct 获官方评分，均为 0.0。Jev 未纳入；unknown 不重放。详见[首波报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261024-5b43a45-100qwen.md)。
+- **本轮本地进展：** 已有 metadata-only 24-task/68-route pilot sampler、primary semantic 完整路线与 Jev execution-only 同一 Plan/decision-input 配对、无自然判断 N/A 与 primary 失败配对 incomplete 区分、ReAct/τ callback 安全原因码、CSM `find_entitlements.product_id` nullable 输出 observation 契约、Qwen CNY 费用硬上限事务门禁，以及 bounded diagnostic 报告 phase 证据修复。诊断和 pilot 共用额度；另加用户级持久授权锁，限制为一个候选及一对诊断/pilot，丢失账本或切换候选/cohort 不得重置；批次墙钟在环境预检前启动，评分就绪门禁绑定同一任务/路线。恢复时无法恢复原 Plan 且无持久“未观察语义决策”证明的 Jev 槽现记为 incomplete；证据路径先检查原始路径组件和 parent traversal。`diagnostic` dry-run 固定展示 4 个开发案例/8 个路线，并使用真实诊断预算：Qwen 最多 6 次请求、600,000 token、2,700 秒（45 分钟）；不会把全周 500 次请求等额度冒报为本次诊断上限，也不创建 ledger、不派发模型或 MCP。最终本地验证：deterministic `2,234 passed, 19 skipped`、全仓 Ruff、OpenSpec strict（6/6）、`git diff --check`，以及 digest-pinned 镜像 preflight 均通过。本机 symlink 权限导致一条真实文件系统 symlink 测试 skip，另有确定性模拟回归。
+- **尚未验收：** 当前 HEAD 为 `466ec97f5a63520bc50d2d02a0b56e70cf51f268`，评测修改未提交，已有同 SHA CI 不覆盖本轮差异；尚未发出新模型请求、冻结 24-task pilot manifest 或运行新 cohort。Qwen historical Plan timeout 根因仍待有限新诊断；OpenRouter 的备用诊断 cohort 仍未建立；历史 unknown 不重放。已确认 diagnostic dry-run 与本地 digest 镜像预检通过，但这不等于 live 模型/MCP/评分闭环。
+- **候选 CI：** 历史首波源 SHA 的同 SHA CI run [40043584670](https://github.com/shuaibilx/DecAgent/actions/runs/40043584670) 通过；它不覆盖当前工作区修改。
 - **游客与本机交付：** [guest-sop-local-trial](../guest-sop-local-trial/tasks.md) 为 24/28，剩余 2.5、4.4、5.3、5.4。
 - **完整历史快照：** [本次整理前快照](../../../generated/261024/0952_jev完整任务快照_清理前.md)；[上一版逐字快照](../../../generated/261022/任务整理/1202_jev任务完整快照_整理前.md)。详细实现证据见[工作台](../../../generated/261021/任务整理/1434_实现与工作台证据.md)、[评测](../../../generated/261021/任务整理/1434_评测基础证据.md)、[模型与真实评测](../../../generated/261021/任务整理/1434_模型与真实评测证据.md)、[整体验收](../../../generated/261021/任务整理/1434_整体验收证据.md)。
 
@@ -89,7 +90,7 @@
 - [x] 9.6.C 通过 τ 子进程桥记录 transcript，再使用官方 evaluator；ReAct/Plan 均支持模拟用户澄清。
 - [ ] 9.6.D 审核并冻结自然适用的 Jev 模板；在同一状态输入下配对 Jev 与固定通用模型。离线审阅确认仅 CSM 知识文章选择适用，使用 Choice；其他域 N/A，结构化条件走规则。状态/问题相同的 mock 配对回归通过；真实配对仍待新 cohort 与授权。见[适用性审阅](../../../evals/benchmarks/evidence/jev-applicability-contract-review-20261022.md)。
 - [x] 9.6.E 冻结公开 manifest、暴露组、profile、预算、复用/记忆消融与计时；标签和私有评分材料不得进入 Agent 输入。完成仅表示设计冻结，不代表真实评测通过。
-- [ ] 9.6.F 接通并验收真实模型/MCP callback、ReAct/Plan/Jev 配对调度、τ 模拟器与官方裁判、最终回复、unknown/评分失败分类、环境清理及 unknown 后停止派发。2026-10-24 首波仅证明部分真实路径可执行，未通过四域闭环；MCP schema 兼容与共享 deadline 的离线修复已有回归证据，但 live Qwen 原因及 Jev 配对仍未验证。见[首波报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261024-5b43a45-100qwen.md)和[design 诊断记录](design.md#2026-10-24-one-shot-provider-timeout-classification)。
+- [ ] 9.6.F 接通并验收真实模型/MCP callback、ReAct/Plan/Jev 配对调度、τ 模拟器与官方裁判、最终回复、unknown/评分失败分类、环境清理及 unknown 后停止派发。工作区现有精确 Plan 配对、决策输入摘要、N/A/incomplete 区分、τ 安全原因码、CSM nullable observation 修正及四域 diagnostic gate；新增 Qwen CNY 费用原子预留/超限停止、共享 diagnostic/pilot 总额度、忽略状态中的证据绑定与报告修复、用户级候选/phase 授权锁、预检前绝对墙钟、同路线就绪证据及 symlink-safe 报告读取。最终本地 deterministic `2,234 passed, 19 skipped`，全仓 Ruff、OpenSpec strict（6/6）与 diff check 通过；`diagnostic` dry-run 显示 4 任务/8 路线、6 次 Qwen 请求/600,000 token/2,700 秒，且 0 ledger/模型/MCP。当前修改仍未过同 SHA CI，也未执行 live diagnostic。Plan 超时和历史 route 原因不能由旧 unknown 反推，见[首波报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261024-5b43a45-100qwen.md)及[design 诊断记录](design.md#2026-10-24-diagnostic-fee-admission-and-report-completeness)。
 - [ ] 9.6.G 完成四域首波验收：2026-10-24 固定 4 任务/8 路线结果为 3 failed、5 unknown、0 success，清理 8/8 verified；仅两条 ReAct 路线获得官方评分且均为 0.0。未满足完整评分/质量门槛，unknown 不重放，下一批需重新冻结 cohort 并授权。见[首波报告](../../../evals/benchmarks/evidence/public-first-wave-live-20261024-5b43a45-100qwen.md)。
 - [x] 9.7 持久化 Jev 累计 1 美元预留/结算/unknown 停止账本；历史费用不可重置。
 - [x] 9.8 对计划路线实现证据约束的确定性最终回复及有界 Qwen 总结；总结失败/unknown 受账本约束。
@@ -98,8 +99,8 @@
 
 - [x] 10.1 完成主模型 readiness 检查与放行记录；旧 2026-10-18 unknown 不重试。
 - [x] 10.2 按每决策族至少 100 个自动样本及 95% 正确率门槛评估阈值资格；样本不足时不选生产阈值、不用 holdout 补样。
-- [ ] 10.3 完成冻结四域首波、每域至少一个有效官方评分及清理闭环，然后补齐 24 例 smoke；通过后再决定是否运行 206+80 全量。2026-10-24 新 cohort 的 8 条路线均终态且清理 8/8，但只有 ITSM 与 τ telecom 各有一条官方评分（均为 0.0）；CSM 与 τ retail 未评分。5 条 unknown、3 条 failed、0 条 success，故每域评分门槛不满足，24 例 smoke 补跑及 206+80 全量仍暂停。依实耗做的线性资源外推被失败/unknown 样本主导，只能提示容量量级，不能据此冻结或授权新批次，见[资源估算](../../../evals/benchmarks/evidence/public-evaluation-resource-estimate-20261024-5b43a45.md)。报告完整任务分母与实跑分母；不得冒充全量。
-  - v10 实耗已核对：30 Qwen 请求、477,433 计费/预留 token、13 个工具调用；只有一个官方分数且为 0.0，不能外推更大批次资源。新 cohort 的建议硬上限为 100 请求、100 万 token、400 工具调用、2 小时，Qwen 抵扣前成本上限 ¥2.70；该估算待单独授权，未派发。见[下一批资源估算](../../../evals/benchmarks/evidence/next-public-cohort-budget-estimate-20261024.md)。
+- [ ] 10.3 先以四个已暴露开发案例走通有界 live diagnostic：通用模型总计最多 12 次请求/600,000 Token/45 分钟；Qwen cohort 最多 6 次并以原子 CNY 费用预留限制 ¥13.50。若 Qwen 仍不稳定，OpenRouter DeepSeek 的最多 6 次诊断必须冻结独立提供方/价格/模型组，不能在本次 Qwen 诊断或正式比较中混用，且仍计入同一总诊断资源上限。至少一个固定模型经过真实计划、MCP、官方评分及清理闭环后，才按 seed `sop-pilot-20261024-v1` 仅使用 metadata 冻结 CSM 10、ITSM 10、τ retail test 2、τ telecom test 2 共 24 任务/68 路线。正式 pilot 必须绑定诊断报告 SHA 与相同候选，并从全周共享的 500 次 Qwen 请求、500 万 Token、1,600 工具调用、4 小时、¥13.50 上限中扣除诊断实际用量及 unknown 预留；不得用新 cohort/state 重置额度、重放历史 unknown 或换题补分。当前 diagnostic 尚未跑，24-task manifest 尚未生成，206+80 全量未开始。
+  - 历史 2026-10-24 首波仍为 3 failed、5 unknown、0 success，清理 8/8；两条官方分数均 0.0，不作为新 diagnostic 成绩或 Jev 收益证据。此前 100 请求/100 万 Token/2 小时/¥2.70 为旧候选预算，已由当前 12 请求/600,000 Token/45 分钟/¥13.50 Qwen diagnostic 上限替代，不得用于本次 dispatch。
   - 2026-10-24 离线补齐 cohort 额度冻结：仅 manifest v9+ 可使用低于既有首波最大值的角色及批次硬上限；角色请求/token 配额须精确加总，超上限、布尔值及错误分配均拒绝。默认 v10 manifest 保持完全一致。定向测试和同 SHA CI 已通过；该代码不创建新 cohort，不重用 v10 账本，也不授权真实派发。
   - 2026-10-24 候选 `9a28504439c28bbd35006e860c78801ac4183c82` 的 12-job 同 SHA CI 全绿；首波 `--check-images` dry-run 选择 4 个固定任务/8 个 ReAct-Plan 路线槽，镜像预检通过，`ledger_created=false`、模型调用 0、MCP 调用 0。它未运行评分器，不改变 v10 终态或授权新批次。报告：[操作者摘要](../../../evals/benchmarks/evidence/public-first-wave-preflight-9a28504.md)、[机器报告](../../../evals/benchmarks/evidence/public-first-wave-preflight-9a28504.json)。
 - [ ] 10.4 在相同任务、状态、权限、工具及隔离条件下比较 ReAct、一次规划确定性执行和一次规划加 Jev；报告质量、副作用、调用、成本、延迟及配对差异。本轮仅执行 ReAct/Plan 两条路线，没有成功路线或 Jev 配对；工具账本记录 2 次 settled 及 1 次 unknown 调用按注册工具元数据标记为 write-effect，实际禁止副作用数量未测量。仅自然适用语义节点参与 Jev 比较。
@@ -116,7 +117,7 @@
 - [x] 10.10.C 实现活动执行者租约、heartbeat 与 fencing；恢复不能重放完成或 unknown 路线。
 - [x] 10.10.D 接通 supervisor、ledger、MCP、deadline、官方 scorer 和 cleanup，并以隔离测试验证。
 - [x] 10.10.E 验证公开 runner 故障恢复与四域受控工程闭环；工程闭环不等于公开基准成绩。
-- [x] 10.10.F 安全保存模型/工具/route 诊断；保留未知和失败阶段、不记录敏感正文，清理补录不可重放。后续 ReAct 路径新增更细的 route supervisor、model callback、response validation、τ simulator 和 tool gateway 阶段；one-shot worker 被父级 deadline 终止时，仅通过无锁有界进程间状态保留 HTTP 传输阶段/状态码；内部 `model_call` 不算传输进展，未观察到传输边界时记通用 timeout；v10 历史 timeout 与 `ValueError` 仍不可追溯。
+- [x] 10.10.F 安全保存模型/工具/route 诊断；保留未知和失败阶段、不记录敏感正文，清理补录不可重放。后续 ReAct 路径新增 route supervisor、model callback、response validation、τ simulator 和 tool gateway 阶段；one-shot worker 仅通过无锁有界进程间状态保留传输阶段/状态码。本轮扩展白名单响应原因码，并从 τ 子进程安全传回 route 终态；异常消息、请求/响应正文仍不入账。历史 v10 timeout 与 `ValueError` 不可追溯；本轮扩展尚待同 SHA CI。
 
 ## 11. 整体回归与本机交付
 

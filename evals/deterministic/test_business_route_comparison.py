@@ -54,17 +54,29 @@ def run(route, *, context=None, plan="1" * 64, decision_input="2" * 64, jev=0):
 
 
 def test_semantic_pair_requires_same_plan_and_same_actual_decision_input():
-    jev = run(Route.PLAN_JEV_SEMANTIC, jev=1)
-    primary = run(Route.PLAN_PRIMARY_SEMANTIC)
+    jev = replace(
+        run(Route.PLAN_JEV_SEMANTIC, jev=1), evidence_scope="execution_only"
+    )
+    primary = replace(
+        run(Route.PLAN_PRIMARY_SEMANTIC), evidence_scope="full_workflow"
+    )
 
     paired = compare_semantic_judgment(jev, primary)
 
     assert paired.case_id == "case-001"
     assert paired.plan_digest == "1" * 64
     assert paired.decision_input_digest == "2" * 64
+    assert paired.evidence_scope == "execution_only"
+    assert compare_semantic_judgment(primary, jev).evidence_scope == "execution_only"
 
     with pytest.raises(ValueError, match="decision_input_digest"):
-        compare_semantic_judgment(jev, run(Route.PLAN_PRIMARY_SEMANTIC, decision_input="3" * 64))
+        compare_semantic_judgment(
+            jev,
+            replace(
+                run(Route.PLAN_PRIMARY_SEMANTIC, decision_input="3" * 64),
+                evidence_scope="full_workflow",
+            ),
+        )
 
 
 def test_full_workflow_pair_rejects_a_different_initial_snapshot_or_actor_scope():
@@ -176,12 +188,12 @@ def test_paired_comparisons_require_the_same_exposure_group_and_resource_profile
         compare_full_workflow(react, run(Route.PLAN_MCP, context=changed_resources))
 
 
-def test_comparisons_reject_mixed_evidence_scope_and_identical_routes():
+def test_semantic_comparison_accepts_only_planned_vs_execution_only_scopes():
     with pytest.raises(ValueError, match="routes"):
         compare_full_workflow(run(Route.PLAN_MCP), run(Route.PLAN_MCP))
-    with pytest.raises(ValueError, match="scope"):
+    with pytest.raises(ValueError, match="full_workflow.*execution_only"):
         compare_semantic_judgment(
-            run(Route.PLAN_JEV_SEMANTIC),
+            replace(run(Route.PLAN_JEV_SEMANTIC), evidence_scope="full_workflow"),
             replace(run(Route.PLAN_PRIMARY_SEMANTIC), evidence_scope="execution_only"),
         )
 

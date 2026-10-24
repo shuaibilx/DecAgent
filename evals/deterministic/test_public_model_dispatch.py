@@ -25,6 +25,7 @@ from decagent.evaluation.business.routes import (
     ModelReply,
     ObservedUsage,
     ProviderBillingEvidence,
+    _tau_model_callback,
 )
 from decagent.models.primary import ModelTurn, ModelUsage
 
@@ -197,6 +198,49 @@ def test_measured_model_response_error_persists_safe_failure_diagnostics(tmp_pat
     ledger.close()
 
 
+def test_model_response_rejection_category_is_allowlisted_and_persisted(tmp_path):
+    plan = _plan_with_known_primary_prices()
+    ledger, trial_id, route = _started_ledger(tmp_path, plan)
+    profile = plan.profiles.primary
+    reply = ModelReply(
+        None,
+        tokens=3,
+        cost_usd=None,
+        model=profile.model,
+        input_tokens=2,
+        output_tokens=1,
+        profile=profile,
+    )
+    measured = LedgeredModelCallback(
+        lambda _request, *, timeout_seconds: (_ for _ in ()).throw(
+            ModelCallError(
+                "private response body must not persist",
+                reply=reply,
+                diagnostic_code="tool_schema",
+            )
+        ),
+        ledger,
+        profile=profile,
+        trial_id=trial_id,
+        route=route,
+        input_token_upper_bound=lambda _value: 10,
+        route_remaining_seconds=lambda: ledger.route_remaining_seconds(
+            trial_id, route.value
+        ),
+    )
+
+    with pytest.raises(ModelCallError):
+        measured({"messages": []})
+
+    attempt = ledger._connection.execute(
+        "SELECT attempt_id FROM model_attempts"
+    ).fetchone()
+    snapshot = ledger.model_attempt_snapshot(attempt["attempt_id"])
+    assert snapshot["error_category"] == "model_response_tool_schema"
+    assert "private response body" not in json.dumps(snapshot)
+    ledger.close()
+
+
 def test_react_action_contract_error_keeps_response_validation_stage():
     profile = _plan_with_known_primary_prices().profiles.primary
 
@@ -222,8 +266,19 @@ def test_react_action_contract_error_keeps_response_validation_stage():
         )
 
     assert caught.value.failure_stage == "model_response_validation"
+    assert caught.value.diagnostic_code == "malformed_response"
     assert caught.value.reply.tokens == 3
     assert "private invalid action payload" not in str(caught.value)
+
+
+def test_tau_callback_contract_failure_has_safe_reason_code():
+    callback = _tau_model_callback(lambda _request: None, "tau_user_simulator")
+
+    with pytest.raises(ValueError) as caught:
+        callback({"name": "unexpected", "payload": {}})
+
+    assert caught.value.diagnostic_code == "tau_callback_event"
+    assert "unexpected" not in str(caught.value)
 
 
 def test_cny_cost_is_reserved_and_settled_without_a_guessed_usd_conversion(tmp_path):

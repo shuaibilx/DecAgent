@@ -274,6 +274,7 @@ class PublicPlannerCallback:
             raise ModelCallError(
                 "Primary model response did not satisfy the public plan contract",
                 reply=self._reply(None, exc.usage, exc.model, exc.server_request_id),
+                diagnostic_code=exc.reason,
             ) from None
 
         usage = getattr(turn, "usage", None)
@@ -861,6 +862,7 @@ class PublicReactCallback:
                 "Primary model response did not satisfy the public action contract",
                 reply=self._reply(None, exc.usage, exc.model, exc.server_request_id),
                 failure_stage="model_response_validation",
+                diagnostic_code=exc.reason,
             ) from None
         usage = getattr(turn, "usage", None)
         if not isinstance(usage, ModelUsage):
@@ -878,6 +880,7 @@ class PublicReactCallback:
                 "Primary model response did not contain one valid public action",
                 reply=measured,
                 failure_stage="model_response_validation",
+                diagnostic_code="malformed_response",
             ) from None
         return ModelReply(
             action,
@@ -1124,6 +1127,7 @@ class PublicPrimarySemanticCallback:
             raise ModelCallError(
                 "Primary semantic response did not satisfy its structured response contract",
                 reply=self._reply(None, exc.usage, exc.model, exc.server_request_id),
+                diagnostic_code=exc.reason,
             ) from None
 
         usage = getattr(turn, "usage", None)
@@ -1576,6 +1580,7 @@ class PublicTauModelCallback:
             raise ModelCallError(
                 "τ model response did not satisfy the frozen tool contract",
                 reply=self._reply(None, exc.usage, exc.model, exc.server_request_id),
+                diagnostic_code=exc.reason,
             ) from None
         usage = getattr(turn, "usage", None)
         if not isinstance(usage, ModelUsage):
@@ -1590,7 +1595,10 @@ class PublicTauModelCallback:
             value = self._completion(turn, schemas)
         except Exception:
             raise ModelCallError(
-                "τ model response did not satisfy the callback contract", reply=measured
+                "τ model response did not satisfy the callback contract",
+                reply=measured,
+                failure_stage="model_response_validation",
+                diagnostic_code="malformed_response",
             ) from None
         return ModelReply(
             value,
