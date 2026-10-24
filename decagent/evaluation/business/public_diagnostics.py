@@ -55,6 +55,7 @@ MODEL_RESPONSE_DIAGNOSTIC_CODES = frozenset(
         "empty_stream",
         "usage_invalid",
         "usage_missing",
+        "invalid_plan",
     }
 )
 DIAGNOSTIC_CODES = MODEL_RESPONSE_DIAGNOSTIC_CODES | frozenset(

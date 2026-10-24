@@ -288,11 +288,19 @@ class PublicPlannerCallback:
         )
         try:
             candidate = self.planner._extract(turn)
+        except Exception:
+            raise ModelCallError(
+                "Primary model response did not contain a parseable public plan",
+                reply=measured,
+                diagnostic_code="malformed_response",
+            ) from None
+        try:
             compiled = compile_plan(candidate, self.spec, input_schema=self.input_schema)
         except Exception:
             raise ModelCallError(
                 "Primary model plan did not compile against the frozen business catalog",
                 reply=measured,
+                diagnostic_code="invalid_plan",
             ) from None
         return ModelReply(
             compiled.plan.to_mapping(),

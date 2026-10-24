@@ -144,6 +144,34 @@ def test_public_planner_callback_rejects_invalid_plan_without_hidden_retry():
         assert error.value.reply is not None
         assert error.value.reply.tokens == 25
         assert error.value.reply.provider_request_id == "qwen-request-invalid"
+        assert error.value.diagnostic_code == "invalid_plan"
+
+
+def test_public_planner_callback_classifies_malformed_response_without_persisting_body():
+    from decagent.evaluation.business.public_models import PublicPlannerCallback
+
+    private_body = "not-json-private-response"
+    with _catalog() as catalog:
+        profile = _profile()
+        primary = ScriptedPrimary(
+            ModelTurn(
+                private_body,
+                (),
+                ModelUsage(20, 5, 25),
+                profile.model,
+                "qwen-request-malformed",
+            )
+        )
+        callback = PublicPlannerCallback(
+            primary, catalog, input_schema={"type": "object"}, profile=profile
+        )
+
+        with pytest.raises(ModelCallError) as error:
+            callback(_request(), timeout_seconds=3.5)
+
+        assert error.value.diagnostic_code == "malformed_response"
+        assert private_body not in str(error.value)
+        assert len(primary.calls) == 1
 
 
 def test_public_react_callback_preserves_tool_contract_and_returns_one_action():

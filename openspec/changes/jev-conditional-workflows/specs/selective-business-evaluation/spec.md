@@ -812,6 +812,10 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** τ simulator/judge bridge 收到不符合冻结 callback 契约的事件、模型身份、文本或工具调用响应
 - **THEN** route 只记录对应白名单原因码、允许的 failure stage 和异常类名；原始异常消息、模型正文、工具参数及凭证不得进入 ledger/report，历史终态不得因新增诊断被改写
 
+#### Scenario: Public plan rejection records a safe contract code
+- **WHEN** 已知用量的公共规划响应无法解析，或解析出的计划不能通过冻结 schema/compiler
+- **THEN** attempt 仅记录白名单 `malformed_response` 或 `invalid_plan` 原因码；响应正文、业务值和异常消息不得写入账本或报告，回调不得暗中重试
+
 #### Scenario: Verified model preflight failure records safe diagnostics
 - **WHEN** one-shot 模型客户端构造或输入校验在发出任何 HTTP 请求前失败，且本机可确认请求未发送
 - **THEN** attempt 保持 `not_sent` 并释放预留，可记录 `model_worker_request_pre_send`、受限失败原因及安全异常类名；`http_status` 保持 null，route 仍可继续，异常消息、请求内容和凭证不进入账本

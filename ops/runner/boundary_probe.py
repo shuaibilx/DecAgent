@@ -7,6 +7,24 @@ import urllib.error
 import urllib.request
 
 
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, file, code, message, headers, new_url):
+        return None
+
+
+def probe_succeeded(opener, url):
+    try:
+        with opener.open(url, timeout=15) as response:
+            status = response.status
+    except urllib.error.HTTPError as response:
+        # A 3xx response proves the plain HTTP request reached its public target;
+        # the HTTP probe must not silently turn into a second HTTPS probe.
+        status = response.code
+    except (OSError, urllib.error.URLError):
+        return False
+    return 200 <= status < 400
+
+
 def direct_blocked(host, port):
     try:
         with socket.create_connection((host, port), timeout=2):
@@ -56,23 +74,22 @@ def check():
             target["host"],
             target["port"],
         )
-    opener = urllib.request.build_opener(
+    http_opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({"http": os.environ["HTTP_PROXY"]}),
+        NoRedirectHandler(),
+    )
+    https_opener = urllib.request.build_opener(
         urllib.request.ProxyHandler(
             {
-                "http": os.environ["HTTP_PROXY"],
                 "https": os.environ["HTTPS_PROXY"],
             }
         )
     )
-    for name, url in [
-        ("public_http_proxy", "http://example.com/"),
-        ("public_https_connect", "https://pypi.org/simple/pip/"),
+    for name, opener, url in [
+        ("public_http_proxy", http_opener, "http://example.com/"),
+        ("public_https_connect", https_opener, "https://pypi.org/simple/pip/"),
     ]:
-        try:
-            with opener.open(url, timeout=15) as response:
-                checks[name] = 200 <= response.status < 400
-        except (OSError, urllib.error.URLError):
-            checks[name] = False
+        checks[name] = probe_succeeded(opener, url)
     return {"checks": checks, "passed": all(checks.values())}
 
 

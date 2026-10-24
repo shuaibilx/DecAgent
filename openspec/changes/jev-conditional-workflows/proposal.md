@@ -1,6 +1,18 @@
 # Proposal
 
-## 当前执行状态（2026-10-24 18:08，北京时间）
+## 当前执行状态（2026-10-24 19:01，北京时间）
+
+目标仍是在 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照结果；核心 Agent 不重建。主 change 当前为 **73/80**，待完成 9.6.D/F/G 与 10.3–10.6。公开基准仍为 0/286，Qwen round 2 未通过 Plan→MCP→官方评分闭环，历史结果不作为性能证据。24-task pilot 不得越过 readiness gate；任何真实模型请求都需新的明确批次授权，旧 45 分钟授权已过期。
+
+远端候选 `1d3bd9c8d576a665cc5a49ccc4a5569ba8d92cbc` 的 GitHub Actions [run 40087151660](https://github.com/shuaibilx/DecAgent/actions/runs/40087151660) 初次 attempt 有 11/12 jobs 成功；唯一失败是 Docker 边界自检报告 `public_http_proxy=false`，而 HTTPS CONNECT 与所有内网/元数据拒绝、直连阻断均通过。该探测使用 `urllib` 默认重定向处理；其输出没有保存首个 HTTP 状态或重定向链，因此无法确认具体失败在哪一段，但探测可能把 HTTP 与后续 HTTPS 连接混在一起。仅重跑失败 job 后 attempt 2 成功，run 最终通过。当前工作区修正为 HTTP 路径停止跟随重定向，将首个 2xx/3xx 作为成功代理响应，并新增拒绝 403 的回归；不改变代理访问策略。修复尚未提交或经过 CI。
+
+当前未提交工作还将公共规划器的解析失败与冻结编译器拒绝分别记录为 `malformed_response` / `invalid_plan`，同时不保存正文、不添加隐式重试。定向回归为 45 passed；全量 deterministic 为 **2,263 passed、19 skipped（263.21 秒）**；Ruff 与 OpenSpec strict 6/6 通过。当前工作区尚未提交，尚未经过该候选的同 SHA CI。下一步完成 diff/文档核验、提交并跑完整 CI。
+
+Qwen round 2 仍为 3 请求、34,054 tokens、1 MCP、180.34 秒、0 条成功路线；CSM Plan/ReAct 官方评分均失败，5 条路线未派发。该诊断不是 benchmark。OpenRouter 没有 live 请求。当前不发真实模型请求，直到用户为新批次明确授权并完成候选、provider/profile、持久账本和时间/成本门禁。
+
+pilot 选样规则仍为 metadata-only 固定种子 `sop-pilot-20261024-v1`，目标分母 CSM 10、ITSM 10、τ retail official test 2、τ telecom official test 2，最多 68 条完整路线。当前没有冻结正式 pilot manifest；只有通过与所选 provider/profile 匹配的 readiness 后才能冻结和执行。指标、95% 自动正确率及每类至少 100 个自动样本的生产资格门槛保持不变。
+
+## 历史执行状态（2026-10-24 18:08，北京时间）
 
 目标仍是在 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照结果。本阶段不重建已基本完成的规划器、执行器、MCP、Jev、人工接管、记忆和 trace；重点是修复真实执行链、完成公平对照并如实报告性能。
 
