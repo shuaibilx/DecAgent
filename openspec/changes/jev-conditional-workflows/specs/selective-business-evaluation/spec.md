@@ -668,6 +668,10 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** 批次准入或 route machine-time 预算不允许开始一条 pending route
 - **THEN** route claim 与机时 reservation 在同一事务失败回滚，route 保持 pending 且不创建 machine-time attempt；成功时二者共同提交
 
+#### Scenario: Exhausted role quota skips unstarted routes before claim
+- **WHEN** 某个冻结模型角色已达到批次请求、Token 或费用上限，调度器准备启动下一条 pending route
+- **THEN** 调度器必须先持久化对应的批次停止原因并跳过该路线；路线保持 pending，不创建 route claim、machine-time、model 或 tool attempt，也不得将其计作任务失败
+
 #### Scenario: Machine-time overrun preserves independent score and cleanup evidence
 - **WHEN** route 已返回受控执行与 cleanup 结果，但实际 Agent machine-time 超出冻结上限
 - **THEN** route 以失败终态记录 `resource_overrun`，不得标记 completed；可用的官方分数和 cleanup evidence 仍分别持久保存

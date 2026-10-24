@@ -1,12 +1,12 @@
 # Tasks
 
-## 当前执行状态与后续顺序（2026-10-24 18:08，北京时间）
+## 当前执行状态与后续顺序（2026-10-24 18:26，北京时间）
 
-- **交付目标：** 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照报告。主 change 仍为 **72/79**；未完成项是 9.6.D/F/G 与 10.3–10.6。核心 Agent 不重建；游客扩展、私有 CD、公网入口、部署演练、记忆消融和阈值扫描暂停。
+- **交付目标：** 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照报告。主 change 为 **73/80**；剩余 7 项是 9.6.D/F/G 与 10.3–10.6。核心 Agent 不重建；游客扩展、私有 CD、公网入口、部署演练、记忆消融和阈值扫描暂停。
 - **已完成的本轮真实诊断：** Qwen round 2 在 `907017651e72a2a5d295006f4858f0055d1b9cea` 上执行，CI 12/12。4 任务/8 路线中 3 条终结、5 条 pending、0 条成功；3 次 Qwen 请求、34,054 tokens、1 MCP 调用、180.34 秒、0 用量 unknown，冻结费率估算 gross API cost ¥0.0433172。CSM Plan/ReAct 官方 verifier 均为 false；ITSM Plan 额度耗尽后未实际派发；没有 τ 调用。详见[round 2 证据](../../../evals/benchmarks/evidence/sop-agent-diagnostic-round2-20261024-9070176.md)。这不是基准成绩。
 - **OpenRouter 诊断状态：** Qwen 批次原始绝对 deadline 为 2026-10-24 09:21 UTC（17:21 北京时间），本次恢复时已过期。OpenRouter live 请求为 **0**；仅完成 1 条 CSM Plan dry-run，0 ledger、0 模型/MCP 派发。禁止用新 ledger 延长 45 分钟窗口；需新的明确批次授权后才能派发。
-- **当前本地候选：** 已提交 OpenRouter role-cap、零额度 preflight、父批次绝对 deadline 继承/过期拒发及 provider-matched pilot gate 规范。全量 deterministic **2,260 passed、19 skipped**，全仓 Ruff、OpenSpec strict 6/6 和 diff check 通过。GitHub 推送连续遇到连接重置/不可达；远端仍是前一候选，同 SHA CI 未运行。pilot readiness 与实际 provider/profile 必须匹配，当前 gate 仅支持 Qwen。
-- **执行顺序：** 完成本轮剩余离线回归、同 SHA CI 与报告；仅在获得有效新授权后继续 OpenRouter readiness。当前 pilot 证据门禁只接受 Qwen；OpenRouter 即使独立完成诊断闭环，也不能放行现有 Qwen pilot。若未来选 OpenRouter 作为正式实验提供方，先实现并测试匹配的 profile、证据门禁与独立账本，再冻结 24-task/68-route pilot。任何 pilot 都须使用与 readiness 完全相同的 provider/profile，不跨 provider 拼接结果；metadata-only 样本为 CSM 10、ITSM 10、τ retail test 2、τ telecom test 2，ReAct/Plan-rule 全覆盖，CSM 10 条做通用模型/Jev 决策配对。Jev 只测已审核 CSM knowledge Choice；N/A 单列。
+- **当前候选与离线验证：** `ee43db0e1bd52073ab4513c1026b3973dff2dc6c` 已推送到 `feat/conditional-evaluation`；同 SHA GitHub Actions [run 40084779985](https://github.com/shuaibilx/DecAgent/actions/runs/40084779985) 的 12/12 jobs 通过。当前候选增加了角色级请求上限的 route-claim 前置检查，避免额度耗尽后把未派发路线记为任务失败；round 2 的旧记录保持不变。回归验证：Agent/OpenRouter cap scheduler 两项测试 2 passed，持久账本跨路由 cap 测试 1 passed，相关 Ruff 通过。当前 `--phase diagnostic --check-images` dry-run 选择 4 个开发案例/8 个路线槽，镜像检查通过，`ledger_created=false`、模型/MCP 派发均为 0；详见[当前候选预检](../../../evals/benchmarks/evidence/sop-agent-current-diagnostic-preflight-ee43db0-20261024.json)。这不是新诊断批次，也不是 pilot。
+- **真实评测门禁与执行顺序：** Qwen round 2 的绝对 deadline 为 2026-10-24 09:21 UTC（17:21 北京时间），已经过期；OpenRouter live 请求仍为 **0**。不得用旧 45 分钟授权、新 ledger 或新 `started_at` 继续真实调用；必须先取得新批次明确授权并冻结候选、provider/profile、请求/Token/费用/时间上限。当前 pilot evidence gate 只支持 Qwen，OpenRouter readiness 不能直接放行现有 pilot；若选 OpenRouter 作为 pilot provider，先实现并验证匹配的 profile、evidence gate 和独立账本。任何 pilot 都须与 readiness provider/profile 完全一致，不跨 provider 拼接；24-task/68-route 样本保持 CSM 10、ITSM 10、τ retail test 2、τ telecom test 2，Jev 只测已审核的 CSM knowledge Choice；N/A 单列。
 - **预算与结论：** 全周共同硬上限为 500 次通用请求、5,000,000 token、1,600 次工具调用、4 小时、Qwen gross API ¥13.50、OpenRouter gross API $5；Jev 仍用原累计 $1 账本，unknown reservation 不释放。成本按真实 usage 与冻结费率标准化，代金券和现金账单分开。报告保留完整分母、终态、成本完整性、端到端/分阶段延迟、配对区间和副作用测量状态；不降低 95% 自动正确率与每类至少 100 个样本的生产阈值资格要求。
 - **历史边界：** v10 首波 `5b43a45` 的 0 success、3 failed、5 unknown，以及早期 `91d1cf0` diagnostic 的 2 failed/6 pending 均不可重放、不可并入新试验，也不作为性能证据。完整历史见[任务整理前快照](../../../generated/261024/0952_jev完整任务快照_清理前.md)。
 
@@ -122,6 +122,7 @@
 - [x] 10.10.D 接通 supervisor、ledger、MCP、deadline、官方 scorer 和 cleanup，并以隔离测试验证。
 - [x] 10.10.E 验证公开 runner 故障恢复与四域受控工程闭环；工程闭环不等于公开基准成绩。
 - [x] 10.10.F 诊断仅记录允许的阶段、状态与安全原因码；不保存异常消息或请求/响应正文，清理补录不可重放。无法恢复的历史异常原因保留为未知；完整历史见[整理前任务快照](../../../generated/261024/0952_jev完整任务快照_清理前.md)。
+- [x] 10.10.G 角色级请求额度达到上限后，在下一路线 claim 前持久化批次停止并跳过未开始路线；验证不创建该路线的模型、工具或机时 attempt，且不将其计作任务失败。见[角色上限调度回归](../../../evals/deterministic/test_business_public_execution.py)与[持久账本恢复回归](../../../evals/deterministic/test_business_public_trials.py)。
 
 ## 11. 整体回归与本机交付
 

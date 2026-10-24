@@ -1,0 +1,96 @@
+{
+  "batch_limits": {
+    "agent_qwen_requests": 3,
+    "agent_qwen_tokens": 400000,
+    "judge_qwen_requests": 1,
+    "judge_qwen_tokens": 50000,
+    "qwen_cost_cny": "1.62",
+    "qwen_requests": 6,
+    "qwen_tokens": 600000,
+    "tool_calls": 400,
+    "user_simulator_qwen_requests": 2,
+    "user_simulator_qwen_tokens": 150000,
+    "wall_seconds": 2700
+  },
+  "by_benchmark": {
+    "enterpriseops-gym": 2,
+    "tau-bench": 2
+  },
+  "diagnostic_candidate_sha": null,
+  "diagnostic_evidence_sha256": null,
+  "dry_run": true,
+  "initial_smoke_wave": [
+    {
+      "benchmark": "enterpriseops-gym",
+      "case_id": "task_20260106_161859_265_00364ece_0e836ce8",
+      "domain": "csm",
+      "split": "oracle",
+      "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+    },
+    {
+      "benchmark": "enterpriseops-gym",
+      "case_id": "task_20260115_201951_323_391f1eff_659b9dae",
+      "domain": "itsm",
+      "split": "oracle",
+      "trial_id": "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78"
+    },
+    {
+      "benchmark": "tau-bench",
+      "case_id": "0",
+      "domain": "retail",
+      "split": "train",
+      "trial_id": "41bf7b951bd408fa6da7184af2b12d959db1c87b1ed5806e2ae74530ce9bb1d0"
+    },
+    {
+      "benchmark": "tau-bench",
+      "case_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Hard]",
+      "domain": "telecom",
+      "split": "train",
+      "trial_id": "77b783f49a0b5492cdb2002fc13ef5d0eb34c2324679d1430cb85b92b25bd50b"
+    }
+  ],
+  "initial_wave_route_attempt_slots": 8,
+  "initial_wave_task_count": 4,
+  "jev_semantic_status": "reviewed_csm_natural_case_pairing_pending",
+  "ledger_created": false,
+  "live_model_calls": 0,
+  "manifest_digest": "6334633faf1dde4a6aa77852d8d382941b8246c94d5fe3f50defa693768b1027",
+  "mcp_calls": 0,
+  "mode": "smoke",
+  "model_profiles_digest": "1d06ce65739ea21afd0e04fb52e8f7537dbeb6abf6e89765eb51063895a17351",
+  "phase": "diagnostic",
+  "resource_limits": {
+    "agent_machine_seconds": 2700,
+    "agent_model_requests": 6,
+    "agent_tokens": 600000,
+    "judge_requests": 6,
+    "judge_tokens": 600000,
+    "tau_steps": 200,
+    "tool_calls": 200,
+    "user_simulator_requests": 6,
+    "user_simulator_tokens": 600000
+  },
+  "route_attempt_slots": 8,
+  "route_pair": [
+    "plan_mcp",
+    "react_skill_mcp"
+  ],
+  "route_schedule": null,
+  "schema_version": "public-evaluation-dry-run-v1",
+  "selected_by_benchmark": {
+    "enterpriseops-gym": 2,
+    "tau-bench": 2
+  },
+  "selected_route_attempt_slots": 8,
+  "selected_task_count": 4,
+  "selected_trial_ids": [
+    "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5",
+    "ca040e28ac721b2ec4d8866a8d953923536a37e980db8ea9a2048f564036ff78",
+    "41bf7b951bd408fa6da7184af2b12d959db1c87b1ed5806e2ae74530ce9bb1d0",
+    "77b783f49a0b5492cdb2002fc13ef5d0eb34c2324679d1430cb85b92b25bd50b"
+  ],
+  "source_manifest_digest": "cd4712df4304708a6d7f95c3a0c9ec19efa524d84a563c6c0a54ef4d26c973a7",
+  "status": "preflight_passed_no_execution",
+  "task_denominator": 4,
+  "task_inventory_digest": "ca3075e0e1a2557e0948abbb4ce12594bbc058a7f0e94f4e902d73fee429c769"
+}

@@ -8,7 +8,7 @@ Qwen round 2 已在候选 `907017651e72a2a5d295006f4858f0055d1b9cea` 上结束�
 
 round 2 的共同 45 分钟绝对期限为 2026-10-24 09:21 UTC（17:21 北京时间）。本次继续时已过期；OpenRouter 没有收到请求。仅执行了 OpenRouter `--check-images` dry-run，固定选择 1 条 CSM Plan 路线、0 ledger、0 模型调用、0 MCP 调用。OpenRouter 后续阶段不得用新账本或新 `started_at` 延长旧授权；需另行获得新的批次授权后才能发送请求。
 
-本地候选已提交；修正包括角色 Token 配额允许低于批次 aggregate cap、零额度角色的零使用不误触发整批停止、OpenRouter continuation 继承并校验 Qwen round 2 的原始绝对 deadline，以及单路线机器时限 30 分钟。全量 deterministic 为 2,260 passed、19 skipped（306.40 秒），全仓 Ruff、OpenSpec strict 6/6 和 diff check 通过。GitHub 推送连续遇到连接重置/不可达；远端仍在上一候选，同 SHA CI 未运行。主 OpenSpec 当前 72/79；9.6.D/F/G 和 10.3–10.6 仍待完成。
+截至本状态快照，最新候选 `ee43db0e1bd52073ab4513c1026b3973dff2dc6c` 已推送到 `feat/conditional-evaluation`；GitHub Actions [run 40084779985](https://github.com/shuaibilx/DecAgent/actions/runs/40084779985) 在同 SHA 上 12/12 jobs 通过。候选包含角色级请求额度耗尽时的调度前停止检查，避免下一条未派发路线被终结为任务失败；历史 round 2 ledger 未改写。当前候选的诊断 dry-run 通过镜像检查，保持 4 个开发案例/8 个路线槽，0 ledger、0 模型/MCP 派发；[机器预检报告](../../../evals/benchmarks/evidence/sop-agent-current-diagnostic-preflight-ee43db0-20261024.json)。这只证明离线配置与镜像可用，不是新模型诊断、pilot readiness 或性能结果。两项调度回归和一项持久账本 cap/resume 回归共 3 passed，相关 Ruff 通过。主 OpenSpec 为 73/80；9.6.D/F/G 和 10.3–10.6 仍待完成。round 2 的 OpenRouter continuation 45 分钟授权已过期，任何新的真实请求仍须另行获得新批次授权。
 
 任何后续真实路线必须先通过干净候选、同 SHA CI、固定模型 profile 和预算/截止时间门禁。Pilot 必须使用与 readiness evidence 完全匹配的 provider/profile。当前 evidence gate 只支持 Qwen；OpenRouter diagnostic 即使未来通过闭环，也不能放行现有 Qwen pilot，需先实现、测试并通过同 SHA CI 的 OpenRouter 匹配 gate/profile/ledger 路径。满足 provider-matched readiness 后，才冻结 metadata-only 的 24-task/68-route 对照：ReAct 与一次规划+规则覆盖全部任务，同一 10 条 CSM 再配对通用模型语义判断与 Jev。提供方之间使用独立实验组、关闭跨模型降级；结构化条件使用规则。未通过的诊断结果不重放、不换题、不混入性能分数。95% 自动正确率与每类至少 100 个样本的生产阈值资格条件不变。
 
