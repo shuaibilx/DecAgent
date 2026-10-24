@@ -33,11 +33,18 @@ _DIAGNOSTIC_ROUTES = ("plan_mcp", "react_skill_mcp")
 _OPENROUTER_DIAGNOSTIC_ROUTES = ("plan_mcp",)
 OPENROUTER_DIAGNOSTIC_BATCH_LIMITS = {
     **OPENROUTER_DIAGNOSTIC_LIMITS,
-    # Qwen round 2 already used 34,054 of the shared 600k diagnostic tokens.
-    "openrouter_tokens": 565_946,
-    "agent_openrouter_tokens": 500_000,
-    "tool_calls": 399,
-    "wall_seconds": 2_700,
+    # A single CSM Plan route needs a small, independently bounded allowance.
+    "openrouter_requests": 5,
+    "openrouter_tokens": 280_000,
+    "openrouter_cost_usd": "0.30",
+    "agent_openrouter_requests": 5,
+    "agent_openrouter_tokens": 280_000,
+    "user_simulator_openrouter_requests": 0,
+    "user_simulator_openrouter_tokens": 0,
+    "judge_openrouter_requests": 0,
+    "judge_openrouter_tokens": 0,
+    "tool_calls": 40,
+    "wall_seconds": 1_800,
 }
 _GENERAL_ROLES = frozenset({"primary", "user_simulator", "judge"})
 _SCORE_SOURCES = frozenset(
@@ -274,15 +281,13 @@ def build_bounded_openrouter_diagnostic_plan(plan):
     limits = {
         "agent_model_requests": 5,
         "agent_tokens": OPENROUTER_DIAGNOSTIC_BATCH_LIMITS["agent_openrouter_tokens"],
-        "tool_calls": 399,
+        "tool_calls": 40,
         "agent_machine_seconds": 1_800,
-        "tau_steps": 200,
-        "user_simulator_requests": 1,
-        "user_simulator_tokens": 1,
-        "judge_requests": 1,
-        "judge_tokens": OPENROUTER_DIAGNOSTIC_BATCH_LIMITS[
-            "judge_openrouter_tokens"
-        ],
+        "tau_steps": 0,
+        "user_simulator_requests": 0,
+        "user_simulator_tokens": 0,
+        "judge_requests": 0,
+        "judge_tokens": 0,
     }
     batch_limits = dict(OPENROUTER_DIAGNOSTIC_BATCH_LIMITS)
     validate_public_batch_limits(batch_limits)
@@ -333,14 +338,14 @@ def is_bounded_openrouter_diagnostic_plan(plan):
         return False
     return plan.resource_limits == {
         "agent_model_requests": 5,
-        "agent_tokens": 500_000,
-        "tool_calls": 399,
+        "agent_tokens": 280_000,
+        "tool_calls": 40,
         "agent_machine_seconds": 1_800,
-        "tau_steps": 200,
-        "user_simulator_requests": 1,
-        "user_simulator_tokens": 1,
-        "judge_requests": 1,
-        "judge_tokens": 65_946,
+        "tau_steps": 0,
+        "user_simulator_requests": 0,
+        "user_simulator_tokens": 0,
+        "judge_requests": 0,
+        "judge_tokens": 0,
     }
 
 

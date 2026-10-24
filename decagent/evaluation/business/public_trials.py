@@ -440,6 +440,10 @@ def _validate_readiness(root, profiles, path=None):
             raise ValueError("Readiness provider selection differs from the frozen cohort")
     if evidence.get("qualified_provider") != expected_provider:
         raise ValueError("Readiness provider differs from the frozen cohort")
+    if schema == "routed-model-readiness-evidence-v2" and expected_provider == "qwen":
+        expected_model_digest = profiles.digests["model_profile_digest"]
+        if evidence.get("model_profile_digest") != expected_model_digest:
+            raise ValueError("Readiness model profile fingerprint differs from the frozen cohort")
     attempts = ledger.get("attempts")
     if (
         type(ledger.get("blocked")) is not bool

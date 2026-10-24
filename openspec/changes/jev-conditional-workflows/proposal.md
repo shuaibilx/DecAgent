@@ -1,8 +1,14 @@
 # Proposal
 
-## 当前执行状态（2026-10-24，北京时间）
+## 当前执行状态（2026-10-25 00:25，北京时间）
 
-目标仍是在 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照结果；核心 Agent 不重建。主 change 当前为 **75/82**，待完成 9.6.D/F/G、10.3.C 与 10.4–10.6。公开基准仍为 0/286，Qwen round 2 历史失败不作为性能证据。2026-10-24 readiness v2 中，Qwen 连接与工具契约通过但计划编译失败；OpenRouter DeepSeek 通过连接、工具契约、只读计划编译与流式检查。共 7 请求、30,916 tokens、56.433 秒，无 unknown；按冻结费率估算 Qwen ¥0.0137883、OpenRouter $0.0121728，提供方账单实际金额不可用。没有业务 MCP 或官方 scorer 调用，不能据此声称业务效果或 Jev 收益。v2 没记录 OpenRouter provider routing，不能解锁固定 Fireworks 的公共 cohort。详细记录见[readiness 机器证据](../../../evals/benchmarks/evidence/routed-model-readiness-20261024-132906.json)与[执行说明](../../../evals/benchmarks/evidence/routed-model-readiness-20261024-132906.md)。
+目标仍是在 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照结果；核心 Agent 不重建。主 change 为 **76/82**，剩余 9.6.D/F/G 与 10.4–10.6。公开基准为 0/286，24-task pilot 尚未冻结。OpenRouter Fireworks v3 readiness 已通过：4 个受限阶段全部成功，4 次请求、16,282 tokens、16.426 秒，抵扣前冻结费率估算 $0.0117276；没有 unknown、Qwen/Jev/业务 MCP/官方评分器调用，OpenRouter 账单实际金额不可用。机器证据通过 v7 readiness gate。该结果只放行匹配模型 profile 的后续准备，不是业务执行结果或性能比较。详见[机器证据](../../../evals/benchmarks/evidence/routed-model-readiness-fireworks-v3-20261024.json)与[执行报告](../../../evals/benchmarks/evidence/routed-model-readiness-fireworks-v3-20261024.md)。
+
+单例诊断已离线预检通过：正确入口加载 v12 manifest/v7 Fireworks profile，仅选择已暴露 CSM case `task_20260106_161859_265_00364ece_0e836ce8` 的一个 `plan_mcp` 路线。路线硬上限为 5 次 OpenRouter Agent 请求、280,000 tokens、抵扣前 $0.30、40 次 MCP 工具调用、1,800 秒，并禁用用户模拟器、LLM judge 和 Jev。首次 live 准备审查发现执行器拒绝非 τ 路线的 `tau_steps=0`；已修复并加入回归，同时补上 Qwen v2 readiness 的 primary profile digest 校验。受影响的 7 个测试文件已通过（202 passed、1 skipped），全量 deterministic 2,310 passed、19 skipped；Ruff 与 OpenSpec strict 6/6 通过。最新 [v4 dry-run](../../../evals/benchmarks/evidence/openrouter-diagnostic-preflight-v4-20261025.json)仍选 1 个任务/1 条路线，0 模型/0 MCP 派发、0 ledger。代码仍未提交、未过同 SHA CI，真实 OpenRouter 业务路线尚未执行。先完成最终差异审查和同 SHA CI，再就 Plan→MCP→EnterpriseOps verifier→cleanup 开发闭环单独授权；结果不进入 pilot 分数。
+
+以下 readiness 与实现细节按发生顺序保留为历史记录；“当前”“尚未运行”“等待授权”等表述仅描述各自时间点，均由本节最新状态取代。
+
+### 历史 readiness 与实现记录
 
 本轮实现候选 `8acbe767ce1d7091c7ce23760c630bd34002ad94` 已推送到 `feat/conditional-evaluation`；同 SHA GitHub Actions [run 40097640965](https://github.com/shuaibilx/DecAgent/actions/runs/40097640965) **12/12 jobs 通过**。本地全量 deterministic 为 `2,287 passed, 19 skipped`，Ruff、OpenSpec strict（6/6）、`git diff --check` 全部通过。该候选通过后才启动已授权的 readiness v2；其机器记录与执行摘要见上方链接。
 

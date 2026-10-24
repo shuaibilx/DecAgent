@@ -1,0 +1,69 @@
+{
+  "batch_limits": {
+    "agent_openrouter_requests": 5,
+    "agent_openrouter_tokens": 280000,
+    "judge_openrouter_requests": 0,
+    "judge_openrouter_tokens": 0,
+    "openrouter_cost_usd": "0.30",
+    "openrouter_requests": 5,
+    "openrouter_tokens": 280000,
+    "tool_calls": 40,
+    "user_simulator_openrouter_requests": 0,
+    "user_simulator_openrouter_tokens": 0,
+    "wall_seconds": 1800
+  },
+  "by_benchmark": {
+    "enterpriseops-gym": 1
+  },
+  "diagnostic_candidate_sha": null,
+  "diagnostic_evidence_sha256": null,
+  "dry_run": true,
+  "initial_smoke_wave": [
+    {
+      "benchmark": "enterpriseops-gym",
+      "case_id": "task_20260106_161859_265_00364ece_0e836ce8",
+      "domain": "csm",
+      "split": "oracle",
+      "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+    }
+  ],
+  "initial_wave_route_attempt_slots": 1,
+  "initial_wave_task_count": 1,
+  "jev_semantic_status": "reviewed_csm_natural_case_pairing_pending",
+  "ledger_created": false,
+  "live_model_calls": 0,
+  "manifest_digest": "09151f43f2e5d9266c824067022ca8c94fa7de74e2c6af42f495d21904d57b3a",
+  "mcp_calls": 0,
+  "mode": "smoke",
+  "model_profiles_digest": "8719683a9d52bae5313cc2a4cd69e68f7a49f0e0b1e5c215cbb7b06dc8900474",
+  "phase": "openrouter-diagnostic",
+  "resource_limits": {
+    "agent_machine_seconds": 1800,
+    "agent_model_requests": 5,
+    "agent_tokens": 280000,
+    "judge_requests": 0,
+    "judge_tokens": 0,
+    "tau_steps": 0,
+    "tool_calls": 40,
+    "user_simulator_requests": 0,
+    "user_simulator_tokens": 0
+  },
+  "route_attempt_slots": 1,
+  "route_pair": [
+    "plan_mcp"
+  ],
+  "route_schedule": null,
+  "schema_version": "public-evaluation-dry-run-v1",
+  "selected_by_benchmark": {
+    "enterpriseops-gym": 1
+  },
+  "selected_route_attempt_slots": 1,
+  "selected_task_count": 1,
+  "selected_trial_ids": [
+    "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+  ],
+  "source_manifest_digest": "cd4712df4304708a6d7f95c3a0c9ec19efa524d84a563c6c0a54ef4d26c973a7",
+  "status": "preflight_passed_no_execution",
+  "task_denominator": 1,
+  "task_inventory_digest": "ca3075e0e1a2557e0948abbb4ce12594bbc058a7f0e94f4e902d73fee429c769"
+}

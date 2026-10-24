@@ -548,16 +548,27 @@ def test_openrouter_diagnostic_plan_is_a_single_csm_plan_route_with_residual_cap
     assert plan.trials[0]["domain"] == "csm"
     assert plan.routes == ("plan_mcp",)
     assert plan.route_slot_count() == 1
-    assert plan.batch_limits["openrouter_requests"] == 6
-    assert plan.batch_limits["openrouter_tokens"] == 565_946
-    assert plan.batch_limits["wall_seconds"] == 2_700
-    assert plan.batch_limits["openrouter_cost_usd"] == "5"
+    assert plan.batch_limits["openrouter_requests"] == 5
+    assert plan.batch_limits["openrouter_tokens"] == 280_000
+    assert plan.batch_limits["wall_seconds"] == 1_800
+    assert plan.batch_limits["openrouter_cost_usd"] == "0.30"
     assert plan.batch_limits["agent_openrouter_requests"] == 5
-    assert plan.batch_limits["judge_openrouter_requests"] == 1
-    assert plan.batch_limits["judge_openrouter_tokens"] == 65_946
+    assert plan.batch_limits["agent_openrouter_tokens"] == 280_000
+    assert plan.batch_limits["judge_openrouter_requests"] == 0
+    assert plan.batch_limits["judge_openrouter_tokens"] == 0
     assert "qwen_requests" not in plan.batch_limits
-    assert plan.resource_limits["agent_machine_seconds"] == 1_800
-    assert plan.resource_limits["judge_tokens"] == 65_946
+    assert plan.batch_limits["tool_calls"] == 40
+    assert plan.resource_limits == {
+        "agent_model_requests": 5,
+        "agent_tokens": 280_000,
+        "tool_calls": 40,
+        "agent_machine_seconds": 1_800,
+        "tau_steps": 0,
+        "user_simulator_requests": 0,
+        "user_simulator_tokens": 0,
+        "judge_requests": 0,
+        "judge_tokens": 0,
+    }
 
 
 def test_openrouter_diagnostic_plan_rejects_qwen_profile():
@@ -689,6 +700,51 @@ def test_routed_readiness_v2_cannot_be_upgraded_by_adding_v3_routing_metadata(tm
     readiness.write_text(json.dumps(report), encoding="utf-8")
 
     with pytest.raises(ValueError, match="ledger profile binding"):
+        _validate_readiness(ROOT, profiles, readiness)
+
+
+def test_qwen_readiness_v2_rejects_stale_model_profile_digest(tmp_path):
+    from dataclasses import replace
+    from decimal import Decimal
+
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v6.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    qwen = replace(
+        profiles.primary,
+        price_version="qwen3.8-flash-standard-cny-20261024-v1",
+        input_price_per_million=Decimal("0.8"),
+        output_price_per_million=Decimal("2.7"),
+    )
+    profiles = replace(profiles, primary=qwen)
+    report = json.loads(
+        (
+            ROOT
+            / "evals/benchmarks/evidence/"
+            / "routed-model-readiness-20261024-132906.json"
+        ).read_text(encoding="utf-8")
+    )
+    # This models a passed v2 Qwen report whose claims otherwise match the
+    # provider, endpoints, price digest, request outcomes, and qualification phases.
+    report["qualified_provider"] = "qwen"
+    report["providers"]["qwen"] = {"status": "passed", "failure": None}
+    report["ledger"]["required_provider"] = "qwen"
+    report["ledger"]["phases"].append(
+        {"phase": "qwen_stream", "status": "passed", "report": {}}
+    )
+    for phase in report["ledger"]["phases"]:
+        if phase["phase"].startswith("qwen_"):
+            phase["status"] = "passed"
+    readiness = tmp_path / "stale-qwen-v2.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="model profile fingerprint"):
         _validate_readiness(ROOT, profiles, readiness)
 
 

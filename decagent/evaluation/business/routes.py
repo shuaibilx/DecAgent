@@ -755,8 +755,8 @@ class ControlledRoutes:
             raise ValueError("Plan control-step bound must be between 1 and 32 compiled nodes")
         if type(max_react_turns) is not int or not 1 <= max_react_turns <= 200:
             raise ValueError("ReAct turn bound must be between 1 and 200 model requests")
-        if type(max_tau_steps) is not int or not 1 <= max_tau_steps <= 200:
-            raise ValueError("Official τ conversation-step bound must be between 1 and 200")
+        if type(max_tau_steps) is not int or not 0 <= max_tau_steps <= 200:
+            raise ValueError("Official τ conversation-step bound must be between 0 and 200")
         self.environment_factory = environment_factory
         self.max_plan_control_steps = max_plan_control_steps
         self.max_react_turns = max_react_turns

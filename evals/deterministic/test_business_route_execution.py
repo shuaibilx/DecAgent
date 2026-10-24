@@ -1231,6 +1231,17 @@ def test_plan_control_step_bound_is_separate_from_react_turn_bound():
     assert result.usage.primary_requests == 1
 
 
+def test_non_tau_route_accepts_zero_official_conversation_step_budget():
+    session = Session()
+    runner = api().ControlledRoutes(factory(session), max_tau_steps=0)
+
+    result = runner.run(Route.PLAN_MCP, trial(session), planner=planner(session))
+
+    assert result.status == "complete"
+    assert result.run.task_success
+    assert result.tau_steps == 0
+
+
 def test_react_turn_bound_is_independent_of_plan_control_steps():
     session = Session()
     runner = api().ControlledRoutes(

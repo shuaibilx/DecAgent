@@ -1,0 +1,272 @@
+{
+  "schema_version": "routed-model-readiness-evidence-v3",
+  "authorization_id": "primary-readiness-fireworks-v3-20261024",
+  "diagnostic_fingerprint": "678481f5f0b00631f434e6b358ae986e972ce0ae7a71a19287e597b028a4c08d",
+  "model_profile_digest": "ecc09a5d6c492d2d78e16c7e285f8503dec506ec48b3dd4d3b5abbcfa6796cf2",
+  "cohort_profiles_fingerprint": "8719683a9d52bae5313cc2a4cd69e68f7a49f0e0b1e5c215cbb7b06dc8900474",
+  "runtime_profile_digest": "7bd50f5c43b9330177c25927756496f36e8d9d96b67ed44e884239cd5140f763",
+  "required_provider": "openrouter",
+  "primary_pricing_source": "https://platform.qianwenai.com/pricing/api",
+  "pricing_source": "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints",
+  "status": "passed",
+  "qualified_provider": "openrouter",
+  "provider_profiles": {
+    "openrouter": {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "endpoint": "https://openrouter.ai/api/v1",
+      "provider_routing": "openrouter_fireworks",
+      "price_version": "openrouter-endpoints-api-2026-10-19-peak",
+      "price_source": "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints",
+      "price_currency": "USD",
+      "input_price_per_million": "0.60",
+      "output_price_per_million": "2.40",
+      "request_profile_fingerprints": {
+        "connection": "4adf5c2b30ed21a35420e0aa3a4ad955841bb906be536de9a4eb3ec49a42764e",
+        "tool_contract": "d8a861510e69a48478d2fb6834d053e3264e42b753316bdc90a7d0bf41f5d6a7",
+        "plan": "0ac647533215f9ee014a7502e7e41d58096d59cce308a1fcf4d6c34d08c6e801",
+        "stream": "4adf5c2b30ed21a35420e0aa3a4ad955841bb906be536de9a4eb3ec49a42764e"
+      }
+    }
+  },
+  "providers": {
+    "openrouter": {
+      "status": "passed",
+      "failure": null
+    }
+  },
+  "passed_criteria": [
+    "complete response and usage",
+    "tool contract",
+    "read-only production plan compiler",
+    "streaming response and usage"
+  ],
+  "stop_reason": null,
+  "ledger": {
+    "schema_version": "routed-model-readiness-ledger-v3",
+    "authorization_id": "primary-readiness-fireworks-v3-20261024",
+    "diagnostic_fingerprint": "678481f5f0b00631f434e6b358ae986e972ce0ae7a71a19287e597b028a4c08d",
+    "model_profile_digest": "ecc09a5d6c492d2d78e16c7e285f8503dec506ec48b3dd4d3b5abbcfa6796cf2",
+    "cohort_profiles_fingerprint": "8719683a9d52bae5313cc2a4cd69e68f7a49f0e0b1e5c215cbb7b06dc8900474",
+    "provider_request_profile_fingerprints": {
+      "qwen": {
+        "connection": "b29b4073b4fe382e5e0f0eae6bf3dc64620747508e45ebc9cad8f82617e29214",
+        "tool_contract": "d9f6938e7392e49c328e5160f525b7c57f776a3d2fcf919e9d936123f4381e5c",
+        "plan": "e8dac8011ca3594ac70037a657f84a950329ad883d402da6003bbaa858310b0d",
+        "stream": "b29b4073b4fe382e5e0f0eae6bf3dc64620747508e45ebc9cad8f82617e29214"
+      },
+      "openrouter": {
+        "connection": "4adf5c2b30ed21a35420e0aa3a4ad955841bb906be536de9a4eb3ec49a42764e",
+        "tool_contract": "d8a861510e69a48478d2fb6834d053e3264e42b753316bdc90a7d0bf41f5d6a7",
+        "plan": "0ac647533215f9ee014a7502e7e41d58096d59cce308a1fcf4d6c34d08c6e801",
+        "stream": "4adf5c2b30ed21a35420e0aa3a4ad955841bb906be536de9a4eb3ec49a42764e"
+      }
+    },
+    "primary_model": "qwen3.8-flash",
+    "primary_provider": "qwen",
+    "primary_currency": "CNY",
+    "required_provider": "openrouter",
+    "primary_endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+    "primary_price_version": "qwen3.8-flash-standard-cny-20261024-v1",
+    "fallback_model": "deepseek/deepseek-v4.1-flash",
+    "fallback_provider": "openrouter",
+    "fallback_endpoint": "https://openrouter.ai/api/v1",
+    "fallback_price_currency": "USD",
+    "fallback_price_version": "openrouter-endpoints-api-2026-10-19-peak",
+    "primary_price_digest": "8b3eb18d8e4ba1e220800e6baecdf3dc1dad98ed85a3db0a53e7657eadb78f19",
+    "primary_price_source": "https://platform.qianwenai.com/pricing/api",
+    "fallback_price_digest": "420f526ec0d09be23b166590370c4b4c1d6ec20a063ce30d7724a0a6df1947fc",
+    "fallback_price_source": "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints",
+    "max_calls": 10,
+    "max_qwen_calls": 6,
+    "max_openrouter_calls": 4,
+    "max_total_tokens": 300000,
+    "max_request_input_tokens": 65536,
+    "max_output_tokens": 8192,
+    "max_deepseek_cost_usd": "0.30",
+    "max_qwen_cost_cny": "1.62",
+    "max_wall_seconds": 2700,
+    "used_calls": 4,
+    "qwen_calls": 0,
+    "openrouter_calls": 4,
+    "held_or_actual_tokens": 16282,
+    "qwen_rate_estimate_cny": "0",
+    "deepseek_rate_estimate_usd": "0.0117276",
+    "remaining_calls": 6,
+    "elapsed_seconds": 16.426,
+    "remaining_wall_seconds": 2683.573859,
+    "rate_estimate_basis": "frozen_standard_rates; Qwen input uses uncached upper bound",
+    "provider_billed_cost_available": false,
+    "blocked": false,
+    "attempts": [
+      {
+        "receipt": "ae7fed4de4794ddfb2eead6e405ebb76",
+        "request_digest": "8cf1964855b69ff7832558e2bd7225a8783873a8619d459753ebd7cb4c10afb9",
+        "attempt": 1,
+        "provider": "openrouter",
+        "requested_model": "deepseek/deepseek-v4.1-flash",
+        "resolved_model": "deepseek/deepseek-v4.1-flash",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "provider_routing": "openrouter_fireworks",
+        "request_profile_fingerprint": "4adf5c2b30ed21a35420e0aa3a4ad955841bb906be536de9a4eb3ec49a42764e",
+        "request_role": "connection",
+        "purpose": "connection",
+        "requested_tokens": 16765,
+        "requested_output_tokens": 256,
+        "cost_currency": "USD",
+        "actual_tokens": 1184,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 3733,
+        "server_request_id": "gen-1792856769-Xdzb5cDRDdet5BRewLDc",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T15:46:07.039449+00:00",
+        "reserved_cost_amount": "0.0105198",
+        "actual_cost_amount": "0.000795"
+      },
+      {
+        "receipt": "f622afa869f1494fac9bec582df72227",
+        "request_digest": "4bc057670fd758f681aa0df3a3b1f67b9544b559defee27397ba9d4315e4a81e",
+        "attempt": 1,
+        "provider": "openrouter",
+        "requested_model": "deepseek/deepseek-v4.1-flash",
+        "resolved_model": "deepseek/deepseek-v4.1-flash",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "provider_routing": "openrouter_fireworks",
+        "request_profile_fingerprint": "d8a861510e69a48478d2fb6834d053e3264e42b753316bdc90a7d0bf41f5d6a7",
+        "request_role": "tool_contract",
+        "purpose": "tool_contract",
+        "requested_tokens": 17035,
+        "requested_output_tokens": 512,
+        "cost_currency": "USD",
+        "actual_tokens": 378,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 3358,
+        "server_request_id": "gen-1792856772-daRdLOXX0wBOnbog7isp",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T15:46:10.812461+00:00",
+        "reserved_cost_amount": "0.0111426",
+        "actual_cost_amount": "0.000333"
+      },
+      {
+        "receipt": "c2fc758633174514975a1eb56802c525",
+        "request_digest": "d5f9b77c5a56a792e40c5826c18d8e5ea512e41bd94df52c008e0d199e129142",
+        "attempt": 1,
+        "provider": "openrouter",
+        "requested_model": "deepseek/deepseek-v4.1-flash",
+        "resolved_model": "deepseek/deepseek-v4.1-flash",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "provider_routing": "openrouter_fireworks",
+        "request_profile_fingerprint": "0ac647533215f9ee014a7502e7e41d58096d59cce308a1fcf4d6c34d08c6e801",
+        "request_role": "planning",
+        "purpose": "plan",
+        "requested_tokens": 58374,
+        "requested_output_tokens": 8192,
+        "cost_currency": "USD",
+        "actual_tokens": 13531,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 5439,
+        "server_request_id": "gen-1792856776-1ujUpvbppCHR7XBHdQSO",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T15:46:14.507292+00:00",
+        "reserved_cost_amount": "0.04977",
+        "actual_cost_amount": "0.0097944"
+      },
+      {
+        "receipt": "410a5eb305c34cbb9a442eb76e1a240e",
+        "request_digest": "acde28fb31e5c8c10f58edb66823424e612257658634ae9ac6f6ec53d06bb5da",
+        "attempt": 1,
+        "provider": "openrouter",
+        "requested_model": "deepseek/deepseek-v4.1-flash",
+        "resolved_model": "deepseek/deepseek-v4.1-flash",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "provider_routing": "openrouter_fireworks",
+        "request_profile_fingerprint": "4adf5c2b30ed21a35420e0aa3a4ad955841bb906be536de9a4eb3ec49a42764e",
+        "request_role": "stream",
+        "purpose": "stream",
+        "requested_tokens": 16755,
+        "requested_output_tokens": 256,
+        "cost_currency": "USD",
+        "actual_tokens": 1189,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 3363,
+        "server_request_id": null,
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T15:46:20.021515+00:00",
+        "reserved_cost_amount": "0.0105138",
+        "actual_cost_amount": "0.0008052"
+      }
+    ],
+    "phases": [
+      {
+        "phase": "openrouter_connection",
+        "status": "passed",
+        "report": {
+          "resolved_models": [
+            "deepseek/deepseek-v4.1-flash"
+          ],
+          "response_complete": true,
+          "usage_complete": true
+        }
+      },
+      {
+        "phase": "openrouter_tool_contract",
+        "status": "passed",
+        "report": {
+          "parameter_contract_valid": true,
+          "resolved_models": [
+            "deepseek/deepseek-v4.1-flash"
+          ],
+          "tool_executed": false,
+          "tool_name": "decagent_readiness_ping"
+        }
+      },
+      {
+        "phase": "openrouter_plan",
+        "status": "passed",
+        "report": {
+          "format_repair_used": false,
+          "node_count": 2,
+          "plan_compiled": true,
+          "plan_digest": "d7d1b2ef01e16c707f5146044e2d93c24ec0490c7231bed85270728182433e18",
+          "read_only": true,
+          "resolved_models": [
+            "deepseek/deepseek-v4.1-flash"
+          ]
+        }
+      },
+      {
+        "phase": "openrouter_stream",
+        "status": "passed",
+        "report": {
+          "resolved_models": [
+            "deepseek/deepseek-v4.1-flash"
+          ],
+          "response_complete": true,
+          "usage_complete": true
+        }
+      }
+    ],
+    "preflight_revisions": []
+  },
+  "raw_prompts_responses_credentials_saved": false
+}

@@ -269,12 +269,16 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 - **THEN** 系统在创建 live ledger 或派发模型/MCP 请求前拒绝；历史 v1 报告仍可用于审计，但不能作为 live/public eligibility 证据
 
 #### Scenario: Offline plan inspection does not establish live eligibility
-- **WHEN** 使用 `check_runtime=false` 只检查 Qwen manifest 结构，或使用显式 unready-diagnostic option 离线预览 OpenRouter 路线
+- **WHEN** 使用 `check_runtime=false` 检查 Qwen manifest，或明确选择 `--phase openrouter-diagnostic` 执行离线 OpenRouter 路线预检
 - **THEN** 不发送模型/MCP 请求，返回计划不表示 readiness 已通过；live runner 必须重新验证匹配的 profile-bound readiness，并拒绝任何 unready override
 
 #### Scenario: OpenRouter readiness v2 cannot unlock a provider-pinned public cohort
 - **WHEN** 公共 cohort 固定 OpenRouter Fireworks 路由，但 readiness evidence 使用 v2 且没有记录 provider routing profile
 - **THEN** loader 在创建 live ledger 前拒绝；不能把 OpenRouter 通用别名路由的成功结果解释为 Fireworks 路由已就绪
+
+#### Scenario: Qwen readiness v2 must match the frozen model profile fingerprint
+- **WHEN** Qwen readiness evidence uses v2 and is considered for a frozen Qwen cohort
+- **THEN** the evidence `model_profile_digest` MUST equal the frozen primary model profile fingerprint; missing or stale fingerprints MUST be rejected before ledger creation or model/MCP dispatch
 
 #### Scenario: OpenRouter readiness v3 binds route and cost envelope
 - **WHEN** OpenRouter readiness v3 用于冻结或运行公共 cohort
@@ -287,6 +291,10 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 #### Scenario: Live executor revalidates readiness provenance
 - **WHEN** 调用 `execute_live_public_phase()` 执行由离线检查生成的 plan，或 readiness 文件/模型配置在 plan 加载后发生变化
 - **THEN** live executor 在创建评测账本、请求模型或调用 MCP 前，根据 plan 的冻结 profile 与 readiness evidence path 重新验证 readiness；验证失败时拒绝执行
+
+#### Scenario: OpenRouter engineering-closure diagnostic is one bounded CSM Plan route
+- **WHEN** operator requests the separate `openrouter-diagnostic` engineering-closure phase after Fireworks-bound v3 readiness and the verified Qwen round-2 parent report are available
+- **THEN** the runner MUST select only the fixed initial-smoke CSM case and its `plan_mcp` route; enforce at most 5 OpenRouter agent requests, 280,000 aggregate OpenRouter tokens, $0.30 gross-rate cost, 40 MCP tool calls, and 1,800 seconds; set user-simulator and LLM-judge requests/tokens to zero; and keep Jev disabled for this phase. The EnterpriseOps original verifier and cleanup MUST still run after the plan route reaches their gates. The result is development evidence only and MUST NOT enter the 24-task pilot or be reported as a strategy comparison. Offline preflight MUST create no ledger and dispatch no model or MCP call.
 
 #### Scenario: An unknown Qwen attempt does not erase independent OpenRouter readiness
 - **WHEN** Qwen attempt 的 usage 变为 unknown，而 OpenRouter 从独立 profile 完成完整 readiness
