@@ -19,7 +19,10 @@ from .ledger import GlobalJevLedger
 from .manifest_hashing import source_manifest_sha256, task_inventory_sha256
 from .model_profiles import EvaluationModelProfiles
 from .public_diagnostics import validate_diagnostic
-from .public_limits import validate_public_batch_limits
+from .public_limits import (
+    public_batch_limit_stop_reason,
+    validate_public_batch_limits,
+)
 from .public_supervisor import canonical_public_supervisor_lock_path
 
 _LEDGER_SCHEMA = "public-trial-ledger-v6"
@@ -413,6 +416,7 @@ def load_public_run_plan(
     source_manifest_path=None,
     profiles_path=None,
     readiness_path=None,
+    allow_unready_diagnostic_model=False,
     check_images=False,
     check_runtime=True,
     check_source_files=True,
@@ -439,10 +443,11 @@ def load_public_run_plan(
         "business-comparison-trial-manifest-9": 9,
         "business-comparison-trial-manifest-10": 10,
         "business-comparison-trial-manifest-11": 11,
+        "business-comparison-trial-manifest-12": 12,
     }.get(manifest.get("schema_version"))
     if manifest_version is None:
         raise ValueError("Public comparison manifest version is unsupported")
-    profile_version = {7: 3, 8: 4, 9: 4, 10: 5, 11: 6}[manifest_version]
+    profile_version = {7: 3, 8: 4, 9: 4, 10: 5, 11: 6, 12: 7}[manifest_version]
     profile_schema_version = 3 if manifest_version == 7 else 4
     profiles_path = Path(profiles_path) if profiles_path else (
         root
@@ -581,36 +586,67 @@ def load_public_run_plan(
     except ValueError as exc:
         raise ValueError(f"Public first-wave batch limits are invalid: {exc}") from exc
     general_profiles = (profiles.primary, profiles.user_simulator, profiles.judge)
-    if (
-        profiles.jev is None
-        or any(
-            profile.provider != "qwen" or profile.model != profiles.primary.model
-            for profile in general_profiles
-        )
+    if profiles.jev is None or any(
+        profile.provider != profiles.primary.provider
+        or profile.model != profiles.primary.model
+        or profile.endpoint != profiles.primary.endpoint
+        or profile.provider_routing != profiles.primary.provider_routing
+        for profile in general_profiles
     ):
-        raise ValueError("The first-wave Qwen roles and Jev profile must be frozen together")
-    _validate_readiness(root, profiles, readiness_path)
+        raise ValueError(
+            "The first-wave general-model roles and Jev profile must be frozen together"
+        )
+    if profiles.primary.provider in {"qwen", "dashscope"}:
+        _validate_readiness(root, profiles, readiness_path)
+    elif profiles.primary.provider in {"openrouter", "open_router"}:
+        if (
+            profiles.primary.provider_routing != "openrouter_fireworks"
+            or allow_unready_diagnostic_model is not True
+        ):
+            raise ValueError("OpenRouter must enter through its explicitly gated live diagnostic")
+    else:
+        raise ValueError("Public evaluation requires a registered frozen general-model provider")
     if check_runtime:
         from decagent.config import Settings
         from decagent.decisions.adapter import OPENROUTER_ENDPOINT
         from decagent.runtime.config import RuntimeConfig
 
         settings, runtime = Settings.from_env(), RuntimeConfig.from_env()
+        qwen_runtime_matches = (
+            settings.main_model == profiles.primary.model
+            and settings.main_base_url == profiles.primary.endpoint
+            and bool(settings.main_api_key)
+        )
+        openrouter_runtime_matches = (
+            settings.fallback_model == profiles.primary.model
+            and settings.fallback_base_url == profiles.primary.endpoint
+            and bool(settings.resolved_fallback_api_key)
+            and settings.fallback_enabled is False
+        )
+        general_runtime_price = (
+            runtime.main_price
+            if profiles.primary.provider in {"qwen", "dashscope"}
+            else runtime.fallback_price
+        )
+        expected_runtime_matches = (
+            qwen_runtime_matches
+            if profiles.primary.provider in {"qwen", "dashscope"}
+            else openrouter_runtime_matches
+        )
         if (
-            settings.main_model != profiles.primary.model
-            or settings.main_base_url != profiles.primary.endpoint
+            not expected_runtime_matches
             or settings.jev_model != profiles.jev.model
             or settings.jev_provider != "openrouter"
             or OPENROUTER_ENDPOINT != profiles.jev.endpoint
             or (
                 profiles.primary.pricing_status == "known"
-                and profiles.primary.currency == "USD"
+                and profiles.primary.provider in {"qwen", "dashscope"}
                 and (
-                    runtime.main_price is None
-                    or runtime.main_price.version != profiles.primary.price_version
-                    or runtime.main_price.input_per_million
+                    general_runtime_price is None
+                    or general_runtime_price.version != profiles.primary.price_version
+                    or general_runtime_price.input_per_million
                     != profiles.primary.input_price_per_million
-                    or runtime.main_price.output_per_million
+                    or general_runtime_price.output_per_million
                     != profiles.primary.output_price_per_million
                 )
             )
@@ -656,7 +692,8 @@ def _trials_for_phase(plan, phase):
     if phase is None:
         phase = plan.mode
     if phase not in {
-        "diagnostic", "first-wave", "remaining-smoke", "full", "smoke", "pilot"
+        "diagnostic", "openrouter-diagnostic", "first-wave", "remaining-smoke",
+        "full", "smoke", "pilot"
     }:
         raise ValueError("Public evaluation phase is not registered")
     if phase == "pilot":
@@ -664,12 +701,12 @@ def _trials_for_phase(plan, phase):
             raise ValueError("A frozen per-trial public pilot schedule is required")
         return phase, plan.trials
     if phase in {
-        "diagnostic", "first-wave", "remaining-smoke", "smoke"
+        "diagnostic", "openrouter-diagnostic", "first-wave", "remaining-smoke", "smoke"
     } and plan.mode != "smoke":
         raise ValueError("Public evaluation phase is incompatible with this cohort mode")
     if phase == "full" and plan.mode != "full":
         raise ValueError("Public evaluation phase is incompatible with this cohort mode")
-    if phase in {"diagnostic", "first-wave"}:
+    if phase in {"diagnostic", "openrouter-diagnostic", "first-wave"}:
         by_id = {item["trial_id"]: item for item in plan.trials}
         selected = tuple(
             by_id[item["trial_id"]]
@@ -1204,81 +1241,102 @@ class PublicTrialLedger:
     def _batch_usage(self):
         counted = {"reserved", "dispatched", "settled", "unknown", "settled_overrun"}
         pending = {"reserved", "dispatched", "unknown"}
-        qwen_roles = {"primary", "user_simulator", "judge"}
+        general_roles = ("primary", "user_simulator", "judge")
         rows = self._connection.execute(
             "SELECT role,status,provider,actual_input_tokens,actual_output_tokens,"
             "reserved_tokens,actual_cost_amount,actual_cost_currency,"
             "reserved_cost_amount,reserved_cost_currency "
             "FROM model_attempts"
         ).fetchall()
-        by_role = {}
-        for role in qwen_roles:
-            selected = [row for row in rows if row["role"] == role]
-            by_role[role] = {
-                "requests": sum(row["status"] in counted for row in selected),
-                "tokens": sum(
+        provider_names = {
+            "qwen": {"qwen", "dashscope"},
+            "openrouter": {"openrouter", "open_router"},
+        }
+
+        def usage_by_role(provider_aliases):
+            by_role = {}
+            for role in general_roles:
+                selected = [
+                    row
+                    for row in rows
+                    if row["role"] == role
+                    and row["provider"].lower() in provider_aliases
+                ]
+                actual_tokens = sum(
                     row["actual_input_tokens"] + row["actual_output_tokens"]
                     for row in selected
                     if row["actual_input_tokens"] is not None
                     and row["actual_output_tokens"] is not None
                 )
-                + sum(row["reserved_tokens"] for row in selected if row["status"] in pending),
-                "actual_tokens": sum(
-                    row["actual_input_tokens"] + row["actual_output_tokens"]
+                reserved_tokens = sum(
+                    row["reserved_tokens"]
                     for row in selected
-                    if row["actual_input_tokens"] is not None
-                    and row["actual_output_tokens"] is not None
-                ),
-                "reserved_tokens": sum(
-                    row["reserved_tokens"] for row in selected if row["status"] in pending
-                ),
-            }
+                    if row["status"] in pending
+                )
+                by_role[role] = {
+                    "requests": sum(row["status"] in counted for row in selected),
+                    "tokens": actual_tokens + reserved_tokens,
+                    "actual_tokens": actual_tokens,
+                    "reserved_tokens": reserved_tokens,
+                }
+            return by_role
+
+        provider_by_role = {
+            name: usage_by_role(aliases)
+            for name, aliases in provider_names.items()
+        }
         tool_rows = self._connection.execute(
             "SELECT status FROM tool_attempts"
         ).fetchall()
-        qwen_actual_cost = Decimal(0)
-        qwen_reserved_cost = Decimal(0)
-        qwen_cost_unknown = 0
-        for row in rows:
-            if row["role"] not in qwen_roles or row["provider"].lower() not in {
-                "qwen", "dashscope"
-            }:
-                continue
-            if row["status"] in pending:
-                if row["reserved_cost_currency"] == "CNY" and row[
-                    "reserved_cost_amount"
-                ] is not None:
-                    qwen_reserved_cost += Decimal(row["reserved_cost_amount"])
-                else:
-                    qwen_cost_unknown += 1
-            elif row["status"] in {"settled", "settled_overrun"}:
-                if row["actual_cost_currency"] == "CNY" and row[
-                    "actual_cost_amount"
-                ] is not None:
-                    qwen_actual_cost += Decimal(row["actual_cost_amount"])
-                else:
-                    qwen_cost_unknown += 1
-        qwen_cost = (
-            qwen_actual_cost + qwen_reserved_cost
-            if qwen_cost_unknown == 0
-            else None
-        )
-        return {
-            "qwen_requests": sum(by_role[role]["requests"] for role in qwen_roles),
-            "qwen_tokens": sum(by_role[role]["tokens"] for role in qwen_roles),
-            "qwen_actual_tokens": sum(
-                by_role[role]["actual_tokens"] for role in qwen_roles
-            ),
-            "qwen_reserved_tokens": sum(
-                by_role[role]["reserved_tokens"] for role in qwen_roles
-            ),
-            "qwen_cost_cny": qwen_cost,
-            "qwen_actual_cost_cny": qwen_actual_cost,
-            "qwen_reserved_cost_cny": qwen_reserved_cost,
-            "qwen_cost_unknown_attempts": qwen_cost_unknown,
-            "by_role": by_role,
-            "tool_calls": sum(row["status"] in counted for row in tool_rows),
-        }
+        result = {"tool_calls": sum(row["status"] in counted for row in tool_rows)}
+        for provider_name, currency in (("qwen", "CNY"), ("openrouter", "USD")):
+            aliases = provider_names[provider_name]
+            by_role = provider_by_role[provider_name]
+            selected_rows = [
+                row
+                for row in rows
+                if row["role"] in general_roles
+                and row["provider"].lower() in aliases
+            ]
+            actual_cost = Decimal(0)
+            reserved_cost = Decimal(0)
+            unknown_cost_attempts = 0
+            for row in selected_rows:
+                if row["status"] in pending:
+                    if row["reserved_cost_currency"] == currency and row[
+                        "reserved_cost_amount"
+                    ] is not None:
+                        reserved_cost += Decimal(row["reserved_cost_amount"])
+                    else:
+                        unknown_cost_attempts += 1
+                elif row["status"] in {"settled", "settled_overrun"}:
+                    if row["actual_cost_currency"] == currency and row[
+                        "actual_cost_amount"
+                    ] is not None:
+                        actual_cost += Decimal(row["actual_cost_amount"])
+                    else:
+                        unknown_cost_attempts += 1
+            cost = actual_cost + reserved_cost if unknown_cost_attempts == 0 else None
+            prefix = provider_name
+            result.update(
+                {
+                    f"{prefix}_requests": sum(item["requests"] for item in by_role.values()),
+                    f"{prefix}_tokens": sum(item["tokens"] for item in by_role.values()),
+                    f"{prefix}_actual_tokens": sum(
+                        item["actual_tokens"] for item in by_role.values()
+                    ),
+                    f"{prefix}_reserved_tokens": sum(
+                        item["reserved_tokens"] for item in by_role.values()
+                    ),
+                    f"{prefix}_actual_cost_{currency.lower()}": actual_cost,
+                    f"{prefix}_reserved_cost_{currency.lower()}": reserved_cost,
+                    f"{prefix}_cost_unknown_attempts": unknown_cost_attempts,
+                    f"{prefix}_cost_{currency.lower()}": cost,
+                }
+            )
+        result["by_role"] = provider_by_role["qwen"]
+        result["by_provider_role"] = provider_by_role
+        return result
 
     def batch_snapshot(self):
         self._active()
@@ -1323,6 +1381,40 @@ class PublicTrialLedger:
                 self._connection.execute("ROLLBACK")
             raise
 
+    def stop_for_batch_limit(self, reason):
+        """Atomically persist an already-reached frozen batch resource limit."""
+        if type(reason) is not str or re.fullmatch(r"[a-z][a-z0-9_]{0,47}", reason) is None:
+            raise ValueError("A registered batch stop reason is required")
+        self._transaction()
+        try:
+            control = self._connection.execute(
+                "SELECT stopped_reason FROM batch_control WHERE singleton=1"
+            ).fetchone()
+            if control is None:
+                raise ValueError("First-wave batch clock is missing")
+            if control["stopped_reason"] is not None:
+                self._connection.execute("COMMIT")
+                return control["stopped_reason"]
+
+            usage = self._batch_usage()
+            reached = public_batch_limit_stop_reason(
+                {"limits": self.plan.batch_limits, **usage}
+            )
+            if reached is None:
+                self._connection.execute("COMMIT")
+                return None
+            self._connection.execute(
+                "UPDATE batch_control SET stopped_reason=?,stopped_at_utc=? "
+                "WHERE singleton=1",
+                (reached, _now()),
+            )
+            self._connection.execute("COMMIT")
+            return reached
+        except BaseException:
+            if self._connection.in_transaction:
+                self._connection.execute("ROLLBACK")
+            raise
+
     def stop_for_model_profile_drift(self):
         """Persist a cohort stop when a resolved provider identity changes."""
         self._active()
@@ -1343,9 +1435,11 @@ class PublicTrialLedger:
         self,
         *,
         role=None,
-        qwen_tokens=0,
+        requested_tokens=0,
         qwen_cost_attempt=False,
         qwen_cost_amount=None,
+        openrouter_cost_attempt=False,
+        openrouter_cost_amount=None,
         tool_calls=0,
     ):
         self._active()
@@ -1383,28 +1477,68 @@ class PublicTrialLedger:
                 "user_simulator": "user_simulator",
                 "judge": "judge",
             }[role]
-            if usage["qwen_requests"] + 1 > self.plan.batch_limits["qwen_requests"]:
-                exceeded = "qwen_requests"
-            elif usage["qwen_tokens"] + qwen_tokens > self.plan.batch_limits["qwen_tokens"]:
-                exceeded = "qwen_tokens"
-            elif (
-                usage["by_role"][role]["requests"] + 1
-                > self.plan.batch_limits[f"{role_prefix}_qwen_requests"]
-            ):
-                exceeded = f"{role_prefix}_qwen_requests"
-            elif (
-                usage["by_role"][role]["tokens"] + qwen_tokens
-                > self.plan.batch_limits[f"{role_prefix}_qwen_tokens"]
-            ):
-                exceeded = f"{role_prefix}_qwen_tokens"
-            qwen_cost_limit = self.plan.batch_limits.get("qwen_cost_cny")
-            if qwen_cost_limit is not None and qwen_cost_attempt:
-                if usage["qwen_cost_cny"] is None or qwen_cost_amount is None:
-                    exceeded = exceeded or "qwen_cost_unknown"
-                elif usage["qwen_cost_cny"] + qwen_cost_amount > Decimal(
-                    str(qwen_cost_limit)
+            provider = self._profile(role).provider.lower()
+            if provider in {"qwen", "dashscope"}:
+                if usage["qwen_requests"] + 1 > self.plan.batch_limits["qwen_requests"]:
+                    exceeded = "qwen_requests"
+                elif (
+                    usage["qwen_tokens"] + requested_tokens
+                    > self.plan.batch_limits["qwen_tokens"]
                 ):
-                    exceeded = exceeded or "qwen_cost_cny"
+                    exceeded = "qwen_tokens"
+                elif (
+                    usage["by_role"][role]["requests"] + 1
+                    > self.plan.batch_limits[f"{role_prefix}_qwen_requests"]
+                ):
+                    exceeded = f"{role_prefix}_qwen_requests"
+                elif (
+                    usage["by_role"][role]["tokens"] + requested_tokens
+                    > self.plan.batch_limits[f"{role_prefix}_qwen_tokens"]
+                ):
+                    exceeded = f"{role_prefix}_qwen_tokens"
+                qwen_cost_limit = self.plan.batch_limits.get("qwen_cost_cny")
+                if qwen_cost_limit is not None and qwen_cost_attempt:
+                    if usage["qwen_cost_cny"] is None or qwen_cost_amount is None:
+                        exceeded = exceeded or "qwen_cost_unknown"
+                    elif usage["qwen_cost_cny"] + qwen_cost_amount > Decimal(
+                        str(qwen_cost_limit)
+                    ):
+                        exceeded = exceeded or "qwen_cost_cny"
+            elif provider in {"openrouter", "open_router"}:
+                limits = self.plan.batch_limits
+                requests_limit = limits.get("openrouter_requests")
+                tokens_limit = limits.get("openrouter_tokens")
+                cost_limit = limits.get("openrouter_cost_usd")
+                if requests_limit is None or tokens_limit is None or cost_limit is None:
+                    exceeded = "openrouter_limits_missing"
+                elif usage["openrouter_requests"] + 1 > requests_limit:
+                    exceeded = "openrouter_requests"
+                elif usage["openrouter_tokens"] + requested_tokens > tokens_limit:
+                    exceeded = "openrouter_tokens"
+                role_usage = usage["by_provider_role"]["openrouter"][role]
+                role_request_limit = limits.get(
+                    f"{role_prefix}_openrouter_requests"
+                )
+                role_token_limit = limits.get(f"{role_prefix}_openrouter_tokens")
+                if (
+                    role_request_limit is not None
+                    and role_usage["requests"] + 1 > role_request_limit
+                ):
+                    exceeded = exceeded or f"{role_prefix}_openrouter_requests"
+                elif (
+                    role_token_limit is not None
+                    and role_usage["tokens"] + requested_tokens > role_token_limit
+                ):
+                    exceeded = exceeded or f"{role_prefix}_openrouter_tokens"
+                if cost_limit is not None and openrouter_cost_attempt:
+                    if usage["openrouter_cost_usd"] is None or openrouter_cost_amount is None:
+                        exceeded = exceeded or "openrouter_cost_unknown"
+                    elif usage["openrouter_cost_usd"] + openrouter_cost_amount > Decimal(
+                        str(cost_limit)
+                    ):
+                        exceeded = exceeded or "openrouter_cost_usd"
+            else:
+                raise ValueError("Public batch has no frozen admission policy for this provider")
         if usage["tool_calls"] + tool_calls > self.plan.batch_limits["tool_calls"]:
             exceeded = exceeded or "tool_calls"
         if exceeded is not None:
@@ -2022,6 +2156,11 @@ class PublicTrialLedger:
                 role in {"primary", "user_simulator", "judge"}
                 and profile.provider.lower() in {"qwen", "dashscope"}
             )
+            openrouter_cost_attempt = (
+                role in {"primary", "user_simulator", "judge"}
+                and profile.provider.lower() in {"openrouter", "open_router"}
+                and profile.currency == "USD"
+            )
             if (
                 qwen_cost_attempt
                 and profile.currency == "CNY"
@@ -2029,9 +2168,13 @@ class PublicTrialLedger:
                 qwen_cost_reservation = reserved_cost_amount
             self._require_batch_admission(
                 role=role,
-                qwen_tokens=requested_tokens,
+                requested_tokens=requested_tokens,
                 qwen_cost_attempt=qwen_cost_attempt,
                 qwen_cost_amount=qwen_cost_reservation,
+                openrouter_cost_attempt=openrouter_cost_attempt,
+                openrouter_cost_amount=(
+                    reserved_cost_amount if openrouter_cost_attempt else None
+                ),
             )
             route_row = self._connection.execute(
                 "SELECT status FROM route_trials WHERE trial_id=? AND route=?",

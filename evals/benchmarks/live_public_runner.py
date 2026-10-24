@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 from collections import Counter
@@ -44,7 +45,9 @@ from decagent.evaluation.business.public_trials import (
 )
 from decagent.evaluation.business.public_weekly_budget import (
     PUBLIC_EVALUATION_BUDGET_ID,
+    authorize_openrouter_diagnostic_continuation,
     authorize_public_evaluation_phase,
+    openrouter_diagnostic_parent_clock,
 )
 from decagent.evaluation.business.routes import ControlledRoutes
 
@@ -452,7 +455,9 @@ class FirstWaveRuntime:
 def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_dirty):
     if (
         not isinstance(plan, PublicRunPlan)
-        or phase.phase not in {"diagnostic", "first-wave", "pilot"}
+        or phase.phase not in {
+            "diagnostic", "openrouter-diagnostic", "first-wave", "pilot"
+        }
         or (phase.phase == "pilot" and plan.mode != "pilot")
     ):
         raise ValueError("A frozen live phase receipt is required for reporting")
@@ -562,6 +567,8 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
         "schema_version": (
             "public-evaluation-live-pilot-v2"
             if phase.phase == "pilot"
+            else "public-evaluation-live-openrouter-diagnostic-v1"
+            if phase.phase == "openrouter-diagnostic"
             else "public-evaluation-live-diagnostic-v2"
             if phase.phase == "diagnostic"
             else "public-evaluation-live-first-wave-v4"
@@ -627,6 +634,111 @@ def write_live_report(root, target, report):
     return target
 
 
+def validate_openrouter_parent_evidence(root, evidence_path):
+    """Bind the separate OpenRouter diagnostic to the immutable Qwen round-2 report."""
+    from evals.benchmarks.pilot_gate import (
+        DIAGNOSTIC_BATCH_LIMITS,
+        DIAGNOSTIC_LIMITS,
+        WEEKLY_BASELINE_SHA256,
+    )
+
+    root = Path(root).resolve()
+    requested = Path(evidence_path)
+    requested = root / requested if not requested.is_absolute() else requested
+    if ".." in requested.parts:
+        raise ValueError("Parent diagnostic evidence path cannot contain traversal")
+    lexical = Path(os.path.abspath(requested))
+    try:
+        relative = lexical.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("Parent diagnostic evidence must be inside the project") from exc
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("Parent diagnostic evidence cannot contain symlinks")
+    evidence_root = root / ".decagent/evaluation/evidence"
+    target = lexical.resolve(strict=False)
+    if not target.is_relative_to(evidence_root) or target.suffix.lower() != ".json":
+        raise ValueError("Parent diagnostic evidence must be ignored JSON evidence")
+    if not target.is_file():
+        raise ValueError("Parent Qwen diagnostic report is unavailable")
+    try:
+        raw = target.read_bytes()
+        report = json.loads(raw)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Parent Qwen diagnostic report is unreadable") from exc
+    if (
+        type(report) is not dict
+        or report.get("schema_version") != "public-evaluation-live-diagnostic-v2"
+        or report.get("phase") != "diagnostic"
+        or report.get("diagnostic_round") != 2
+        or report.get("dry_run") is not False
+        or report.get("evaluation_budget_id") != PUBLIC_EVALUATION_BUDGET_ID
+        or report.get("working_tree_dirty") is not False
+        or report.get("candidate_ci_verified") is not True
+        or report.get("task_denominator") != 4
+        or report.get("selected_task_count") != 4
+        or report.get("route_denominator") != 8
+        or report.get("selected_route_slots") != 8
+        or report.get("diagnostic_limits") != DIAGNOSTIC_LIMITS
+        or report.get("diagnostic_batch_limits") != DIAGNOSTIC_BATCH_LIMITS
+        or report.get("weekly_budget_baseline_sha256") != WEEKLY_BASELINE_SHA256
+    ):
+        raise ValueError("A completed, CI-verified Qwen round-2 report is required")
+    batch = report.get("batch")
+    if type(batch) is not dict or batch.get("limits") != DIAGNOSTIC_BATCH_LIMITS:
+        raise ValueError("Parent Qwen report is missing its frozen batch ledger")
+    requests, tokens, tool_calls = (
+        batch.get("qwen_requests"), batch.get("qwen_tokens"), batch.get("tool_calls")
+    )
+    if (
+        type(requests) is not int
+        or not 0 <= requests <= DIAGNOSTIC_BATCH_LIMITS["qwen_requests"]
+        or type(tokens) is not int
+        or not 0 <= tokens <= DIAGNOSTIC_BATCH_LIMITS["qwen_tokens"]
+        or type(tool_calls) is not int
+        or not 0 <= tool_calls <= DIAGNOSTIC_BATCH_LIMITS["tool_calls"]
+        or batch.get("qwen_cost_unknown_attempts") != 0
+        or batch.get("openrouter_requests", 0) != 0
+        or batch.get("openrouter_cost_unknown_attempts", 0) != 0
+    ):
+        raise ValueError("Qwen parent usage is unknown or exceeds the diagnostic ceilings")
+    elapsed = report.get("diagnostic_elapsed_seconds")
+    if type(elapsed) not in {int, float} or not 0 <= elapsed <= 2_700:
+        raise ValueError("Qwen parent elapsed time is missing or exceeds the diagnostic limit")
+    routes = report.get("routes")
+    if type(routes) is not dict or len(routes) != 8:
+        raise ValueError("Qwen parent route ledger is incomplete")
+    for record in routes.values():
+        if type(record) is not dict or type(record.get("model_attempts")) is not list:
+            raise ValueError("Qwen parent model attempts are malformed")
+        for attempt in record["model_attempts"]:
+            if type(attempt) is not dict:
+                raise ValueError("Qwen parent model attempt is malformed")
+            status = attempt.get("status")
+            provider = str(attempt.get("actual_provider") or attempt.get("provider") or "").lower()
+            if status in {"reserved", "dispatched", "unknown"}:
+                raise ValueError("Qwen parent report contains unresolved model usage")
+            if status != "not_sent" and provider not in {"qwen", "dashscope"}:
+                raise ValueError("Qwen parent report contains another provider route")
+            if attempt.get("role") == "jev":
+                raise ValueError("Qwen parent report unexpectedly contains Jev usage")
+    parent_clock = openrouter_diagnostic_parent_clock(
+        root,
+        parent_report_sha256=hashlib.sha256(raw).hexdigest(),
+    )
+    return {
+        "report_sha256": hashlib.sha256(raw).hexdigest(),
+        "candidate_sha": report["candidate_sha"],
+        "qwen_requests": requests,
+        "qwen_tokens": tokens,
+        "tool_calls": tool_calls,
+        "elapsed_seconds": elapsed,
+        **parent_clock,
+    }
+
+
 def validate_live_report_target(root, target):
     root = Path(root).resolve()
     evidence = root / ".decagent/evaluation/evidence"
@@ -664,6 +776,7 @@ def execute_live_public_phase(
     diagnostic_round=1,
     candidate_ci_verified=False,
     diagnostic_evidence=None,
+    parent_report_sha256=None,
 ):
     """Run one frozen live phase under the canonical process and SQLite locks."""
     from evals.benchmarks.pilot_gate import (
@@ -673,6 +786,7 @@ def execute_live_public_phase(
         apply_remaining_pilot_budget,
         evaluation_source_digest,
         is_bounded_diagnostic_plan,
+        is_bounded_openrouter_diagnostic_plan,
         validate_diagnostic_evidence,
     )
 
@@ -680,7 +794,7 @@ def execute_live_public_phase(
     if (
         type(diagnostic_round) is not int
         or diagnostic_round not in {1, 2}
-        or (phase_name != "diagnostic" and diagnostic_round != 1)
+        or (phase_name not in {"diagnostic", "openrouter-diagnostic"} and diagnostic_round != 1)
     ):
         raise ValueError("Only diagnostic round 1 or the one-time round 2 is supported")
     if candidate_ci_verified is not True:
@@ -690,6 +804,15 @@ def execute_live_public_phase(
     if phase_name == "diagnostic":
         if not is_bounded_diagnostic_plan(plan):
             raise ValueError("Diagnostic dispatch requires the approved bounded cohort")
+        diagnostic_gate = None
+    elif phase_name == "openrouter-diagnostic":
+        if not is_bounded_openrouter_diagnostic_plan(plan):
+            raise ValueError("OpenRouter dispatch requires its single-case residual-budget cohort")
+        if (
+            type(parent_report_sha256) is not str
+            or re.fullmatch(r"[a-f0-9]{64}", parent_report_sha256) is None
+        ):
+            raise ValueError("OpenRouter dispatch requires the verified Qwen parent report digest")
         diagnostic_gate = None
     elif phase_name == "pilot":
         if candidate_ci_verified is not True or not diagnostic_evidence:
@@ -729,18 +852,27 @@ def execute_live_public_phase(
             cohort_digest=plan.cohort_digest,
             candidate_sha=candidate_sha,
         )
-        authorization = authorize_public_evaluation_phase(
-            plan.root,
-            phase=phase_name,
-            phase_round=diagnostic_round,
-            candidate_sha=candidate_sha,
-            cohort_digest=plan.cohort_digest,
-            ledger_path=ledger_path,
-            diagnostic_report_sha256=(
-                diagnostic_gate["report_sha256"] if diagnostic_gate is not None else None
-            ),
-        )
-        if authorization["batch_started_at_utc"] is not None:
+        if phase_name == "openrouter-diagnostic":
+            authorization = authorize_openrouter_diagnostic_continuation(
+                plan.root,
+                parent_report_sha256=parent_report_sha256,
+                candidate_sha=candidate_sha,
+                cohort_digest=plan.cohort_digest,
+                ledger_path=ledger_path,
+            )
+        else:
+            authorization = authorize_public_evaluation_phase(
+                plan.root,
+                phase=phase_name,
+                phase_round=diagnostic_round,
+                candidate_sha=candidate_sha,
+                cohort_digest=plan.cohort_digest,
+                ledger_path=ledger_path,
+                diagnostic_report_sha256=(
+                    diagnostic_gate["report_sha256"] if diagnostic_gate is not None else None
+                ),
+            )
+        if authorization.get("batch_started_at_utc") is not None:
             batch_started_at = datetime.fromisoformat(
                 authorization["batch_started_at_utc"]
             ).astimezone(UTC)
@@ -752,22 +884,31 @@ def execute_live_public_phase(
             batch_started_at=batch_started_at,
         )
         try:
-            finalized_authorization = authorize_public_evaluation_phase(
-                plan.root,
-                phase=phase_name,
-                phase_round=diagnostic_round,
-                candidate_sha=candidate_sha,
-                cohort_digest=plan.cohort_digest,
-                ledger_path=ledger_path,
-                diagnostic_report_sha256=(
-                    diagnostic_gate["report_sha256"]
-                    if diagnostic_gate is not None
-                    else None
-                ),
-                finalize_candidate_successor=True,
-            )
-            if finalized_authorization["candidate_successor_pending"]:
-                raise ValueError("Diagnostic candidate authorization transfer is incomplete")
+            if phase_name == "openrouter-diagnostic":
+                authorize_openrouter_diagnostic_continuation(
+                    plan.root,
+                    parent_report_sha256=parent_report_sha256,
+                    candidate_sha=candidate_sha,
+                    cohort_digest=plan.cohort_digest,
+                    ledger_path=ledger_path,
+                )
+            else:
+                finalized_authorization = authorize_public_evaluation_phase(
+                    plan.root,
+                    phase=phase_name,
+                    phase_round=diagnostic_round,
+                    candidate_sha=candidate_sha,
+                    cohort_digest=plan.cohort_digest,
+                    ledger_path=ledger_path,
+                    diagnostic_report_sha256=(
+                        diagnostic_gate["report_sha256"]
+                        if diagnostic_gate is not None
+                        else None
+                    ),
+                    finalize_candidate_successor=True,
+                )
+                if finalized_authorization["candidate_successor_pending"]:
+                    raise ValueError("Diagnostic candidate authorization transfer is incomplete")
             runtime = FirstWaveRuntime(
                 plan, tau_python=tau_python, journal_root=journal_root
             )
@@ -844,6 +985,27 @@ def execute_live_public_phase(
                             "split",
                             "case_id",
                             "version",
+                        )
+                    }
+                    for record in plan.trials
+                ]
+            elif phase_name == "openrouter-diagnostic":
+                from evals.benchmarks.pilot_gate import (
+                    OPENROUTER_DIAGNOSTIC_BATCH_LIMITS,
+                    evaluation_source_digest,
+                )
+
+                report["parent_qwen_report_sha256"] = parent_report_sha256
+                report["diagnostic_batch_limits"] = dict(
+                    OPENROUTER_DIAGNOSTIC_BATCH_LIMITS
+                )
+                report["evaluation_source_digest"] = evaluation_source_digest(plan.root)
+                report["diagnostic_elapsed_seconds"] = max(0.0, perf_counter() - started)
+                report["diagnostic_task_records"] = [
+                    {
+                        key: record[key]
+                        for key in (
+                            "trial_id", "benchmark", "domain", "split", "case_id", "version"
                         )
                     }
                     for record in plan.trials

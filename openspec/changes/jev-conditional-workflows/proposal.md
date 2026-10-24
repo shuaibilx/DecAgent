@@ -1,18 +1,18 @@
 # Proposal
 
-## 当前获批收尾方案（2026-10-24，一周评测交付）
+## 当前执行状态（2026-10-24 18:08，北京时间）
 
-在 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照结果。当前重点是修通既有执行链、获得至少一个完整的 Plan→MCP→官方评分→清理闭环，再运行固定 24-task/68-route pilot；不重建已基本完成的规划器、执行器、MCP、Jev、人工接管、记忆和 trace。
+目标仍是在 10 月 31 日前交付 SOP-Agent 可复现的小规模公平对照结果。本阶段不重建已基本完成的规划器、执行器、MCP、Jev、人工接管、记忆和 trace；重点是修复真实执行链、完成公平对照并如实报告性能。
 
-历史 v10 首波保持 0 success、3 failed、5 unknown；`91d1cf0` diagnostic 保持 2 failed/6 pending。两者不可重放、不可并入新 cohort，不能作为性能收益证据。旧失败只提供阶段级证据：Plan 120 秒 request timeout、CSM `find_entitlements` 输出契约异常、ITSM/ReAct response validation failure、τ retail callback `ValueError`、τ telecom 官方 0 分。缺失的原始响应/异常正文不补猜；CSM nullable 契约按固定镜像与 schema digest 进行窄范围修复，不能放宽通用校验。
+Qwen round 2 已在候选 `907017651e72a2a5d295006f4858f0055d1b9cea` 上结束；同 SHA CI run 40078042176 为 12/12 jobs 通过。固定的 4 个开发任务/8 条路线中，3 条终结、5 条未派发，没有成功路线：实际派发 3 次 Qwen 请求，34,054 input+output tokens，1 次 MCP 调用，墙钟 180.34 秒，0 用量 unknown；按冻结费率估算抵扣前 API 成本 ¥0.0433172（不是供应商发票或现金实付）。CSM Plan 与 ReAct 到达官方 verifier，均为 `success=false`；ITSM Plan 的旧失败发生在请求额度已耗尽后，未实际派发；其余路线保持 pending。历史报告见[round 2 证据](../../../evals/benchmarks/evidence/sop-agent-diagnostic-round2-20261024-9070176.md)。这不是公开基准成绩，也不能证明任何性能优势。
 
-当前工作区已把 primary profile timeout 上限提高到 180 秒并生成 profile v6/manifest v11；只暴露受信 τ evaluator 的固定聚合分项，保存不可变周用量基线并校验其来源报告哈希，同时实现同一周授权库内的一次性诊断 round 2。全量 deterministic 为 2,245 passed、19 skipped；Ruff、strict OpenSpec 和 diff check 通过，当前 SHA 的 GitHub Actions 尚需验证。当前未进行新模型或业务工具派发。
+round 2 的共同 45 分钟绝对期限为 2026-10-24 09:21 UTC（17:21 北京时间）。本次继续时已过期；OpenRouter 没有收到请求。仅执行了 OpenRouter `--check-images` dry-run，固定选择 1 条 CSM Plan 路线、0 ledger、0 模型调用、0 MCP 调用。OpenRouter 后续阶段不得用新账本或新 `started_at` 延长旧授权；需另行获得新的批次授权后才能发送请求。
 
-下一次诊断上限为 12 次通用模型请求、600,000 token、45 分钟；先用 Qwen，最多 6 次。该诊断 Qwen 费用预留上限 ¥1.62，并计入全周 Qwen ¥13.50 上限。若 Qwen 无法通过门槛，可在剩余额度内单独冻结 OpenRouter `deepseek/deepseek-v4.1-flash` 的 model/endpoint/price/profile 后最多使用 6 次；两个提供方的数据绝不拼成同一成绩。诊断至少须有一条真实计划、工具、官方评分与环境清理闭环；官方 0 分保留为有效失败。未通过则停止扩量并报告故障证据。
+本地候选已提交；修正包括角色 Token 配额允许低于批次 aggregate cap、零额度角色的零使用不误触发整批停止、OpenRouter continuation 继承并校验 Qwen round 2 的原始绝对 deadline，以及单路线机器时限 30 分钟。全量 deterministic 为 2,260 passed、19 skipped（306.40 秒），全仓 Ruff、OpenSpec strict 6/6 和 diff check 通过。GitHub 推送连续遇到连接重置/不可达；远端仍在上一候选，同 SHA CI 未运行。主 OpenSpec 当前 72/79；9.6.D/F/G 和 10.3–10.6 仍待完成。
 
-诊断通过后，按 `sop-pilot-20261024-v1` 仅凭任务 ID、domain、split 和曝光元数据抽取 EnterpriseOps CSM 10、ITSM 10、τ retail official test 2、τ telecom official test 2，共 24 个未暴露任务。比较排期固定为 68 条路线：全任务 ReAct、一次规划+规则；同一 10 条 CSM 再安排一次规划+通用模型语义判断与一次规划+Jev 的相同状态配对。Jev 只用于已审核的知识文章 Choice；无自然分支记 N/A。试验锁定候选 SHA、模型、源数据与镜像、profile、预算和路线；跨提供方降级关闭。报告列出所有状态、评分/未评分分母、成本、token、延迟、覆盖率、统计区间及副作用测量状态。95% 自动正确率与每类 100 个自动样本资格条件不变。
+任何后续真实路线必须先通过干净候选、同 SHA CI、固定模型 profile 和预算/截止时间门禁。Pilot 必须使用与 readiness evidence 完全匹配的 provider/profile。当前 evidence gate 只支持 Qwen；OpenRouter diagnostic 即使未来通过闭环，也不能放行现有 Qwen pilot，需先实现、测试并通过同 SHA CI 的 OpenRouter 匹配 gate/profile/ledger 路径。满足 provider-matched readiness 后，才冻结 metadata-only 的 24-task/68-route 对照：ReAct 与一次规划+规则覆盖全部任务，同一 10 条 CSM 再配对通用模型语义判断与 Jev。提供方之间使用独立实验组、关闭跨模型降级；结构化条件使用规则。未通过的诊断结果不重放、不换题、不混入性能分数。95% 自动正确率与每类至少 100 个样本的生产阈值资格条件不变。
 
-当前周硬上限共用且不能因 cohort/path 更换重置：通用模型 500 请求/5,000,000 token、MCP 1,600 次、4 小时、Qwen 抵扣前 ¥13.50、OpenRouter 抵扣前 $5；Jev 使用原累计 $1 账本，unknown 预留不释放。游客功能、公网入口、私有 CD/部署、记忆消融和阈值扫描暂停；独立 Linux 验收继续待办。
+全周硬上限仍为共用的 500 次通用模型请求、5,000,000 token、1,600 次 MCP 调用、4 小时、Qwen 抵扣前 ¥13.50、OpenRouter 抵扣前 $5；Jev 继续使用原累计 $1 账本，unknown 预留不释放。游客功能、公网入口、私有 CD/部署、记忆消融和阈值扫描暂停；独立 Linux 验收继续待办。
 
 ## 历史状态（2026-10-24，Qwen diagnostic 未通过 readiness 门槛）
 

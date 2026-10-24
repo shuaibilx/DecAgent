@@ -456,6 +456,108 @@ def test_bounded_diagnostic_plan_has_four_cases_and_enforces_small_batch_caps():
     ) == 6
 
 
+def test_openrouter_diagnostic_plan_is_a_single_csm_plan_route_with_residual_caps(tmp_path):
+    from dataclasses import replace
+    from decimal import Decimal
+
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_limits import OPENROUTER_DIAGNOSTIC_LIMITS
+    from evals.benchmarks.build_trial_manifest import build_trial_manifest
+    from evals.benchmarks.pilot_gate import (
+        build_bounded_openrouter_diagnostic_plan,
+        is_bounded_openrouter_diagnostic_plan,
+    )
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v6.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+
+    def openrouter_profile(profile):
+        return replace(
+            profile,
+            provider="openrouter",
+            model="deepseek/deepseek-v4.1-flash",
+            endpoint="https://openrouter.ai/api/v1",
+            price_version="openrouter-deepseek-v4.1-flash-fireworks-usd-20261024-v1",
+            price_source=(
+                "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints"
+            ),
+            input_price_per_million=Decimal("0.45"),
+            output_price_per_million=Decimal("1.8"),
+            price_currency="USD",
+            cached_input_price_per_million=Decimal("0.009"),
+            provider_routing="openrouter_fireworks",
+        )
+
+    profiles = replace(
+        profiles,
+        primary=openrouter_profile(profiles.primary),
+        user_simulator=openrouter_profile(profiles.user_simulator),
+        judge=openrouter_profile(profiles.judge),
+    )
+    manifest = build_trial_manifest(
+        ROOT,
+        model_profiles=profiles,
+        manifest_version=12,
+        batch_limits={
+            **OPENROUTER_DIAGNOSTIC_LIMITS,
+            "tool_calls": 399,
+            "wall_seconds": 2_519,
+        },
+    )
+    manifest_path = tmp_path / "comparison_trial_manifest_v12.json"
+    profiles_path = tmp_path / "evaluation_model_profiles_v7.json"
+    # Use temporary fixtures so the production loader still verifies
+    # the manifest/profile binding without requiring committed generated files.
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    profiles_path.write_text(json.dumps(manifest["model_profiles"]), encoding="utf-8")
+
+    base = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+        manifest_path=manifest_path,
+        profiles_path=profiles_path,
+        allow_unready_diagnostic_model=True,
+    )
+    plan = build_bounded_openrouter_diagnostic_plan(base)
+
+    assert is_bounded_openrouter_diagnostic_plan(plan)
+    assert len(plan.trials) == 1
+    assert plan.trials[0]["domain"] == "csm"
+    assert plan.routes == ("plan_mcp",)
+    assert plan.route_slot_count() == 1
+    assert plan.batch_limits["openrouter_requests"] == 6
+    assert plan.batch_limits["openrouter_tokens"] == 565_946
+    assert plan.batch_limits["wall_seconds"] == 2_700
+    assert plan.batch_limits["openrouter_cost_usd"] == "5"
+    assert plan.batch_limits["agent_openrouter_requests"] == 5
+    assert plan.batch_limits["judge_openrouter_requests"] == 1
+    assert plan.batch_limits["judge_openrouter_tokens"] == 65_946
+    assert "qwen_requests" not in plan.batch_limits
+    assert plan.resource_limits["agent_machine_seconds"] == 1_800
+    assert plan.resource_limits["judge_tokens"] == 65_946
+
+
+def test_openrouter_diagnostic_plan_rejects_qwen_profile():
+    from evals.benchmarks.pilot_gate import build_bounded_openrouter_diagnostic_plan
+
+    base = load_public_run_plan(
+        Path(__file__).resolve().parents[2],
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    with pytest.raises(ValueError, match="OpenRouter"):
+        build_bounded_openrouter_diagnostic_plan(base)
+
+
 def test_pilot_batch_limits_subtract_diagnostic_consumption_from_shared_weekly_caps():
     from evals.benchmarks.pilot_gate import remaining_pilot_batch_limits
 

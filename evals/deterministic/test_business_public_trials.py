@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
 from decagent.evaluation.business.public_trials import (
     PublicTrialLedger,
     build_dry_run_report,
@@ -925,20 +926,115 @@ def test_qwen_batch_cap_is_shared_across_routes_and_survives_resume(tmp_path):
     assert snapshot["qwen_requests"] == 1
     assert snapshot["qwen_actual_tokens"] == 5
     assert snapshot["stopped_reason"] is None
-    resumed.start_route(trial["trial_id"], second_route)
-    with pytest.raises(ValueError, match="agent_qwen_requests"):
-        resumed.reserve_model_attempt(
-            trial_id=trial["trial_id"],
-            route=second_route,
-            role="primary",
-            estimated_input_tokens=1,
-            max_output_tokens=1,
-            reserved_cost_usd=None,
-            profile_digest=selected.profiles.primary.fingerprint,
-        )
+    assert resumed.stop_for_batch_limit("agent_qwen_requests") == "agent_qwen_requests"
     assert resumed.batch_snapshot()["stopped_reason"] == "agent_qwen_requests"
     resumed.close()
 
+    resumed = PublicTrialLedger.resume(path, selected)
+    assert resumed.batch_snapshot()["stopped_reason"] == "agent_qwen_requests"
+    with pytest.raises(ValueError, match="agent_qwen_requests"):
+        resumed.start_route(trial["trial_id"], second_route)
+    assert resumed.batch_snapshot()["stopped_reason"] == "agent_qwen_requests"
+    resumed.close()
+
+
+def test_batch_usage_keeps_openrouter_requests_and_cost_out_of_qwen_totals(tmp_path):
+    selected = plan()
+    source = selected.profiles.primary
+    primary = replace(
+        source,
+        provider="openrouter",
+        model="deepseek/deepseek-v4.1-flash",
+        endpoint="https://openrouter.ai/api/v1",
+        price_version="openrouter-endpoints-api-2026-10-24-peak",
+        price_source=(
+            "https://openrouter.ai/api/v1/models/"
+            "deepseek/deepseek-v4.1-flash/endpoints"
+        ),
+        input_price_per_million=Decimal("0.60"),
+        output_price_per_million=Decimal("2.40"),
+        pricing_status="known",
+        price_currency="USD",
+        cached_input_price_per_million=None,
+        provider_routing="openrouter_default",
+        timeout_seconds=120,
+    )
+    profiles = EvaluationModelProfiles(
+        primary=primary,
+        user_simulator=replace(primary, role="user_simulator", timeout_seconds=60),
+        judge=replace(primary, role="judge", timeout_seconds=60),
+        jev=selected.profiles.jev,
+    )
+    trials = tuple(
+        {
+            **trial,
+            "model_profile_digest": profiles.primary.fingerprint,
+            "user_simulator_profile_digest": profiles.user_simulator.fingerprint,
+            "judge_profile_digest": profiles.judge.fingerprint,
+        }
+        for trial in selected.trials
+    )
+    batch_limits = {
+        **selected.batch_limits,
+        "openrouter_requests": 1,
+        "openrouter_tokens": 600_000,
+        "openrouter_cost_usd": "5",
+    }
+    selected = replace(
+        selected, profiles=profiles, trials=trials, batch_limits=batch_limits
+    )
+    ledger = PublicTrialLedger.create(tmp_path / "provider-batch.sqlite3", selected)
+    trial = selected.trials[0]
+    route = selected.routes[0]
+    reserved_cost = Decimal("0.000030")
+    try:
+        ledger.start_route(trial["trial_id"], route)
+        attempt = ledger.reserve_model_attempt(
+            trial_id=trial["trial_id"],
+            route=route,
+            role="primary",
+            estimated_input_tokens=10,
+            max_output_tokens=10,
+            reserved_cost_usd=reserved_cost,
+            reserved_cost_amount=reserved_cost,
+            reserved_cost_currency="USD",
+            profile_digest=profiles.primary.fingerprint,
+        )
+        ledger.mark_model_dispatched(attempt)
+        ledger.settle_model_attempt(
+            attempt,
+            actual_input_tokens=2,
+            actual_output_tokens=3,
+            actual_cost_usd=Decimal("0.0000084"),
+            actual_cost_amount=Decimal("0.0000084"),
+            actual_cost_currency="USD",
+            provider_request_id="openrouter-provider-batch-test",
+        )
+        snapshot = ledger.batch_snapshot()
+        assert snapshot["stopped_reason"] is None
+        with pytest.raises(ValueError, match="openrouter_requests"):
+            ledger.reserve_model_attempt(
+                trial_id=trial["trial_id"],
+                route=route,
+                role="primary",
+                estimated_input_tokens=1,
+                max_output_tokens=1,
+                reserved_cost_usd=Decimal("0.000003"),
+                reserved_cost_amount=Decimal("0.000003"),
+                reserved_cost_currency="USD",
+                profile_digest=profiles.primary.fingerprint,
+            )
+        snapshot = ledger.batch_snapshot()
+    finally:
+        ledger.close()
+
+    assert snapshot["qwen_requests"] == 0
+    assert snapshot["qwen_tokens"] == 0
+    assert snapshot["qwen_cost_cny"] == Decimal("0")
+    assert snapshot["openrouter_requests"] == 1
+    assert snapshot["openrouter_tokens"] == 5
+    assert snapshot["openrouter_cost_usd"] == Decimal("0.0000084")
+    assert snapshot["stopped_reason"] == "openrouter_requests"
 
 def test_qwen_fee_cap_reserves_unknown_cost_before_dispatch(tmp_path):
     selected = load_public_run_plan(

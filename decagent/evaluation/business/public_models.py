@@ -1713,13 +1713,25 @@ def public_first_wave_model_adapter_factory(
     optional semantic callbacks are for separately frozen model-comparison
     routes; they do not change the first-wave route manifest.
     """
-    api_key = getattr(settings, "main_api_key", None)
-    if type(api_key) is not str or not api_key.strip():
-        raise ValueError("A server-side primary model credential is required")
+    def api_key_for(profile):
+        provider = profile.provider.lower()
+        if provider in {"qwen", "dashscope"}:
+            value = getattr(settings, "main_api_key", None)
+        elif provider in {"openrouter", "open_router"}:
+            value = getattr(settings, "resolved_fallback_api_key", None)
+        else:
+            raise ValueError("A frozen public model provider has no credential mapping")
+        if type(value) is not str or not value.strip():
+            raise ValueError("The frozen public model provider credential is unavailable")
+        return value
+
+    primary_api_key = api_key_for(profiles.primary)
+    simulator_api_key = api_key_for(profiles.user_simulator)
+    judge_api_key = api_key_for(profiles.judge)
     known_secrets = tuple(
         value
         for value in (
-            api_key,
+            getattr(settings, "main_api_key", ""),
             getattr(settings, "jev_api_key", ""),
             getattr(settings, "resolved_fallback_api_key", ""),
         )
@@ -1731,14 +1743,14 @@ def public_first_wave_model_adapter_factory(
     callback_factories = {
         "planner": public_planner_callback_factory(
             profiles.primary,
-            api_key=api_key,
+            api_key=primary_api_key,
             known_secrets=known_secrets,
             primary_factory=primary_factory,
             worker_guard_path=worker_guard_path,
         ),
         "react": public_react_callback_factory(
             profiles.primary,
-            api_key=api_key,
+            api_key=primary_api_key,
             known_secrets=known_secrets,
             primary_factory=primary_factory,
             worker_guard_path=worker_guard_path,
@@ -1746,7 +1758,7 @@ def public_first_wave_model_adapter_factory(
         "user_simulator": public_tau_model_callback_factory(
             profiles.user_simulator,
             role="user_simulator",
-            api_key=api_key,
+            api_key=simulator_api_key,
             known_secrets=known_secrets,
             primary_factory=primary_factory,
             worker_guard_path=worker_guard_path,
@@ -1754,7 +1766,7 @@ def public_first_wave_model_adapter_factory(
         "official_judge": public_tau_model_callback_factory(
             profiles.judge,
             role="judge",
-            api_key=api_key,
+            api_key=judge_api_key,
             known_secrets=known_secrets,
             primary_factory=primary_factory,
             worker_guard_path=worker_guard_path,
@@ -1776,7 +1788,7 @@ def public_first_wave_model_adapter_factory(
         semantic_callback_factories["plan_primary_semantic_mcp"] = (
             public_primary_semantic_callback_factory(
                 profiles.primary,
-                api_key=api_key,
+                api_key=primary_api_key,
                 known_secrets=known_secrets,
                 primary_factory=primary_factory,
                 worker_guard_path=worker_guard_path,

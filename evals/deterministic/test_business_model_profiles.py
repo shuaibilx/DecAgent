@@ -227,7 +227,13 @@ def test_profile_digest_freezes_request_parameters_tool_contract_timeout_and_rou
     assert exact.fingerprint != replace(exact, temperature=Decimal("0.2")).fingerprint
     assert exact.fingerprint != replace(exact, tool_choice="none").fingerprint
     assert exact.fingerprint != replace(exact, timeout_seconds=45).fingerprint
-    assert exact.fingerprint != replace(exact, provider_routing="openrouter_default").fingerprint
+    assert exact.fingerprint != replace(
+        exact,
+        provider="openrouter",
+        model="deepseek/deepseek-v4.1-flash",
+        endpoint="https://openrouter.ai/api/v1",
+        provider_routing="openrouter_default",
+    ).fingerprint
 
 
 def test_frozen_primary_profile_allows_a_bounded_180_second_timeout():
@@ -289,6 +295,63 @@ def test_primary_model_factory_applies_the_frozen_profile_to_the_provider_client
     assert captured["seed"] == 17
     assert captured["timeout"] == 23
     assert captured["tool_choice"] == "none"
+
+
+def test_openrouter_fireworks_profile_freezes_provider_route_and_wire_policy(monkeypatch):
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.models import primary as primary_module
+
+    selected = replace(
+        profile(),
+        provider="openrouter",
+        model="deepseek/deepseek-v4.1-flash",
+        endpoint="https://openrouter.ai/api/v1",
+        price_version="openrouter-deepseek-v4.1-flash-fireworks-usd-20261024-v1",
+        price_source=(
+            "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints"
+        ),
+        input_price_per_million=Decimal("0.45"),
+        output_price_per_million=Decimal("1.8"),
+        price_currency="USD",
+        cached_input_price_per_million=Decimal("0.009"),
+        provider_routing="openrouter_fireworks",
+    )
+    profile_document = EvaluationModelProfiles(
+        primary=selected,
+        user_simulator=replace(selected, role="user_simulator"),
+        judge=replace(selected, role="judge"),
+    ).to_dict()
+    round_tripped = EvaluationModelProfiles.from_dict(profile_document)
+    assert round_tripped.primary.fingerprint == selected.fingerprint
+
+    captured = {}
+
+    class FakeClient:
+        def bind_tools(self, definitions, *, tool_choice):
+            captured["tool_definitions"] = definitions
+            captured["tool_choice"] = tool_choice
+            return self
+
+    monkeypatch.setattr(
+        primary_module,
+        "ChatOpenAI",
+        lambda **kwargs: captured.update(kwargs) or FakeClient(),
+    )
+
+    primary_module.PrimaryModel.from_evaluation_profile(
+        selected,
+        api_key="openrouter-test-key",
+        tool_definitions=[],
+        validator=lambda *_: None,
+    )
+
+    assert captured["base_url"] == "https://openrouter.ai/api/v1"
+    assert captured["extra_body"]["provider"] == {
+        "order": ["fireworks"],
+        "allow_fallbacks": False,
+        "require_parameters": True,
+    }
+    assert captured["tool_choice"] == "auto"
 
 
 def test_primary_model_factory_forwards_an_injected_http_client(monkeypatch):

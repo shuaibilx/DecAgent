@@ -367,12 +367,18 @@ class PrimaryModel:
         timeout=60,
         tool_choice=None,
         http_client=None,
+        extra_body=None,
     ):
         if not api_key:
             raise ValueError("DECAGENT_MAIN_API_KEY is required for model requests")
         options = {}
+        if extra_body is not None and type(extra_body) is not dict:
+            raise ValueError("Extra provider request fields must be a mapping")
+        request_body = dict(extra_body or {})
         if usage_include:
-            options["extra_body"] = {"usage": {"include": True}}
+            request_body["usage"] = {"include": True}
+        if request_body:
+            options["extra_body"] = request_body
         request_parameters = {}
         if temperature is not None:
             request_parameters["temperature"] = temperature
@@ -419,7 +425,18 @@ class PrimaryModel:
 
         if not isinstance(profile, ModelProfile) or profile.role == "jev":
             raise ValueError("A general-model evaluation profile is required")
-        if profile.provider_routing != "direct_endpoint":
+        route_request_body = None
+        if profile.provider_routing == "openrouter_default":
+            route_request_body = {"provider": {"require_parameters": True}}
+        elif profile.provider_routing == "openrouter_fireworks":
+            route_request_body = {
+                "provider": {
+                    "order": ["fireworks"],
+                    "allow_fallbacks": False,
+                    "require_parameters": True,
+                }
+            }
+        elif profile.provider_routing != "direct_endpoint":
             raise ValueError("This model client cannot apply the frozen provider-routing policy")
         parameters = set(profile.unsupported_parameters)
         return cls.from_profile(
@@ -438,6 +455,7 @@ class PrimaryModel:
             timeout=profile.timeout_seconds,
             tool_choice=profile.tool_choice,
             http_client=http_client,
+            extra_body=route_request_body,
         )
 
     @contextmanager

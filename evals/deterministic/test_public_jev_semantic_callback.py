@@ -346,6 +346,83 @@ def test_first_wave_factory_keeps_semantic_routes_opt_in_and_separate(tmp_path, 
     assert isinstance(jev_callback, PublicJevSemanticCallback)
 
 
+def test_first_wave_factory_selects_openrouter_credentials_from_frozen_roles(
+    tmp_path, monkeypatch
+):
+    import decagent.evaluation.business.public_models as public_models
+
+    plan, _profile, _trial = _profile_and_trial()
+
+    def openrouter_role(role_profile):
+        return replace(
+            role_profile,
+            provider="openrouter",
+            model="deepseek/deepseek-v4.1-flash",
+            endpoint="https://openrouter.ai/api/v1",
+            price_version="openrouter-deepseek-v4.1-flash-fireworks-usd-20261024-v1",
+            price_source=(
+                "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints"
+            ),
+            input_price_per_million=Decimal("0.45"),
+            output_price_per_million=Decimal("1.8"),
+            price_currency="USD",
+            cached_input_price_per_million=Decimal("0.009"),
+            provider_routing="openrouter_fireworks",
+        )
+
+    profiles = replace(
+        plan.profiles,
+        primary=openrouter_role(plan.profiles.primary),
+        user_simulator=openrouter_role(plan.profiles.user_simulator),
+        judge=openrouter_role(plan.profiles.judge),
+    )
+    captured = {}
+
+    def callback_factory(name):
+        def build(profile, **kwargs):
+            captured[name] = (profile.provider, kwargs["api_key"])
+            return lambda *_args: None
+
+        return build
+
+    monkeypatch.setattr(
+        public_models, "public_planner_callback_factory", callback_factory("planner")
+    )
+    monkeypatch.setattr(
+        public_models, "public_react_callback_factory", callback_factory("react")
+    )
+    monkeypatch.setattr(
+        public_models,
+        "public_tau_model_callback_factory",
+        lambda profile, *, role, **kwargs: callback_factory(role)(profile, **kwargs),
+    )
+    monkeypatch.setattr(
+        public_models,
+        "LedgeredModelAdapterFactory",
+        lambda *_args, **_kwargs: SimpleNamespace(),
+    )
+    ledger = SimpleNamespace(plan=SimpleNamespace(root=tmp_path))
+    settings = SimpleNamespace(
+        main_api_key="qwen-test-key",
+        resolved_fallback_api_key="openrouter-test-key",
+        jev_api_key="jev-test-key",
+    )
+
+    public_first_wave_model_adapter_factory(
+        settings,
+        ledger,
+        profiles,
+        trial_id_for=lambda _trial: "a" * 64,
+    )
+
+    assert captured == {
+        "planner": ("openrouter", "openrouter-test-key"),
+        "react": ("openrouter", "openrouter-test-key"),
+        "user_simulator": ("openrouter", "openrouter-test-key"),
+        "judge": ("openrouter", "openrouter-test-key"),
+    }
+
+
 def test_primary_semantic_callback_uses_the_same_trusted_state_and_question():
     plan, _jev_profile, trial = _profile_and_trial()
     profile = plan.profiles.primary

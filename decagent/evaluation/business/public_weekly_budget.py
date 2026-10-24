@@ -96,6 +96,15 @@ def _connect(path):
             proof_sha256 TEXT NOT NULL,
             superseded_at_utc TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS openrouter_diagnostic_continuation(
+            singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+            parent_report_sha256 TEXT NOT NULL,
+            candidate_sha TEXT NOT NULL,
+            cohort_digest TEXT NOT NULL,
+            ledger_path TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('open','completed')),
+            report_sha256 TEXT
+        );
         """
     )
     columns = {
@@ -232,6 +241,102 @@ def _inspect_unspent_diagnostic_ledger(
         }
     except (sqlite3.Error, json.JSONDecodeError, TypeError) as exc:
         raise ValueError("Diagnostic successor cannot verify the original ledger") from exc
+    finally:
+        if "connection" in locals():
+            connection.close()
+
+
+def _read_diagnostic_batch_clock(
+    ledger_path, *, candidate_sha, cohort_digest, now=None, require_unexpired=True
+):
+    """Read the immutable absolute clock from an existing Qwen diagnostic ledger."""
+    path = Path(ledger_path)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("The completed Qwen diagnostic ledger is unavailable")
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise ValueError("The Qwen diagnostic ledger cannot contain symlinks")
+    try:
+        connection = sqlite3.connect(
+            f"file:{path.resolve()}?mode=ro", uri=True, timeout=5
+        )
+        metadata = {
+            key: json.loads(value)
+            for key, value in connection.execute("SELECT key,value FROM metadata")
+        }
+        batch = connection.execute(
+            "SELECT started_at_utc,deadline_at_utc FROM batch_control WHERE singleton=1"
+        ).fetchone()
+        if (
+            metadata.get("candidate_sha") != candidate_sha
+            or metadata.get("cohort_digest") != cohort_digest
+            or metadata.get("mode") != "smoke"
+            or batch is None
+        ):
+            raise ValueError("The Qwen diagnostic ledger identity or clock differs")
+        started_value = datetime.fromisoformat(batch[0])
+        deadline_value = datetime.fromisoformat(batch[1])
+        if (
+            started_value.tzinfo is None
+            or started_value.utcoffset() != timedelta(0)
+            or deadline_value.tzinfo is None
+            or deadline_value.utcoffset() != timedelta(0)
+        ):
+            raise ValueError("Qwen diagnostic clock must be timezone-aware UTC")
+        started_at = started_value.astimezone(UTC)
+        deadline = deadline_value.astimezone(UTC)
+        if deadline <= started_at or deadline - started_at > timedelta(minutes=45):
+            raise ValueError("Qwen diagnostic clock exceeds the authorized 45-minute window")
+        current_time = now or datetime.now(UTC)
+        if current_time.tzinfo is None or current_time.utcoffset() != timedelta(0):
+            raise ValueError("Qwen diagnostic clock check requires timezone-aware UTC")
+        if require_unexpired and current_time.astimezone(UTC) >= deadline:
+            raise ValueError("The original 45-minute diagnostic deadline has expired")
+        return {
+            "batch_started_at_utc": started_at.isoformat(),
+            "batch_deadline_at_utc": deadline.isoformat(),
+        }
+    except (sqlite3.Error, json.JSONDecodeError, TypeError, IndexError) as exc:
+        raise ValueError("The Qwen diagnostic ledger clock cannot be verified") from exc
+    finally:
+        if "connection" in locals():
+            connection.close()
+
+
+def openrouter_diagnostic_parent_clock(
+    root, *, parent_report_sha256, now=None, require_unexpired=True
+):
+    """Resolve and verify the original Qwen phase clock bound to its report hash."""
+    authorization_path = canonical_public_weekly_budget_path(root)
+    if not authorization_path.is_file() or authorization_path.is_symlink():
+        raise ValueError("OpenRouter continuation requires the existing weekly authorization")
+    try:
+        connection = sqlite3.connect(
+            f"file:{authorization_path.resolve()}?mode=ro", uri=True, timeout=5
+        )
+        row = connection.execute(
+            "SELECT candidate_sha,cohort_digest,ledger_path FROM phase_history "
+            "WHERE phase='diagnostic' AND phase_round=2 AND status='completed' "
+            "AND report_sha256=?",
+            (parent_report_sha256,),
+        ).fetchone()
+        if row is None:
+            raise ValueError("OpenRouter continuation must bind the completed Qwen round-2 report")
+        ledger_path = Path(row[2]).resolve(strict=False)
+        root = Path(root).resolve()
+        if not ledger_path.is_relative_to(root):
+            raise ValueError("Qwen diagnostic ledger must belong to this project")
+        return _read_diagnostic_batch_clock(
+            ledger_path,
+            candidate_sha=row[0],
+            cohort_digest=row[1],
+            now=now,
+            require_unexpired=require_unexpired,
+        )
+    except (sqlite3.Error, TypeError) as exc:
+        raise ValueError("The original Qwen diagnostic clock cannot be verified") from exc
     finally:
         if "connection" in locals():
             connection.close()
@@ -534,6 +639,183 @@ def complete_public_evaluation_phase(
                 ledger_identity,
                 report_sha256,
             ),
+        )
+        connection.execute("COMMIT")
+    except BaseException:
+        if connection.in_transaction:
+            connection.execute("ROLLBACK")
+        raise
+    finally:
+        connection.close()
+
+
+def authorize_openrouter_diagnostic_continuation(
+    root,
+    *,
+    parent_report_sha256,
+    candidate_sha,
+    cohort_digest,
+    ledger_path,
+):
+    """Authorize one separately accounted OpenRouter probe bound to Qwen round 2."""
+    root = Path(root).resolve()
+    ledger_identity = _validate_identity(
+        "diagnostic", candidate_sha, cohort_digest, ledger_path
+    )
+    if (
+        type(parent_report_sha256) is not str
+        or re.fullmatch(r"[a-f0-9]{64}", parent_report_sha256) is None
+    ):
+        raise ValueError("OpenRouter continuation requires the Qwen round-2 report digest")
+    if not Path(ledger_identity).is_relative_to(root):
+        raise ValueError("OpenRouter continuation ledger must belong to this project")
+    if datetime.now(UTC) >= PUBLIC_EVALUATION_BUDGET_EXPIRES_UTC:
+        raise ValueError("The approved public-evaluation budget window has expired")
+
+    authorization_path = canonical_public_weekly_budget_path(root)
+    repository_digest = hashlib.sha256(
+        _repository_identity(root).encode("utf-8")
+    ).hexdigest()
+    connection = _connect(authorization_path)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        metadata = connection.execute(
+            "SELECT budget_id,repository_digest,project_root,expires_at_utc "
+            "FROM budget_metadata WHERE singleton=1"
+        ).fetchone()
+        expected_metadata = (
+            PUBLIC_EVALUATION_BUDGET_ID,
+            repository_digest,
+            str(root),
+            PUBLIC_EVALUATION_BUDGET_EXPIRES_UTC.isoformat(),
+        )
+        if metadata is None:
+            raise ValueError(
+                "OpenRouter continuation requires the existing weekly Qwen authorization"
+            )
+        if tuple(metadata) != expected_metadata:
+            raise ValueError(
+                "Weekly evaluation authorization is bound to another project or budget"
+            )
+
+        parent = connection.execute(
+            "SELECT report_sha256,candidate_sha,cohort_digest,ledger_path FROM phase_history "
+            "WHERE phase='diagnostic' AND phase_round=2 AND status='completed'"
+        ).fetchone()
+        if parent is None or parent[0] != parent_report_sha256:
+            raise ValueError(
+                "OpenRouter continuation must bind the completed Qwen round-2 report"
+            )
+        parent_clock = _read_diagnostic_batch_clock(
+            parent[3], candidate_sha=parent[1], cohort_digest=parent[2]
+        )
+
+        existing = connection.execute(
+            "SELECT parent_report_sha256,candidate_sha,cohort_digest,ledger_path,status "
+            "FROM openrouter_diagnostic_continuation WHERE singleton=1"
+        ).fetchone()
+        expected = (
+            parent_report_sha256,
+            candidate_sha,
+            cohort_digest,
+            ledger_identity,
+        )
+        ledger = Path(ledger_identity)
+        if existing is None:
+            if ledger.exists():
+                raise ValueError("OpenRouter continuation requires a new independent ledger")
+            connection.execute(
+                "INSERT INTO openrouter_diagnostic_continuation("
+                "singleton,parent_report_sha256,candidate_sha,cohort_digest,ledger_path,status) "
+                "VALUES(1,?,?,?,?, 'open')",
+                expected,
+            )
+        elif tuple(existing[:4]) == expected:
+            if existing[4] == "completed":
+                raise ValueError("OpenRouter diagnostic continuation is already complete")
+            if not ledger.is_file():
+                raise ValueError("Authorized OpenRouter ledger is missing; budget cannot be reset")
+            child_clock = _read_diagnostic_batch_clock(
+                ledger,
+                candidate_sha=candidate_sha,
+                cohort_digest=cohort_digest,
+            )
+            if child_clock != parent_clock:
+                raise ValueError("OpenRouter continuation must preserve the Qwen batch deadline")
+        else:
+            raise ValueError(
+                "OpenRouter continuation cannot change its candidate, cohort or ledger"
+            )
+        connection.execute("COMMIT")
+        return {
+            "authorization_path": authorization_path,
+            "parent_report_sha256": parent_report_sha256,
+            **parent_clock,
+        }
+    except BaseException:
+        if connection.in_transaction:
+            connection.execute("ROLLBACK")
+        raise
+    finally:
+        connection.close()
+
+
+def complete_openrouter_diagnostic_continuation(
+    root,
+    *,
+    parent_report_sha256,
+    candidate_sha,
+    cohort_digest,
+    ledger_path,
+    report_sha256,
+):
+    """Seal the OpenRouter probe without mutating Qwen phase history."""
+    root = Path(root).resolve()
+    ledger_identity = _validate_identity(
+        "diagnostic", candidate_sha, cohort_digest, ledger_path
+    )
+    if (
+        type(parent_report_sha256) is not str
+        or re.fullmatch(r"[a-f0-9]{64}", parent_report_sha256) is None
+        or type(report_sha256) is not str
+        or re.fullmatch(r"[a-f0-9]{64}", report_sha256) is None
+    ):
+        raise ValueError("OpenRouter report and parent report digests are required")
+    if not Path(ledger_identity).is_file():
+        raise ValueError("The authorized OpenRouter evaluation ledger is missing")
+    parent_clock = openrouter_diagnostic_parent_clock(
+        root,
+        parent_report_sha256=parent_report_sha256,
+        require_unexpired=False,
+    )
+    child_clock = _read_diagnostic_batch_clock(
+        ledger_identity,
+        candidate_sha=candidate_sha,
+        cohort_digest=cohort_digest,
+        require_unexpired=False,
+    )
+    if child_clock != parent_clock:
+        raise ValueError("OpenRouter continuation must preserve the Qwen batch deadline")
+    authorization_path = canonical_public_weekly_budget_path(root)
+    connection = _connect(authorization_path)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        existing = connection.execute(
+            "SELECT parent_report_sha256,candidate_sha,cohort_digest,ledger_path,status "
+            "FROM openrouter_diagnostic_continuation WHERE singleton=1"
+        ).fetchone()
+        if existing != (
+            parent_report_sha256,
+            candidate_sha,
+            cohort_digest,
+            ledger_identity,
+            "open",
+        ):
+            raise ValueError("OpenRouter report does not match the authorized continuation")
+        connection.execute(
+            "UPDATE openrouter_diagnostic_continuation SET status='completed',report_sha256=? "
+            "WHERE singleton=1",
+            (report_sha256,),
         )
         connection.execute("COMMIT")
     except BaseException:

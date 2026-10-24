@@ -22,6 +22,7 @@ from .public_diagnostics import (
     DIAGNOSTIC_CODES,
     safe_exception_type,
 )
+from .public_limits import public_batch_limit_stop_reason
 from .public_resources import LedgeredModelAdapterFactory, LedgeredToolGateway
 from .public_supervisor import PublicSupervisor, canonical_public_supervisor_lock_path
 from .public_trials import PublicRunPlan, canonical_public_trial_ledger_path
@@ -37,6 +38,32 @@ _SCORE_SOURCES = {
     "enterpriseops-gym": "enterpriseops-gym-original-verifier",
     "tau-bench": "tau2-bench-original-evaluate-simulation",
 }
+_BATCH_RESOURCE_STOP_REASONS = frozenset(
+    {
+        "qwen_requests",
+        "qwen_tokens",
+        "qwen_cost_cny",
+        "qwen_cost_unknown",
+        "openrouter_requests",
+        "openrouter_tokens",
+        "openrouter_cost_usd",
+        "openrouter_cost_unknown",
+        "openrouter_limits_missing",
+        "agent_qwen_requests",
+        "agent_qwen_tokens",
+        "agent_openrouter_requests",
+        "agent_openrouter_tokens",
+        "user_simulator_qwen_requests",
+        "user_simulator_qwen_tokens",
+        "user_simulator_openrouter_requests",
+        "user_simulator_openrouter_tokens",
+        "judge_qwen_requests",
+        "judge_qwen_tokens",
+        "judge_openrouter_requests",
+        "judge_openrouter_tokens",
+        "tool_calls",
+    }
+)
 
 
 def _trial_matches_record(trial, record):
@@ -313,7 +340,17 @@ def _batch_stop_reason(ledger, batch):
     if type(remaining) not in {int, float} or not isfinite(remaining):
         raise TypeError("A finite public batch wall-clock remainder is required")
     if remaining > 0:
-        return None
+        limit_reason = public_batch_limit_stop_reason(batch)
+        if limit_reason is None:
+            return None
+        stop_for_limit = getattr(ledger, "stop_for_batch_limit", None)
+        if not callable(stop_for_limit):
+            raise TypeError("A durable public batch resource stop is required")
+        persisted_reason = stop_for_limit(limit_reason)
+        if persisted_reason is not None:
+            return persisted_reason
+        refreshed = ledger.batch_snapshot()
+        return refreshed.get("stopped_reason")
     stop_for_deadline = getattr(ledger, "stop_for_batch_deadline", None)
     if not callable(stop_for_deadline):
         raise TypeError("A durable public batch deadline stop is required")
@@ -533,9 +570,23 @@ def execute_public_route(
         status = ledger.route_status(trial_id, route_name)
         if status != "unknown":
             status = "failed"
-            error_category = "resource_overrun" if within_limit is False else "route_exception"
+            stopped_reason = ledger.batch_snapshot().get("stopped_reason")
+            batch_stop_category = (
+                f"batch_stopped_{stopped_reason}"
+                if stopped_reason in _BATCH_RESOURCE_STOP_REASONS
+                else None
+            )
+            error_category = (
+                "resource_overrun"
+                if within_limit is False
+                else batch_stop_category or "route_exception"
+            )
             failure_stage = (
-                "route_deadline" if within_limit is False else "route_supervisor"
+                "route_deadline"
+                if within_limit is False
+                else "agent_execution"
+                if batch_stop_category is not None
+                else "route_supervisor"
             )
             exception_type = safe_exception_type(exc)
             result_hash = digest(
@@ -696,6 +747,14 @@ def execute_public_route(
     failure_stage, exception_type, diagnostic_code = _failure_diagnostics(
         result, failure
     )
+    batch_stop_reason = ledger.batch_snapshot().get("stopped_reason")
+    if (
+        not success
+        and not overrun
+        and batch_stop_reason in _BATCH_RESOURCE_STOP_REASONS
+    ):
+        failure = f"batch_stopped_{batch_stop_reason}"
+        failure_stage = "agent_execution"
     if overrun:
         failure_stage = "route_deadline"
     if diagnostic_code is not None and not success and not overrun:
@@ -769,7 +828,9 @@ def execute_public_phase(
     deliberately supports only the first-wave phase until the wider cohort
     phases have their own live gates.
     """
-    if phase not in {"diagnostic", "first-wave", "pilot"}:
+    if phase not in {
+        "diagnostic", "openrouter-diagnostic", "first-wave", "pilot"
+    }:
         raise ValueError("Live phase scheduler requires a registered frozen phase")
     if phase == "diagnostic":
         batch = getattr(ledger, "plan", None)
@@ -783,6 +844,11 @@ def execute_public_phase(
             or limits.get("wall_seconds") != 2_700
         ):
             raise ValueError("Diagnostic dispatch requires its bounded four-case cohort")
+    elif phase == "openrouter-diagnostic":
+        from evals.benchmarks.pilot_gate import is_bounded_openrouter_diagnostic_plan
+
+        if not is_bounded_openrouter_diagnostic_plan(getattr(ledger, "plan", None)):
+            raise ValueError("OpenRouter dispatch requires its bounded one-case cohort")
     project_root = Path(root).resolve()
     if (
         not isinstance(supervisor, PublicSupervisor)
@@ -807,6 +873,7 @@ def execute_public_phase(
     if (
         not isinstance(plan, PublicRunPlan)
         or (phase == "first-wave" and plan.mode != "smoke")
+        or (phase == "openrouter-diagnostic" and plan.mode != "smoke")
         or (phase == "pilot" and (plan.mode != "pilot" or plan.route_schedule is None))
         or Path(plan.root).resolve() != project_root
         or (

@@ -13,6 +13,7 @@ from pathlib import Path, PurePosixPath
 
 from decagent.decisions.contracts import digest
 from decagent.evaluation.business.public_limits import (
+    OPENROUTER_DIAGNOSTIC_LIMITS,
     validate_public_batch_limits,
 )
 from decagent.evaluation.business.public_trials import PublicRunPlan
@@ -29,6 +30,15 @@ DIAGNOSTIC_LIMITS = {
 }
 _SOURCE_ROUTE_ORDER = ("react_skill_mcp", "plan_mcp")
 _DIAGNOSTIC_ROUTES = ("plan_mcp", "react_skill_mcp")
+_OPENROUTER_DIAGNOSTIC_ROUTES = ("plan_mcp",)
+OPENROUTER_DIAGNOSTIC_BATCH_LIMITS = {
+    **OPENROUTER_DIAGNOSTIC_LIMITS,
+    # Qwen round 2 already used 34,054 of the shared 600k diagnostic tokens.
+    "openrouter_tokens": 565_946,
+    "agent_openrouter_tokens": 500_000,
+    "tool_calls": 399,
+    "wall_seconds": 2_700,
+}
 _GENERAL_ROLES = frozenset({"primary", "user_simulator", "judge"})
 _SCORE_SOURCES = frozenset(
     {
@@ -228,6 +238,110 @@ def is_bounded_diagnostic_plan(plan):
         limits == DIAGNOSTIC_BATCH_LIMITS
         and plan.resource_limits == DIAGNOSTIC_RESOURCE_LIMITS
     )
+
+
+def build_bounded_openrouter_diagnostic_plan(plan):
+    """Build a one-case Plan→MCP→official-score probe under residual shared caps."""
+    if (
+        not isinstance(plan, PublicRunPlan)
+        or plan.mode != "smoke"
+        or len(plan.initial_smoke_wave) != 4
+        or plan.profiles.primary.provider.lower() not in {"openrouter", "open_router"}
+        or plan.profiles.primary.provider_routing != "openrouter_fireworks"
+        or any(
+            profile.provider != plan.profiles.primary.provider
+            or profile.model != plan.profiles.primary.model
+            or profile.endpoint != plan.profiles.primary.endpoint
+            or profile.provider_routing != "openrouter_fireworks"
+            for profile in (plan.profiles.user_simulator, plan.profiles.judge)
+        )
+    ):
+        raise ValueError("A frozen OpenRouter smoke cohort is required")
+    records_by_id = {record["trial_id"]: record for record in plan.trials}
+    csm = next(
+        (
+            records_by_id[item["trial_id"]]
+            for item in plan.initial_smoke_wave
+            if item["trial_id"] in records_by_id
+            and records_by_id[item["trial_id"]].get("benchmark") == "enterpriseops-gym"
+            and records_by_id[item["trial_id"]].get("domain") == "csm"
+        ),
+        None,
+    )
+    if csm is None:
+        raise ValueError("The fixed CSM development case is unavailable")
+
+    limits = {
+        "agent_model_requests": 5,
+        "agent_tokens": OPENROUTER_DIAGNOSTIC_BATCH_LIMITS["agent_openrouter_tokens"],
+        "tool_calls": 399,
+        "agent_machine_seconds": 1_800,
+        "tau_steps": 200,
+        "user_simulator_requests": 1,
+        "user_simulator_tokens": 1,
+        "judge_requests": 1,
+        "judge_tokens": OPENROUTER_DIAGNOSTIC_BATCH_LIMITS[
+            "judge_openrouter_tokens"
+        ],
+    }
+    batch_limits = dict(OPENROUTER_DIAGNOSTIC_BATCH_LIMITS)
+    validate_public_batch_limits(batch_limits)
+    resource_profile_digest = digest(limits)
+    selected = ({**csm, "resource_profile_digest": resource_profile_digest},)
+    diagnostic_manifest = digest(
+        {
+            "schema_version": "public-evaluation-openrouter-diagnostic-plan-v1",
+            "parent_phase": "qwen-diagnostic-round-2",
+            "parent_report_sha256_required": True,
+            "source_manifest_digest": plan.manifest_digest,
+            "source_manifest_sha256": plan.source_manifest_digest,
+            "task_inventory_digest": plan.inventory_digest,
+            "model_profiles_digest": plan.profiles.fingerprint,
+            "trial_ids": [csm["trial_id"]],
+            "routes": list(_OPENROUTER_DIAGNOSTIC_ROUTES),
+            "resource_limits": limits,
+            "batch_limits": batch_limits,
+        }
+    )
+    return replace(
+        plan,
+        manifest_digest=diagnostic_manifest,
+        routes=_OPENROUTER_DIAGNOSTIC_ROUTES,
+        trials=selected,
+        initial_smoke_wave=selected,
+        resource_limits=limits,
+        batch_limits=batch_limits,
+        route_schedule=None,
+    )
+
+
+def is_bounded_openrouter_diagnostic_plan(plan):
+    if not isinstance(plan, PublicRunPlan) or plan.mode != "smoke":
+        return False
+    if (
+        len(plan.trials) != 1
+        or len(plan.initial_smoke_wave) != 1
+        or plan.trials[0].get("benchmark") != "enterpriseops-gym"
+        or plan.trials[0].get("domain") != "csm"
+        or tuple(plan.routes) != _OPENROUTER_DIAGNOSTIC_ROUTES
+        or plan.route_slot_count() != 1
+        or plan.profiles.primary.provider.lower() not in {"openrouter", "open_router"}
+        or plan.profiles.primary.provider_routing != "openrouter_fireworks"
+        or plan.batch_limits
+        != OPENROUTER_DIAGNOSTIC_BATCH_LIMITS
+    ):
+        return False
+    return plan.resource_limits == {
+        "agent_model_requests": 5,
+        "agent_tokens": 500_000,
+        "tool_calls": 399,
+        "agent_machine_seconds": 1_800,
+        "tau_steps": 200,
+        "user_simulator_requests": 1,
+        "user_simulator_tokens": 1,
+        "judge_requests": 1,
+        "judge_tokens": 65_946,
+    }
 
 
 def remaining_pilot_batch_limits(

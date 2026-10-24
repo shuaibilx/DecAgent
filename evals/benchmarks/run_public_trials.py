@@ -13,11 +13,13 @@ from decagent.evaluation.business.public_trials import (
     load_public_run_plan,
 )
 from decagent.evaluation.business.public_weekly_budget import (
+    complete_openrouter_diagnostic_continuation,
     complete_public_evaluation_phase,
 )
 
 from evals.benchmarks.pilot_gate import (
     build_bounded_diagnostic_plan,
+    build_bounded_openrouter_diagnostic_plan,
     evaluation_source_digest,
     validate_diagnostic_evidence,
 )
@@ -32,7 +34,10 @@ def parser():
     command.add_argument("--mode", choices=("smoke", "full", "pilot"))
     command.add_argument(
         "--phase",
-        choices=("diagnostic", "first-wave", "remaining-smoke", "full", "pilot"),
+        choices=(
+            "diagnostic", "openrouter-diagnostic", "first-wave",
+            "remaining-smoke", "full", "pilot",
+        ),
         help="show the fixed task slice selected for this offline phase",
     )
     command.add_argument(
@@ -51,6 +56,11 @@ def parser():
         "--diagnostic-evidence",
         type=Path,
         help="CI-verified bounded diagnostic required before pilot freeze or dispatch",
+    )
+    command.add_argument(
+        "--parent-diagnostic-evidence",
+        type=Path,
+        help="completed Qwen round-2 report bound to the separate OpenRouter diagnostic",
     )
     command.add_argument(
         "--check-images",
@@ -128,10 +138,25 @@ def _load_plan(args, root, *, live=False):
     return load_public_run_plan(
         root,
         mode=mode,
-        manifest_path=args.manifest,
+        manifest_path=(
+            args.manifest
+            or (
+                root / "evals/benchmarks/manifests/comparison_trial_manifest_v12.json"
+                if args.phase == "openrouter-diagnostic"
+                else None
+            )
+        ),
         source_manifest_path=args.source_manifest,
-        profiles_path=args.model_profiles,
+        profiles_path=(
+            args.model_profiles
+            or (
+                root / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json"
+                if args.phase == "openrouter-diagnostic"
+                else None
+            )
+        ),
         readiness_path=args.readiness_evidence,
+        allow_unready_diagnostic_model=args.phase == "openrouter-diagnostic",
         check_images=args.check_images or live,
         check_runtime=live,
         check_source_files=live,
@@ -139,15 +164,20 @@ def _load_plan(args, root, *, live=False):
 
 
 def _execute_live_phase(args, command):
-    if args.phase not in {"diagnostic", "pilot"}:
+    if args.phase not in {"diagnostic", "openrouter-diagnostic", "pilot"}:
         command.error(
-            "unbounded historical live phases are closed; use --phase diagnostic or pilot"
+            "unbounded historical live phases are closed; use --phase diagnostic, "
+            "--phase openrouter-diagnostic, or --phase pilot"
         )
-    required_mode = "smoke" if args.phase == "diagnostic" else "pilot"
+    required_mode = "pilot" if args.phase == "pilot" else "smoke"
     if args.mode not in {None, required_mode}:
         command.error(f"live {args.phase} execution requires --mode {required_mode}")
     if args.phase == "pilot" and not args.diagnostic_evidence:
         command.error("live pilot execution requires --diagnostic-evidence")
+    if args.phase == "openrouter-diagnostic" and not args.parent_diagnostic_evidence:
+        command.error(
+            "OpenRouter diagnostic execution requires --parent-diagnostic-evidence"
+        )
     if args.phase != "diagnostic" and args.diagnostic_round != 1:
         command.error("--diagnostic-round applies only to the diagnostic phase")
     if args.state:
@@ -169,7 +199,12 @@ def _execute_live_phase(args, command):
         candidate_sha = require_verified_candidate(root)
 
         settings = _settings_for_project(root)
-        if not settings.main_api_key:
+        if args.phase == "openrouter-diagnostic":
+            if not settings.resolved_fallback_api_key:
+                raise ValueError(
+                    "The OpenRouter API key is required in the server environment"
+                )
+        elif not settings.main_api_key:
             raise ValueError("DECAGENT_MAIN_API_KEY is required in the server environment")
         if settings.fallback_enabled:
             raise ValueError("Cross-model fallback must be disabled for the frozen comparison")
@@ -188,6 +223,15 @@ def _execute_live_phase(args, command):
         run_plan = _load_plan(args, root, live=True)
         if args.phase == "diagnostic":
             run_plan = build_bounded_diagnostic_plan(run_plan)
+        elif args.phase == "openrouter-diagnostic":
+            from evals.benchmarks.live_public_runner import (
+                validate_openrouter_parent_evidence,
+            )
+
+            parent_evidence = validate_openrouter_parent_evidence(
+                root, args.parent_diagnostic_evidence
+            )
+            run_plan = build_bounded_openrouter_diagnostic_plan(run_plan)
         else:
             validate_diagnostic_evidence(
                 root,
@@ -207,6 +251,8 @@ def _execute_live_phase(args, command):
             "phase": args.phase,
             "diagnostic_round": args.diagnostic_round,
         }
+        if args.phase == "openrouter-diagnostic":
+            call["parent_report_sha256"] = parent_evidence["report_sha256"]
         if args.phase == "pilot":
             call["diagnostic_evidence"] = args.diagnostic_evidence
         phase, report = execute_live_public_phase(run_plan, **call)
@@ -225,20 +271,32 @@ def _execute_live_phase(args, command):
             diagnostic_report_sha256 = (
                 gate.get("report_sha256") if type(gate) is dict else None
             )
-        complete_public_evaluation_phase(
+        ledger_path = canonical_public_trial_ledger_path(
             root,
-            phase=args.phase,
-            phase_round=args.diagnostic_round,
-            candidate_sha=report["candidate_sha"],
             cohort_digest=report["cohort_digest"],
-            ledger_path=canonical_public_trial_ledger_path(
-                root,
-                cohort_digest=report["cohort_digest"],
-                candidate_sha=report["candidate_sha"],
-            ),
-            report_sha256=hashlib.sha256(report_path.read_bytes()).hexdigest(),
-            diagnostic_report_sha256=diagnostic_report_sha256,
+            candidate_sha=report["candidate_sha"],
         )
+        report_sha256 = hashlib.sha256(report_path.read_bytes()).hexdigest()
+        if args.phase == "openrouter-diagnostic":
+            complete_openrouter_diagnostic_continuation(
+                root,
+                parent_report_sha256=parent_evidence["report_sha256"],
+                candidate_sha=report["candidate_sha"],
+                cohort_digest=report["cohort_digest"],
+                ledger_path=ledger_path,
+                report_sha256=report_sha256,
+            )
+        else:
+            complete_public_evaluation_phase(
+                root,
+                phase=args.phase,
+                phase_round=args.diagnostic_round,
+                candidate_sha=report["candidate_sha"],
+                cohort_digest=report["cohort_digest"],
+                ledger_path=ledger_path,
+                report_sha256=report_sha256,
+                diagnostic_report_sha256=diagnostic_report_sha256,
+            )
     except (OSError, RuntimeError, ValueError) as exc:
         command.error(str(exc))
 
@@ -291,6 +349,8 @@ def main(argv=None):
         run_plan = _load_plan(args, args.root.resolve(), live=False)
         if args.phase == "diagnostic":
             run_plan = build_bounded_diagnostic_plan(run_plan)
+        elif args.phase == "openrouter-diagnostic":
+            run_plan = build_bounded_openrouter_diagnostic_plan(run_plan)
         report = build_dry_run_report(run_plan, phase=args.phase)
     except (OSError, ValueError) as exc:
         command.error(str(exc))

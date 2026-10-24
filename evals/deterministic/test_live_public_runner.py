@@ -226,6 +226,102 @@ def test_live_cli_requires_fixed_first_wave_and_report_before_candidate_gate(
     assert calls == []
 
 
+def test_live_openrouter_diagnostic_requires_a_parent_qwen_report_before_candidate_gate(
+    monkeypatch, tmp_path, capsys
+):
+    from evals.benchmarks import live_public_runner, run_public_trials
+
+    calls = []
+    monkeypatch.setattr(
+        live_public_runner,
+        "require_verified_candidate",
+        lambda _root: calls.append("candidate"),
+    )
+
+    with pytest.raises(SystemExit) as missing_parent:
+        run_public_trials.main(
+            [
+                "--root", str(tmp_path), "--execute", "--phase", "openrouter-diagnostic",
+                "--report", ".decagent/evaluation/evidence/openrouter.json",
+            ]
+        )
+    assert missing_parent.value.code == 2
+    assert "--parent-diagnostic-evidence" in capsys.readouterr().err
+    assert calls == []
+
+
+def test_openrouter_parent_evidence_binds_complete_qwen_round_two_without_unknowns(
+    tmp_path, monkeypatch,
+):
+    from evals.benchmarks import live_public_runner
+    from evals.benchmarks.pilot_gate import (
+        DIAGNOSTIC_BATCH_LIMITS,
+        DIAGNOSTIC_LIMITS,
+        WEEKLY_BASELINE_SHA256,
+    )
+
+    evidence = tmp_path / ".decagent/evaluation/evidence/parent.json"
+    evidence.parent.mkdir(parents=True)
+    report = {
+        "schema_version": "public-evaluation-live-diagnostic-v2",
+        "phase": "diagnostic",
+        "diagnostic_round": 2,
+        "dry_run": False,
+        "evaluation_budget_id": "sop-pilot-20261024-v1",
+        "candidate_sha": "a" * 40,
+        "working_tree_dirty": False,
+        "candidate_ci_verified": True,
+        "task_denominator": 4,
+        "selected_task_count": 4,
+        "route_denominator": 8,
+        "selected_route_slots": 8,
+        "diagnostic_limits": DIAGNOSTIC_LIMITS,
+        "diagnostic_batch_limits": DIAGNOSTIC_BATCH_LIMITS,
+        "weekly_budget_baseline_sha256": WEEKLY_BASELINE_SHA256,
+        "diagnostic_elapsed_seconds": 180.34,
+        "batch": {
+            "limits": DIAGNOSTIC_BATCH_LIMITS,
+            "qwen_requests": 3,
+            "qwen_tokens": 34_054,
+            "qwen_cost_unknown_attempts": 0,
+            "openrouter_requests": 0,
+            "openrouter_cost_unknown_attempts": 0,
+            "tool_calls": 1,
+        },
+        "routes": {
+            f"task-{index}:{route}": {
+                "trial_id": f"task-{index}",
+                "route": route,
+                "model_attempts": [],
+            }
+            for index in range(4)
+            for route in ("plan_mcp", "react_skill_mcp")
+        },
+    }
+    evidence.write_text(json.dumps(report), encoding="utf-8")
+    monkeypatch.setattr(
+        live_public_runner,
+        "openrouter_diagnostic_parent_clock",
+        lambda *_args, **_kwargs: {
+            "batch_started_at_utc": "2026-10-24T08:00:00+00:00",
+            "batch_deadline_at_utc": "2026-10-24T08:45:00+00:00",
+        },
+    )
+
+    result = live_public_runner.validate_openrouter_parent_evidence(tmp_path, evidence)
+
+    assert result["candidate_sha"] == "a" * 40
+    assert result["qwen_requests"] == 3
+    assert result["qwen_tokens"] == 34_054
+    assert len(result["report_sha256"]) == 64
+    assert result["batch_deadline_at_utc"] == "2026-10-24T08:45:00+00:00"
+
+    report["batch"]["qwen_cost_unknown_attempts"] = 1
+    evidence.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(ValueError, match="unknown"):
+        live_public_runner.validate_openrouter_parent_evidence(tmp_path, evidence)
+
+
 def test_live_cli_requires_images_readiness_runtime_and_credentials_before_dispatch(
     monkeypatch, tmp_path, capsys
 ):

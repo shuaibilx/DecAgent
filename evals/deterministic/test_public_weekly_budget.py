@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -18,6 +19,28 @@ def _ledger(root, name):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
     return path
+
+
+def _write_batch_clock(path, *, candidate_sha, cohort_digest, started_at, deadline_at):
+    with sqlite3.connect(path) as connection:
+        connection.executescript(
+            "CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);"
+            "CREATE TABLE batch_control(singleton INTEGER PRIMARY KEY,"
+            "started_at_utc TEXT NOT NULL,deadline_at_utc TEXT NOT NULL);"
+        )
+        connection.executemany(
+            "INSERT INTO metadata(key,value) VALUES(?,?)",
+            [
+                ("candidate_sha", json.dumps(candidate_sha)),
+                ("cohort_digest", json.dumps(cohort_digest)),
+                ("mode", json.dumps("smoke")),
+            ],
+        )
+        connection.execute(
+            "INSERT INTO batch_control(singleton,started_at_utc,deadline_at_utc) "
+            "VALUES(1,?,?)",
+            (started_at.isoformat(), deadline_at.isoformat()),
+        )
 
 
 def test_weekly_authorization_binds_one_diagnostic_and_its_pilot(tmp_path, monkeypatch):
@@ -340,4 +363,167 @@ def test_second_diagnostic_round_requires_completed_first_round_and_new_state(
             candidate_sha="a" * 40,
             cohort_digest="b" * 64,
             ledger_path=_ledger(root, "second.sqlite3"),
+        )
+
+
+def test_openrouter_continuation_is_independent_and_bound_to_qwen_round_two(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "project"
+    root.mkdir()
+    auth_path = tmp_path / "user-state" / "weekly.sqlite3"
+    monkeypatch.setattr(
+        budget, "canonical_public_weekly_budget_path", lambda *_args: auth_path
+    )
+    first_ledger = _ledger(root, "qwen-round1.sqlite3")
+    budget.authorize_public_evaluation_phase(
+        root,
+        phase="diagnostic",
+        candidate_sha="a" * 40,
+        cohort_digest="b" * 64,
+        ledger_path=first_ledger,
+    )
+    first_report = "c" * 64
+    budget.complete_public_evaluation_phase(
+        root,
+        phase="diagnostic",
+        candidate_sha="a" * 40,
+        cohort_digest="b" * 64,
+        ledger_path=first_ledger,
+        report_sha256=first_report,
+    )
+    second_ledger = root / ".decagent" / "business-eval" / "qwen-round2.sqlite3"
+    budget.authorize_public_evaluation_phase(
+        root,
+        phase="diagnostic",
+        phase_round=2,
+        candidate_sha="d" * 40,
+        cohort_digest="e" * 64,
+        ledger_path=second_ledger,
+    )
+    second_ledger.touch()
+    original_start = datetime.now(UTC) - timedelta(minutes=1)
+    original_deadline = original_start + timedelta(minutes=45)
+    _write_batch_clock(
+        second_ledger,
+        candidate_sha="d" * 40,
+        cohort_digest="e" * 64,
+        started_at=original_start,
+        deadline_at=original_deadline,
+    )
+    qwen_report = "f" * 64
+    budget.complete_public_evaluation_phase(
+        root,
+        phase="diagnostic",
+        phase_round=2,
+        candidate_sha="d" * 40,
+        cohort_digest="e" * 64,
+        ledger_path=second_ledger,
+        report_sha256=qwen_report,
+    )
+
+    openrouter_ledger = root / ".decagent" / "business-eval" / "openrouter.sqlite3"
+    identity = {
+        "parent_report_sha256": qwen_report,
+        "candidate_sha": "1" * 40,
+        "cohort_digest": "2" * 64,
+        "ledger_path": openrouter_ledger,
+    }
+    authorized = budget.authorize_openrouter_diagnostic_continuation(root, **identity)
+    assert authorized["parent_report_sha256"] == qwen_report
+    assert authorized["batch_started_at_utc"] == original_start.isoformat()
+    assert authorized["batch_deadline_at_utc"] == original_deadline.isoformat()
+    with pytest.raises(ValueError, match="Qwen round-2 report"):
+        budget.authorize_openrouter_diagnostic_continuation(
+            root, **{**identity, "parent_report_sha256": "3" * 64}
+        )
+
+    openrouter_ledger.touch()
+    _write_batch_clock(
+        openrouter_ledger,
+        candidate_sha=identity["candidate_sha"],
+        cohort_digest=identity["cohort_digest"],
+        started_at=original_start,
+        deadline_at=original_deadline,
+    )
+    budget.authorize_openrouter_diagnostic_continuation(root, **identity)
+    or_report = "4" * 64
+    budget.complete_openrouter_diagnostic_continuation(
+        root, **identity, report_sha256=or_report
+    )
+    with sqlite3.connect(auth_path) as connection:
+        qwen_history = connection.execute(
+            "SELECT phase_round,report_sha256 FROM phase_history "
+            "WHERE phase='diagnostic' ORDER BY phase_round"
+        ).fetchall()
+        continuation = connection.execute(
+            "SELECT parent_report_sha256,candidate_sha,cohort_digest,status,report_sha256 "
+            "FROM openrouter_diagnostic_continuation WHERE singleton=1"
+        ).fetchone()
+    assert qwen_history == [(1, first_report), (2, qwen_report)]
+    assert continuation == (qwen_report, "1" * 40, "2" * 64, "completed", or_report)
+    with pytest.raises(ValueError, match="already complete"):
+        budget.authorize_openrouter_diagnostic_continuation(root, **identity)
+
+
+def test_openrouter_continuation_rejects_expired_parent_deadline(tmp_path, monkeypatch):
+    root = tmp_path / "project"
+    root.mkdir()
+    auth_path = tmp_path / "user-state" / "weekly.sqlite3"
+    monkeypatch.setattr(
+        budget, "canonical_public_weekly_budget_path", lambda *_args: auth_path
+    )
+    first_ledger = _ledger(root, "qwen-round1.sqlite3")
+    budget.authorize_public_evaluation_phase(
+        root,
+        phase="diagnostic",
+        candidate_sha="a" * 40,
+        cohort_digest="b" * 64,
+        ledger_path=first_ledger,
+    )
+    budget.complete_public_evaluation_phase(
+        root,
+        phase="diagnostic",
+        candidate_sha="a" * 40,
+        cohort_digest="b" * 64,
+        ledger_path=first_ledger,
+        report_sha256="c" * 64,
+    )
+    second_ledger = root / ".decagent" / "business-eval" / "qwen-round2.sqlite3"
+    budget.authorize_public_evaluation_phase(
+        root,
+        phase="diagnostic",
+        phase_round=2,
+        candidate_sha="d" * 40,
+        cohort_digest="e" * 64,
+        ledger_path=second_ledger,
+    )
+    second_ledger.touch()
+    original_start = datetime.now(UTC) - timedelta(minutes=46)
+    original_deadline = original_start + timedelta(minutes=45)
+    _write_batch_clock(
+        second_ledger,
+        candidate_sha="d" * 40,
+        cohort_digest="e" * 64,
+        started_at=original_start,
+        deadline_at=original_deadline,
+    )
+    qwen_report = "f" * 64
+    budget.complete_public_evaluation_phase(
+        root,
+        phase="diagnostic",
+        phase_round=2,
+        candidate_sha="d" * 40,
+        cohort_digest="e" * 64,
+        ledger_path=second_ledger,
+        report_sha256=qwen_report,
+    )
+
+    with pytest.raises(ValueError, match="original 45-minute diagnostic deadline has expired"):
+        budget.authorize_openrouter_diagnostic_continuation(
+            root,
+            parent_report_sha256=qwen_report,
+            candidate_sha="1" * 40,
+            cohort_digest="2" * 64,
+            ledger_path=root / ".decagent" / "business-eval" / "openrouter.sqlite3",
         )

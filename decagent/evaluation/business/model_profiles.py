@@ -161,7 +161,10 @@ class ModelProfile:
         if type(self.timeout_seconds) is not int or not 1 <= self.timeout_seconds <= 180:
             raise ValueError("Model timeout must be between one and 180 seconds")
         if type(self.provider_routing) is not str or self.provider_routing not in {
-            "direct_endpoint", "openrouter_default", "openrouter_model_alias"
+            "direct_endpoint",
+            "openrouter_default",
+            "openrouter_fireworks",
+            "openrouter_model_alias",
         }:
             raise ValueError("Provider-routing policy is invalid")
         if self.role == "jev":
@@ -178,6 +181,12 @@ class ModelProfile:
             or self.provider_routing == "openrouter_model_alias"
         ):
             raise ValueError("General-model profile cannot use the Jev Decisions routing contract")
+        elif self.provider_routing in {"openrouter_default", "openrouter_fireworks"} and (
+            self.provider != "openrouter"
+            or endpoint.hostname != "openrouter.ai"
+            or endpoint.path != "/api/v1"
+        ):
+            raise ValueError("OpenRouter provider routing requires its frozen HTTPS endpoint")
         elif self.response_mode == "chat_text" and self.tool_choice != "none":
             raise ValueError("Text-only profile must disable tool selection")
         elif (

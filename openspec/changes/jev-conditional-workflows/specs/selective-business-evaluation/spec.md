@@ -256,6 +256,10 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 - **WHEN** Qwen 未通过诊断门槛而后续使用 OpenRouter DeepSeek
 - **THEN** 在派发前冻结 DeepSeek 的 endpoint、model、profile 和价格来源；单独记录其调用与费用，不能将 Qwen 与 DeepSeek 路线混为同一模型结果或配对结论
 
+#### Scenario: Pilot readiness evidence matches its execution provider
+- **WHEN** pilot manifest 或 live runner 校验 readiness evidence
+- **THEN** evidence 中 provider、model/profile fingerprint、账本和 pilot 执行配置必须匹配；不匹配时在创建 pilot ledger 或模型/MCP 派发前拒绝，不能将 OpenRouter readiness 用于 Qwen pilot，反之亦然
+
 #### Scenario: A new diagnostic round preserves prior weekly use
 - **WHEN** 在同一周预算身份下开始新的诊断轮次
 - **THEN** 历史已结算用量与 unknown 预留继续占用原额度；旧轮次终态不变，完成或 unknown 的路线不重放
@@ -434,6 +438,34 @@ callback、官方 scorer、清理逻辑和资源门禁接通前 MUST 被拒绝�
 #### Scenario: Plan readiness receives the first diagnostic budget
 - **WHEN** 每个固定开发案例进入 bounded diagnostic 调度
 - **THEN** `plan_mcp` 是该案例首个派发路线，`react_skill_mcp` 保持在其后；路线遇到预算停止时不得继续派发该路线的后续模型、工具或评分调用
+
+### Requirement: Provider-isolated diagnostic continuation
+
+OpenRouter readiness continuation MUST use an independent provider profile, route, usage/cost ledger, and experiment group. It MUST bind to the completed Qwen round-2 report and canonical ledger. Qwen and OpenRouter results MUST NOT be merged as one provider result or used to enable runtime cross-provider fallback.
+
+#### Scenario: OpenRouter continuation binds the Qwen diagnostic evidence
+- **WHEN** Qwen round 2 已完成且尚在其原始 45 分钟绝对期限内，监督进程启动 OpenRouter continuation 或恢复已授权 continuation
+- **THEN** continuation 报告 SHA 与 Qwen round-2 历史摘要绑定，OpenRouter 子账本只使用独立 OpenRouter profile、角色额度和费用额度；不得混合两个 provider 的结果
+
+### Requirement: Diagnostic continuation preserves the parent deadline
+
+An OpenRouter continuation MUST inherit the Qwen batch's original `started_at_utc` and absolute `deadline_at_utc`. A resumed child ledger MUST be checked against the parent ledger. The continuation MUST NOT create a new 45-minute window, reset budget, or replay a parent route.
+
+#### Scenario: OpenRouter continuation inherits the Qwen round deadline
+- **WHEN** Qwen round 2 已完成且尚在其原始 45 分钟绝对期限内，监督进程启动 OpenRouter continuation 或恢复已授权 continuation
+- **THEN** OpenRouter 子账本的开始/截止时间与 Qwen 父账本一致；切换 provider 不会获得新的墙钟期限
+
+#### Scenario: Expired parent diagnostic cannot be extended
+- **WHEN** OpenRouter continuation 的 Qwen 父账本绝对 deadline 已过，或父账本、报告摘要、profile/角色预算与 continuation 不匹配
+- **THEN** runner 在创建 continuation ledger、初始化业务环境或派发任何模型/MCP 调用前 fail closed；不得把未知/未完成状态改成可重放状态
+
+### Requirement: OpenRouter diagnostic roles respect aggregate and route caps
+
+OpenRouter diagnostic MUST enforce at most 6 requests, 565,946 residual tokens and $5 gross API cost, plus 399 tools after the Qwen round-2 usage. Role request caps are Agent 5, user simulator 0, judge 1; role token caps are 500,000, 0 and 65,946. Role token caps MAY sum below the aggregate cap but MUST NOT exceed it. The per-route machine-time cap remains 1,800 seconds. A zero-usage disabled role MUST NOT stop a fresh batch; any unexpected usage for that role MUST stop later dispatch.
+
+#### Scenario: Disabled provider role has zero current usage
+- **WHEN** OpenRouter batch 中 user simulator 角色的冻结 request/token 上限为 0，且当前使用量也为 0
+- **THEN** 初始 preflight 不将其误判为已耗尽，不得因此跳过 Agent 首个合法请求；若禁用角色产生任何实际使用，则立即持久停止后续派发
 
 #### Scenario: Zero-dispatch diagnostic candidate successor
 - **WHEN** 已授权 diagnostic 在任何模型、工具、机器时间或 τ 步骤派发前因可复现的代码/计划契约缺陷而失败，随后代码修复形成新的 CI 候选

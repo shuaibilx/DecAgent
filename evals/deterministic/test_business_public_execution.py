@@ -93,6 +93,7 @@ class FakeLedger:
         )
         self.tau_step_counts = {}
         self.model_attempts = {}
+        self.batch_usage = None
 
     def bind_plan(self, plan):
         self.plan = plan
@@ -158,10 +159,29 @@ class FakeLedger:
         self.statuses[(trial_id, route)] = "unknown"
 
     def batch_snapshot(self):
-        return {
+        result = {
+            "limits": getattr(self.plan, "batch_limits", {}),
             "stopped_reason": self.stopped_reason,
             "remaining_wall_seconds": getattr(self, "remaining_wall_seconds", 3_600.0),
+            "qwen_requests": 0,
+            "qwen_tokens": 0,
+            "qwen_cost_unknown_attempts": 0,
+            "qwen_cost_cny": "0",
+            "tool_calls": 0,
+            "by_role": {
+                "primary": {"requests": 0, "tokens": 0},
+                "user_simulator": {"requests": 0, "tokens": 0},
+                "judge": {"requests": 0, "tokens": 0},
+            },
         }
+        if self.batch_usage is not None:
+            result.update(self.batch_usage)
+        return result
+
+    def stop_for_batch_limit(self, reason):
+        self.events.append(("stop_batch", reason))
+        self.stopped_reason = reason
+        return reason
 
     def stop_for_batch_deadline(self):
         self.events.append(("stop_batch", "wall_seconds"))
@@ -516,6 +536,47 @@ def test_route_exception_keeps_unknown_state_and_does_not_claim_success(tmp_path
     assert terminal["status"] == "unknown"
     assert terminal["score_status"] == "not_attempted"
     assert terminal["cleanup_verified"] is False
+
+
+def test_route_reports_in_route_batch_limit_stop_separately_from_task_failure(tmp_path):
+    ledger = FakeLedger(tmp_path)
+
+    class BatchStoppedRoutes(FakeControlledRoutes):
+        def run(self, route, trial, **kwargs):
+            kwargs["model_adapter_factory"](None, trial, route)
+            kwargs["gateway_factory"](FakeGateway(), None, trial, route)
+            kwargs["on_agent_start"]()
+            ledger.stopped_reason = "agent_qwen_requests"
+            return SimpleNamespace(
+                **vars(
+                    execution_result(
+                        score=False,
+                        status="failed",
+                        failure_kind="agent_failure",
+                        tau_steps=0,
+                        failure_stage="model_callback",
+                    )
+                )
+            )
+
+    controlled = BatchStoppedRoutes(None)
+    receipt = run_public_route(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        trial_id=TRIAL_ID,
+        route="plan_mcp",
+        trial=bound_trial(TRIAL_ID, dataset="enterpriseops-gym"),
+        max_machine_seconds=1_800,
+        route_kwargs=route_kwargs_for(ledger, TRIAL_ID, "plan_mcp"),
+    )
+
+    terminal = ledger.events[-1][3]
+    assert receipt.status == "failed"
+    assert receipt.error_category == "batch_stopped_agent_qwen_requests"
+    assert receipt.failure_stage == "agent_execution"
+    assert terminal["score_status"] == "not_attempted"
+    assert terminal["error_category"] == "batch_stopped_agent_qwen_requests"
 
 
 def test_runner_rejects_direct_unmetered_model_callback_before_route_claim(tmp_path):
@@ -1231,6 +1292,129 @@ def test_first_wave_scheduler_persists_expired_preflight_deadline_and_skips_rout
     assert {item[2] for item in receipt.skipped_routes} == {"batch_stopped"}
     assert receipt.stopped_reason == "wall_seconds"
     assert ("stop_batch", "wall_seconds") in ledger.events
+    assert factory_calls == []
+    assert controlled.calls == []
+
+
+def test_diagnostic_scheduler_stops_before_claim_when_agent_batch_cap_is_exhausted(
+    tmp_path,
+):
+    from evals.benchmarks.pilot_gate import build_bounded_diagnostic_plan
+
+    base = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    plan = replace(build_bounded_diagnostic_plan(base), root=tmp_path)
+    ledger = FakeLedger(tmp_path)
+    ledger.bind_plan(plan)
+    ledger.batch_usage = {
+        "limits": plan.batch_limits,
+        "qwen_requests": plan.batch_limits["agent_qwen_requests"],
+        "qwen_tokens": 34_000,
+        "qwen_cost_cny": 1,
+        "tool_calls": 1,
+        "by_role": {
+            "primary": {"requests": plan.batch_limits["agent_qwen_requests"], "tokens": 34_000},
+            "user_simulator": {"requests": 0, "tokens": 0},
+            "judge": {"requests": 0, "tokens": 0},
+        },
+    }
+    controlled = PhaseControlledRoutes(ledger)
+    factory_calls = []
+
+    receipt = run_public_phase(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        phase="diagnostic",
+        max_machine_seconds=plan.resource_limits["agent_machine_seconds"],
+        trial_factory=lambda item: (
+            factory_calls.append("trial") or bound_trial(item["trial_id"], record=item)
+        ),
+        route_kwargs_factory=lambda *_args: (
+            factory_calls.append("route_kwargs") or {}
+        ),
+    )
+
+    assert receipt.executed_routes == ()
+    assert len(receipt.skipped_routes) == receipt.scheduled_route_slots == 8
+    assert {item[2] for item in receipt.skipped_routes} == {"batch_stopped"}
+    assert receipt.stopped_reason == "agent_qwen_requests"
+    assert ledger.stopped_reason == "agent_qwen_requests"
+    assert factory_calls == []
+    assert controlled.calls == []
+
+
+def test_diagnostic_scheduler_stops_before_claim_when_openrouter_cap_is_exhausted(
+    tmp_path,
+):
+    from evals.benchmarks.pilot_gate import build_bounded_diagnostic_plan
+
+    base = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    plan = replace(build_bounded_diagnostic_plan(base), root=tmp_path)
+    limits = {
+        **plan.batch_limits,
+        "openrouter_requests": 6,
+        "openrouter_tokens": 600_000,
+        "openrouter_cost_usd": "5",
+    }
+    plan = replace(plan, batch_limits=limits)
+    ledger = FakeLedger(tmp_path)
+    ledger.bind_plan(plan)
+    ledger.batch_usage = {
+        "limits": limits,
+        "qwen_requests": 0,
+        "qwen_tokens": 0,
+        "qwen_cost_cny": 0,
+        "qwen_cost_unknown_attempts": 0,
+        "tool_calls": 0,
+        "openrouter_requests": 6,
+        "openrouter_tokens": 10_000,
+        "openrouter_cost_usd": "0.01",
+        "openrouter_cost_unknown_attempts": 0,
+        "by_role": {
+            "primary": {"requests": 0, "tokens": 0},
+            "user_simulator": {"requests": 0, "tokens": 0},
+            "judge": {"requests": 0, "tokens": 0},
+        },
+        "by_provider_role": {
+            "openrouter": {
+                "primary": {"requests": 6, "tokens": 10_000},
+                "user_simulator": {"requests": 0, "tokens": 0},
+                "judge": {"requests": 0, "tokens": 0},
+            }
+        },
+    }
+    controlled = PhaseControlledRoutes(ledger)
+    factory_calls = []
+
+    receipt = run_public_phase(
+        root=tmp_path,
+        ledger=ledger,
+        controlled_routes=controlled,
+        phase="diagnostic",
+        max_machine_seconds=plan.resource_limits["agent_machine_seconds"],
+        trial_factory=lambda item: (
+            factory_calls.append("trial") or bound_trial(item["trial_id"], record=item)
+        ),
+        route_kwargs_factory=lambda *_args: factory_calls.append("route_kwargs") or {},
+    )
+
+    assert receipt.executed_routes == ()
+    assert len(receipt.skipped_routes) == receipt.scheduled_route_slots == 8
+    assert {item[2] for item in receipt.skipped_routes} == {"batch_stopped"}
+    assert receipt.stopped_reason == "openrouter_requests"
+    assert ledger.stopped_reason == "openrouter_requests"
     assert factory_calls == []
     assert controlled.calls == []
 

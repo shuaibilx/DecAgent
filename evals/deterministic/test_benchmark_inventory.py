@@ -245,6 +245,50 @@ def test_manifest_v11_freezes_180_second_primary_timeout_without_rewriting_v10()
     )
 
 
+def test_manifest_v12_freezes_a_separate_openrouter_provider_group():
+    root = Path(__file__).resolve().parents[2]
+    profile_path = INVENTORY_PATH.parent / "evaluation_model_profiles_v6.json"
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(profile_path.read_text(encoding="utf-8"))
+    )
+
+    def openrouter_role(role_profile):
+        return replace(
+            role_profile,
+            provider="openrouter",
+            model="deepseek/deepseek-v4.1-flash",
+            endpoint="https://openrouter.ai/api/v1",
+            price_version="openrouter-deepseek-v4.1-flash-fireworks-usd-20261024-v1",
+            price_source=(
+                "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints"
+            ),
+            input_price_per_million=Decimal("0.45"),
+            output_price_per_million=Decimal("1.8"),
+            price_currency="USD",
+            cached_input_price_per_million=Decimal("0.009"),
+            provider_routing="openrouter_fireworks",
+        )
+
+    profiles = replace(
+        profiles,
+        primary=openrouter_role(profiles.primary),
+        user_simulator=openrouter_role(profiles.user_simulator),
+        judge=openrouter_role(profiles.judge),
+    )
+
+    built = build_trial_manifest(root, model_profiles=profiles, manifest_version=12)
+
+    assert built["schema_version"] == "business-comparison-trial-manifest-12"
+    assert built["manifest_id"] == "decagent-public-workflow-comparison-v12"
+    assert built["model_profiles"]["roles"]["primary"]["provider"] == "openrouter"
+    assert built["model_profiles"]["roles"]["primary"]["provider_routing"] == (
+        "openrouter_fireworks"
+    )
+    assert built["counts"]["smoke_trials"] == 24
+
+
 def test_manifest_builder_accepts_only_lower_frozen_batch_limits(tmp_path):
     root = Path(__file__).resolve().parents[2]
     profile_path = INVENTORY_PATH.parent / "evaluation_model_profiles_v4.json"
@@ -298,6 +342,71 @@ def test_manifest_builder_accepts_only_lower_frozen_batch_limits(tmp_path):
                 manifest_version=version,
                 batch_limits=LOWER_BATCH_LIMITS,
             )
+
+
+def test_public_batch_limit_validation_accepts_only_bounded_openrouter_allowance():
+    from decagent.evaluation.business.public_limits import (
+        OPENROUTER_DIAGNOSTIC_LIMITS,
+        validate_public_batch_limits,
+    )
+
+    limits = {
+        **LOWER_BATCH_LIMITS,
+        "openrouter_requests": 6,
+        "openrouter_tokens": 600_000,
+        "openrouter_cost_usd": "5",
+    }
+    assert validate_public_batch_limits(limits) == limits
+    for name, value in (
+        ("openrouter_requests", 7),
+        ("openrouter_tokens", 600_001),
+        ("openrouter_cost_usd", "5.0001"),
+    ):
+        with pytest.raises(ValueError):
+            validate_public_batch_limits({**limits, name: value})
+
+    or_only = {
+        **OPENROUTER_DIAGNOSTIC_LIMITS,
+        "tool_calls": 399,
+        "wall_seconds": 2_519,
+    }
+    assert validate_public_batch_limits(or_only) == or_only
+    with pytest.raises(ValueError, match="token limits"):
+        validate_public_batch_limits({**or_only, "openrouter_tokens": 565_945})
+    with pytest.raises(ValueError, match="sum"):
+        validate_public_batch_limits({**or_only, "agent_openrouter_requests": 4})
+
+
+def test_zero_openrouter_role_caps_do_not_stop_an_empty_batch():
+    from decagent.evaluation.business.public_limits import (
+        OPENROUTER_DIAGNOSTIC_LIMITS,
+        public_batch_limit_stop_reason,
+    )
+
+    snapshot = {
+        "limits": OPENROUTER_DIAGNOSTIC_LIMITS,
+        "openrouter_requests": 0,
+        "openrouter_tokens": 0,
+        "openrouter_cost_usd": "0",
+        "openrouter_cost_unknown_attempts": 0,
+        "tool_calls": 0,
+        "by_role": {
+            "primary": {"requests": 0, "tokens": 0},
+            "user_simulator": {"requests": 0, "tokens": 0},
+            "judge": {"requests": 0, "tokens": 0},
+        },
+        "by_provider_role": {
+            "openrouter": {
+                "primary": {"requests": 0, "tokens": 0},
+                "user_simulator": {"requests": 0, "tokens": 0},
+                "judge": {"requests": 0, "tokens": 0},
+            }
+        },
+    }
+
+    assert public_batch_limit_stop_reason(snapshot) is None
+    snapshot["by_provider_role"]["openrouter"]["user_simulator"]["requests"] = 1
+    assert public_batch_limit_stop_reason(snapshot) == "user_simulator_openrouter_requests"
 
 
 def test_manifest_loader_accepts_lower_limits_and_rejects_limits_above_ceiling(tmp_path):
