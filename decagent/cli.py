@@ -20,7 +20,11 @@ def main(argv=None):
     readiness.add_argument("--live", action="store_true", help="Dispatch the bounded probe")
     readiness.add_argument("--resume-known-not-sent", action="store_true")
     readiness.add_argument(
-        "--ledger", default=".decagent/routed-model-readiness-v2-20261024.sqlite"
+        "--ledger", default=".decagent/routed-model-readiness-v3-20261024.sqlite"
+    )
+    readiness.add_argument(
+        "--cohort-profiles",
+        default="evals/benchmarks/manifests/evaluation_model_profiles_v7.json",
     )
     readiness.add_argument("--evidence")
     commands.add_parser("migrate", help="Apply versioned database migrations")
@@ -80,7 +84,10 @@ def main(argv=None):
     if args.command == "model-readiness":
         from decagent.evaluation.business.routed_readiness import main as readiness_main
 
-        forwarded = ["--ledger", args.ledger]
+        forwarded = [
+            "--ledger", args.ledger,
+            "--cohort-profiles", args.cohort_profiles,
+        ]
         if args.live:
             forwarded.append("--live")
         if args.resume_known_not_sent:

@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from math import isfinite
 from pathlib import Path
 from uuid import uuid4
 
-from decagent.decisions.contracts import digest
+from decagent.decisions.contracts import canonical_json, digest
 
 from .ledger import GlobalJevLedger
 from .manifest_hashing import source_manifest_sha256, task_inventory_sha256
@@ -184,6 +185,7 @@ class PublicRunPlan:
     route_schedule: tuple[tuple[str, str], ...] | None = None
     diagnostic_evidence_sha256: str | None = None
     diagnostic_candidate_sha: str | None = None
+    readiness_evidence_path: Path | None = None
 
     def __post_init__(self):
         if self.route_schedule is None:
@@ -386,26 +388,240 @@ def _validate_readiness(root, profiles, path=None):
     )
     evidence = _read_json(readiness_path)
     ledger = evidence.get("ledger")
+    schema = evidence.get("schema_version")
+    if evidence.get("status") != "passed" or type(ledger) is not dict:
+        raise ValueError("Passed routed-model readiness evidence is required")
+    if schema == "routed-model-readiness-evidence-v1":
+        raise ValueError("Legacy readiness lacks profile-bound readiness evidence")
+    if schema not in {
+        "routed-model-readiness-evidence-v2",
+        "routed-model-readiness-evidence-v3",
+    }:
+        raise ValueError("Passed routed-model readiness evidence is required")
+
+    profile = profiles.primary
+    profile_provider = profile.provider.lower()
+    provider_aliases = {
+        "qwen": {"qwen", "dashscope"},
+        "dashscope": {"qwen", "dashscope"},
+        "openrouter": {"openrouter", "open_router"},
+        "open_router": {"openrouter", "open_router"},
+    }
+    expected_provider = (
+        "openrouter" if profile_provider in {"openrouter", "open_router"}
+        else "qwen" if profile_provider in {"qwen", "dashscope"}
+        else None
+    )
+    if expected_provider is None:
+        raise ValueError("Readiness provider differs from the frozen cohort")
+
+    expected_ledger_schema = (
+        "routed-model-readiness-ledger-v3"
+        if schema == "routed-model-readiness-evidence-v3"
+        else "routed-model-readiness-ledger-v2"
+    )
+    if ledger.get("schema_version") != expected_ledger_schema:
+        if schema == "routed-model-readiness-evidence-v3":
+            raise ValueError("Readiness ledger profile binding is missing")
+        raise ValueError("Passed routed-model readiness evidence is required")
+    if schema == "routed-model-readiness-evidence-v3":
+        expected_model_digest = profiles.digests["model_profile_digest"]
+        if (
+            evidence.get("model_profile_digest") != expected_model_digest
+            or ledger.get("model_profile_digest") != expected_model_digest
+            or evidence.get("cohort_profiles_fingerprint") != profiles.fingerprint
+            or ledger.get("cohort_profiles_fingerprint") != profiles.fingerprint
+        ):
+            raise ValueError("Readiness cohort profile fingerprint differs from the frozen cohort")
+    if evidence.get("qualified_provider") != expected_provider:
+        raise ValueError("Readiness provider differs from the frozen cohort")
+    attempts = ledger.get("attempts")
     if (
-        evidence.get("schema_version") != "routed-model-readiness-evidence-v1"
-        or evidence.get("status") != "passed"
-        or type(ledger) is not dict
-        or ledger.get("schema_version") != "routed-model-readiness-ledger-v1"
-        or ledger.get("blocked") is not False
+        type(ledger.get("blocked")) is not bool
         or type(ledger.get("used_calls")) is not int
         or type(ledger.get("remaining_calls")) is not int
         or ledger["used_calls"] + ledger["remaining_calls"] != ledger.get("max_calls")
+        or type(attempts) is not list
+        or any(type(attempt) is not dict for attempt in attempts)
+        or any(
+            attempt.get("dispatch_state") == "not_sent"
+            and attempt.get("status") != "settled"
+            for attempt in attempts
+        )
+        or sum(attempt.get("dispatch_state") != "not_sent" for attempt in attempts)
+        != ledger.get("used_calls")
     ):
-        raise ValueError("Passed routed-model readiness evidence is required")
-    for attempt in ledger.get("attempts", []):
-        if attempt.get("status") in {"dispatched", "unknown", "reserved"}:
-            raise ValueError("Readiness has unresolved model usage")
-    if (
-        ledger.get("primary_model") != profiles.primary.model
-        or ledger.get("primary_endpoint") != profiles.primary.endpoint
-    ):
+        raise ValueError("Readiness has unresolved or incomplete model usage")
+    unresolved = [
+        attempt for attempt in attempts
+        if attempt.get("status") not in {"settled", "not_sent"}
+    ]
+    overrun = any(
+        attempt.get("overrun") not in (None, False)
+        and attempt.get("overrun") != 0
+        for attempt in attempts
+    )
+    if schema == "routed-model-readiness-evidence-v3":
+        only_independent_qwen_unknown = (
+            expected_provider == "openrouter"
+            and all(
+                attempt.get("status") == "unknown"
+                and attempt.get("dispatch_state") == "unknown"
+                and str(attempt.get("provider", "")).lower()
+                in provider_aliases["qwen"]
+                for attempt in unresolved
+            )
+        )
+        if (
+            overrun
+            or (unresolved and not only_independent_qwen_unknown)
+            or ledger["blocked"] != bool(unresolved or overrun)
+        ):
+            raise ValueError("Readiness selected provider has unresolved usage")
+    elif ledger["blocked"] or unresolved or overrun:
+        raise ValueError("Readiness has unresolved or incomplete model usage")
+
+    provider_record = ledger.get(
+        "primary_model" if expected_provider == "qwen" else "fallback_model"
+    )
+    endpoint_record = ledger.get(
+        "primary_endpoint" if expected_provider == "qwen" else "fallback_endpoint"
+    )
+    price_digest_record = ledger.get(
+        "primary_price_digest" if expected_provider == "qwen" else "fallback_price_digest"
+    )
+    price_source_record = ledger.get(
+        "primary_price_source" if expected_provider == "qwen" else "fallback_price_source"
+    )
+    if provider_record != profile.model or endpoint_record != profile.endpoint:
         raise ValueError("Readiness model identity differs from the frozen cohort")
+    if profile.pricing_status != "known":
+        raise ValueError("Readiness requires a known public model cost profile")
+    if expected_provider == "qwen":
+        expected_price_digest = hashlib.sha256(
+            canonical_json(
+                {
+                    "version": profile.price_version,
+                    "input_per_million": str(profile.input_price_per_million),
+                    "output_per_million": str(profile.output_price_per_million),
+                    "currency": profile.currency,
+                }
+            ).encode("utf-8")
+        ).hexdigest()
+        if (
+            price_digest_record != expected_price_digest
+            or price_source_record != profile.price_source
+        ):
+            raise ValueError("Readiness price fingerprint differs from the frozen cohort")
+
+    selected_attempts = [
+        attempt
+        for attempt in attempts
+        if str(attempt.get("provider", "")).lower() in provider_aliases[profile_provider]
+    ]
+    if any(
+        attempt.get("status") not in {"settled", "not_sent"}
+        for attempt in selected_attempts
+    ):
+        raise ValueError("Readiness selected provider has unresolved usage")
+    if not selected_attempts or any(
+        attempt.get("requested_model") != profile.model
+        or attempt.get("resolved_model") != profile.model
+        or attempt.get("endpoint") != profile.endpoint
+        for attempt in selected_attempts
+        if attempt.get("status") == "settled"
+    ):
+        raise ValueError("Readiness attempt model identity differs from the frozen cohort")
+    provider_state = evidence.get("providers", {}).get(expected_provider)
+    phases = {item.get("phase"): item for item in evidence.get("ledger", {}).get("phases", [])}
+    required_phases = ("connection", "tool_contract", "plan", "stream")
+    if (
+        type(provider_state) is not dict
+        or provider_state.get("status") != "passed"
+        or any(
+            phases.get(f"{expected_provider}_{phase}", {}).get("status") != "passed"
+            for phase in required_phases
+        )
+    ):
+        raise ValueError("Readiness provider did not pass its complete qualification path")
+
+    if expected_provider == "openrouter":
+        # v2 did not persist OpenRouter's provider-selection policy; its successful
+        # alias response cannot qualify a Fireworks-pinned public experiment.
+        if schema != "routed-model-readiness-evidence-v3":
+            raise ValueError("OpenRouter readiness provider routing evidence is missing")
+        routed_profile = evidence.get("provider_profiles", {}).get("openrouter")
+        if type(routed_profile) is not dict:
+            raise ValueError("OpenRouter readiness provider routing evidence is missing")
+        if (
+            routed_profile.get("provider") != profile.provider
+            or routed_profile.get("model") != profile.model
+            or routed_profile.get("endpoint") != profile.endpoint
+            or routed_profile.get("provider_routing") != profile.provider_routing
+            or routed_profile.get("price_source") != profile.price_source
+            or routed_profile.get("price_currency") != profile.currency
+            or price_source_record != profile.price_source
+            or ledger.get("fallback_price_version")
+            != routed_profile.get("price_version")
+            or ledger.get("fallback_price_currency") != profile.currency
+        ):
+            raise ValueError("Readiness provider route differs from the frozen cohort")
+        try:
+            readiness_input_rate = Decimal(routed_profile["input_price_per_million"])
+            readiness_output_rate = Decimal(routed_profile["output_price_per_million"])
+        except (KeyError, InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError("Readiness provider cost envelope is incomplete") from exc
+        if (
+            not readiness_input_rate.is_finite()
+            or not readiness_output_rate.is_finite()
+            or readiness_input_rate < profile.input_price_per_million
+            or readiness_output_rate < profile.output_price_per_million
+        ):
+            raise ValueError("Readiness does not bound the public cost profile")
+        expected_price_digest = hashlib.sha256(
+            canonical_json(
+                {
+                    "version": routed_profile["price_version"],
+                    "input_per_million": str(readiness_input_rate),
+                    "output_per_million": str(readiness_output_rate),
+                    "currency": routed_profile["price_currency"],
+                }
+            ).encode("utf-8")
+        ).hexdigest()
+        if ledger.get("fallback_price_digest") != expected_price_digest:
+            raise ValueError("Readiness provider price fingerprint differs from the frozen cohort")
+        request_profile_fingerprints = routed_profile.get(
+            "request_profile_fingerprints"
+        )
+        required_purposes = {"connection", "tool_contract", "plan", "stream"}
+        if (
+            type(request_profile_fingerprints) is not dict
+            or set(request_profile_fingerprints) != required_purposes
+            or any(
+                type(fingerprint) is not str
+                or not re.fullmatch(r"[a-f0-9]{64}", fingerprint)
+                for fingerprint in request_profile_fingerprints.values()
+            )
+            or any(
+                attempt.get("provider_routing") != profile.provider_routing
+                or attempt.get("request_profile_fingerprint")
+                != request_profile_fingerprints.get(attempt.get("purpose"))
+                for attempt in selected_attempts
+            )
+        ):
+            raise ValueError("Readiness attempt route or profile fingerprint differs")
     return readiness_path
+
+
+def validate_live_public_readiness(root, profiles, path=None):
+    """Fail closed unless the selected public model has matching live readiness."""
+    provider = profiles.primary.provider.lower()
+    if provider in {"openrouter", "open_router"}:
+        if profiles.primary.provider_routing != "openrouter_fireworks":
+            raise ValueError("OpenRouter public comparison must pin its provider route")
+    elif provider not in {"qwen", "dashscope"}:
+        raise ValueError("Public evaluation requires a registered frozen general-model provider")
+    return _validate_readiness(root, profiles, path)
 
 
 def load_public_run_plan(
@@ -425,11 +641,16 @@ def load_public_run_plan(
 
     ``check_source_files=False`` is for offline tests that exercise the
     manifest/ledger contract without downloading public benchmark artifacts.
-    Live execution must keep source validation enabled.
+    Offline Qwen plan inspection may set ``check_runtime=False`` and does not
+    establish model readiness. OpenRouter readiness is still required unless the
+    explicit unready-diagnostic option is used offline. Live execution must keep
+    runtime and source validation enabled.
     """
     root = Path(root).resolve()
     if mode not in {"smoke", "full"}:
         raise ValueError("Public evaluation mode must be smoke or full")
+    if check_runtime and allow_unready_diagnostic_model:
+        raise ValueError("Live public execution cannot bypass model readiness")
     manifest_path = Path(manifest_path) if manifest_path else (
         root / "evals/benchmarks/manifests/comparison_trial_manifest_v11.json"
     )
@@ -597,13 +818,13 @@ def load_public_run_plan(
             "The first-wave general-model roles and Jev profile must be frozen together"
         )
     if profiles.primary.provider in {"qwen", "dashscope"}:
-        _validate_readiness(root, profiles, readiness_path)
+        if check_runtime:
+            validate_live_public_readiness(root, profiles, readiness_path)
     elif profiles.primary.provider in {"openrouter", "open_router"}:
-        if (
-            profiles.primary.provider_routing != "openrouter_fireworks"
-            or allow_unready_diagnostic_model is not True
-        ):
-            raise ValueError("OpenRouter must enter through its explicitly gated live diagnostic")
+        if profiles.primary.provider_routing != "openrouter_fireworks":
+            raise ValueError("OpenRouter public comparison must pin its provider route")
+        if check_runtime or allow_unready_diagnostic_model is not True:
+            validate_live_public_readiness(root, profiles, readiness_path)
     else:
         raise ValueError("Public evaluation requires a registered frozen general-model provider")
     if check_runtime:
@@ -685,6 +906,7 @@ def load_public_run_plan(
         # separate paired experiment; the frozen first-wave route schedule is
         # still ReAct/Plan only and must not silently grow here.
         jev_semantic_status="reviewed_csm_natural_case_pairing_pending",
+        readiness_evidence_path=Path(readiness_path).resolve() if readiness_path else None,
     )
 
 

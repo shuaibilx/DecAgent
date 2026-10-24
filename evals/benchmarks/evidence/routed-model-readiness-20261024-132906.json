@@ -1,0 +1,343 @@
+{
+  "schema_version": "routed-model-readiness-evidence-v2",
+  "authorization_id": "primary-readiness-routed-v2-20261024",
+  "diagnostic_fingerprint": "7c9310539d38154d93154fb5f512dd79dadfc14fab4c9562ad4f939ce548384d",
+  "model_profile_digest": "7bd50f5c43b9330177c25927756496f36e8d9d96b67ed44e884239cd5140f763",
+  "primary_pricing_source": "https://platform.qianwenai.com/pricing/api",
+  "pricing_source": "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints",
+  "status": "passed",
+  "qualified_provider": "openrouter",
+  "providers": {
+    "qwen": {
+      "status": "failed",
+      "failure": {
+        "phase": "plan",
+        "error_type": "PlanProposalInvalid"
+      }
+    },
+    "openrouter": {
+      "status": "passed",
+      "failure": null
+    }
+  },
+  "passed_criteria": [
+    "complete response and usage",
+    "tool contract",
+    "read-only production plan compiler",
+    "streaming response and usage"
+  ],
+  "stop_reason": null,
+  "ledger": {
+    "schema_version": "routed-model-readiness-ledger-v2",
+    "authorization_id": "primary-readiness-routed-v2-20261024",
+    "diagnostic_fingerprint": "7c9310539d38154d93154fb5f512dd79dadfc14fab4c9562ad4f939ce548384d",
+    "primary_model": "qwen3.8-flash",
+    "primary_provider": "qwen",
+    "primary_currency": "CNY",
+    "primary_endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+    "fallback_model": "deepseek/deepseek-v4.1-flash",
+    "fallback_provider": "openrouter",
+    "fallback_endpoint": "https://openrouter.ai/api/v1",
+    "primary_price_digest": "8b3eb18d8e4ba1e220800e6baecdf3dc1dad98ed85a3db0a53e7657eadb78f19",
+    "primary_price_source": "https://platform.qianwenai.com/pricing/api",
+    "fallback_price_digest": "420f526ec0d09be23b166590370c4b4c1d6ec20a063ce30d7724a0a6df1947fc",
+    "fallback_price_source": "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints",
+    "max_calls": 12,
+    "max_qwen_calls": 6,
+    "max_openrouter_calls": 6,
+    "max_total_tokens": 600000,
+    "max_request_input_tokens": 65536,
+    "max_output_tokens": 8192,
+    "max_deepseek_cost_usd": "5",
+    "max_qwen_cost_cny": "1.62",
+    "max_wall_seconds": 2700,
+    "used_calls": 7,
+    "qwen_calls": 3,
+    "openrouter_calls": 4,
+    "held_or_actual_tokens": 30916,
+    "qwen_rate_estimate_cny": "0.0137883",
+    "deepseek_rate_estimate_usd": "0.0121728",
+    "remaining_calls": 5,
+    "elapsed_seconds": 56.433,
+    "remaining_wall_seconds": 2643.566695,
+    "rate_estimate_basis": "frozen_standard_rates; Qwen input uses uncached upper bound",
+    "provider_billed_cost_available": false,
+    "blocked": false,
+    "attempts": [
+      {
+        "receipt": "a75ec392d8d64183822727e59cd93221",
+        "request_digest": "9550fefe051fd3ee23b54b8066fdbc9bcf60df33dd325c693881daf6c75b8fdf",
+        "attempt": 1,
+        "provider": "qwen",
+        "requested_model": "qwen3.8-flash",
+        "resolved_model": "qwen3.8-flash",
+        "endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+        "request_role": "connection",
+        "purpose": "connection",
+        "requested_tokens": 16765,
+        "requested_output_tokens": 256,
+        "cost_currency": "CNY",
+        "actual_tokens": 1303,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 4433,
+        "server_request_id": "d2bcf501-2e4e-9b23-b59f-0df68f7af813",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T13:29:06.862339+00:00",
+        "reserved_cost_amount": "0.0138984",
+        "actual_cost_amount": "0.0011431"
+      },
+      {
+        "receipt": "bc918f2421d84ce8af71fbb26fc9df39",
+        "request_digest": "bc8b5326b336035c3ce488de979f7789ff033024834759e11e1f81284c1ead8a",
+        "attempt": 1,
+        "provider": "qwen",
+        "requested_model": "qwen3.8-flash",
+        "resolved_model": "qwen3.8-flash",
+        "endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+        "request_role": "tool_contract",
+        "purpose": "tool_contract",
+        "requested_tokens": 17035,
+        "requested_output_tokens": 512,
+        "cost_currency": "CNY",
+        "actual_tokens": 407,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 4164,
+        "server_request_id": "305c9993-f65d-9144-a266-e9e5d2e2e0b7",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T13:29:11.330646+00:00",
+        "reserved_cost_amount": "0.0146008",
+        "actual_cost_amount": "0.0004586"
+      },
+      {
+        "receipt": "b128fcd2090f4647ac0ba00f0d0f5af0",
+        "request_digest": "1e107e958b10fca100e5796c6bdf696e2746c6678b652ffb75335a1972495c66",
+        "attempt": 1,
+        "provider": "qwen",
+        "requested_model": "qwen3.8-flash",
+        "resolved_model": "qwen3.8-flash",
+        "endpoint": "https://maas.qianwenaiapi.com/compatible-mode/v1",
+        "request_role": "planning",
+        "purpose": "plan",
+        "requested_tokens": 58374,
+        "requested_output_tokens": 8192,
+        "cost_currency": "CNY",
+        "actual_tokens": 12749,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 21226,
+        "server_request_id": "4ac45ce5-444c-9f0e-bfbe-0762fd8498e9",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T13:29:15.756088+00:00",
+        "reserved_cost_amount": "0.062264",
+        "actual_cost_amount": "0.0121866"
+      },
+      {
+        "receipt": "672abda8062a4962b4a698c5c9a32ef9",
+        "request_digest": "805dd25531c95956f9a8bd65f4f9dbce59b2d96b5530b7da82dcb175818e6169",
+        "attempt": 1,
+        "provider": "openrouter",
+        "requested_model": "deepseek/deepseek-v4.1-flash",
+        "resolved_model": "deepseek/deepseek-v4.1-flash",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "request_role": "connection",
+        "purpose": "connection",
+        "requested_tokens": 16765,
+        "requested_output_tokens": 256,
+        "cost_currency": "USD",
+        "actual_tokens": 1141,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 3530,
+        "server_request_id": "gen-1792848579-ZTkROjbCv0BGck1v9tj9",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T13:29:37.025357+00:00",
+        "reserved_cost_amount": "0.0105198",
+        "actual_cost_amount": "0.0006918"
+      },
+      {
+        "receipt": "6c444d5cba1f4ee1960688ce2d8b92b9",
+        "request_digest": "5c631b356a8b0181e9e122eae2c3a1936542c0e0c2a41da7c365f046878a436f",
+        "attempt": 1,
+        "provider": "openrouter",
+        "requested_model": "deepseek/deepseek-v4.1-flash",
+        "resolved_model": "deepseek/deepseek-v4.1-flash",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "request_role": "tool_contract",
+        "purpose": "tool_contract",
+        "requested_tokens": 17035,
+        "requested_output_tokens": 512,
+        "cost_currency": "USD",
+        "actual_tokens": 379,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 3691,
+        "server_request_id": "gen-1792848582-gKnmJTueaifa2d5S8u4e",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T13:29:40.594836+00:00",
+        "reserved_cost_amount": "0.0111426",
+        "actual_cost_amount": "0.0003354"
+      },
+      {
+        "receipt": "943a772e4c51446583b72203f5bf664a",
+        "request_digest": "05f92517f43a9321c7d0feb93b89dbd7d7c6426e64435ac30902ebfc0e778cfe",
+        "attempt": 1,
+        "provider": "openrouter",
+        "requested_model": "deepseek/deepseek-v4.1-flash",
+        "resolved_model": "deepseek/deepseek-v4.1-flash",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "request_role": "planning",
+        "purpose": "plan",
+        "requested_tokens": 58374,
+        "requested_output_tokens": 8192,
+        "cost_currency": "USD",
+        "actual_tokens": 13755,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 14200,
+        "server_request_id": "gen-1792848586-evc4nUmE6hrLSZKYrZX1",
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T13:29:44.591038+00:00",
+        "reserved_cost_amount": "0.04977",
+        "actual_cost_amount": "0.0103572"
+      },
+      {
+        "receipt": "941312d393eb45679fc37ab56ee7c313",
+        "request_digest": "02bc71b02f4a0aab6a5e133e4d7723c81d864c7166fd9f4e44ffdbb2381c9cc7",
+        "attempt": 1,
+        "provider": "openrouter",
+        "requested_model": "deepseek/deepseek-v4.1-flash",
+        "resolved_model": "deepseek/deepseek-v4.1-flash",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "request_role": "stream",
+        "purpose": "stream",
+        "requested_tokens": 16755,
+        "requested_output_tokens": 256,
+        "cost_currency": "USD",
+        "actual_tokens": 1182,
+        "status": "settled",
+        "dispatch_state": "responded",
+        "error_code": null,
+        "error_category": null,
+        "provider_status": null,
+        "latency_ms": 4363,
+        "server_request_id": null,
+        "recovery_of": null,
+        "overrun": 0,
+        "created_at_utc": "2026-10-24T13:29:58.854940+00:00",
+        "reserved_cost_amount": "0.0105138",
+        "actual_cost_amount": "0.0007884"
+      }
+    ],
+    "phases": [
+      {
+        "phase": "qwen_connection",
+        "status": "passed",
+        "report": {
+          "resolved_models": [
+            "qwen3.8-flash"
+          ],
+          "response_complete": true,
+          "usage_complete": true
+        }
+      },
+      {
+        "phase": "qwen_tool_contract",
+        "status": "passed",
+        "report": {
+          "parameter_contract_valid": true,
+          "resolved_models": [
+            "qwen3.8-flash"
+          ],
+          "tool_executed": false,
+          "tool_name": "decagent_readiness_ping"
+        }
+      },
+      {
+        "phase": "qwen_plan",
+        "status": "failed",
+        "report": {
+          "error_type": "PlanProposalInvalid"
+        }
+      },
+      {
+        "phase": "openrouter_connection",
+        "status": "passed",
+        "report": {
+          "resolved_models": [
+            "deepseek/deepseek-v4.1-flash",
+            "qwen3.8-flash"
+          ],
+          "response_complete": true,
+          "usage_complete": true
+        }
+      },
+      {
+        "phase": "openrouter_tool_contract",
+        "status": "passed",
+        "report": {
+          "parameter_contract_valid": true,
+          "resolved_models": [
+            "deepseek/deepseek-v4.1-flash",
+            "qwen3.8-flash"
+          ],
+          "tool_executed": false,
+          "tool_name": "decagent_readiness_ping"
+        }
+      },
+      {
+        "phase": "openrouter_plan",
+        "status": "passed",
+        "report": {
+          "format_repair_used": false,
+          "node_count": 2,
+          "plan_compiled": true,
+          "plan_digest": "661eae35500a9acd5fa9e6775e42a513d14e4cfa8d826b9ee67d5f9609bef9e6",
+          "read_only": true,
+          "resolved_models": [
+            "deepseek/deepseek-v4.1-flash",
+            "qwen3.8-flash"
+          ]
+        }
+      },
+      {
+        "phase": "openrouter_stream",
+        "status": "passed",
+        "report": {
+          "resolved_models": [
+            "deepseek/deepseek-v4.1-flash"
+          ],
+          "response_complete": true,
+          "usage_complete": true
+        }
+      }
+    ],
+    "preflight_revisions": []
+  },
+  "raw_prompts_responses_credentials_saved": false
+}

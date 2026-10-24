@@ -23,7 +23,7 @@ from uuid import uuid4
 from decagent.decisions.contracts import canonical_json
 from decagent.storage.budget import BudgetExceeded
 
-AUTHORIZATION_ID = "primary-readiness-routed-v2-20261024"
+AUTHORIZATION_ID = "primary-readiness-routed-v3-20261024"
 AUTHORIZATION_ANCHOR = (
     Path(__file__).resolve().parents[3] / ".decagent" / "model-readiness-authorizations.sqlite"
 )
@@ -130,6 +130,11 @@ class SqliteRoutedDiagnosticLedger:
         fallback_endpoint,
         primary_price_digest,
         fallback_price_digest,
+        model_profile_digest,
+        cohort_profiles_fingerprint,
+        provider_request_profile_fingerprints,
+        primary_price_version,
+        fallback_price_version,
         primary_provider="qwen",
         primary_currency="CNY",
         resume_known_not_sent=False,
@@ -159,20 +164,45 @@ class SqliteRoutedDiagnosticLedger:
         for value, label in (
             (primary_price_digest, "primary price digest"),
             (fallback_price_digest, "fallback price digest"),
+            (model_profile_digest, "model profile digest"),
+            (cohort_profiles_fingerprint, "cohort profile fingerprint"),
         ):
             if type(value) is not str or not re.fullmatch(r"[a-f0-9]{64}", value):
                 raise ValueError(f"{label} must be SHA-256")
+        if type(provider_request_profile_fingerprints) is not dict or set(
+            provider_request_profile_fingerprints
+        ) != {"qwen", "openrouter"}:
+            raise ValueError("Provider request profile fingerprints are incomplete")
+        required_purposes = {"connection", "tool_contract", "plan", "stream"}
+        for provider, fingerprints in provider_request_profile_fingerprints.items():
+            if (
+                type(fingerprints) is not dict
+                or set(fingerprints) != required_purposes
+                or any(
+                    type(value) is not str or not re.fullmatch(r"[a-f0-9]{64}", value)
+                    for value in fingerprints.values()
+                )
+            ):
+                raise ValueError(f"{provider} request profile fingerprints are incomplete")
+        _safe_value(primary_price_version, "primary price version")
+        _safe_value(fallback_price_version, "fallback price version")
         identity = {
-            "schema_version": "routed-model-readiness-ledger-v2",
+            "schema_version": "routed-model-readiness-ledger-v3",
             "authorization_id": AUTHORIZATION_ID,
             "diagnostic_fingerprint": diagnostic_fingerprint,
+            "model_profile_digest": model_profile_digest,
+            "cohort_profiles_fingerprint": cohort_profiles_fingerprint,
+            "provider_request_profile_fingerprints": provider_request_profile_fingerprints,
             "primary_model": primary_model,
             "primary_provider": primary_provider,
             "primary_currency": primary_currency,
             "primary_endpoint": primary_endpoint,
+            "primary_price_version": primary_price_version,
             "fallback_model": fallback_model,
             "fallback_provider": "openrouter",
             "fallback_endpoint": fallback_endpoint,
+            "fallback_price_currency": "USD",
+            "fallback_price_version": fallback_price_version,
             "primary_price_digest": primary_price_digest,
             "primary_price_source": QWEN_PRICE_SOURCE,
             "fallback_price_digest": fallback_price_digest,
@@ -268,6 +298,8 @@ class SqliteRoutedDiagnosticLedger:
                         requested_model TEXT NOT NULL,
                         resolved_model TEXT,
                         endpoint TEXT NOT NULL,
+                        provider_routing TEXT NOT NULL,
+                        request_profile_fingerprint TEXT NOT NULL,
                         request_role TEXT NOT NULL,
                         purpose TEXT NOT NULL,
                         requested_tokens INTEGER NOT NULL,
@@ -292,6 +324,17 @@ class SqliteRoutedDiagnosticLedger:
                         created_at_utc TEXT NOT NULL
                     )"""
                 )
+                attempt_columns = {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(attempts)")
+                }
+                if not {
+                    "provider_routing",
+                    "request_profile_fingerprint",
+                } <= attempt_columns:
+                    raise ValueError(
+                        "Routed readiness ledger cannot persist request profile identity"
+                    )
                 connection.execute(
                     """CREATE UNIQUE INDEX IF NOT EXISTS readiness_single_recovery
                       ON attempts(recovery_of) WHERE recovery_of IS NOT NULL"""
@@ -629,6 +672,8 @@ class SqliteRoutedDiagnosticLedger:
         request_role=None,
         requested_model=None,
         endpoint=None,
+        provider_routing=None,
+        request_profile_fingerprint=None,
         requested_output_tokens=None,
         trial_cost_currency=None,
         recovery_of=None,
@@ -657,6 +702,29 @@ class SqliteRoutedDiagnosticLedger:
             raise ValueError("Unsupported routed readiness role")
         requested_model = _safe_value(requested_model, "requested model")
         endpoint = _endpoint(endpoint)
+        if provider == self.identity["primary_provider"]:
+            expected_routing = "direct_endpoint"
+            profile_provider = self.identity["primary_provider"]
+        elif provider == "openrouter":
+            expected_routing = "openrouter_fireworks"
+            profile_provider = "openrouter"
+        else:
+            raise BudgetExceeded(
+                "Unregistered readiness provider", code="unregistered_readiness_provider"
+            )
+        if provider_routing != expected_routing:
+            raise BudgetExceeded("Model request route differs from the frozen readiness profile")
+        if (
+            type(request_profile_fingerprint) is not str
+            or not re.fullmatch(r"[a-f0-9]{64}", request_profile_fingerprint)
+            or self.identity["provider_request_profile_fingerprints"].get(
+                profile_provider, {}
+            ).get(purpose)
+            != request_profile_fingerprint
+        ):
+            raise BudgetExceeded(
+                "Model request profile differs from the frozen readiness profile"
+            )
         recovery_of = str(recovery_of) if recovery_of is not None else None
         if provider == self.identity["primary_provider"]:
             if requested_model != self.identity["primary_model"] or endpoint != self.identity[
@@ -718,10 +786,11 @@ class SqliteRoutedDiagnosticLedger:
             receipt = uuid4().hex
             connection.execute(
                 "INSERT INTO attempts(receipt,request_digest,attempt,provider,requested_model,"
-                "endpoint,request_role,purpose,requested_tokens,requested_output_tokens,reserved_cost,"
+                "endpoint,provider_routing,request_profile_fingerprint,request_role,purpose,"
+                "requested_tokens,requested_output_tokens,reserved_cost,"
                 "cost_currency,"
                 "status,dispatch_state,recovery_of,created_at_utc) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'reserved','reserved',?,?)",
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'reserved','reserved',?,?)",
                 (
                     receipt,
                     request_digest,
@@ -729,6 +798,8 @@ class SqliteRoutedDiagnosticLedger:
                     provider,
                     requested_model,
                     endpoint,
+                    provider_routing,
+                    request_profile_fingerprint,
                     request_role,
                     purpose,
                     tokens,
@@ -1091,14 +1162,27 @@ def _readiness_provider_profile(settings, config, provider):
 def _readiness_one_shot_model(settings, config, *, provider, max_output_tokens,
                               tool_definitions):
     """Build a process-cancellable client for one metered readiness request."""
-    from decagent.evaluation.business.model_profiles import ModelProfile
     from decagent.evaluation.business.public_models import OneShotPrimaryModel
+
+    profile = _readiness_model_profile(
+        settings, config, provider=provider, max_output_tokens=max_output_tokens
+    )
+    return OneShotPrimaryModel(
+        profile,
+        api_key=settings.main_api_key,
+        tool_definitions=tool_definitions,
+        usage_include=provider == "openrouter",
+    )
+
+
+def _readiness_model_profile(settings, config, *, provider, max_output_tokens):
+    from decagent.evaluation.business.model_profiles import ModelProfile
 
     price = config.main_price
     if price is None:
         raise ValueError("Routed readiness requires frozen prices before model creation")
     price_source = QWEN_PRICE_SOURCE if provider == "qwen" else DEEPSEEK_PRICE_SOURCE
-    profile = ModelProfile(
+    return ModelProfile(
         role="primary",
         provider=provider,
         model=settings.main_model,
@@ -1118,15 +1202,61 @@ def _readiness_one_shot_model(settings, config, *, provider, max_output_tokens,
         response_mode="chat_tool_or_text",
         tool_choice="auto",
         timeout_seconds=60,
-        provider_routing="direct_endpoint",
+        provider_routing=_readiness_provider_routing(provider),
         price_currency=price.currency,
     )
-    return OneShotPrimaryModel(
-        profile,
-        api_key=settings.main_api_key,
-        tool_definitions=tool_definitions,
-        usage_include=provider == "openrouter",
+
+
+def _readiness_request_profile_fingerprints(settings, config, *, provider):
+    provider_settings, provider_config = _readiness_provider_profile(
+        settings, config, provider
     )
+    output_limits = {
+        "connection": 256,
+        "tool_contract": 512,
+        "plan": 8192,
+        "stream": 256,
+    }
+    return {
+        purpose: _readiness_model_profile(
+            provider_settings,
+            provider_config,
+            provider=provider,
+            max_output_tokens=max_output_tokens,
+        ).fingerprint
+        for purpose, max_output_tokens in output_limits.items()
+    }
+
+
+def _readiness_provider_routing(provider):
+    if provider == "openrouter":
+        return "openrouter_fireworks"
+    if provider == "qwen":
+        return "direct_endpoint"
+    raise ValueError("Unsupported readiness provider")
+
+
+def _readiness_profile_snapshot(settings, config, *, provider):
+    provider_settings, provider_config = _readiness_provider_profile(
+        settings, config, provider
+    )
+    price = provider_config.main_price
+    if price is None:
+        raise ValueError("Routed readiness requires frozen profile pricing")
+    return {
+        "provider": provider,
+        "model": provider_settings.main_model,
+        "endpoint": provider_settings.main_base_url,
+        "provider_routing": _readiness_provider_routing(provider),
+        "price_version": price.version,
+        "price_source": QWEN_PRICE_SOURCE if provider == "qwen" else DEEPSEEK_PRICE_SOURCE,
+        "price_currency": price.currency,
+        "input_price_per_million": str(price.input_per_million),
+        "output_price_per_million": str(price.output_per_million),
+        "request_profile_fingerprints": _readiness_request_profile_fingerprints(
+            settings, config, provider=provider
+        ),
+    }
 
 
 def _budgeted_adapter(settings, config, ledger, *, purpose, max_output_tokens,
@@ -1337,12 +1467,20 @@ def run_routed_readiness(
     *,
     model_profile_digest,
     pricing_source,
+    runtime_profile_digest=None,
 ):
     """Qualify Qwen first, then OpenRouter only if Qwen does not qualify."""
     ledger.ensure_resumable()
+    bound_profile_digest = ledger.identity.get("model_profile_digest")
+    if bound_profile_digest is not None and bound_profile_digest != model_profile_digest:
+        raise ValueError("Readiness model profile differs from the diagnostic ledger")
     providers = {}
+    provider_profiles = {}
     qualified_provider = None
     for provider in ("qwen", "openrouter"):
+        provider_profiles[provider] = _readiness_profile_snapshot(
+            settings, runtime_config, provider=provider
+        )
         actions = _diagnostic_actions(
             settings, runtime_config, ledger, provider=provider
         )
@@ -1387,14 +1525,21 @@ def run_routed_readiness(
     snapshot = ledger.snapshot()
     passed = qualified_provider is not None
     report = {
-        "schema_version": "routed-model-readiness-evidence-v2",
+        "schema_version": "routed-model-readiness-evidence-v3",
         "authorization_id": AUTHORIZATION_ID,
         "diagnostic_fingerprint": ledger.identity["diagnostic_fingerprint"],
-        "model_profile_digest": model_profile_digest,
+        "model_profile_digest": bound_profile_digest or model_profile_digest,
+        "cohort_profiles_fingerprint": ledger.identity.get(
+            "cohort_profiles_fingerprint"
+        ),
+        "runtime_profile_digest": runtime_profile_digest,
         "primary_pricing_source": ledger.identity["primary_price_source"],
         "pricing_source": pricing_source,
         "status": "passed" if passed else "failed",
         "qualified_provider": qualified_provider,
+        "provider_profiles": {
+            provider: provider_profiles[provider] for provider in providers
+        },
         "providers": providers,
         "passed_criteria": (
             [
@@ -1475,7 +1620,13 @@ def main(argv=None):
     parser.add_argument(
         "--ledger",
         type=Path,
-        default=Path(".decagent/routed-model-readiness-v2-20261024.sqlite"),
+        default=Path(".decagent/routed-model-readiness-v3-20261024.sqlite"),
+    )
+    parser.add_argument(
+        "--cohort-profiles",
+        type=Path,
+        default=Path("evals/benchmarks/manifests/evaluation_model_profiles_v7.json"),
+        help="Frozen public cohort profile used to bind readiness evidence",
     )
     parser.add_argument("--evidence", type=Path)
     args = parser.parse_args(argv)
@@ -1484,6 +1635,14 @@ def main(argv=None):
     settings, config = Settings.from_env(), RuntimeConfig.from_env()
     primary_endpoint, fallback_endpoint, fallback_price = _validate_profile(settings, config)
     config = _readiness_runtime_config(config, fallback_price=fallback_price)
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+
+    try:
+        cohort_profiles = EvaluationModelProfiles.from_dict(
+            json.loads(args.cohort_profiles.read_text(encoding="utf-8"))
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        parser.error(f"Cannot load frozen cohort profiles: {type(exc).__name__}")
     identity = {
         "main_model": settings.main_model,
         "main_provider": config.main_provider,
@@ -1507,10 +1666,19 @@ def main(argv=None):
         },
     }
     profile_digest = hashlib.sha256(canonical_json(identity).encode()).hexdigest()
+    request_profile_fingerprints = {
+        provider: _readiness_request_profile_fingerprints(
+            settings, config, provider=provider
+        )
+        for provider in ("qwen", "openrouter")
+    }
+    cohort_profile_digest = cohort_profiles.digests["model_profile_digest"]
     if not args.live:
         print(json.dumps({
             "status": "dry_run",
             "profile_digest": profile_digest,
+            "cohort_profiles_fingerprint": cohort_profiles.fingerprint,
+            "model_profile_digest": cohort_profile_digest,
             "primary_model": settings.main_model,
             "fallback_model": settings.fallback_model,
             "fallback_peak_rates_usd_per_million": {
@@ -1530,6 +1698,7 @@ def main(argv=None):
             "max_qwen_cost_cny": str(MAX_QWEN_COST_CNY),
             "max_deepseek_cost_usd": str(MAX_DEEPSEEK_COST),
             "max_wall_seconds": MAX_WALL_SECONDS,
+            "provider_request_profile_fingerprints": request_profile_fingerprints,
             "live_requests": 0,
         }, ensure_ascii=False, indent=2))
         return 0
@@ -1545,6 +1714,11 @@ def main(argv=None):
         fallback_endpoint=fallback_endpoint,
         primary_price_digest=_price_digest(config.main_price),
         fallback_price_digest=_price_digest(fallback_price),
+        model_profile_digest=cohort_profile_digest,
+        cohort_profiles_fingerprint=cohort_profiles.fingerprint,
+        provider_request_profile_fingerprints=request_profile_fingerprints,
+        primary_price_version=config.main_price.version,
+        fallback_price_version=fallback_price.version,
         primary_provider=config.main_provider,
         primary_currency=config.main_price.currency,
         resume_known_not_sent=args.resume_known_not_sent,
@@ -1554,8 +1728,9 @@ def main(argv=None):
             settings,
             config,
             ledger,
-            model_profile_digest=profile_digest,
+            model_profile_digest=cohort_profile_digest,
             pricing_source=DEEPSEEK_PRICE_SOURCE,
+            runtime_profile_digest=profile_digest,
         )
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
         with evidence_path.open("x", encoding="utf-8", newline="\n") as stream:

@@ -264,6 +264,34 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 - **WHEN** pilot manifest 或 live runner 校验 readiness evidence
 - **THEN** evidence 中 provider、model/profile fingerprint、账本和 pilot 执行配置必须匹配；不匹配时在创建 pilot ledger 或模型/MCP 派发前拒绝，不能将 OpenRouter readiness 用于 Qwen pilot，反之亦然
 
+#### Scenario: Legacy readiness without profile binding cannot unlock a live cohort
+- **WHEN** public manifest 或 live runner 收到 routed readiness evidence v1，且该证据没有完整冻结的 model/profile、价格和 request-profile fingerprints
+- **THEN** 系统在创建 live ledger 或派发模型/MCP 请求前拒绝；历史 v1 报告仍可用于审计，但不能作为 live/public eligibility 证据
+
+#### Scenario: Offline plan inspection does not establish live eligibility
+- **WHEN** 使用 `check_runtime=false` 只检查 Qwen manifest 结构，或使用显式 unready-diagnostic option 离线预览 OpenRouter 路线
+- **THEN** 不发送模型/MCP 请求，返回计划不表示 readiness 已通过；live runner 必须重新验证匹配的 profile-bound readiness，并拒绝任何 unready override
+
+#### Scenario: OpenRouter readiness v2 cannot unlock a provider-pinned public cohort
+- **WHEN** 公共 cohort 固定 OpenRouter Fireworks 路由，但 readiness evidence 使用 v2 且没有记录 provider routing profile
+- **THEN** loader 在创建 live ledger 前拒绝；不能把 OpenRouter 通用别名路由的成功结果解释为 Fireworks 路由已就绪
+
+#### Scenario: OpenRouter readiness v3 binds route and cost envelope
+- **WHEN** OpenRouter readiness v3 用于冻结或运行公共 cohort
+- **THEN** readiness evidence 与账本必须绑定完整 cohort profile fingerprint、主模型 profile digest、provider、model、endpoint、provider routing、price version/source/currency 和不可变请求 profile 集合；每个已派发 OpenRouter attempt 还必须记录实际 route 与匹配其 purpose 的请求 profile fingerprint。readiness 费率快照必须由账本价格 digest 绑定，且输入/输出单价上界分别覆盖公共 cohort 冻结费率。字段缺失、profile 或 attempt 漂移、账本不匹配、费用上界不足时，在创建 pilot ledger 或派发前拒绝；只修改 v2 evidence 的外层 schema 或 routing metadata 不能升级其历史 ledger。
+
+#### Scenario: Known-not-sent recovery preserves readiness attempt history
+- **WHEN** readiness runner 在确认模型请求未发送后，按授权恢复并完成 provider qualification
+- **THEN** ledger 保留原 attempt (`status=settled`, `dispatch_state=not_sent`) 及其恢复关联；`used_calls` 只计 `dispatch_state != not_sent` 的真实派发请求，gate 校验其与对应 attempt 数一致，并允许完整 profile-bound evidence 通过；`not_sent` attempt 不得隐藏或重放
+
+#### Scenario: Live executor revalidates readiness provenance
+- **WHEN** 调用 `execute_live_public_phase()` 执行由离线检查生成的 plan，或 readiness 文件/模型配置在 plan 加载后发生变化
+- **THEN** live executor 在创建评测账本、请求模型或调用 MCP 前，根据 plan 的冻结 profile 与 readiness evidence path 重新验证 readiness；验证失败时拒绝执行
+
+#### Scenario: An unknown Qwen attempt does not erase independent OpenRouter readiness
+- **WHEN** Qwen attempt 的 usage 变为 unknown，而 OpenRouter 从独立 profile 完成完整 readiness
+- **THEN** Qwen unknown 与预算预留保持原样且不得重放；只有 OpenRouter 全部必需阶段通过、其自身没有 unresolved attempt、且 evidence/ledger 与 Fireworks cohort 完整匹配时，才可单独认定 OpenRouter readiness。任何 OpenRouter unknown、reserved 或 overrun 都阻止资格认定。
+
 #### Scenario: A new diagnostic round preserves prior weekly use
 - **WHEN** 在同一周预算身份下开始新的诊断轮次
 - **THEN** 历史已结算用量与 unknown 预留继续占用原额度；旧轮次终态不变，完成或 unknown 的路线不重放

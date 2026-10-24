@@ -443,6 +443,11 @@ def test_live_runner_preflights_all_four_environments_before_opening_ledger(monk
     )
     events = []
     ledger_kwargs = {}
+    monkeypatch.setattr(
+        live_public_runner,
+        "validate_live_public_readiness",
+        lambda *_args, **_kwargs: None,
+    )
 
     class Runtime:
         def __init__(self, *_args, **_kwargs):
@@ -541,6 +546,11 @@ def test_diagnostic_report_includes_the_bounded_phase_evidence(monkeypatch):
         check_source_files=False,
     )
     plan = build_bounded_diagnostic_plan(base)
+    monkeypatch.setattr(
+        live_public_runner,
+        "validate_live_public_readiness",
+        lambda *_args, **_kwargs: None,
+    )
 
     class Runtime:
         def __init__(self, *_args, **_kwargs):
@@ -625,6 +635,38 @@ def test_diagnostic_report_includes_the_bounded_phase_evidence(monkeypatch):
     assert report["diagnostic_batch_limits"]["qwen_cost_cny"] == "1.62"
     assert report["evaluation_source_digest"]
     assert len(report["diagnostic_task_records"]) == 4
+
+
+def test_live_executor_rechecks_readiness_for_offline_built_plan(monkeypatch):
+    from decagent.evaluation.business.public_trials import load_public_run_plan
+    from evals.benchmarks import live_public_runner
+    from evals.benchmarks.pilot_gate import build_bounded_diagnostic_plan
+
+    base = load_public_run_plan(
+        ROOT,
+        mode="smoke",
+        check_images=False,
+        check_runtime=False,
+        check_source_files=False,
+    )
+    plan = build_bounded_diagnostic_plan(base)
+    monkeypatch.setattr(
+        live_public_runner,
+        "authorize_public_evaluation_phase",
+        lambda *_args, **_kwargs: pytest.fail("must reject before reserving a live phase"),
+    )
+
+    with pytest.raises(ValueError, match="profile-bound readiness"):
+        live_public_runner.execute_live_public_phase(
+            plan,
+            settings=object(),
+            tau_python="unused.exe",
+            journal_root=ROOT / ".decagent/test-journal",
+            candidate_sha="a" * 40,
+            working_tree_dirty=False,
+            phase="diagnostic",
+            candidate_ci_verified=True,
+        )
 
 
 def test_live_report_contains_only_whitelisted_attempt_diagnostics():

@@ -515,6 +515,22 @@ def test_openrouter_diagnostic_plan_is_a_single_csm_plan_route_with_residual_cap
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     profiles_path.write_text(json.dumps(manifest["model_profiles"]), encoding="utf-8")
 
+    with pytest.raises(ValueError, match="routing evidence is missing"):
+        load_public_run_plan(
+            ROOT,
+            mode="smoke",
+            check_images=False,
+            check_runtime=False,
+            check_source_files=False,
+            manifest_path=manifest_path,
+            profiles_path=profiles_path,
+            readiness_path=(
+                ROOT
+                / "evals/benchmarks/evidence/"
+                / "routed-model-readiness-20261024-132906.json"
+            ),
+        )
+
     base = load_public_run_plan(
         ROOT,
         mode="smoke",
@@ -556,6 +572,480 @@ def test_openrouter_diagnostic_plan_rejects_qwen_profile():
     )
     with pytest.raises(ValueError, match="OpenRouter"):
         build_bounded_openrouter_diagnostic_plan(base)
+
+
+def test_routed_readiness_v2_cannot_unlock_unpinned_openrouter_route():
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    readiness = ROOT / (
+        "evals/benchmarks/evidence/"
+        "routed-model-readiness-20261024-132906.json"
+    )
+
+    with pytest.raises(ValueError, match="routing evidence is missing"):
+        _validate_readiness(ROOT, profiles, readiness)
+
+
+def _fireworks_readiness_v3_fixture(report, profiles):
+    import hashlib
+    from decimal import Decimal
+
+    from decagent.evaluation.business.routed_readiness import _price_digest
+    from decagent.runtime.model_calls import TokenPrice
+
+    report = json.loads(json.dumps(report))
+    profile = profiles.primary
+    readiness_price_version = "openrouter-endpoints-api-2026-10-19-peak"
+    readiness_input_rate = Decimal("0.60")
+    readiness_output_rate = Decimal("2.40")
+    profile_digest = profiles.digests["model_profile_digest"]
+    request_profile_fingerprints = {
+        purpose: hashlib.sha256(f"readiness:{purpose}".encode()).hexdigest()
+        for purpose in ("connection", "tool_contract", "plan", "stream")
+    }
+    ledger = report["ledger"]
+    ledger["schema_version"] = "routed-model-readiness-ledger-v3"
+    ledger["model_profile_digest"] = profile_digest
+    ledger["cohort_profiles_fingerprint"] = profiles.fingerprint
+    ledger["fallback_price_version"] = readiness_price_version
+    ledger["fallback_price_currency"] = profile.currency
+    ledger["fallback_price_source"] = profile.price_source
+    ledger["fallback_price_digest"] = _price_digest(
+        TokenPrice(
+            readiness_price_version,
+            readiness_input_rate,
+            readiness_output_rate,
+            profile.currency,
+        )
+    )
+    for attempt in ledger["attempts"]:
+        if attempt["provider"] == "openrouter":
+            attempt["provider_routing"] = profile.provider_routing
+            attempt["request_profile_fingerprint"] = request_profile_fingerprints[
+                attempt["purpose"]
+            ]
+    report["schema_version"] = "routed-model-readiness-evidence-v3"
+    report["model_profile_digest"] = profile_digest
+    report["cohort_profiles_fingerprint"] = profiles.fingerprint
+    report["provider_profiles"] = {
+        "openrouter": {
+            "provider": profile.provider,
+            "model": profile.model,
+            "endpoint": profile.endpoint,
+            "provider_routing": profile.provider_routing,
+            "price_version": readiness_price_version,
+            "price_source": profile.price_source,
+            "price_currency": profile.currency,
+            "input_price_per_million": str(readiness_input_rate),
+            "output_price_per_million": str(readiness_output_rate),
+            "request_profile_fingerprints": request_profile_fingerprints,
+        }
+    }
+    return report
+
+
+def test_routed_readiness_v2_cannot_be_upgraded_by_adding_v3_routing_metadata(tmp_path):
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    report = json.loads(
+        (
+            ROOT
+            / "evals/benchmarks/evidence/"
+            / "routed-model-readiness-20261024-132906.json"
+        ).read_text(encoding="utf-8")
+    )
+    # Adding an outer route claim to v2 evidence does not change what its ledger
+    # actually recorded about dispatched requests.
+    report["schema_version"] = "routed-model-readiness-evidence-v3"
+    report["provider_profiles"] = {
+        "openrouter": {
+            "provider": "openrouter",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "endpoint": "https://openrouter.ai/api/v1",
+            "provider_routing": "openrouter_fireworks",
+            "price_source": profiles.primary.price_source,
+            "price_currency": "USD",
+            "input_price_per_million": "0.60",
+            "output_price_per_million": "2.40",
+        }
+    }
+    readiness = tmp_path / "upgraded-v2.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="ledger profile binding"):
+        _validate_readiness(ROOT, profiles, readiness)
+
+
+def test_routed_readiness_v3_accepts_exact_openrouter_route_and_cost_envelope(tmp_path):
+    from dataclasses import replace
+    from decimal import Decimal
+
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    exact_roles = {
+        role: replace(
+            getattr(profiles, role),
+            price_version="openrouter-endpoints-api-2026-10-19-peak",
+            price_source=(
+                "https://openrouter.ai/api/v1/models/"
+                "deepseek/deepseek-v4.1-flash/endpoints"
+            ),
+            input_price_per_million=Decimal("0.60"),
+            output_price_per_million=Decimal("2.40"),
+        )
+        for role in ("primary", "user_simulator", "judge")
+    }
+    exact_profiles = replace(profiles, **exact_roles)
+    readiness_v2 = ROOT / (
+        "evals/benchmarks/evidence/"
+        "routed-model-readiness-20261024-132906.json"
+    )
+    report = _fireworks_readiness_v3_fixture(
+        json.loads(readiness_v2.read_text(encoding="utf-8")), exact_profiles
+    )
+    routed_readiness = tmp_path / "routed-readiness-v3.json"
+    routed_readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    assert _validate_readiness(ROOT, exact_profiles, routed_readiness) == routed_readiness
+
+
+def test_routed_readiness_v3_accepts_recovered_history_with_not_sent_attempt(tmp_path):
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    report = _fireworks_readiness_v3_fixture(
+        json.loads(
+            (
+                ROOT
+                / "evals/benchmarks/evidence/"
+                / "routed-model-readiness-20261024-132906.json"
+            ).read_text(encoding="utf-8")
+        ),
+        profiles,
+    )
+    attempt = dict(report["ledger"]["attempts"][-1])
+    attempt.update(
+        {
+            "receipt": "known-not-sent-recovery",
+            "attempt": 1,
+            "status": "settled",
+            "dispatch_state": "not_sent",
+            "provider": "openrouter",
+            "requested_model": profiles.primary.model,
+            "resolved_model": profiles.primary.model,
+            "endpoint": profiles.primary.endpoint,
+            "purpose": "connection",
+            "provider_routing": profiles.primary.provider_routing,
+            "request_profile_fingerprint": report["provider_profiles"]["openrouter"]
+            ["request_profile_fingerprints"]["connection"],
+            "actual_tokens": 0,
+            "actual_cost_amount": "0",
+        }
+    )
+    report["ledger"]["attempts"].append(attempt)
+    readiness = tmp_path / "recovered-readiness-v3.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    assert _validate_readiness(ROOT, profiles, readiness) == readiness
+
+
+def test_legacy_qwen_v1_readiness_cannot_unlock_live_cohort(tmp_path):
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v6.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    report = {
+        "schema_version": "routed-model-readiness-evidence-v1",
+        "status": "passed",
+        "ledger": {
+            "schema_version": "routed-model-readiness-ledger-v1",
+            "blocked": False,
+            "used_calls": 0,
+            "remaining_calls": 1,
+            "max_calls": 1,
+            "attempts": [],
+            "primary_model": profiles.primary.model,
+            "primary_endpoint": profiles.primary.endpoint,
+        },
+    }
+    readiness = tmp_path / "legacy-readiness-v1.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="profile-bound readiness"):
+        _validate_readiness(ROOT, profiles, readiness)
+
+
+def test_live_public_plan_rejects_legacy_readiness_and_unready_override():
+    with pytest.raises(ValueError, match="profile-bound readiness"):
+        load_public_run_plan(
+            ROOT,
+            mode="smoke",
+            check_images=False,
+            check_runtime=True,
+            check_source_files=False,
+        )
+
+    with pytest.raises(ValueError, match="cannot bypass model readiness"):
+        load_public_run_plan(
+            ROOT,
+            mode="smoke",
+            allow_unready_diagnostic_model=True,
+            check_images=False,
+            check_runtime=True,
+            check_source_files=False,
+        )
+
+
+def test_openrouter_readiness_can_qualify_with_unresolved_qwen_attempt_preserved(tmp_path):
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    source = json.loads(
+        (
+            ROOT
+            / "evals/benchmarks/evidence/"
+            / "routed-model-readiness-20261024-132906.json"
+        ).read_text(encoding="utf-8")
+    )
+    report = _fireworks_readiness_v3_fixture(source, profiles)
+    attempts = report["ledger"]["attempts"]
+    qwen_unknown = dict(next(item for item in attempts if item["provider"] == "qwen"))
+    qwen_unknown["status"] = "unknown"
+    qwen_unknown["dispatch_state"] = "unknown"
+    report["ledger"]["attempts"] = [
+        qwen_unknown,
+        *(item for item in attempts if item["provider"] == "openrouter"),
+    ]
+    report["ledger"]["used_calls"] = 5
+    report["ledger"]["remaining_calls"] = 7
+    report["ledger"]["qwen_calls"] = 1
+    report["ledger"]["openrouter_calls"] = 4
+    report["ledger"]["blocked"] = True
+    readiness = tmp_path / "routed-readiness-qwen-unknown.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    assert _validate_readiness(ROOT, profiles, readiness) == readiness
+
+
+def test_openrouter_unknown_attempt_cannot_qualify_its_provider(tmp_path):
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    report = _fireworks_readiness_v3_fixture(
+        json.loads(
+            (
+                ROOT
+                / "evals/benchmarks/evidence/"
+                / "routed-model-readiness-20261024-132906.json"
+            ).read_text(encoding="utf-8")
+        ),
+        profiles,
+    )
+    report["ledger"]["attempts"][-1]["status"] = "unknown"
+    report["ledger"]["attempts"][-1]["dispatch_state"] = "unknown"
+    report["ledger"]["blocked"] = True
+    readiness = tmp_path / "routed-readiness-openrouter-unknown.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="selected provider has unresolved usage"):
+        _validate_readiness(ROOT, profiles, readiness)
+
+
+def test_routed_readiness_v3_rejects_cohort_profile_drift(tmp_path):
+    from dataclasses import replace
+    from decimal import Decimal
+
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    exact_roles = {
+        role: replace(
+            getattr(profiles, role),
+            price_version="openrouter-endpoints-api-2026-10-19-peak",
+            price_source=(
+                "https://openrouter.ai/api/v1/models/"
+                "deepseek/deepseek-v4.1-flash/endpoints"
+            ),
+            input_price_per_million=Decimal("0.60"),
+            output_price_per_million=Decimal("2.40"),
+        )
+        for role in ("primary", "user_simulator", "judge")
+    }
+    profiles = replace(profiles, **exact_roles)
+    report = _fireworks_readiness_v3_fixture(
+        json.loads(
+            (
+                ROOT
+                / "evals/benchmarks/evidence/"
+                / "routed-model-readiness-20261024-132906.json"
+            ).read_text(encoding="utf-8")
+        ),
+        profiles,
+    )
+    readiness = tmp_path / "routed-readiness-v3.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+    changed_judge = replace(
+        profiles.judge,
+        timeout_seconds=profiles.judge.timeout_seconds + 1,
+    )
+    changed_profiles = replace(profiles, judge=changed_judge)
+
+    with pytest.raises(ValueError, match="cohort profile fingerprint"):
+        _validate_readiness(ROOT, changed_profiles, readiness)
+
+
+def test_routed_readiness_v3_rejects_attempt_route_or_request_profile_drift(tmp_path):
+    from dataclasses import replace
+    from decimal import Decimal
+
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    exact_roles = {
+        role: replace(
+            getattr(profiles, role),
+            price_version="openrouter-endpoints-api-2026-10-19-peak",
+            price_source=(
+                "https://openrouter.ai/api/v1/models/"
+                "deepseek/deepseek-v4.1-flash/endpoints"
+            ),
+            input_price_per_million=Decimal("0.60"),
+            output_price_per_million=Decimal("2.40"),
+        )
+        for role in ("primary", "user_simulator", "judge")
+    }
+    profiles = replace(profiles, **exact_roles)
+    report = _fireworks_readiness_v3_fixture(
+        json.loads(
+            (
+                ROOT
+                / "evals/benchmarks/evidence/"
+                / "routed-model-readiness-20261024-132906.json"
+            ).read_text(encoding="utf-8")
+        ),
+        profiles,
+    )
+    report["ledger"]["attempts"][-1]["provider_routing"] = "openrouter_default"
+    readiness = tmp_path / "routed-readiness-v3.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="attempt route or profile fingerprint"):
+        _validate_readiness(ROOT, profiles, readiness)
+
+
+def test_routed_readiness_v3_rejects_invalid_or_underpriced_public_profile(tmp_path):
+    from dataclasses import replace
+    from decimal import Decimal
+
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    profiles = replace(
+        profiles,
+        primary=replace(profiles.primary, input_price_per_million=Decimal("0.61")),
+    )
+    report = _fireworks_readiness_v3_fixture(
+        json.loads(
+        (
+            ROOT
+            / "evals/benchmarks/evidence/"
+            / "routed-model-readiness-20261024-132906.json"
+        ).read_text(encoding="utf-8")
+        ),
+        profiles,
+    )
+    report["provider_profiles"]["openrouter"]["input_price_per_million"] = "0.60"
+    readiness = tmp_path / "routed-readiness-v3.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="does not bound the public cost profile"):
+        _validate_readiness(ROOT, profiles, readiness)
+
+    report["provider_profiles"]["openrouter"]["input_price_per_million"] = "not-a-rate"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(ValueError, match="cost envelope is incomplete"):
+        _validate_readiness(ROOT, profiles, readiness)
+
+
+def test_routed_openrouter_readiness_cannot_unlock_qwen_profile():
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v6.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    readiness = ROOT / (
+        "evals/benchmarks/evidence/"
+        "routed-model-readiness-20261024-132906.json"
+    )
+
+    with pytest.raises(ValueError, match="provider differs"):
+        _validate_readiness(ROOT, profiles, readiness)
 
 
 def test_pilot_batch_limits_subtract_diagnostic_consumption_from_shared_weekly_caps():

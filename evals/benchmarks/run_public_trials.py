@@ -156,7 +156,11 @@ def _load_plan(args, root, *, live=False):
             )
         ),
         readiness_path=args.readiness_evidence,
-        allow_unready_diagnostic_model=args.phase == "openrouter-diagnostic",
+        # The diagnostic plan may be inspected offline before a matched profile
+        # exists. Live dispatch always requires provider-specific readiness.
+        allow_unready_diagnostic_model=(
+            args.phase == "openrouter-diagnostic" and not live
+        ),
         check_images=args.check_images or live,
         check_runtime=live,
         check_source_files=live,

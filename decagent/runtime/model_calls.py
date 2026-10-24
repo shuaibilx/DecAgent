@@ -213,6 +213,14 @@ class BudgetedPrimary:
                 "trial_cost_native": cost if price is not None else None,
                 "trial_price_basis_id": price.version if price is not None else None,
             }
+            profile = getattr(model, "profile", None)
+            if profile is not None:
+                reservation_metadata["provider_routing"] = getattr(
+                    profile, "provider_routing", None
+                )
+                reservation_metadata["request_profile_fingerprint"] = getattr(
+                    profile, "fingerprint", None
+                )
             if recovery_of is not None:
                 if not getattr(self.ledger, "reserve_model", None):
                     raise BudgetExceeded(

@@ -42,6 +42,22 @@ def _ledger(
         primary_price_digest="b" * 64,
         fallback_price_digest=fallback_price_digest,
         primary_currency="CNY",
+        model_profile_digest="f" * 64,
+        cohort_profiles_fingerprint="e" * 64,
+        primary_price_version="qwen-price-v1",
+        fallback_price_version="openrouter-price-v1",
+        provider_request_profile_fingerprints={
+            provider: {
+                purpose: f"{digit}" * 64
+                for purpose, digit in {
+                    "connection": "1" if provider == "qwen" else "5",
+                    "tool_contract": "2" if provider == "qwen" else "6",
+                    "plan": "3" if provider == "qwen" else "7",
+                    "stream": "4" if provider == "qwen" else "8",
+                }.items()
+            }
+            for provider in ("qwen", "openrouter")
+        },
         resume_known_not_sent=resume_known_not_sent,
     )
 
@@ -57,6 +73,13 @@ def _reserve(
     trial_cost_currency=None,
     **extra,
 ):
+    metadata = {
+        "provider_routing": (
+            "openrouter_fireworks" if provider == "openrouter" else "direct_endpoint"
+        ),
+        "request_profile_fingerprint": "7" * 64 if provider == "openrouter" else "3" * 64,
+    }
+    metadata.update(extra)
     return ledger.reserve_model(
         key,
         1,
@@ -75,7 +98,7 @@ def _reserve(
         requested_output_tokens=8,
         trial_cost_currency=trial_cost_currency
         or ("USD" if provider == "openrouter" else "CNY"),
-        **extra,
+        **metadata,
     )
 
 
@@ -140,7 +163,7 @@ def _complete_request(ledger, receipt, *, tokens=10, cost):
 
 
 def test_readiness_authorization_is_a_fresh_provider_capped_batch():
-    assert AUTHORIZATION_ID == "primary-readiness-routed-v2-20261024"
+    assert AUTHORIZATION_ID == "primary-readiness-routed-v3-20261024"
     assert MAX_QWEN_CALLS == 6
     assert MAX_OPENROUTER_CALLS == 6
     assert MAX_CALLS == 12
@@ -148,6 +171,47 @@ def test_readiness_authorization_is_a_fresh_provider_capped_batch():
     assert MAX_QWEN_COST_CNY == Decimal("1.62")
     assert MAX_DEEPSEEK_COST == Decimal("5")
     assert MAX_WALL_SECONDS == 2_700
+
+
+def test_readiness_reservation_persists_route_and_request_profile_fingerprint(
+    tmp_path, monkeypatch
+):
+    ledger = _ledger(tmp_path / "new-batch.sqlite", monkeypatch)
+    receipt = _reserve(ledger, "route-profile-bound")
+
+    attempt = ledger.snapshot()["attempts"][0]
+
+    assert attempt["receipt"] == receipt
+    assert attempt["provider_routing"] == "direct_endpoint"
+    assert attempt["request_profile_fingerprint"] == "3" * 64
+    assert ledger.identity["model_profile_digest"] == "f" * 64
+    assert ledger.identity["cohort_profiles_fingerprint"] == "e" * 64
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "metadata", "message"),
+    [
+        (
+            "qwen",
+            "qwen3.8-flash",
+            {"provider_routing": "openrouter_fireworks"},
+            "request route differs",
+        ),
+        (
+            "qwen",
+            "qwen3.8-flash",
+            {"request_profile_fingerprint": "z" * 64},
+            "request profile differs",
+        ),
+    ],
+)
+def test_readiness_reservation_rejects_route_and_profile_drift(
+    tmp_path, monkeypatch, provider, model, metadata, message
+):
+    ledger = _ledger(tmp_path / "new-batch.sqlite", monkeypatch)
+
+    with pytest.raises(BudgetExceeded, match=message):
+        _reserve(ledger, "route-profile-drift", provider=provider, model=model, **metadata)
 
 
 def test_readiness_rejects_unpinned_or_understated_qwen_price():
@@ -281,6 +345,7 @@ def test_readiness_plan_passes_provider_and_deadline_policy_to_planner(monkeypat
     assert captured["allow_format_repair"] is False
     assert isinstance(captured["model"], OneShotPrimaryModel)
     assert captured["model"].usage_include is True
+    assert captured["model"].profile.provider_routing == "openrouter_fireworks"
     assert captured["model"].tool_definitions == plan_tool_definitions()
     assert captured["model"].profile.model == "deepseek/deepseek-v4.1-flash"
     assert captured["settings"].main_model == "deepseek/deepseek-v4.1-flash"
@@ -335,6 +400,7 @@ def test_readiness_uses_cancellable_one_shot_model_and_openrouter_usage(monkeypa
     assert model.max_request_timeout == 60
     assert model.profile.model == "deepseek/deepseek-v4.1-flash"
     assert model.profile.endpoint == "https://openrouter.ai/api/v1"
+    assert model.profile.provider_routing == "openrouter_fireworks"
     assert model.usage_include is True
     assert captured["max_same_provider_attempts"] == 1
     assert captured["fallback_allowed"] is False
@@ -562,17 +628,36 @@ def test_run_persists_profile_and_price_provenance_with_readiness_result(
             for phase in ("connection", "tool_contract", "plan", "stream")
         },
     )
-    profile_digest = "d" * 64
+    profile_digest = ledger.identity["model_profile_digest"]
+    from decagent.config import Settings
+    from decagent.runtime.config import RuntimeConfig
+    from decagent.runtime.model_calls import TokenPrice
+
+    settings = Settings(
+        main_model="qwen3.8-flash",
+        main_base_url="https://maas.qianwenaiapi.com/compatible-mode/v1",
+        main_api_key="qwen-key",
+        fallback_api_key="openrouter-key",
+    )
+    config = RuntimeConfig(
+        main_provider="qwen",
+        main_price=TokenPrice("qwen-profile-v1", Decimal("0.8"), Decimal("2.7"), "CNY"),
+        fallback_price=TokenPrice(
+            "openrouter-profile-v1", Decimal("0.6"), Decimal("2.4"), "USD"
+        ),
+    )
 
     report = module.run_routed_readiness(
-        object(),
-        object(),
+        settings,
+        config,
         ledger,
         model_profile_digest=profile_digest,
         pricing_source=DEEPSEEK_PRICE_SOURCE,
     )
 
     assert report["model_profile_digest"] == profile_digest
+    assert report["schema_version"] == "routed-model-readiness-evidence-v3"
+    assert report["provider_profiles"]["qwen"]["provider_routing"] == "direct_endpoint"
     assert ledger.prior_result()["model_profile_digest"] == profile_digest
     assert ledger.prior_result()["pricing_source"] == DEEPSEEK_PRICE_SOURCE
 
@@ -580,7 +665,10 @@ def test_run_persists_profile_and_price_provenance_with_readiness_result(
 def test_readiness_qualifies_one_provider_and_tries_openrouter_only_after_qwen_fails(
     monkeypatch,
 ):
-    from decagent.evaluation.business.routed_readiness import run_routed_readiness
+    from decagent.evaluation.business.routed_readiness import (
+        _readiness_request_profile_fingerprints,
+        run_routed_readiness,
+    )
 
     class PhaseLedger:
         identity = {
@@ -637,16 +725,50 @@ def test_readiness_qualifies_one_provider_and_tries_openrouter_only_after_qwen_f
         action_factory,
     )
 
+    from decagent.config import Settings
+    from decagent.runtime.config import RuntimeConfig
+    from decagent.runtime.model_calls import TokenPrice
+
+    settings = Settings(
+        main_model="qwen3.8-flash",
+        main_base_url="https://maas.qianwenaiapi.com/compatible-mode/v1",
+        main_api_key="qwen-key",
+        fallback_model="deepseek/deepseek-v4.1-flash",
+        fallback_base_url="https://openrouter.ai/api/v1",
+        fallback_api_key="openrouter-key",
+    )
+    config = RuntimeConfig(
+        main_provider="qwen",
+        main_price=TokenPrice("qwen-price-v1", Decimal("0.8"), Decimal("2.7"), "CNY"),
+        fallback_price=TokenPrice(
+            "openrouter-price-v1", Decimal("0.6"), Decimal("2.4"), "USD"
+        ),
+    )
     report = run_routed_readiness(
-        object(),
-        object(),
+        settings,
+        config,
         ledger,
         model_profile_digest="d" * 64,
         pricing_source=DEEPSEEK_PRICE_SOURCE,
     )
 
     assert report["status"] == "passed"
+    assert report["schema_version"] == "routed-model-readiness-evidence-v3"
     assert report["qualified_provider"] == "openrouter"
+    assert report["provider_profiles"]["openrouter"] == {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "endpoint": "https://openrouter.ai/api/v1",
+        "provider_routing": "openrouter_fireworks",
+        "price_version": "openrouter-price-v1",
+        "price_source": DEEPSEEK_PRICE_SOURCE,
+        "price_currency": "USD",
+        "input_price_per_million": "0.6",
+        "output_price_per_million": "2.4",
+        "request_profile_fingerprints": _readiness_request_profile_fingerprints(
+            settings, config, provider="openrouter"
+        ),
+    }
     assert ledger.calls == [
         "qwen:connection",
         "qwen:tool_contract",

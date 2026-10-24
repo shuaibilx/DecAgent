@@ -249,6 +249,41 @@ def test_primary_native_currency_price_and_actual_usage_are_forwarded_to_trial_l
     assert settlement["trial_actual_cost_basis"] == "frozen_rate"
 
 
+def test_budgeted_primary_records_the_actual_frozen_request_profile_identity():
+    from types import SimpleNamespace
+
+    class ProfiledModel:
+        requested_model = "deepseek/deepseek-v4.1-flash"
+        endpoint = "https://openrouter.ai/api/v1"
+        schema_bytes = 0
+        profile = SimpleNamespace(
+            provider_routing="openrouter_fireworks",
+            fingerprint="a" * 64,
+        )
+
+        def respond(self, _messages, *, stream=False, timeout_seconds=None):
+            return SimpleNamespace(
+                text="ready",
+                usage=SimpleNamespace(input_tokens=9, output_tokens=2, total_tokens=11),
+                model=self.requested_model,
+                server_request_id="request-1",
+            )
+
+    ledger = AttemptLedger()
+    model = BudgetedPrimary(
+        ProfiledModel(),
+        ledger,
+        price=TokenPrice("deepseek-price", Decimal("0.6"), Decimal("2.4")),
+        provider="openrouter",
+        max_output_tokens=32,
+    )
+
+    model.respond([{"role": "user", "content": "read only plan"}])
+
+    assert ledger.rows[0]["metadata"]["provider_routing"] == "openrouter_fireworks"
+    assert ledger.rows[0]["metadata"]["request_profile_fingerprint"] == "a" * 64
+
+
 def test_readiness_timeout_policy_is_passed_to_each_provider_request():
     from types import SimpleNamespace
 

@@ -42,6 +42,7 @@ from decagent.evaluation.business.public_trials import (
     PublicRunPlan,
     canonical_public_trial_ledger_path,
     open_first_wave_public_trial_ledger,
+    validate_live_public_readiness,
 )
 from decagent.evaluation.business.public_weekly_budget import (
     PUBLIC_EVALUATION_BUDGET_ID,
@@ -837,6 +838,11 @@ def execute_live_public_phase(
         plan = apply_remaining_pilot_budget(plan, diagnostic_gate)
     else:
         raise ValueError("Live runner phase is not registered")
+    validate_live_public_readiness(
+        plan.root,
+        plan.profiles,
+        plan.readiness_evidence_path,
+    )
     if phase_name == "pilot" and plan.mode != "pilot":
         raise ValueError("Pilot dispatch requires the frozen pilot plan")
 
