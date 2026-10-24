@@ -6,7 +6,7 @@
 
 同一候选的 bounded Qwen diagnostic 实际只终结 2/8 路线：CSM/ReAct 因 malformed response failed，官方分数 0.0；CSM/Plan 在 Agent 角色 3 次请求额度耗尽后以 0 模型/0 工具调用失败；其余 6 条未派发。实际发送 3 次 Qwen 请求、22,191 Token，按冻结 profile 费率估算抵扣前 API 费 ¥0.0201905；usage unknown 为 0。MCP 调用 2 次，cleanup 对两条终态路线均 verified；禁止副作用数量未测量。运行时长 64.5 秒，停止原因 `agent_qwen_requests`。该诊断未通过“计划生成→MCP→官方评分”闭环，不是 24-task pilot，也不支持质量或 Jev 性能结论。详见[有界诊断报告](../../../evals/benchmarks/evidence/sop-agent-diagnostic-20261024-91d1cf0.md)。
 
-问题已定位到有限 Agent 请求由 ReAct 优先消耗，导致 Plan 就绪路径没有获得模型派发。工作区修正为 diagnostic 专用 Plan-first 顺序；正式路线及其比较顺序不变。当前工作树全量 deterministic 为 2,237 passed、19 skipped；Ruff、OpenSpec strict、diff check 与零派发 dry-run 通过，报告确认 Plan-first、4 个任务/8 个路线槽、0 ledger、0 模型/MCP（[机器报告](../../../evals/benchmarks/evidence/public-diagnostic-plan-first-dryrun-20261024.json)）。新候选同 SHA CI 仍待执行。原 diagnostic 窗口已经关闭，不续期、不重跑；24-task pilot manifest 尚未冻结，206+80 全量仍未开始。游客、部署、私有 CD、记忆消融与阈值扫描继续暂停。
+问题已定位到有限 Agent 请求由 ReAct 优先消耗，导致 Plan 就绪路径没有获得模型派发。提交 `dce9068dde8740b5ea10dc96e33495e7085ea491` 将 bounded diagnostic 改为 Plan-first；正式路线及其比较顺序不变。当前工作树全量 deterministic 为 2,237 passed、19 skipped；Ruff、OpenSpec strict、diff check 与零派发 dry-run 通过，报告确认 Plan-first、4 个任务/8 个路线槽、0 ledger、0 模型/MCP（[机器报告](../../../evals/benchmarks/evidence/public-diagnostic-plan-first-dryrun-20261024.json)）。该候选同 SHA GitHub Actions [run 40071453290](https://github.com/shuaibilx/DecAgent/actions/runs/40071453290) 12/12 jobs 成功。原 diagnostic 窗口已经关闭，不续期、不重跑；24-task pilot manifest 尚未冻结，206+80 全量仍未开始。游客、部署、私有 CD、记忆消融与阈值扫描继续暂停。
 
 ## Earlier worktree snapshot（2026-10-24 06:00 UTC，已被上方实测状态取代）
 
