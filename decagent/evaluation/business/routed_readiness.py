@@ -23,18 +23,18 @@ from uuid import uuid4
 from decagent.decisions.contracts import canonical_json
 from decagent.storage.budget import BudgetExceeded
 
-AUTHORIZATION_ID = "primary-readiness-routed-v3-20261024"
+AUTHORIZATION_ID = "primary-readiness-fireworks-v3-20261024"
 AUTHORIZATION_ANCHOR = (
     Path(__file__).resolve().parents[3] / ".decagent" / "model-readiness-authorizations.sqlite"
 )
-MAX_CALLS = 12
+MAX_CALLS = 10
 MAX_QWEN_CALLS = 6
-MAX_OPENROUTER_CALLS = 6
-MAX_TOTAL_TOKENS = 600_000
+MAX_OPENROUTER_CALLS = 4
+MAX_TOTAL_TOKENS = 300_000
 MAX_REQUEST_INPUT_TOKENS = 65_536
 MAX_OUTPUT_TOKENS = 8_192
 MAX_QWEN_COST_CNY = Decimal("1.62")
-MAX_DEEPSEEK_COST = Decimal("5")
+MAX_DEEPSEEK_COST = Decimal("0.30")
 MAX_WALL_SECONDS = 2_700
 _IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _SAFE_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/_-]{0,254}\Z")
@@ -137,6 +137,7 @@ class SqliteRoutedDiagnosticLedger:
         fallback_price_version,
         primary_provider="qwen",
         primary_currency="CNY",
+        required_provider=None,
         resume_known_not_sent=False,
     ):
         if type(resume_known_not_sent) is not bool:
@@ -152,6 +153,8 @@ class SqliteRoutedDiagnosticLedger:
             raise ValueError("Invalid primary provider")
         if primary_provider != "qwen" or primary_currency != "CNY":
             raise ValueError("Readiness is frozen to Qwen CNY billing")
+        if required_provider not in {None, "qwen", "openrouter"}:
+            raise ValueError("Readiness cohort provider is not supported")
         primary_endpoint, fallback_endpoint = _endpoint(primary_endpoint), _endpoint(
             fallback_endpoint
         )
@@ -196,6 +199,7 @@ class SqliteRoutedDiagnosticLedger:
             "primary_model": primary_model,
             "primary_provider": primary_provider,
             "primary_currency": primary_currency,
+            "required_provider": required_provider,
             "primary_endpoint": primary_endpoint,
             "primary_price_version": primary_price_version,
             "fallback_model": fallback_model,
@@ -1468,8 +1472,13 @@ def run_routed_readiness(
     model_profile_digest,
     pricing_source,
     runtime_profile_digest=None,
+    required_provider=None,
 ):
-    """Qualify Qwen first, then OpenRouter only if Qwen does not qualify."""
+    """Qualify the frozen cohort provider, or use the legacy ordered probe."""
+    if required_provider not in {None, "qwen", "openrouter"}:
+        raise ValueError("Readiness provider selection is unsupported")
+    if ledger.identity.get("required_provider") != required_provider:
+        raise ValueError("Readiness provider selection differs from its durable ledger")
     ledger.ensure_resumable()
     bound_profile_digest = ledger.identity.get("model_profile_digest")
     if bound_profile_digest is not None and bound_profile_digest != model_profile_digest:
@@ -1477,7 +1486,10 @@ def run_routed_readiness(
     providers = {}
     provider_profiles = {}
     qualified_provider = None
-    for provider in ("qwen", "openrouter"):
+    provider_order = (
+        (required_provider,) if required_provider else ("qwen", "openrouter")
+    )
+    for provider in provider_order:
         provider_profiles[provider] = _readiness_profile_snapshot(
             settings, runtime_config, provider=provider
         )
@@ -1533,6 +1545,7 @@ def run_routed_readiness(
             "cohort_profiles_fingerprint"
         ),
         "runtime_profile_digest": runtime_profile_digest,
+        "required_provider": required_provider,
         "primary_pricing_source": ledger.identity["primary_price_source"],
         "pricing_source": pricing_source,
         "status": "passed" if passed else "failed",
@@ -1551,7 +1564,13 @@ def run_routed_readiness(
             if passed
             else []
         ),
-        "stop_reason": None if passed else providers.get("openrouter", {}).get("failure"),
+        "stop_reason": (
+            None
+            if passed
+            else providers.get(
+                required_provider or "openrouter", {}
+            ).get("failure")
+        ),
         "ledger": snapshot,
         "raw_prompts_responses_credentials_saved": False,
     }
@@ -1620,7 +1639,7 @@ def main(argv=None):
     parser.add_argument(
         "--ledger",
         type=Path,
-        default=Path(".decagent/routed-model-readiness-v3-20261024.sqlite"),
+        default=Path(".decagent/routed-model-readiness-fireworks-v3-20261024.sqlite"),
     )
     parser.add_argument(
         "--cohort-profiles",
@@ -1673,6 +1692,15 @@ def main(argv=None):
         for provider in ("qwen", "openrouter")
     }
     cohort_profile_digest = cohort_profiles.digests["model_profile_digest"]
+    provider_aliases = {
+        "qwen": "qwen",
+        "dashscope": "qwen",
+        "openrouter": "openrouter",
+        "open_router": "openrouter",
+    }
+    required_provider = provider_aliases.get(cohort_profiles.primary.provider.lower())
+    if required_provider is None:
+        parser.error("Frozen cohort primary provider is unsupported by routed readiness")
     if not args.live:
         print(json.dumps({
             "status": "dry_run",
@@ -1698,6 +1726,7 @@ def main(argv=None):
             "max_qwen_cost_cny": str(MAX_QWEN_COST_CNY),
             "max_deepseek_cost_usd": str(MAX_DEEPSEEK_COST),
             "max_wall_seconds": MAX_WALL_SECONDS,
+            "required_provider": required_provider,
             "provider_request_profile_fingerprints": request_profile_fingerprints,
             "live_requests": 0,
         }, ensure_ascii=False, indent=2))
@@ -1721,6 +1750,7 @@ def main(argv=None):
         fallback_price_version=fallback_price.version,
         primary_provider=config.main_provider,
         primary_currency=config.main_price.currency,
+        required_provider=required_provider,
         resume_known_not_sent=args.resume_known_not_sent,
     )
     try:
@@ -1731,6 +1761,7 @@ def main(argv=None):
             model_profile_digest=cohort_profile_digest,
             pricing_source=DEEPSEEK_PRICE_SOURCE,
             runtime_profile_digest=profile_digest,
+            required_provider=required_provider,
         )
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
         with evidence_path.open("x", encoding="utf-8", newline="\n") as stream:

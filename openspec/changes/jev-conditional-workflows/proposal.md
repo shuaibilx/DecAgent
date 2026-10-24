@@ -8,6 +8,8 @@
 
 上述 v3 gate 已提交为 `c7a1d9aa4d9c2bb1f43ae4ebe78ae1ff9ac6dae0` 并推送到 `feat/conditional-evaluation`。同 SHA GitHub Actions [run 40104969197](https://github.com/shuaibilx/DecAgent/actions/runs/40104969197) 于 2026-10-24 完成，11/11 jobs 全部通过；本地全量 deterministic 为 `2,304 passed, 19 skipped`，Ruff、OpenSpec strict（6/6）、`git diff --check` 和零派发 dry-run 均通过。v3 实现已由 10.3.B 验收；尚未执行 v3 真实 readiness，因为 v2 记录不含 Fireworks 路由证据，仍不能解锁公共 cohort。10.3.C 和所有真实 benchmark 仍未完成。
 
+为避免 v3 readiness 重测与冻结 cohort 无关的模型，本轮补上 provider-targeted 派发：CLI 从冻结 cohort 的 primary profile 选择目标 provider，并把该选择绑定到 ledger 和 evidence；v7 cohort 的目标是 OpenRouter Fireworks，因此本次只会探测该路由，不会重发已失败的 Qwen readiness。诊断上限进一步缩为最多 10 次总请求（Qwen 6、OpenRouter 4）、300,000 tokens、45 分钟；该 cohort 路径至多执行四个 OpenRouter 阶段，抵扣前冻结费率估算上限为 $0.30。最新 focused readiness/public gate 回归 `62 passed, 1 skipped`；完整 deterministic 为 `2,308 passed, 19 skipped`（随后只调整了新 authorization ID、ledger 默认路径和失败原因来源，相关 focused tests 又通过）。Ruff、OpenSpec strict（6/6）、零派发 dry-run 和 `git diff --check` 通过；本轮代码尚待同 SHA CI，没有新的模型请求。
+
 修复前的 `1d3bd9c8d576a665cc5a49ccc4a5569ba8d92cbc` 在 run 40087151660 首次有 11/12 jobs 通过；Docker boundary probe 报告 `public_http_proxy=false`，但没有保存首次 HTTP 状态或重定向链。只重跑失败 job 后 attempt 2 通过。为消除探测耦合，`2d99c43` 让 HTTP probe 不跟随重定向、把首个 2xx/3xx 作为代理连通、403 仍视为失败；没有扩大允许域名、端口或安全策略。新回归与同 SHA CI 均通过。
 
 `PublicPlannerCallback` 现将不可解析响应与冻结 compiler 拒绝分别记录为白名单 `malformed_response` / `invalid_plan`；正文、业务值和异常消息不会入账，也不增加隐式重试。该改动提升故障定位能力，并不修复或证明 Qwen 输出质量。Qwen round 2 仍是历史开发结果：3 请求、34,054 tokens、1 MCP、180.34 秒、0 successful route；CSM Plan/ReAct 官方评分均失败，5 条路线未派发。新的 readiness v2 中 Qwen 计划也未通过 compiler，而 OpenRouter DeepSeek 通过了只读计划；没有业务 MCP、官方评分或性能比较。详细证据见当前状态所链接的报告。

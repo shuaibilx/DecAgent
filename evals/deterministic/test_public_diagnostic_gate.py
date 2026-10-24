@@ -612,6 +612,7 @@ def _fireworks_readiness_v3_fixture(report, profiles):
     }
     ledger = report["ledger"]
     ledger["schema_version"] = "routed-model-readiness-ledger-v3"
+    ledger["required_provider"] = "openrouter"
     ledger["model_profile_digest"] = profile_digest
     ledger["cohort_profiles_fingerprint"] = profiles.fingerprint
     ledger["fallback_price_version"] = readiness_price_version
@@ -632,6 +633,7 @@ def _fireworks_readiness_v3_fixture(report, profiles):
                 attempt["purpose"]
             ]
     report["schema_version"] = "routed-model-readiness-evidence-v3"
+    report["required_provider"] = "openrouter"
     report["model_profile_digest"] = profile_digest
     report["cohort_profiles_fingerprint"] = profiles.fingerprint
     report["provider_profiles"] = {
@@ -728,6 +730,50 @@ def test_routed_readiness_v3_accepts_exact_openrouter_route_and_cost_envelope(tm
     routed_readiness.write_text(json.dumps(report), encoding="utf-8")
 
     assert _validate_readiness(ROOT, exact_profiles, routed_readiness) == routed_readiness
+
+
+def test_routed_readiness_v3_rejects_provider_selection_different_from_cohort(
+    tmp_path,
+):
+    from dataclasses import replace
+    from decimal import Decimal
+
+    from decagent.evaluation.business.model_profiles import EvaluationModelProfiles
+    from decagent.evaluation.business.public_trials import _validate_readiness
+
+    profiles = EvaluationModelProfiles.from_dict(
+        json.loads(
+            (ROOT / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json")
+            .read_text(encoding="utf-8")
+        )
+    )
+    exact_roles = {
+        role: replace(
+            getattr(profiles, role),
+            price_version="openrouter-endpoints-api-2026-10-19-peak",
+            price_source=(
+                "https://openrouter.ai/api/v1/models/"
+                "deepseek/deepseek-v4.1-flash/endpoints"
+            ),
+            input_price_per_million=Decimal("0.60"),
+            output_price_per_million=Decimal("2.40"),
+        )
+        for role in ("primary", "user_simulator", "judge")
+    }
+    exact_profiles = replace(profiles, **exact_roles)
+    readiness_v2 = ROOT / (
+        "evals/benchmarks/evidence/"
+        "routed-model-readiness-20261024-132906.json"
+    )
+    report = _fireworks_readiness_v3_fixture(
+        json.loads(readiness_v2.read_text(encoding="utf-8")), exact_profiles
+    )
+    report["required_provider"] = "qwen"
+    readiness = tmp_path / "wrong-provider-selection-v3.json"
+    readiness.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="provider selection differs"):
+        _validate_readiness(ROOT, exact_profiles, readiness)
 
 
 def test_routed_readiness_v3_accepts_recovered_history_with_not_sent_attempt(tmp_path):

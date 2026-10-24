@@ -433,6 +433,11 @@ def _validate_readiness(root, profiles, path=None):
             or ledger.get("cohort_profiles_fingerprint") != profiles.fingerprint
         ):
             raise ValueError("Readiness cohort profile fingerprint differs from the frozen cohort")
+        if (
+            evidence.get("required_provider") != expected_provider
+            or ledger.get("required_provider") != expected_provider
+        ):
+            raise ValueError("Readiness provider selection differs from the frozen cohort")
     if evidence.get("qualified_provider") != expected_provider:
         raise ValueError("Readiness provider differs from the frozen cohort")
     attempts = ledger.get("attempts")

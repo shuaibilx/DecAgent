@@ -26,6 +26,7 @@ def _ledger(
     *,
     fingerprint="a" * 64,
     fallback_price_digest="c" * 64,
+    required_provider=None,
     resume_known_not_sent=False,
 ):
     module = __import__(
@@ -42,6 +43,7 @@ def _ledger(
         primary_price_digest="b" * 64,
         fallback_price_digest=fallback_price_digest,
         primary_currency="CNY",
+        required_provider=required_provider,
         model_profile_digest="f" * 64,
         cohort_profiles_fingerprint="e" * 64,
         primary_price_version="qwen-price-v1",
@@ -163,13 +165,13 @@ def _complete_request(ledger, receipt, *, tokens=10, cost):
 
 
 def test_readiness_authorization_is_a_fresh_provider_capped_batch():
-    assert AUTHORIZATION_ID == "primary-readiness-routed-v3-20261024"
+    assert AUTHORIZATION_ID == "primary-readiness-fireworks-v3-20261024"
     assert MAX_QWEN_CALLS == 6
-    assert MAX_OPENROUTER_CALLS == 6
-    assert MAX_CALLS == 12
-    assert MAX_TOTAL_TOKENS == 600_000
+    assert MAX_OPENROUTER_CALLS == 4
+    assert MAX_CALLS == 10
+    assert MAX_TOTAL_TOKENS == 300_000
     assert MAX_QWEN_COST_CNY == Decimal("1.62")
-    assert MAX_DEEPSEEK_COST == Decimal("5")
+    assert MAX_DEEPSEEK_COST == Decimal("0.30")
     assert MAX_WALL_SECONDS == 2_700
 
 
@@ -186,6 +188,16 @@ def test_readiness_reservation_persists_route_and_request_profile_fingerprint(
     assert attempt["request_profile_fingerprint"] == "3" * 64
     assert ledger.identity["model_profile_digest"] == "f" * 64
     assert ledger.identity["cohort_profiles_fingerprint"] == "e" * 64
+
+
+def test_readiness_ledger_identity_binds_required_cohort_provider(tmp_path, monkeypatch):
+    path = tmp_path / "cohort-provider.sqlite"
+    ledger = _ledger(path, monkeypatch, required_provider="openrouter")
+    assert ledger.identity["required_provider"] == "openrouter"
+    ledger.close()
+
+    with pytest.raises(ValueError, match="identity"):
+        _ledger(path, monkeypatch, required_provider="qwen")
 
 
 @pytest.mark.parametrize(
@@ -434,22 +446,22 @@ def test_diagnostic_limits_reject_token_and_provider_fee_overflow(tmp_path, monk
     with pytest.raises(BudgetExceeded, match="input"):
         _reserve(ledger, "too-many-input-tokens", tokens=MAX_TOTAL_TOKENS + 1)
 
-    for index in range(5):
+    for index in range(3):
         receipt = _reserve(
             ledger,
             f"deepseek-{index}",
             provider="openrouter",
             model="deepseek/deepseek-v4.1-flash",
-            cost="0.9",
+            cost="0.09",
         )
-        _complete_request(ledger, receipt, cost="0.9")
+        _complete_request(ledger, receipt, cost="0.09")
     with pytest.raises(BudgetExceeded, match="DeepSeek"):
         _reserve(
             ledger,
-            "deepseek-sixth-over-cap",
+            "deepseek-over-cap",
             provider="openrouter",
             model="deepseek/deepseek-v4.1-flash",
-            cost="0.6",
+            cost="0.04",
         )
 
     qwen = _ledger(tmp_path / "qwen" / "qwen-budget.sqlite", monkeypatch)
@@ -510,9 +522,9 @@ def test_request_count_cap_and_resume_never_reopen_a_dispatched_unknown(tmp_path
             f"openrouter-request-{index}",
             provider="openrouter",
             model="deepseek/deepseek-v4.1-flash",
-            cost="0.1",
+            cost="0.05",
         )
-        _complete_request(ledger, receipt, cost="0.1")
+        _complete_request(ledger, receipt, cost="0.05")
         first = receipt
     with pytest.raises(BudgetExceeded, match="exhausted"):
         _reserve(ledger, "thirteenth-request")
@@ -521,20 +533,20 @@ def test_request_count_cap_and_resume_never_reopen_a_dispatched_unknown(tmp_path
     restored = _ledger(path, monkeypatch)
     with pytest.raises(BudgetExceeded, match="exhausted"):
         _reserve(restored, "after-restart", provider="openrouter",
-                 model="deepseek/deepseek-v4.1-flash", cost="0.1")
-    assert restored.snapshot()["used_calls"] == 12
+                 model="deepseek/deepseek-v4.1-flash", cost="0.05")
+    assert restored.snapshot()["used_calls"] == MAX_CALLS
     assert first is not None
 
 
 def test_total_token_cap_combines_both_providers(tmp_path, monkeypatch):
     ledger = _ledger(tmp_path / "token-cap.sqlite", monkeypatch)
     request_tokens = 65_544
-    for index in range(MAX_QWEN_CALLS):
+    for index in range(3):
         receipt = _reserve(
             ledger, f"qwen-large-{index}", tokens=request_tokens, cost="0.01"
         )
         _complete_request(ledger, receipt, tokens=request_tokens, cost="0.01")
-    for index in range(3):
+    for index in range(1):
         receipt = _reserve(
             ledger,
             f"openrouter-large-{index}",
@@ -545,7 +557,7 @@ def test_total_token_cap_combines_both_providers(tmp_path, monkeypatch):
         )
         _complete_request(ledger, receipt, tokens=request_tokens, cost="0.1")
 
-    assert ledger.snapshot()["held_or_actual_tokens"] == 589_896
+    assert ledger.snapshot()["held_or_actual_tokens"] == 262_176
     with pytest.raises(BudgetExceeded, match="token cap"):
         _reserve(
             ledger,
@@ -778,6 +790,124 @@ def test_readiness_qualifies_one_provider_and_tries_openrouter_only_after_qwen_f
         "openrouter:plan",
         "openrouter:stream",
     ]
+
+
+def test_cohort_targeted_readiness_does_not_probe_an_unselected_provider(monkeypatch):
+    from decagent.evaluation.business.routed_readiness import run_routed_readiness
+
+    class PhaseLedger:
+        identity = {
+            "diagnostic_fingerprint": "a" * 64,
+            "primary_price_source": "qwen-price-source",
+            "required_provider": "openrouter",
+        }
+
+        def __init__(self):
+            self.phases = {}
+            self.result = None
+            self.calls = []
+
+        def ensure_resumable(self):
+            pass
+
+        def start_phase(self, phase):
+            if phase in self.phases:
+                status, report = self.phases[phase]
+                return report if status == "passed" else None
+            self.phases[phase] = ("started", None)
+            return None
+
+        def finish_phase(self, phase, status, report):
+            self.phases[phase] = (status, report)
+
+        def snapshot(self):
+            return {
+                "phases": [
+                    {"phase": phase, "status": status, "report": report}
+                    for phase, (status, report) in self.phases.items()
+                ],
+                "attempts": [],
+            }
+
+        def record_result(self, report):
+            self.result = report
+
+    ledger = PhaseLedger()
+
+    def action_factory(_settings, _config, target_ledger, *, provider="qwen"):
+        actions = {}
+        for phase in ("connection", "tool_contract", "plan", "stream"):
+            def run(phase=phase, provider=provider):
+                target_ledger.calls.append(f"{provider}:{phase}")
+                return {"provider": provider, "phase": phase}
+
+            actions[phase] = run
+        return actions
+
+    monkeypatch.setattr(
+        "decagent.evaluation.business.routed_readiness._diagnostic_actions",
+        action_factory,
+    )
+
+    from decagent.config import Settings
+    from decagent.runtime.config import RuntimeConfig
+    from decagent.runtime.model_calls import TokenPrice
+
+    settings = Settings(
+        main_model="qwen3.8-flash",
+        main_base_url="https://maas.qianwenaiapi.com/compatible-mode/v1",
+        main_api_key="qwen-key",
+        fallback_model="deepseek/deepseek-v4.1-flash",
+        fallback_base_url="https://openrouter.ai/api/v1",
+        fallback_api_key="openrouter-key",
+    )
+    config = RuntimeConfig(
+        main_provider="qwen",
+        main_price=TokenPrice("qwen-price-v1", Decimal("0.8"), Decimal("2.7"), "CNY"),
+        fallback_price=TokenPrice(
+            "openrouter-price-v1", Decimal("0.6"), Decimal("2.4"), "USD"
+        ),
+    )
+
+    report = run_routed_readiness(
+        settings,
+        config,
+        ledger,
+        model_profile_digest="d" * 64,
+        pricing_source=DEEPSEEK_PRICE_SOURCE,
+        required_provider="openrouter",
+    )
+
+    assert report["status"] == "passed"
+    assert report["required_provider"] == "openrouter"
+    assert report["qualified_provider"] == "openrouter"
+    assert tuple(report["providers"]) == ("openrouter",)
+    assert ledger.calls == [
+        "openrouter:connection",
+        "openrouter:tool_contract",
+        "openrouter:plan",
+        "openrouter:stream",
+    ]
+
+
+def test_readiness_provider_selection_must_match_durable_ledger(monkeypatch):
+    from decagent.evaluation.business.routed_readiness import run_routed_readiness
+
+    class Ledger:
+        identity = {"required_provider": "qwen"}
+
+        def ensure_resumable(self):
+            raise AssertionError("provider mismatch must fail before inspecting phases")
+
+    with pytest.raises(ValueError, match="provider selection differs"):
+        run_routed_readiness(
+            None,
+            None,
+            Ledger(),
+            model_profile_digest="d" * 64,
+            pricing_source=DEEPSEEK_PRICE_SOURCE,
+            required_provider="openrouter",
+        )
 
 
 def test_readiness_runtime_uses_the_qwen_accounting_provider_without_enabling_product_fallback():

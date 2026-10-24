@@ -20,7 +20,7 @@ def main(argv=None):
     readiness.add_argument("--live", action="store_true", help="Dispatch the bounded probe")
     readiness.add_argument("--resume-known-not-sent", action="store_true")
     readiness.add_argument(
-        "--ledger", default=".decagent/routed-model-readiness-v3-20261024.sqlite"
+        "--ledger", default=".decagent/routed-model-readiness-fireworks-v3-20261024.sqlite"
     )
     readiness.add_argument(
         "--cohort-profiles",
