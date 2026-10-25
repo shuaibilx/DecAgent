@@ -188,6 +188,15 @@ def test_fixed_csm_official_verifier_is_compatible_with_zero_llm_judge():
     record = plan.trials[0]
     source = _read_json(ROOT / "evals/benchmarks/manifests/source_manifest.json")
     inventory = _read_json(ROOT / "evals/benchmarks/manifests/task_inventory.json")
+    parquet = next(
+        item
+        for item in source["enterpriseops_gym"]["task_dataset"]["parquet_sha256"]
+        if "/oracle/csm-00000-of-00001.parquet" in item["path"].replace("\\", "/")
+    )
+    if not (ROOT / parquet["path"]).is_file():
+        pytest.skip(
+            "Pinned EnterpriseOps verifier inspection requires the local-only vendor cache"
+        )
     spec, _ = _enterprise_task(ROOT, record, source, inventory)
 
     assert spec.verifiers
