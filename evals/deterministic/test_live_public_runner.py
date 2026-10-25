@@ -335,6 +335,7 @@ def test_live_cli_requires_images_readiness_runtime_and_credentials_before_dispa
     tau_python.write_bytes(b"test executable placeholder")
     calls = []
     finalized = []
+    plan = SimpleNamespace(trials=({"benchmark": "tau-bench"},))
 
     monkeypatch.setattr(live_public_runner, "require_verified_candidate", lambda _root: "a" * 40)
     monkeypatch.setattr(
@@ -344,7 +345,7 @@ def test_live_cli_requires_images_readiness_runtime_and_credentials_before_dispa
 
     def load_plan(*args, **kwargs):
         calls.append(("plan", kwargs))
-        return object()
+        return plan
 
     def bounded_plan(plan):
         calls.append(("bounded", plan))

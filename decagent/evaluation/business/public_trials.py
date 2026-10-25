@@ -33,6 +33,9 @@ PUBLIC_TRIAL_LEDGER_RELATIVE_PATH = Path(
 PUBLIC_COHORT_LEDGER_DIRECTORY = Path(
     ".decagent/business-eval/public-trials/cohorts"
 )
+OPENROUTER_CSM_DIAGNOSTIC_LEDGER_DIRECTORY = Path(
+    ".decagent/evaluation/diagnostic-ledgers"
+)
 _LEASE_NAME = "public-evaluation"
 _RUN_ROUTES = ("react_skill_mcp", "plan_mcp")
 DEVELOPMENT_EXPOSED_ENTERPRISEOPS_CASES = frozenset(
@@ -243,7 +246,7 @@ class PublicRunPlan:
 
 
 def canonical_public_trial_ledger_path(
-    root, *, cohort_digest=None, candidate_sha=None
+    root, *, cohort_digest=None, candidate_sha=None, phase=None
 ):
     """Resolve a ledger path from an exact frozen cohort and CI candidate.
 
@@ -264,18 +267,26 @@ def canonical_public_trial_ledger_path(
         or re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", candidate_sha) is None
     ):
         raise ValueError("A valid candidate SHA is required for a new ledger")
-    filename = f"{cohort_digest}-{candidate_sha}.sqlite3"
-    return project_root / PUBLIC_COHORT_LEDGER_DIRECTORY / filename
+    if phase is None:
+        directory = PUBLIC_COHORT_LEDGER_DIRECTORY
+        filename = f"{cohort_digest}-{candidate_sha}.sqlite3"
+    elif phase == "openrouter-csm-diagnostic":
+        directory = OPENROUTER_CSM_DIAGNOSTIC_LEDGER_DIRECTORY
+        filename = f"{phase}-{cohort_digest}-{candidate_sha}.sqlite3"
+    else:
+        raise ValueError("Public evaluation phase ledger is not registered")
+    return project_root / directory / filename
 
 
 def validate_public_trial_ledger_path(
-    root, candidate, *, cohort_digest=None, candidate_sha=None
+    root, candidate, *, cohort_digest=None, candidate_sha=None, phase=None
 ):
     project_root = Path(root).resolve()
     canonical = canonical_public_trial_ledger_path(
         project_root,
         cohort_digest=cohort_digest,
         candidate_sha=candidate_sha,
+        phase=phase,
     )
     requested = Path(candidate)
     if not requested.is_absolute():
@@ -289,6 +300,69 @@ def validate_public_trial_ledger_path(
         if current.is_symlink():
             raise ValueError("Public trial ledger path cannot contain symlinks")
     return canonical
+
+
+def open_openrouter_csm_diagnostic_ledger(
+    root,
+    plan,
+    *,
+    supervisor,
+    candidate_sha,
+    batch_started_at,
+    lease_seconds=60,
+):
+    """Open the isolated CSM ledger without opening or charging the Jev ledger."""
+    from evals.benchmarks.pilot_gate import is_bounded_openrouter_csm_diagnostic_plan
+
+    from .public_supervisor import PublicSupervisor
+
+    project_root = Path(root).resolve()
+    if not is_bounded_openrouter_csm_diagnostic_plan(plan):
+        raise ValueError("OpenRouter CSM diagnostics require the fixed bounded cohort")
+    if Path(plan.root).resolve() != project_root:
+        raise ValueError("OpenRouter CSM plan root differs from the ledger root")
+    if (
+        type(candidate_sha) is not str
+        or re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", candidate_sha) is None
+    ):
+        raise ValueError("A verified immutable candidate SHA is required")
+    if not isinstance(supervisor, PublicSupervisor) or not supervisor.held:
+        raise ValueError("A held public-evaluation supervisor lock is required")
+    if supervisor.path.resolve(strict=False) != canonical_public_supervisor_lock_path(
+        project_root
+    ):
+        raise ValueError("Public evaluation requires the canonical supervisor lock")
+    path = canonical_public_trial_ledger_path(
+        project_root,
+        cohort_digest=plan.cohort_digest,
+        candidate_sha=candidate_sha,
+        phase="openrouter-csm-diagnostic",
+    )
+    path = validate_public_trial_ledger_path(
+        project_root,
+        path,
+        cohort_digest=plan.cohort_digest,
+        candidate_sha=candidate_sha,
+        phase="openrouter-csm-diagnostic",
+    )
+    if path.exists():
+        ledger = PublicTrialLedger.resume(
+            path, plan, global_jev_ledger=None, lease_seconds=lease_seconds
+        )
+    else:
+        ledger = PublicTrialLedger.create(
+            path,
+            plan,
+            global_jev_ledger=None,
+            batch_started_at=batch_started_at,
+            lease_seconds=lease_seconds,
+        )
+    try:
+        ledger.bind_candidate_sha(candidate_sha)
+    except BaseException:
+        ledger.close()
+        raise
+    return ledger
 
 
 def open_first_wave_public_trial_ledger(
@@ -923,7 +997,8 @@ def _trials_for_phase(plan, phase):
     if phase is None:
         phase = plan.mode
     if phase not in {
-        "diagnostic", "openrouter-diagnostic", "first-wave", "remaining-smoke",
+        "diagnostic", "openrouter-diagnostic", "openrouter-csm-diagnostic",
+        "first-wave", "remaining-smoke",
         "full", "smoke", "pilot"
     }:
         raise ValueError("Public evaluation phase is not registered")
@@ -932,11 +1007,16 @@ def _trials_for_phase(plan, phase):
             raise ValueError("A frozen per-trial public pilot schedule is required")
         return phase, plan.trials
     if phase in {
-        "diagnostic", "openrouter-diagnostic", "first-wave", "remaining-smoke", "smoke"
+        "diagnostic", "openrouter-diagnostic", "openrouter-csm-diagnostic",
+        "first-wave", "remaining-smoke", "smoke"
     } and plan.mode != "smoke":
         raise ValueError("Public evaluation phase is incompatible with this cohort mode")
     if phase == "full" and plan.mode != "full":
         raise ValueError("Public evaluation phase is incompatible with this cohort mode")
+    if phase == "openrouter-csm-diagnostic":
+        if len(plan.trials) != 1 or plan.route_slot_count() != 1:
+            raise ValueError("Independent CSM diagnostics require exactly one fixed route")
+        return phase, plan.trials
     if phase in {"diagnostic", "openrouter-diagnostic", "first-wave"}:
         by_id = {item["trial_id"]: item for item in plan.trials}
         selected = tuple(

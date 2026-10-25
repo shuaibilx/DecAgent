@@ -198,7 +198,7 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 
 ### Requirement: Evidence-grounded final responses
 
-公开计划路线 MUST 默认从当前试次实际工具返回确定性渲染最终回复；计划目标、预期状态和 verifier 私有字段 MUST NOT 被当作已执行事实。最终回复策略 MUST 在运行前冻结并进入试次公平身份。预注册公开输出契约无法由确定性渲染满足时 MAY 经显式注入的 Qwen 回调总结一次；请求/token/费用/延迟 MUST 全部计入 Agent primary，用量未知立即停止且不重试。总结 MUST 只接收公开任务/政策与真实观察，MUST NOT 基于官方评分失败触发或修改任务。
+公开计划路线 MUST 默认从当前试次实际工具返回确定性渲染最终回复；计划目标、预期状态和 verifier 私有字段 MUST NOT 被当作已执行事实。最终回复策略 MUST 在运行前冻结并进入试次公平身份。预注册公开输出契约无法由确定性渲染满足时 MAY 经显式注入的冻结 OpenRouter Fireworks callback 总结一次；请求/token/费用/延迟 MUST 全部计入 Agent primary，用量未知立即停止且不重试。当前评测阶段 MUST NOT 调用 Qwen。总结 MUST 只接收公开任务/政策与真实观察，MUST NOT 基于官方评分失败触发或修改任务。
 
 #### Scenario: Deterministic evidence is sufficient
 - **WHEN** 已完成计划的完整工具证据可在预注册输出限制内表达
@@ -250,7 +250,7 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 
 ### Requirement: Immutable live comparison batches and provider attribution
 
-每个真实诊断或公开 pilot MUST 在派发前绑定候选代码 SHA、任务清单及来源版本、镜像摘要、模型/profile/价格版本、路线计划、共享预算身份和报告身份。更换提供方 MUST 建立独立实验组，不能将不同模型的任务结果拼接成一份配对成绩；正式比较 MUST 关闭跨模型降级。诊断与 pilot MUST 共用累计预算，history 中已用请求、token、费用、工具调用、墙钟及 unknown 预留 MUST 被扣除，改变 state/cohort 路径 MUST NOT 重置预算。unknown 任务和模型请求 MUST 保持终态且不得自动重放。
+每个真实诊断或公开 pilot MUST 在派发前绑定候选代码 SHA、任务清单及来源版本、镜像摘要、模型/profile/价格版本、路线计划、持久预算身份和报告身份。更换提供方 MUST 建立独立实验组，不能将不同模型的任务结果拼接成一份配对成绩；正式比较 MUST 关闭跨模型降级。同一具名预算身份内的阶段 MUST 共用累计用量，历史已用请求、token、费用、工具调用、墙钟及 unknown 预留 MUST 被扣除。经单独批准的独立诊断 phase MAY 使用自己的持久预算身份，但 MUST 保留外层仍生效的硬预算，且不得继承、延长、改写或重置其父批次的期限或账本。改变 state/cohort/ledger 路径 MUST NOT 重置任何适用预算。unknown 任务和模型请求 MUST 保持终态且不得自动重放。
 
 #### Scenario: Provider change creates a distinct experiment group
 - **WHEN** Qwen 未通过诊断门槛而后续使用 OpenRouter DeepSeek
@@ -292,9 +292,37 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 - **WHEN** 调用 `execute_live_public_phase()` 执行由离线检查生成的 plan，或 readiness 文件/模型配置在 plan 加载后发生变化
 - **THEN** live executor 在创建评测账本、请求模型或调用 MCP 前，根据 plan 的冻结 profile 与 readiness evidence path 重新验证 readiness；验证失败时拒绝执行
 
-#### Scenario: OpenRouter engineering-closure diagnostic is one bounded CSM Plan route
-- **WHEN** operator requests the separate `openrouter-diagnostic` engineering-closure phase after Fireworks-bound v3 readiness and the verified Qwen round-2 parent report are available
-- **THEN** the runner MUST select only the fixed initial-smoke CSM case and its `plan_mcp` route; enforce at most 5 OpenRouter agent requests, 280,000 aggregate OpenRouter tokens, $0.30 gross-rate cost, 40 MCP tool calls, and 1,800 seconds; set user-simulator and LLM-judge requests/tokens to zero; and keep Jev disabled for this phase. The EnterpriseOps original verifier and cleanup MUST still run after the plan route reaches their gates. The result is development evidence only and MUST NOT enter the 24-task pilot or be reported as a strategy comparison. Offline preflight MUST create no ledger and dispatch no model or MCP call.
+#### Scenario: Independent OpenRouter CSM diagnostic is bound to its own authorization
+- **WHEN** operator requests live `openrouter-csm-diagnostic` with the verified Fireworks v3 readiness, frozen manifest v12/profile v7, clean same-SHA CI, and a separate explicit live-batch authorization
+- **THEN** the runner MUST select only the already-exposed fixed CSM case and its `plan_mcp` route; persist a new immutable authorization identity in the checkout-external canonical user-level authorization store and a detailed batch ledger under the ignored canonical `.decagent/evaluation/` path; start one absolute 1,800-second deadline from the first durable batch-start record; and enforce at most 5 OpenRouter Agent request dispatches, 280,000 aggregate prompt-plus-completion tokens, $0.30 gross-rate cost, and 40 MCP tool calls. It MUST also enforce any still-applicable outer evaluation hard caps, use the frozen Fireworks endpoint/model/request profiles and price identity, and disable fallback, Qwen, Jev, user-simulator, and LLM-judge requests. The EnterpriseOps original verifier and cleanup MUST still run through their existing guarded lifecycle. The result is development evidence only and MUST NOT enter the 24-task pilot or be reported as a strategy comparison.
+
+#### Scenario: Design approval or an offline preflight cannot authorize dispatch
+- **WHEN** `openrouter-csm-diagnostic` is run without a separate live-batch authorization, without matching clean same-SHA CI, or in dry-run mode
+- **THEN** the runner MUST create no live batch authorization or trial ledger and MUST dispatch no model, MCP, or scorer request; a live invocation without the required authorization or evidence MUST be rejected before external dispatch.
+
+#### Scenario: Official verifier cannot be bypassed to honor the zero-judge cap
+- **WHEN** the fixed CSM task's original verifier requires an LLM-judge request while this diagnostic's judge request cap is zero
+- **THEN** the runner MUST NOT call another model, replace or bypass the original verifier, or claim success; it MUST record scoring as unavailable, preserve route evidence, and run only the existing permitted cleanup. Any additional judge budget requires a new user decision and reviewed OpenSpec update.
+
+#### Scenario: Expired Qwen continuation cannot be revived by a new ledger
+- **WHEN** operator invokes the legacy live `openrouter-diagnostic` continuation after its Qwen round-2 absolute deadline has expired, including with a new ledger path or later start time
+- **THEN** the runner MUST reject live execution before external dispatch; only the separately authorized `openrouter-csm-diagnostic` phase may use its own deadline and budget identity, without changing the expired Qwen batch record.
+
+#### Scenario: CSM engineering closure does not retry Qwen or become benchmark evidence
+- **WHEN** the independent CSM engineering-closure route is prepared or executed
+- **THEN** the runner MUST use only the Fireworks-bound OpenRouter profile, MUST NOT issue Qwen requests, and MUST mark the fixed exposed case as development-only evidence excluded from pilot denominators and strategy-comparison results.
+
+#### Scenario: Unknown outcome stops the independent CSM route
+- **WHEN** any model or MCP dispatch in the independent CSM route has unknown usage or operation state, or any hard cap/deadline is reached
+- **THEN** the runner MUST retain the reservation and attempt evidence, stop subsequent route dispatch and scoring, preserve the exact terminal status, and MUST NOT automatically replay or replace the task; only the existing permitted cleanup/reconciliation path may proceed.
+
+#### Scenario: Offline preflight does not create a diagnostic ledger
+- **WHEN** operator runs an offline preflight for `openrouter-csm-diagnostic`
+- **THEN** the runner MUST select at most the fixed one CSM task/route and report planned caps while creating no authorization or trial ledger and dispatching no model or MCP call.
+
+#### Scenario: Disabled roles and provider drift block diagnostic ledger activation
+- **WHEN** the canonical independent CSM ledger contains any non-primary model attempt, or a primary attempt is configured for or reports an actual provider outside OpenRouter
+- **THEN** activation or resumption MUST fail closed before another request, tool, or scorer dispatch; the existing ledger and route history MUST remain unchanged.
 
 #### Scenario: An unknown Qwen attempt does not erase independent OpenRouter readiness
 - **WHEN** Qwen attempt 的 usage 变为 unknown，而 OpenRouter 从独立 profile 完成完整 readiness
@@ -390,11 +418,11 @@ EnterpriseOps-Gym MUST 用于主要企业工作流结果；τ-Bench MUST 只用�
 
 ### Requirement: Bounded real evaluation spending
 
-所有真实评测 MUST 读取并遵守累计请求/Token/费用账本。未知用量不得释放预留；Jev、通用模型、用户模拟器和裁判须分角色记账，脚本、缓存与实网结果明确区分。若用户已明确授权 Qwen 批次的请求数、Token 和墙钟上限，primary、user simulator、judge 三类 Qwen callback MAY 在该冻结上限内派发而不设金额上限；费率或单次账单不可核验时费用 MUST 保持 null/unknown、`cost_complete=false`，且 MUST NOT 将此类样本用于成本优劣结论。Jev MUST 始终受已知费用上界与累计 `$1` 账本保护；Jev 费用 unknown 时 MUST 阻止全部新增 Jev 请求。
+所有真实评测 MUST 读取并遵守累计请求/Token/费用账本。未知用量不得释放预留；Jev、通用模型、用户模拟器和裁判须分角色记账，脚本、缓存与实网结果明确区分。本评测阶段 MUST NOT 派发 Qwen primary、user-simulator 或 judge 请求；此前 Qwen 授权仅用于历史批次，不延续到新请求。任何将来重新启用 Qwen 都需要用户明确提出并先更新、审阅 OpenSpec。Jev MUST 始终受已知费用上界与累计 `$1` 账本保护；Jev 费用 unknown 时 MUST 阻止全部新增 Jev 请求。下文说明旧 Qwen retry/fallback 的 readiness scenario 只用于历史审计，不能当作本阶段的派发授权。
 
-#### Scenario: User-authorized Qwen usage has unknown billed cost
-- **WHEN** Qwen 费率未核实但用户已批准带请求、Token 和时间停止线的固定批次
-- **THEN** 仅在冻结的批次与路线用量上限内允许 primary、用户模拟器和裁判派发；费用预留和结算金额保持 null，已知 Token 可参与业务评分，报告标记费用不完整且不作成本比较；Jev 仍不得绕过已知 `$1` 费用账本
+#### Scenario: Historical Qwen usage remains auditable without new dispatch
+- **WHEN** 系统读取或核对既有 Qwen readiness/diagnostic 请求的费用、usage 或 unknown
+- **THEN** 保留原批次的 provider、profile、账单/费率估算和预算状态，不得从历史授权派发新 Qwen 请求；未知预留不得释放或重放，且历史 Qwen 成绩不得与 Fireworks cohort 拼成同组结果
 
 #### Scenario: Budget insufficient for remaining test
 - **WHEN** 剩余额度无法覆盖下一批的有界预留
@@ -477,47 +505,17 @@ callback、官方 scorer、清理逻辑和资源门禁接通前 MUST 被拒绝�
 - **WHEN** 上游工具适配、真实模型计量或官方评分闭环尚未连接
 - **THEN** `--execute` 必须 fail closed，且不得创建新 ledger 或向任何模型/业务工具派发
 
-#### Scenario: Bounded live diagnostic precedes pilot freeze and dispatch under a shared budget
-- **WHEN** 通过 `--phase diagnostic` 对已暴露的四个固定开发案例做实时模型诊断
-- **THEN** 只允许同一干净且已通过同 SHA CI 的候选。单次 round 2 最多 12 次通用模型请求、600,000 Token、2,700 秒；其中 Qwen 最多 6 次/600,000 Token/¥1.62，Agent/模拟器/裁判分别受冻结的角色请求与 Token 限额约束，工具调用最多 400 次，每路线资源仍独立限制。Qwen 费用预留、已结算费用和 unknown 预留须在同一持久账本事务中准入/结算，越过 round 或共享周额度中的较低剩余值时停止所有后续派发。诊断开始时间和绝对 deadline MUST 在创建环境/预检前持久化；预检耗尽 deadline 时 MUST 写入批次停止原因并跳过所有未派发路线。诊断结果和 runtime pilot manifest MUST 写入 Git 忽略的 `.decagent/evaluation/` 状态目录，避免冻结证据让候选 SHA 变脏；报告必须包含 4 个任务、8 个路线槽、实际时间和模型/数据/源代码指纹；旧 `first-wave` live phase 必须拒绝。Pilot manifest 冻结及执行均要求通过该候选和相同 profile、inventory、source manifest 与执行代码摘要校验的完成诊断证据，并将该报告 SHA-256 和剩余额度绑定进冻结 manifest。诊断与 pilot 共用一周累计的 500 次通用模型请求、5,000,000 Token、1,600 次工具调用、4 小时、Qwen ¥13.50 与 OpenRouter $5 上限；pilot 的新账本必须先扣除诊断已用值及 unknown 预留，机器时间按已耗秒数向上取整，任何 phase 或 state 路径都不得重置累计额度。实现 MUST 使用 checkout 之外的规范用户级授权记录，将当前预算 ID 固定到唯一项目路径、候选 SHA、diagnostic cohort、pilot cohort 和对应报告摘要；新的候选/cohort 不得取得新预算，已登记账本丢失时 MUST 拒绝重建。诊断结束后，pilot 只能使用与授权中 diagnostic report SHA 相同的证据。
+### Requirement: Legacy Qwen diagnostic phase is closed to new dispatch
 
-该 bounded diagnostic MUST 对每个固定案例先调度 `plan_mcp`，再调度 `react_skill_mcp`，使有限的 Agent 请求额度优先验证“计划生成、MCP 执行、官方评分”就绪门槛。此顺序只适用于 diagnostic，不改变正式对照路线定义或结果分母。
+The completed Qwen round-2 diagnostic and expired authorization are immutable historical evidence. Legacy `diagnostic` and `openrouter-diagnostic` MUST fail closed for all live starts or resumes. Existing records and unknown reservations MUST remain unchanged. Any future Qwen evaluation requires a new explicit user decision and a separately reviewed OpenSpec change.
 
-#### Scenario: Plan readiness receives the first diagnostic budget
-- **WHEN** 每个固定开发案例进入 bounded diagnostic 调度
-- **THEN** `plan_mcp` 是该案例首个派发路线，`react_skill_mcp` 保持在其后；路线遇到预算停止时不得继续派发该路线的后续模型、工具或评分调用
+#### Scenario: Legacy diagnostic phases fail closed
+- **WHEN** an operator requests live execution or resume of `--phase diagnostic` or `--phase openrouter-diagnostic`
+- **THEN** the runner MUST reject before creating a new live ledger, initializing a business environment, or dispatching any model, MCP, or scorer request; it MUST preserve the expired Qwen authorization, historical usage, and unknown reservations without reset or replay.
 
-### Requirement: Provider-isolated diagnostic continuation
+### Requirement: Frozen public cohort route selection
 
-OpenRouter readiness continuation MUST use an independent provider profile, route, usage/cost ledger, and experiment group. It MUST bind to the completed Qwen round-2 report and canonical ledger. Qwen and OpenRouter results MUST NOT be merged as one provider result or used to enable runtime cross-provider fallback.
-
-#### Scenario: OpenRouter continuation binds the Qwen diagnostic evidence
-- **WHEN** Qwen round 2 已完成且尚在其原始 45 分钟绝对期限内，监督进程启动 OpenRouter continuation 或恢复已授权 continuation
-- **THEN** continuation 报告 SHA 与 Qwen round-2 历史摘要绑定，OpenRouter 子账本只使用独立 OpenRouter profile、角色额度和费用额度；不得混合两个 provider 的结果
-
-### Requirement: Diagnostic continuation preserves the parent deadline
-
-An OpenRouter continuation MUST inherit the Qwen batch's original `started_at_utc` and absolute `deadline_at_utc`. A resumed child ledger MUST be checked against the parent ledger. The continuation MUST NOT create a new 45-minute window, reset budget, or replay a parent route.
-
-#### Scenario: OpenRouter continuation inherits the Qwen round deadline
-- **WHEN** Qwen round 2 已完成且尚在其原始 45 分钟绝对期限内，监督进程启动 OpenRouter continuation 或恢复已授权 continuation
-- **THEN** OpenRouter 子账本的开始/截止时间与 Qwen 父账本一致；切换 provider 不会获得新的墙钟期限
-
-#### Scenario: Expired parent diagnostic cannot be extended
-- **WHEN** OpenRouter continuation 的 Qwen 父账本绝对 deadline 已过，或父账本、报告摘要、profile/角色预算与 continuation 不匹配
-- **THEN** runner 在创建 continuation ledger、初始化业务环境或派发任何模型/MCP 调用前 fail closed；不得把未知/未完成状态改成可重放状态
-
-### Requirement: OpenRouter diagnostic roles respect aggregate and route caps
-
-OpenRouter diagnostic MUST enforce at most 6 requests, 565,946 residual tokens and $5 gross API cost, plus 399 tools after the Qwen round-2 usage. Role request caps are Agent 5, user simulator 0, judge 1; role token caps are 500,000, 0 and 65,946. Role token caps MAY sum below the aggregate cap but MUST NOT exceed it. The per-route machine-time cap remains 1,800 seconds. A zero-usage disabled role MUST NOT stop a fresh batch; any unexpected usage for that role MUST stop later dispatch.
-
-#### Scenario: Disabled provider role has zero current usage
-- **WHEN** OpenRouter batch 中 user simulator 角色的冻结 request/token 上限为 0，且当前使用量也为 0
-- **THEN** 初始 preflight 不将其误判为已耗尽，不得因此跳过 Agent 首个合法请求；若禁用角色产生任何实际使用，则立即持久停止后续派发
-
-#### Scenario: Zero-dispatch diagnostic candidate successor
-- **WHEN** 已授权 diagnostic 在任何模型、工具、机器时间或 τ 步骤派发前因可复现的代码/计划契约缺陷而失败，随后代码修复形成新的 CI 候选
-- **THEN** 系统仅在旧账本证明 8 个路线均保持 `pending`、模型/工具/机器时间/τ 尝试均为零、无评分/清理结果且旧批次未停止时，允许将活动 diagnostic 绑定到新候选和新 cohort；必须保留旧账本及 supersession 审计记录，并沿用旧 `started_at` 与绝对 deadline，不能获得新的一份 2,700 秒或其他资源上限。新候选仍必须通过对应同 SHA CI。任何已预留或已派发尝试、非 pending 路线、unknown、停止批次或无法验证的账本均禁止候选接替；它们必须保留原始资源占用并按正常失败/unknown 规则终止。
+Historical diagnostic continuations are closed to live dispatch. Frozen route-selection rules MUST apply to offline inspection and any separately authorized smoke/pilot phase; they do not grant a live budget or authorize Qwen.
 
 #### Scenario: Immutable first-wave smoke scope
 - **WHEN** runner 加载公开冒烟 manifest
@@ -537,7 +535,7 @@ OpenRouter diagnostic MUST enforce at most 6 requests, 565,946 residual tokens a
 
 #### Scenario: First-wave live scheduler resumes only pending routes
 - **WHEN** 所有 live 门禁已通过，首波 phase 新建或恢复执行
-- **THEN** 调度器按冻结的 CSM、ITSM、τ retail、τ telecom 顺序和 ReAct、Plan 路线顺序遍历 8 个槽位；只派发状态为 pending 的路线，跳过 completed/failed/unknown/scoring_error 等终态，任何非终态的旧路线都必须先通过规范 ledger 恢复流程处理；当前路线 Qwen 用量 unknown 后不得重放该路线，但可继续其他 pending 路线；持久批次停止原因存在时不得继续派发
+- **THEN** 调度器按冻结的 CSM、ITSM、τ retail、τ telecom 顺序和 ReAct、Plan 路线顺序遍历 8 个槽位；只派发状态为 pending 的路线，跳过 completed/failed/unknown/scoring_error 等终态，任何非终态的旧路线都必须先通过规范 ledger 恢复流程处理；任一路线发生模型或工具 unknown 后不得重放该路线，其他路线只有在其独立 route 状态及共享 batch 预算仍允许时才可继续；持久批次停止原因存在时不得继续派发
 
 #### Scenario: First-wave report separates selected results from the cohort denominator
 - **WHEN** 固定首波运行结束或因已记录的停止条件停止
@@ -558,9 +556,9 @@ OpenRouter diagnostic MUST enforce at most 6 requests, 565,946 residual tokens a
 - **WHEN** provider/tool attempt 在 dispatch 后中断，或其用量/结果未知
 - **THEN** 未决额度保留为 unknown，route 不得自动 replay；仅可基于可验证原回执的显式恢复流程继续
 
-#### Scenario: Diagnostic and weekly CNY fee hard stops
-- **WHEN** 诊断批次准备派发 Qwen 请求、收到计费用量，或请求进入 unknown
-- **THEN** dispatch 前必须把该请求的 profile 费用上界原子预留到 round 2 的 ¥1.62 上限及共享周级 ¥13.50 剩余额度中的较低者；结算后按冻结费率的抵扣前 API 费用或可核验提供方费用记录实际金额，unknown 保留原预留。累计 actual+reserved 超限、价格或金额无法核验、或结算显示超限时，持久停止整个批次；报告分别列实际费用、预留费用及各级额度，不得将 unknown 记为零。
+#### Scenario: Historical Qwen CNY costs remain auditable but are not retried
+- **WHEN** 系统读取或补记此前已经 dispatch 的 Qwen 诊断 attempt 的用量、费用或 unknown 状态
+- **THEN** 只允许对原 attempt 结算或核对，不得创建新的 Qwen dispatch；按原冻结费率和原 ¥1.62 / ¥13.50 预算身份保留抵扣前费用及 unknown 预留，不能将历史账本改为零、释放或重放。新的 OpenRouter CSM phase 使用其独立 USD cap 和适用的外层硬预算。
 
 #### Scenario: Natural Jev eligibility
 - **WHEN** 基准任务没有自然适用且已审核的可信语义决策模板
@@ -630,7 +628,7 @@ callback MUST 将 profile timeout、route 剩余机器时间与批次剩余墙�
 - **WHEN** Jev profile 或未获用户批次授权的模型 profile 没有可核验费率且未提供可靠费用上界
 - **THEN** callback 在创建 provider dispatch 前拒绝请求，不把 token-only 用量或账户 voucher 当作零费用
 
-用户已明确批准的 Qwen primary、user-simulator、judge 角色属于受限例外：只能在冻结的批次请求、Token 和墙钟硬上限内 dispatch，费用仍为 null/unknown，且不得参加成本结论；此授权不给 Jev 使用。
+此前对 Qwen primary、user-simulator、judge 角色的授权已用于历史诊断，本评测阶段不再适用，MUST NOT 被解释为新的 Qwen 派发授权。未来若要恢复 Qwen，必须由用户明确提出并先更新、审阅 OpenSpec；现有授权不延伸到 Jev。
 
 ### Requirement: Public business tool calls honor persisted deadlines
 

@@ -303,6 +303,13 @@ def test_first_wave_factory_keeps_semantic_routes_opt_in_and_separate(tmp_path, 
         plan.profiles,
         trial_id_for=lambda trial: trial.trial_id,
     )
+    no_auxiliary_roles = public_first_wave_model_adapter_factory(
+        settings,
+        ledger,
+        plan.profiles,
+        trial_id_for=lambda trial: trial.trial_id,
+        include_auxiliary_callbacks=False,
+    )
     jev_enabled = public_first_wave_model_adapter_factory(
         settings,
         ledger,
@@ -327,6 +334,7 @@ def test_first_wave_factory_keeps_semantic_routes_opt_in_and_separate(tmp_path, 
     )
 
     assert "semantic" not in baseline.callback_factories
+    assert set(no_auxiliary_roles.callback_factories) == {"planner", "react"}
     assert "semantic" in jev_enabled.callback_factories
     assert "semantic" in primary_semantic_enabled.callback_factories
     assert "semantic" in both_semantic_models_enabled.callback_factories

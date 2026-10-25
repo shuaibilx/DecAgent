@@ -1,0 +1,32 @@
+{
+  "schema_version": "public-pilot-manifest-metadata-preview-v1",
+  "status": "preview_only_not_frozen",
+  "observed_at_utc": "2026-10-24T17:01:24Z",
+  "candidate_sha": "d1adca861113a99f107f67aff83d9ebe8753275c",
+  "base_manifest": "evals/benchmarks/manifests/comparison_trial_manifest_v11.json",
+  "base_manifest_digest": "f7fed533cf54c46bf5fdc26e6c84fad11404d3c50f4fa88dbf356db725185ea0",
+  "pilot_preview_digest": "00912e636ad0d52738ebf942e80816277cbb9f0319dc27ee52a7322948769ea5",
+  "seed": "sop-pilot-20261024-v1",
+  "selection": "metadata-only SHA-256(seed + NUL + case_id), ascending within the frozen cohort strata",
+  "counts": {
+    "enterpriseops_csm": 10,
+    "enterpriseops_itsm": 10,
+    "tau_retail_test": 2,
+    "tau_telecom_test": 2,
+    "tasks": 24,
+    "route_slots": 68
+  },
+  "routes": [
+    "plan_jev_semantic_mcp",
+    "plan_mcp",
+    "plan_primary_semantic_mcp",
+    "react_skill_mcp"
+  ],
+  "diagnostic_evidence": null,
+  "task_ids_written_to_evidence": false,
+  "task_prompts_or_scoring_material_inspected": false,
+  "runtime_manifest_written": false,
+  "live_model_requests": 0,
+  "business_mcp_calls": 0,
+  "official_scorer_calls": 0
+}

@@ -12,6 +12,9 @@ from pathlib import Path
 
 PUBLIC_EVALUATION_BUDGET_ID = "sop-pilot-20261024-v1"
 PUBLIC_EVALUATION_BUDGET_EXPIRES_UTC = datetime(2026, 11, 1, tzinfo=UTC)
+OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID = (
+    "openrouter-csm-diagnostic-20261025-v1"
+)
 _PHASES = frozenset({"diagnostic", "pilot"})
 
 
@@ -46,6 +49,342 @@ def canonical_public_weekly_budget_path(root, budget_id=PUBLIC_EVALUATION_BUDGET
         / "authorizations"
         / f"{identity}.sqlite3"
     )
+
+
+def canonical_openrouter_csm_diagnostic_authorization_path(root):
+    """Keep the independent CSM batch identity outside every checkout."""
+    identity = hashlib.sha256(
+        f"{_repository_identity(root)}\0{OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID}".encode()
+    ).hexdigest()
+    return (
+        Path.home()
+        / ".decagent"
+        / "evaluation"
+        / "authorizations"
+        / f"{identity}.sqlite3"
+    )
+
+
+def _openrouter_csm_identity(root, *, authorization_id, candidate_sha, cohort_digest, ledger_path,
+                             readiness_evidence_sha256, model_profiles_digest,
+                             evaluation_source_digest, manifest_digest,
+                             source_manifest_digest, task_inventory_digest,
+                             route_identity):
+    from decagent.decisions.contracts import digest
+
+    from .public_limits import (
+        OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS,
+        OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS,
+    )
+    from .public_trials import canonical_public_trial_ledger_path
+
+    if authorization_id != OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID:
+        raise ValueError("CSM authorization ID is not registered")
+    if type(candidate_sha) is not str or re.fullmatch(
+        r"(?:[a-f0-9]{40}|[a-f0-9]{64})", candidate_sha
+    ) is None:
+        raise ValueError("A verified candidate SHA is required for CSM authorization")
+    if type(cohort_digest) is not str or re.fullmatch(r"[a-f0-9]{64}", cohort_digest) is None:
+        raise ValueError("A frozen CSM cohort digest is required")
+    hashes = (
+        readiness_evidence_sha256,
+        model_profiles_digest,
+        evaluation_source_digest,
+        manifest_digest,
+        source_manifest_digest,
+        task_inventory_digest,
+    )
+    if any(type(value) is not str or re.fullmatch(r"[a-f0-9]{64}", value) is None
+           for value in hashes):
+        raise ValueError("CSM authorization requires complete frozen source fingerprints")
+    expected_route = {
+        "benchmark": "enterpriseops-gym",
+        "domain": "csm",
+        "case_id": "task_20260106_161859_265_00364ece_0e836ce8",
+        "trial_id": "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5",
+        "route": "plan_mcp",
+    }
+    if type(route_identity) is not dict or route_identity != expected_route:
+        raise ValueError("CSM authorization is bound to the fixed exposed Plan route")
+    canonical_ledger = canonical_public_trial_ledger_path(
+        root,
+        cohort_digest=cohort_digest,
+        candidate_sha=candidate_sha,
+        phase="openrouter-csm-diagnostic",
+    )
+    requested_ledger = Path(ledger_path)
+    if not requested_ledger.is_absolute():
+        requested_ledger = Path(root) / requested_ledger
+    if requested_ledger.resolve(strict=False) != canonical_ledger:
+        raise ValueError("CSM authorization requires the canonical diagnostic ledger path")
+    return {
+        "schema_version": "openrouter-csm-diagnostic-authorization-v1",
+        "authorization_id": OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID,
+        "repository_digest": hashlib.sha256(
+            _repository_identity(root).encode("utf-8")
+        ).hexdigest(),
+        "candidate_sha": candidate_sha,
+        "cohort_digest": cohort_digest,
+        "ledger_path": str(canonical_ledger),
+        "readiness_evidence_sha256": readiness_evidence_sha256,
+        "model_profiles_digest": model_profiles_digest,
+        "evaluation_source_digest": evaluation_source_digest,
+        "manifest_digest": manifest_digest,
+        "source_manifest_digest": source_manifest_digest,
+        "task_inventory_digest": task_inventory_digest,
+        "route_identity": expected_route,
+        "batch_limits": OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS,
+        "resource_limits": OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS,
+        "caps_digest": digest(
+            {
+                "batch_limits": OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS,
+                "resource_limits": OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS,
+            }
+        ),
+    }
+
+
+def prepare_openrouter_csm_diagnostic_authorization(
+    root,
+    *,
+    authorization_id,
+    candidate_sha,
+    cohort_digest,
+    ledger_path,
+    readiness_evidence_sha256,
+    model_profiles_digest,
+    evaluation_source_digest,
+    manifest_digest,
+    source_manifest_digest,
+    task_inventory_digest,
+    route_identity,
+):
+    """Persist the immutable batch envelope and its first-start deadline."""
+    root = Path(root).resolve()
+    identity = _openrouter_csm_identity(
+        root,
+        authorization_id=authorization_id,
+        candidate_sha=candidate_sha,
+        cohort_digest=cohort_digest,
+        ledger_path=ledger_path,
+        readiness_evidence_sha256=readiness_evidence_sha256,
+        model_profiles_digest=model_profiles_digest,
+        evaluation_source_digest=evaluation_source_digest,
+        manifest_digest=manifest_digest,
+        source_manifest_digest=source_manifest_digest,
+        task_inventory_digest=task_inventory_digest,
+        route_identity=route_identity,
+    )
+    authorization_path = canonical_openrouter_csm_diagnostic_authorization_path(root)
+    authorization_path.parent.mkdir(parents=True, exist_ok=True)
+    if authorization_path.is_symlink():
+        raise ValueError("CSM authorization record cannot be a symlink")
+    connection = sqlite3.connect(authorization_path, timeout=30, isolation_level=None)
+    connection.execute("PRAGMA synchronous=FULL")
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS csm_batch_authorization("
+        "singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+        "envelope_json TEXT NOT NULL,envelope_sha256 TEXT NOT NULL,"
+        "started_at_utc TEXT NOT NULL,deadline_at_utc TEXT NOT NULL,"
+        "ledger_path TEXT NOT NULL,status TEXT NOT NULL "
+        "CHECK(status IN ('prepared','open','completed')),report_sha256 TEXT)"
+    )
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT envelope_json,envelope_sha256,started_at_utc,deadline_at_utc,"
+            "ledger_path,status,report_sha256 FROM csm_batch_authorization WHERE singleton=1"
+        ).fetchone()
+        if row is None:
+            started = datetime.now(UTC)
+            deadline = started + timedelta(seconds=1_800)
+            envelope = {
+                **identity,
+                "batch_started_at_utc": started.isoformat(),
+                "batch_deadline_at_utc": deadline.isoformat(),
+            }
+            envelope_json = json.dumps(envelope, sort_keys=True, separators=(",", ":"))
+            envelope_sha256 = hashlib.sha256(envelope_json.encode("utf-8")).hexdigest()
+            connection.execute(
+                "INSERT INTO csm_batch_authorization(singleton,envelope_json,envelope_sha256,"
+                "started_at_utc,deadline_at_utc,ledger_path,status) VALUES(1,?,?,?,?,?,'prepared')",
+                (
+                    envelope_json,
+                    envelope_sha256,
+                    started.isoformat(),
+                    deadline.isoformat(),
+                    identity["ledger_path"],
+                ),
+            )
+            status, report_sha256 = "prepared", None
+        else:
+            try:
+                envelope = json.loads(row[0])
+            except json.JSONDecodeError as exc:
+                raise ValueError("Persisted CSM authorization envelope is malformed") from exc
+            persisted_identity = {
+                key: value for key, value in envelope.items()
+                if key not in {"batch_started_at_utc", "batch_deadline_at_utc"}
+            }
+            expected_sha = hashlib.sha256(row[0].encode("utf-8")).hexdigest()
+            if (
+                persisted_identity != identity
+                or row[1] != expected_sha
+                or row[4] != identity["ledger_path"]
+            ):
+                raise ValueError("CSM authorization identity, candidate, or ledger path differs")
+            if row[5] == "completed":
+                raise ValueError("The independent CSM diagnostic batch is already complete")
+            if row[5] == "open" and not Path(row[4]).is_file():
+                raise ValueError("Open CSM authorization has lost its ledger; budget cannot reset")
+            status, report_sha256 = row[5], row[6]
+            envelope_sha256 = row[1]
+        connection.execute("COMMIT")
+        return {
+            **envelope,
+            "authorization_path": authorization_path,
+            "authorization_sha256": envelope_sha256,
+            "status": status,
+            "report_sha256": report_sha256,
+        }
+    except BaseException:
+        if connection.in_transaction:
+            connection.execute("ROLLBACK")
+        raise
+    finally:
+        connection.close()
+
+
+def _inspect_openrouter_csm_ledger(authorization):
+    path = Path(authorization["ledger_path"])
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("The prepared CSM authorization ledger is missing")
+    connection = sqlite3.connect(f"file:{path.resolve()}?mode=ro", uri=True, timeout=5)
+    try:
+        metadata = {
+            key: json.loads(value)
+            for key, value in connection.execute("SELECT key,value FROM metadata")
+        }
+        batch = connection.execute(
+            "SELECT started_at_utc,deadline_at_utc FROM batch_control WHERE singleton=1"
+        ).fetchone()
+        routes = connection.execute(
+            "SELECT trial_id,route,dataset,domain,case_id FROM route_trials"
+        ).fetchall()
+        forbidden_attempts = connection.execute(
+            "SELECT COUNT(*) FROM model_attempts "
+            "WHERE role!='primary' OR lower(provider) NOT IN ('openrouter','open_router') "
+            "OR (actual_provider IS NOT NULL "
+            "AND lower(actual_provider) NOT IN ('openrouter','open_router'))"
+        ).fetchone()[0]
+    except (sqlite3.Error, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("The prepared CSM ledger cannot be verified") from exc
+    finally:
+        connection.close()
+    expected_metadata = {
+        "schema_version": "public-trial-ledger-v6",
+        "cohort_digest": authorization["cohort_digest"],
+        "manifest_digest": authorization["manifest_digest"],
+        "source_manifest_digest": authorization["source_manifest_digest"],
+        "task_inventory_digest": authorization["task_inventory_digest"],
+        "profiles_digest": authorization["model_profiles_digest"],
+        "batch_limits_digest": _canonical_digest(authorization["batch_limits"]),
+        "mode": "smoke",
+        "global_jev_ledger_path": None,
+        "candidate_sha": authorization["candidate_sha"],
+    }
+    if any(metadata.get(key) != value for key, value in expected_metadata.items()):
+        raise ValueError("CSM ledger metadata differs from its immutable authorization")
+    started = datetime.fromisoformat(authorization["batch_started_at_utc"])
+    deadline = datetime.fromisoformat(authorization["batch_deadline_at_utc"])
+    if (
+        batch != (started.isoformat(), deadline.isoformat())
+        or (deadline - started).total_seconds() != 1_800
+        or len(routes) != 1
+        or tuple(routes[0])
+        != (
+            authorization["route_identity"]["trial_id"],
+            "plan_mcp",
+            "enterpriseops-gym",
+            "csm",
+            "task_20260106_161859_265_00364ece_0e836ce8",
+        )
+        or forbidden_attempts != 0
+    ):
+        raise ValueError("CSM ledger route, deadline, or disabled-role boundary differs")
+
+
+def _canonical_digest(value):
+    from decagent.decisions.contracts import digest
+
+    return digest(value)
+
+
+def activate_openrouter_csm_diagnostic_authorization(root, authorization):
+    """Move a prepared batch to open only after its canonical ledger is verified."""
+    root = Path(root).resolve()
+    path = canonical_openrouter_csm_diagnostic_authorization_path(root)
+    if Path(authorization.get("authorization_path", "")).resolve() != path:
+        raise ValueError("CSM authorization is not in the canonical user-level store")
+    if authorization.get("status") == "completed":
+        raise ValueError("The independent CSM diagnostic batch is already complete")
+    _inspect_openrouter_csm_ledger(authorization)
+    if datetime.now(UTC) >= datetime.fromisoformat(authorization["batch_deadline_at_utc"]):
+        raise ValueError("The independent CSM diagnostic deadline has expired")
+    connection = sqlite3.connect(path, timeout=30, isolation_level=None)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT envelope_sha256,status FROM csm_batch_authorization WHERE singleton=1"
+        ).fetchone()
+        if row is None or row[0] != authorization.get("authorization_sha256"):
+            raise ValueError("CSM authorization envelope digest differs")
+        if row[1] == "completed":
+            raise ValueError("The independent CSM diagnostic batch is already complete")
+        connection.execute(
+            "UPDATE csm_batch_authorization SET status='open' WHERE singleton=1"
+        )
+        connection.execute("COMMIT")
+    except BaseException:
+        if connection.in_transaction:
+            connection.execute("ROLLBACK")
+        raise
+    finally:
+        connection.close()
+    return {**authorization, "status": "open"}
+
+
+def complete_openrouter_csm_diagnostic_authorization(root, authorization, *, report_sha256):
+    if type(report_sha256) is not str or re.fullmatch(r"[a-f0-9]{64}", report_sha256) is None:
+        raise ValueError("A finalized CSM diagnostic report digest is required")
+    path = canonical_openrouter_csm_diagnostic_authorization_path(root)
+    connection = sqlite3.connect(path, timeout=30, isolation_level=None)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT envelope_sha256,status,report_sha256 FROM csm_batch_authorization "
+            "WHERE singleton=1"
+        ).fetchone()
+        if row is None or row[0] != authorization.get("authorization_sha256"):
+            raise ValueError("CSM authorization envelope digest differs")
+        if row[1] == "completed":
+            if row[2] != report_sha256:
+                raise ValueError("Completed CSM diagnostic report digest cannot change")
+        elif row[1] != "open":
+            raise ValueError("CSM diagnostic authorization was not opened")
+        else:
+            connection.execute(
+                "UPDATE csm_batch_authorization SET status='completed',report_sha256=? "
+                "WHERE singleton=1",
+                (report_sha256,),
+            )
+        connection.execute("COMMIT")
+    except BaseException:
+        if connection.in_transaction:
+            connection.execute("ROLLBACK")
+        raise
+    finally:
+        connection.close()
 
 
 def _connect(path):

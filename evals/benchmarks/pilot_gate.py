@@ -13,11 +13,14 @@ from pathlib import Path, PurePosixPath
 
 from decagent.decisions.contracts import digest
 from decagent.evaluation.business.public_limits import (
+    OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS,
+    OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS,
     OPENROUTER_DIAGNOSTIC_LIMITS,
     validate_public_batch_limits,
 )
 from decagent.evaluation.business.public_trials import PublicRunPlan
 from decagent.evaluation.business.public_weekly_budget import (
+    OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID,
     PUBLIC_EVALUATION_BUDGET_ID,
 )
 
@@ -46,6 +49,18 @@ OPENROUTER_DIAGNOSTIC_BATCH_LIMITS = {
     "tool_calls": 40,
     "wall_seconds": 1_800,
 }
+OPENROUTER_CSM_DIAGNOSTIC_CASE_ID = (
+    "task_20260106_161859_265_00364ece_0e836ce8"
+)
+OPENROUTER_CSM_DIAGNOSTIC_TRIAL_ID = (
+    "e60fc80781019a10a0896491959761688b1718d63e021b5edea37813d9f9dbc5"
+)
+OPENROUTER_FIREWORKS_V3_READINESS_SHA256 = (
+    "6630acf998d785dc1bb283030ee8fc184d59a5af0ac0efcf3777864db2ecc857"
+)
+OPENROUTER_FIREWORKS_V7_PROFILE_FINGERPRINT = (
+    "8719683a9d52bae5313cc2a4cd69e68f7a49f0e0b1e5c215cbb7b06dc8900474"
+)
 _GENERAL_ROLES = frozenset({"primary", "user_simulator", "judge"})
 _SCORE_SOURCES = frozenset(
     {
@@ -347,6 +362,136 @@ def is_bounded_openrouter_diagnostic_plan(plan):
         "judge_requests": 0,
         "judge_tokens": 0,
     }
+
+
+def build_bounded_openrouter_csm_diagnostic_plan(plan):
+    """Create a standalone, Fireworks-bound CSM Plan route with its own caps."""
+    if (
+        not isinstance(plan, PublicRunPlan)
+        or plan.mode != "smoke"
+        or len(plan.initial_smoke_wave) != 4
+        or tuple(plan.routes) != _SOURCE_ROUTE_ORDER
+        or plan.route_schedule is not None
+        or plan.profiles.primary.provider.lower() not in {"openrouter", "open_router"}
+        or plan.profiles.primary.provider_routing != "openrouter_fireworks"
+        or plan.profiles.fingerprint != OPENROUTER_FIREWORKS_V7_PROFILE_FINGERPRINT
+        or plan.readiness_evidence_path is None
+    ):
+        raise ValueError("A frozen v7 OpenRouter Fireworks CSM cohort is required")
+    profiles = (
+        plan.profiles.primary,
+        plan.profiles.user_simulator,
+        plan.profiles.judge,
+    )
+    if any(
+        profile.provider != plan.profiles.primary.provider
+        or profile.model != plan.profiles.primary.model
+        or profile.endpoint != plan.profiles.primary.endpoint
+        or profile.provider_routing != "openrouter_fireworks"
+        for profile in profiles
+    ):
+        raise ValueError("CSM diagnostics require one frozen Fireworks model profile")
+
+    records_by_id = {record["trial_id"]: record for record in plan.trials}
+    selected = next(
+        (
+            records_by_id[item["trial_id"]]
+            for item in plan.initial_smoke_wave
+            if item["trial_id"] in records_by_id
+            and records_by_id[item["trial_id"]].get("benchmark") == "enterpriseops-gym"
+            and records_by_id[item["trial_id"]].get("domain") == "csm"
+            and records_by_id[item["trial_id"]].get("case_id")
+            == OPENROUTER_CSM_DIAGNOSTIC_CASE_ID
+            and records_by_id[item["trial_id"]].get("exposure_group")
+            == "development_exposed"
+        ),
+        None,
+    )
+    if selected is None:
+        raise ValueError("The fixed exposed CSM development case is unavailable")
+
+    validate_public_batch_limits(OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS)
+    resource_digest = digest(OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS)
+    selected = {
+        **selected,
+        "resource_profile_digest": resource_digest,
+    }
+    readiness_path = Path(plan.readiness_evidence_path)
+    if readiness_path.is_symlink() or not readiness_path.is_file():
+        raise ValueError("Fireworks v3 readiness evidence is unavailable")
+    readiness_sha256 = hashlib.sha256(readiness_path.read_bytes()).hexdigest()
+    if readiness_sha256 != OPENROUTER_FIREWORKS_V3_READINESS_SHA256:
+        raise ValueError("CSM diagnostics require the frozen Fireworks v3 readiness evidence")
+    if selected["trial_id"] != OPENROUTER_CSM_DIAGNOSTIC_TRIAL_ID:
+        raise ValueError("CSM diagnostics require the fixed manifest v12 trial identity")
+    manifest = digest(
+        {
+            "schema_version": "public-evaluation-openrouter-csm-diagnostic-plan-v1",
+            "authorization_id": OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID,
+            "source_manifest_digest": plan.manifest_digest,
+            "source_manifest_sha256": plan.source_manifest_digest,
+            "task_inventory_digest": plan.inventory_digest,
+            "model_profiles_digest": plan.profiles.fingerprint,
+            "readiness_evidence_sha256": readiness_sha256,
+            "trial_id": selected["trial_id"],
+            "case_id": OPENROUTER_CSM_DIAGNOSTIC_CASE_ID,
+            "route": "plan_mcp",
+            "resource_limits": OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS,
+            "batch_limits": OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS,
+        }
+    )
+    return replace(
+        plan,
+        manifest_digest=manifest,
+        routes=("plan_mcp",),
+        trials=(selected,),
+        initial_smoke_wave=(selected,),
+        resource_limits=dict(OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS),
+        batch_limits=dict(OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS),
+        jev_semantic_status="disabled_for_development_diagnostic",
+        route_schedule=None,
+    )
+
+
+def is_bounded_openrouter_csm_diagnostic_plan(plan):
+    if not isinstance(plan, PublicRunPlan) or plan.mode != "smoke":
+        return False
+    if (
+        len(plan.trials) != 1
+        or len(plan.initial_smoke_wave) != 1
+        or tuple(plan.routes) != ("plan_mcp",)
+        or plan.trials[0].get("benchmark") != "enterpriseops-gym"
+        or plan.trials[0].get("domain") != "csm"
+        or plan.trials[0].get("case_id") != OPENROUTER_CSM_DIAGNOSTIC_CASE_ID
+        or plan.trials[0].get("exposure_group") != "development_exposed"
+        or plan.trials[0].get("trial_id") != plan.initial_smoke_wave[0].get("trial_id")
+        or plan.profiles.primary.provider.lower() not in {"openrouter", "open_router"}
+        or plan.profiles.primary.provider_routing != "openrouter_fireworks"
+        or plan.profiles.fingerprint != OPENROUTER_FIREWORKS_V7_PROFILE_FINGERPRINT
+        or plan.batch_limits != OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS
+        or plan.resource_limits != OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS
+        or plan.readiness_evidence_path is None
+        or plan.route_schedule is not None
+    ):
+        return False
+    readiness_path = Path(plan.readiness_evidence_path)
+    if readiness_path.is_symlink() or not readiness_path.is_file():
+        return False
+    if hashlib.sha256(readiness_path.read_bytes()).hexdigest() != (
+        OPENROUTER_FIREWORKS_V3_READINESS_SHA256
+    ):
+        return False
+    return all(
+        profile.provider == plan.profiles.primary.provider
+        and profile.model == plan.profiles.primary.model
+        and profile.endpoint == plan.profiles.primary.endpoint
+        and profile.provider_routing == "openrouter_fireworks"
+        for profile in (
+            plan.profiles.primary,
+            plan.profiles.user_simulator,
+            plan.profiles.judge,
+        )
+    )
 
 
 def remaining_pilot_batch_limits(

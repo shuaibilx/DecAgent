@@ -42,13 +42,17 @@ from decagent.evaluation.business.public_trials import (
     PublicRunPlan,
     canonical_public_trial_ledger_path,
     open_first_wave_public_trial_ledger,
+    open_openrouter_csm_diagnostic_ledger,
     validate_live_public_readiness,
 )
 from decagent.evaluation.business.public_weekly_budget import (
+    OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID,
     PUBLIC_EVALUATION_BUDGET_ID,
+    activate_openrouter_csm_diagnostic_authorization,
     authorize_openrouter_diagnostic_continuation,
     authorize_public_evaluation_phase,
     openrouter_diagnostic_parent_clock,
+    prepare_openrouter_csm_diagnostic_authorization,
 )
 from decagent.evaluation.business.routes import ControlledRoutes
 
@@ -302,7 +306,10 @@ class FirstWaveRuntime:
     def __init__(self, plan, *, tau_python, journal_root):
         if not isinstance(plan, PublicRunPlan) or plan.mode not in {"smoke", "pilot"}:
             raise ValueError("A frozen smoke or pilot plan is required")
-        if type(tau_python) is not str or not tau_python.strip():
+        needs_tau_runtime = any(
+            record.get("benchmark") == "tau-bench" for record in plan.trials
+        )
+        if needs_tau_runtime and (type(tau_python) is not str or not tau_python.strip()):
             raise ValueError("A dedicated pinned τ Python 3.12 executable is required")
         self.plan = plan
         self.root = Path(plan.root).resolve()
@@ -317,9 +324,12 @@ class FirstWaveRuntime:
                 encoding="utf-8"
             )
         )
-        from decagent.evaluation.business.tau_process import PinnedTauRuntime
+        if needs_tau_runtime:
+            from decagent.evaluation.business.tau_process import PinnedTauRuntime
 
-        self.tau_runtime = PinnedTauRuntime.from_manifest(self.root, Path(tau_python))
+            self.tau_runtime = PinnedTauRuntime.from_manifest(self.root, Path(tau_python))
+        else:
+            self.tau_runtime = None
         self._sessions = {}
         self._trials = {}
 
@@ -365,6 +375,8 @@ class FirstWaveRuntime:
 
     def _tau_trial(self, record):
         runtime = self.tau_runtime
+        if runtime is None:
+            raise ValueError("This frozen phase does not initialize the τ-Bench runtime")
         domain, case_id, split = record["domain"], record["case_id"], record["split"]
         expected_split = "test" if self.plan.mode == "pilot" else "train"
         if split != expected_split or case_id not in runtime.case_ids(domain, split=split):
@@ -457,7 +469,8 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
     if (
         not isinstance(plan, PublicRunPlan)
         or phase.phase not in {
-            "diagnostic", "openrouter-diagnostic", "first-wave", "pilot"
+            "diagnostic", "openrouter-diagnostic", "openrouter-csm-diagnostic",
+            "first-wave", "pilot"
         }
         or (phase.phase == "pilot" and plan.mode != "pilot")
     ):
@@ -568,6 +581,8 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
         "schema_version": (
             "public-evaluation-live-pilot-v2"
             if phase.phase == "pilot"
+            else "public-evaluation-live-openrouter-csm-diagnostic-v1"
+            if phase.phase == "openrouter-csm-diagnostic"
             else "public-evaluation-live-openrouter-diagnostic-v1"
             if phase.phase == "openrouter-diagnostic"
             else "public-evaluation-live-diagnostic-v2"
@@ -578,7 +593,11 @@ def live_first_wave_report(plan, phase, ledger, *, candidate_sha, working_tree_d
         "phase": phase.phase,
         "candidate_sha": candidate_sha,
         "cohort_digest": plan.cohort_digest,
-        "evaluation_budget_id": PUBLIC_EVALUATION_BUDGET_ID,
+        "evaluation_budget_id": (
+            OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID
+            if phase.phase == "openrouter-csm-diagnostic"
+            else PUBLIC_EVALUATION_BUDGET_ID
+        ),
         "working_tree_dirty": working_tree_dirty,
         "manifest_digest": plan.manifest_digest,
         "source_manifest_digest": plan.source_manifest_digest,
@@ -784,9 +803,12 @@ def execute_live_public_phase(
         DIAGNOSTIC_BATCH_LIMITS,
         DIAGNOSTIC_LIMITS,
         DIAGNOSTIC_RESOURCE_LIMITS,
+        OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS,
+        OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS,
         apply_remaining_pilot_budget,
         evaluation_source_digest,
         is_bounded_diagnostic_plan,
+        is_bounded_openrouter_csm_diagnostic_plan,
         is_bounded_openrouter_diagnostic_plan,
         validate_diagnostic_evidence,
     )
@@ -795,7 +817,10 @@ def execute_live_public_phase(
     if (
         type(diagnostic_round) is not int
         or diagnostic_round not in {1, 2}
-        or (phase_name not in {"diagnostic", "openrouter-diagnostic"} and diagnostic_round != 1)
+        or (
+            phase_name not in {"diagnostic", "openrouter-diagnostic"}
+            and diagnostic_round != 1
+        )
     ):
         raise ValueError("Only diagnostic round 1 or the one-time round 2 is supported")
     if candidate_ci_verified is not True:
@@ -814,6 +839,10 @@ def execute_live_public_phase(
             or re.fullmatch(r"[a-f0-9]{64}", parent_report_sha256) is None
         ):
             raise ValueError("OpenRouter dispatch requires the verified Qwen parent report digest")
+        diagnostic_gate = None
+    elif phase_name == "openrouter-csm-diagnostic":
+        if not is_bounded_openrouter_csm_diagnostic_plan(plan):
+            raise ValueError("Independent OpenRouter dispatch requires the fixed CSM Plan cohort")
         diagnostic_gate = None
     elif phase_name == "pilot":
         if candidate_ci_verified is not True or not diagnostic_evidence:
@@ -853,68 +882,118 @@ def execute_live_public_phase(
     batch_started_at = datetime.now(UTC)
     started = perf_counter()
     with PublicSupervisor(canonical_public_supervisor_lock_path(plan.root)) as supervisor:
+        ledger_phase = (
+            "openrouter-csm-diagnostic"
+            if phase_name == "openrouter-csm-diagnostic"
+            else None
+        )
         ledger_path = canonical_public_trial_ledger_path(
             plan.root,
             cohort_digest=plan.cohort_digest,
             candidate_sha=candidate_sha,
+            phase=ledger_phase,
         )
-        if phase_name == "openrouter-diagnostic":
-            authorization = authorize_openrouter_diagnostic_continuation(
-                plan.root,
-                parent_report_sha256=parent_report_sha256,
-                candidate_sha=candidate_sha,
-                cohort_digest=plan.cohort_digest,
-                ledger_path=ledger_path,
-            )
-        else:
-            authorization = authorize_public_evaluation_phase(
-                plan.root,
-                phase=phase_name,
-                phase_round=diagnostic_round,
-                candidate_sha=candidate_sha,
-                cohort_digest=plan.cohort_digest,
-                ledger_path=ledger_path,
-                diagnostic_report_sha256=(
-                    diagnostic_gate["report_sha256"] if diagnostic_gate is not None else None
-                ),
-            )
-        if authorization.get("batch_started_at_utc") is not None:
-            batch_started_at = datetime.fromisoformat(
-                authorization["batch_started_at_utc"]
-            ).astimezone(UTC)
-        ledger = open_first_wave_public_trial_ledger(
-            plan.root,
-            plan,
-            supervisor=supervisor,
-            candidate_sha=candidate_sha,
-            batch_started_at=batch_started_at,
-        )
+        ledger = None
         try:
-            if phase_name == "openrouter-diagnostic":
-                authorize_openrouter_diagnostic_continuation(
+            if phase_name == "openrouter-csm-diagnostic":
+                readiness_path = plan.readiness_evidence_path
+                readiness_digest = hashlib.sha256(readiness_path.read_bytes()).hexdigest()
+                record = plan.trials[0]
+                authorization = prepare_openrouter_csm_diagnostic_authorization(
                     plan.root,
-                    parent_report_sha256=parent_report_sha256,
+                    authorization_id=OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID,
                     candidate_sha=candidate_sha,
                     cohort_digest=plan.cohort_digest,
                     ledger_path=ledger_path,
+                    readiness_evidence_sha256=readiness_digest,
+                    model_profiles_digest=plan.profiles.fingerprint,
+                    evaluation_source_digest=evaluation_source_digest(plan.root),
+                    manifest_digest=plan.manifest_digest,
+                    source_manifest_digest=plan.source_manifest_digest,
+                    task_inventory_digest=plan.inventory_digest,
+                    route_identity={
+                        "benchmark": record["benchmark"],
+                        "domain": record["domain"],
+                        "case_id": record["case_id"],
+                        "trial_id": record["trial_id"],
+                        "route": "plan_mcp",
+                    },
+                )
+                batch_started_at = datetime.fromisoformat(
+                    authorization["batch_started_at_utc"]
+                ).astimezone(UTC)
+                ledger = open_openrouter_csm_diagnostic_ledger(
+                    plan.root,
+                    plan,
+                    supervisor=supervisor,
+                    candidate_sha=candidate_sha,
+                    batch_started_at=batch_started_at,
+                )
+                authorization = activate_openrouter_csm_diagnostic_authorization(
+                    plan.root, authorization
                 )
             else:
-                finalized_authorization = authorize_public_evaluation_phase(
-                    plan.root,
-                    phase=phase_name,
-                    phase_round=diagnostic_round,
-                    candidate_sha=candidate_sha,
-                    cohort_digest=plan.cohort_digest,
-                    ledger_path=ledger_path,
-                    diagnostic_report_sha256=(
-                        diagnostic_gate["report_sha256"]
-                        if diagnostic_gate is not None
-                        else None
-                    ),
-                    finalize_candidate_successor=True,
+                authorization = (
+                    authorize_openrouter_diagnostic_continuation(
+                        plan.root,
+                        parent_report_sha256=parent_report_sha256,
+                        candidate_sha=candidate_sha,
+                        cohort_digest=plan.cohort_digest,
+                        ledger_path=ledger_path,
+                    )
+                    if phase_name == "openrouter-diagnostic"
+                    else authorize_public_evaluation_phase(
+                        plan.root,
+                        phase=phase_name,
+                        phase_round=diagnostic_round,
+                        candidate_sha=candidate_sha,
+                        cohort_digest=plan.cohort_digest,
+                        ledger_path=ledger_path,
+                        diagnostic_report_sha256=(
+                            diagnostic_gate["report_sha256"]
+                            if diagnostic_gate is not None
+                            else None
+                        ),
+                    )
                 )
-                if finalized_authorization["candidate_successor_pending"]:
-                    raise ValueError("Diagnostic candidate authorization transfer is incomplete")
+                if authorization.get("batch_started_at_utc") is not None:
+                    batch_started_at = datetime.fromisoformat(
+                        authorization["batch_started_at_utc"]
+                    ).astimezone(UTC)
+                ledger = open_first_wave_public_trial_ledger(
+                    plan.root,
+                    plan,
+                    supervisor=supervisor,
+                    candidate_sha=candidate_sha,
+                    batch_started_at=batch_started_at,
+                )
+                if phase_name == "openrouter-diagnostic":
+                    authorize_openrouter_diagnostic_continuation(
+                        plan.root,
+                        parent_report_sha256=parent_report_sha256,
+                        candidate_sha=candidate_sha,
+                        cohort_digest=plan.cohort_digest,
+                        ledger_path=ledger_path,
+                    )
+                else:
+                    finalized_authorization = authorize_public_evaluation_phase(
+                        plan.root,
+                        phase=phase_name,
+                        phase_round=diagnostic_round,
+                        candidate_sha=candidate_sha,
+                        cohort_digest=plan.cohort_digest,
+                        ledger_path=ledger_path,
+                        diagnostic_report_sha256=(
+                            diagnostic_gate["report_sha256"]
+                            if diagnostic_gate is not None
+                            else None
+                        ),
+                        finalize_candidate_successor=True,
+                    )
+                    if finalized_authorization["candidate_successor_pending"]:
+                        raise ValueError(
+                            "Diagnostic candidate authorization transfer is incomplete"
+                        )
             runtime = FirstWaveRuntime(
                 plan, tau_python=tau_python, journal_root=journal_root
             )
@@ -939,6 +1018,9 @@ def execute_live_public_phase(
                 trial_id_for=lambda trial: trial.trial_id,
                 include_jev_semantic_callback=phase_name == "pilot",
                 include_primary_semantic_callback=phase_name == "pilot",
+                include_auxiliary_callbacks=(
+                    phase_name != "openrouter-csm-diagnostic"
+                ),
             )
             routes = ControlledRoutes(
                 runtime.environment_factory,
@@ -1016,6 +1098,27 @@ def execute_live_public_phase(
                     }
                     for record in plan.trials
                 ]
+            elif phase_name == "openrouter-csm-diagnostic":
+                report["authorization_record"] = authorization
+                report["readiness_evidence_sha256"] = readiness_digest
+                report["evaluation_source_digest"] = evaluation_source_digest(plan.root)
+                report["diagnostic_elapsed_seconds"] = max(0.0, perf_counter() - started)
+                report["diagnostic_batch_limits"] = dict(
+                    OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS
+                )
+                report["diagnostic_resource_limits"] = dict(
+                    OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS
+                )
+                report["evidence_scope"] = "development_only_excluded_from_pilot"
+                report["diagnostic_task_records"] = [
+                    {
+                        key: record[key]
+                        for key in (
+                            "trial_id", "benchmark", "domain", "split", "case_id", "version"
+                        )
+                    }
+                    for record in plan.trials
+                ]
             report["candidate_ci_verified"] = candidate_ci_verified
             if diagnostic_gate is not None:
                 report["diagnostic_gate"] = diagnostic_gate
@@ -1024,7 +1127,8 @@ def execute_live_public_phase(
                 )
             return phase_receipt, report
         finally:
-            ledger.close()
+            if ledger is not None:
+                ledger.close()
 
 
 def execute_live_first_wave(

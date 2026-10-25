@@ -1728,6 +1728,7 @@ def public_first_wave_model_adapter_factory(
     primary_factory=None,
     include_jev_semantic_callback=False,
     include_primary_semantic_callback=False,
+    include_auxiliary_callbacks=True,
 ):
     """Create the complete ledgered first-wave model role map.
 
@@ -1750,8 +1751,10 @@ def public_first_wave_model_adapter_factory(
         return value
 
     primary_api_key = api_key_for(profiles.primary)
-    simulator_api_key = api_key_for(profiles.user_simulator)
-    judge_api_key = api_key_for(profiles.judge)
+    simulator_api_key = (
+        api_key_for(profiles.user_simulator) if include_auxiliary_callbacks else None
+    )
+    judge_api_key = api_key_for(profiles.judge) if include_auxiliary_callbacks else None
     known_secrets = tuple(
         value
         for value in (
@@ -1779,23 +1782,28 @@ def public_first_wave_model_adapter_factory(
             primary_factory=primary_factory,
             worker_guard_path=worker_guard_path,
         ),
-        "user_simulator": public_tau_model_callback_factory(
-            profiles.user_simulator,
-            role="user_simulator",
-            api_key=simulator_api_key,
-            known_secrets=known_secrets,
-            primary_factory=primary_factory,
-            worker_guard_path=worker_guard_path,
-        ),
-        "official_judge": public_tau_model_callback_factory(
-            profiles.judge,
-            role="judge",
-            api_key=judge_api_key,
-            known_secrets=known_secrets,
-            primary_factory=primary_factory,
-            worker_guard_path=worker_guard_path,
-        ),
     }
+    if include_auxiliary_callbacks:
+        callback_factories.update(
+            {
+                "user_simulator": public_tau_model_callback_factory(
+                    profiles.user_simulator,
+                    role="user_simulator",
+                    api_key=simulator_api_key,
+                    known_secrets=known_secrets,
+                    primary_factory=primary_factory,
+                    worker_guard_path=worker_guard_path,
+                ),
+                "official_judge": public_tau_model_callback_factory(
+                    profiles.judge,
+                    role="judge",
+                    api_key=judge_api_key,
+                    known_secrets=known_secrets,
+                    primary_factory=primary_factory,
+                    worker_guard_path=worker_guard_path,
+                ),
+            }
+        )
     semantic_callback_factories = {}
     if include_jev_semantic_callback:
         jev_key = getattr(settings, "jev_api_key", None)

@@ -13,12 +13,15 @@ from decagent.evaluation.business.public_trials import (
     load_public_run_plan,
 )
 from decagent.evaluation.business.public_weekly_budget import (
+    OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID,
+    complete_openrouter_csm_diagnostic_authorization,
     complete_openrouter_diagnostic_continuation,
     complete_public_evaluation_phase,
 )
 
 from evals.benchmarks.pilot_gate import (
     build_bounded_diagnostic_plan,
+    build_bounded_openrouter_csm_diagnostic_plan,
     build_bounded_openrouter_diagnostic_plan,
     evaluation_source_digest,
     validate_diagnostic_evidence,
@@ -35,7 +38,7 @@ def parser():
     command.add_argument(
         "--phase",
         choices=(
-            "diagnostic", "openrouter-diagnostic", "first-wave",
+            "diagnostic", "openrouter-diagnostic", "openrouter-csm-diagnostic", "first-wave",
             "remaining-smoke", "full", "pilot",
         ),
         help="show the fixed task slice selected for this offline phase",
@@ -135,6 +138,16 @@ def _load_plan(args, root, *, live=False):
             check_runtime=live,
             check_source_files=live,
         )
+    use_fireworks_diagnostic_profile = args.phase in {
+        "openrouter-diagnostic",
+        "openrouter-csm-diagnostic",
+    }
+    readiness_path = args.readiness_evidence
+    if use_fireworks_diagnostic_profile and readiness_path is None:
+        readiness_path = (
+            root
+            / "evals/benchmarks/evidence/routed-model-readiness-fireworks-v3-20261024.json"
+        )
     return load_public_run_plan(
         root,
         mode=mode,
@@ -142,7 +155,7 @@ def _load_plan(args, root, *, live=False):
             args.manifest
             or (
                 root / "evals/benchmarks/manifests/comparison_trial_manifest_v12.json"
-                if args.phase == "openrouter-diagnostic"
+                if use_fireworks_diagnostic_profile
                 else None
             )
         ),
@@ -151,15 +164,15 @@ def _load_plan(args, root, *, live=False):
             args.model_profiles
             or (
                 root / "evals/benchmarks/manifests/evaluation_model_profiles_v7.json"
-                if args.phase == "openrouter-diagnostic"
+                if use_fireworks_diagnostic_profile
                 else None
             )
         ),
-        readiness_path=args.readiness_evidence,
+        readiness_path=readiness_path,
         # The diagnostic plan may be inspected offline before a matched profile
         # exists. Live dispatch always requires provider-specific readiness.
         allow_unready_diagnostic_model=(
-            args.phase == "openrouter-diagnostic" and not live
+            use_fireworks_diagnostic_profile and not live
         ),
         check_images=args.check_images or live,
         check_runtime=live,
@@ -168,10 +181,13 @@ def _load_plan(args, root, *, live=False):
 
 
 def _execute_live_phase(args, command):
-    if args.phase not in {"diagnostic", "openrouter-diagnostic", "pilot"}:
+    if args.phase not in {
+        "diagnostic", "openrouter-diagnostic", "openrouter-csm-diagnostic", "pilot"
+    }:
         command.error(
             "unbounded historical live phases are closed; use --phase diagnostic, "
-            "--phase openrouter-diagnostic, or --phase pilot"
+            "--phase openrouter-diagnostic, --phase openrouter-csm-diagnostic, or "
+            "--phase pilot"
         )
     required_mode = "pilot" if args.phase == "pilot" else "smoke"
     if args.mode not in {None, required_mode}:
@@ -203,7 +219,7 @@ def _execute_live_phase(args, command):
         candidate_sha = require_verified_candidate(root)
 
         settings = _settings_for_project(root)
-        if args.phase == "openrouter-diagnostic":
+        if args.phase in {"openrouter-diagnostic", "openrouter-csm-diagnostic"}:
             if not settings.resolved_fallback_api_key:
                 raise ValueError(
                     "The OpenRouter API key is required in the server environment"
@@ -212,17 +228,6 @@ def _execute_live_phase(args, command):
             raise ValueError("DECAGENT_MAIN_API_KEY is required in the server environment")
         if settings.fallback_enabled:
             raise ValueError("Cross-model fallback must be disabled for the frozen comparison")
-
-        tau_python = args.tau_python or Path(
-            os.getenv(
-                "DECAGENT_TAU_PYTHON",
-                root
-                / ".decagent/evaluation-runtimes/tau2-96a3ef9-py312/Scripts/python.exe",
-            )
-        )
-        tau_python = tau_python.resolve()
-        if not tau_python.is_file():
-            raise ValueError("The pinned τ-Bench Python executable is unavailable")
 
         run_plan = _load_plan(args, root, live=True)
         if args.phase == "diagnostic":
@@ -236,6 +241,8 @@ def _execute_live_phase(args, command):
                 root, args.parent_diagnostic_evidence
             )
             run_plan = build_bounded_openrouter_diagnostic_plan(run_plan)
+        elif args.phase == "openrouter-csm-diagnostic":
+            run_plan = build_bounded_openrouter_csm_diagnostic_plan(run_plan)
         else:
             validate_diagnostic_evidence(
                 root,
@@ -245,9 +252,22 @@ def _execute_live_phase(args, command):
                 expected_source_manifest_digest=run_plan.source_manifest_digest,
                 expected_inventory_digest=run_plan.inventory_digest,
             )
+        tau_python = args.tau_python or Path(
+            os.getenv(
+                "DECAGENT_TAU_PYTHON",
+                root
+                / ".decagent/evaluation-runtimes/tau2-96a3ef9-py312/Scripts/python.exe",
+            )
+        )
+        tau_python = tau_python.resolve()
+        if any(record["benchmark"] == "tau-bench" for record in run_plan.trials):
+            if not tau_python.is_file():
+                raise ValueError("The pinned τ-Bench Python executable is unavailable")
+        else:
+            tau_python = None
         call = {
             "settings": settings,
-            "tau_python": str(tau_python),
+            "tau_python": str(tau_python) if tau_python is not None else None,
             "journal_root": root / ".decagent/evaluation/journals",
             "candidate_sha": candidate_sha,
             "working_tree_dirty": False,
@@ -264,7 +284,11 @@ def _execute_live_phase(args, command):
         if (
             report.get("phase") != args.phase
             or report.get("evaluation_budget_id")
-            != "sop-pilot-20261024-v1"
+            != (
+                OPENROUTER_CSM_DIAGNOSTIC_AUTHORIZATION_ID
+                if args.phase == "openrouter-csm-diagnostic"
+                else "sop-pilot-20261024-v1"
+            )
             or type(report.get("cohort_digest")) is not str
             or type(report.get("candidate_sha")) is not str
         ):
@@ -279,6 +303,11 @@ def _execute_live_phase(args, command):
             root,
             cohort_digest=report["cohort_digest"],
             candidate_sha=report["candidate_sha"],
+            phase=(
+                "openrouter-csm-diagnostic"
+                if args.phase == "openrouter-csm-diagnostic"
+                else None
+            ),
         )
         report_sha256 = hashlib.sha256(report_path.read_bytes()).hexdigest()
         if args.phase == "openrouter-diagnostic":
@@ -288,6 +317,12 @@ def _execute_live_phase(args, command):
                 candidate_sha=report["candidate_sha"],
                 cohort_digest=report["cohort_digest"],
                 ledger_path=ledger_path,
+                report_sha256=report_sha256,
+            )
+        elif args.phase == "openrouter-csm-diagnostic":
+            complete_openrouter_csm_diagnostic_authorization(
+                root,
+                report["authorization_record"],
                 report_sha256=report_sha256,
             )
         else:
@@ -355,6 +390,8 @@ def main(argv=None):
             run_plan = build_bounded_diagnostic_plan(run_plan)
         elif args.phase == "openrouter-diagnostic":
             run_plan = build_bounded_openrouter_diagnostic_plan(run_plan)
+        elif args.phase == "openrouter-csm-diagnostic":
+            run_plan = build_bounded_openrouter_csm_diagnostic_plan(run_plan)
         report = build_dry_run_report(run_plan, phase=args.phase)
     except (OSError, ValueError) as exc:
         command.error(str(exc))

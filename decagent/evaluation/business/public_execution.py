@@ -397,6 +397,7 @@ def execute_public_route(
     trial,
     max_machine_seconds,
     route_kwargs=None,
+    ledger_phase=None,
 ):
     """Run and persist one ReAct/Plan first-wave route under its frozen ledger.
 
@@ -484,6 +485,7 @@ def execute_public_route(
             project_root,
             cohort_digest=plan.cohort_digest,
             candidate_sha=candidate_sha,
+            phase=ledger_phase,
         )
         if isinstance(plan, PublicRunPlan)
         else canonical_public_trial_ledger_path(project_root)
@@ -850,7 +852,8 @@ def execute_public_phase(
     phases have their own live gates.
     """
     if phase not in {
-        "diagnostic", "openrouter-diagnostic", "first-wave", "pilot"
+        "diagnostic", "openrouter-diagnostic", "openrouter-csm-diagnostic",
+        "first-wave", "pilot"
     }:
         raise ValueError("Live phase scheduler requires a registered frozen phase")
     if phase == "diagnostic":
@@ -870,6 +873,15 @@ def execute_public_phase(
 
         if not is_bounded_openrouter_diagnostic_plan(getattr(ledger, "plan", None)):
             raise ValueError("OpenRouter dispatch requires its bounded one-case cohort")
+    elif phase == "openrouter-csm-diagnostic":
+        from evals.benchmarks.pilot_gate import (
+            is_bounded_openrouter_csm_diagnostic_plan,
+        )
+
+        if not is_bounded_openrouter_csm_diagnostic_plan(getattr(ledger, "plan", None)):
+            raise ValueError(
+                "Independent OpenRouter CSM dispatch requires its fixed bounded cohort"
+            )
     project_root = Path(root).resolve()
     if (
         not isinstance(supervisor, PublicSupervisor)
@@ -886,6 +898,7 @@ def execute_public_phase(
             project_root,
             cohort_digest=plan.cohort_digest,
             candidate_sha=candidate_sha,
+            phase=(phase if phase == "openrouter-csm-diagnostic" else None),
         )
         if isinstance(plan, PublicRunPlan)
         and type(candidate_sha) is str
@@ -895,6 +908,7 @@ def execute_public_phase(
         not isinstance(plan, PublicRunPlan)
         or (phase == "first-wave" and plan.mode != "smoke")
         or (phase == "openrouter-diagnostic" and plan.mode != "smoke")
+        or (phase == "openrouter-csm-diagnostic" and plan.mode != "smoke")
         or (phase == "pilot" and (plan.mode != "pilot" or plan.route_schedule is None))
         or Path(plan.root).resolve() != project_root
         or (
@@ -1032,6 +1046,9 @@ def execute_public_phase(
                     trial=trial,
                     max_machine_seconds=max_machine_seconds,
                     route_kwargs=route_kwargs,
+                    ledger_phase=(
+                        phase if phase == "openrouter-csm-diagnostic" else None
+                    ),
                 )
             except ValueError:
                 # The ledger atomically checks the absolute deadline when claiming a

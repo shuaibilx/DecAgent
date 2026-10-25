@@ -27,6 +27,30 @@ OPENROUTER_DIAGNOSTIC_LIMITS = {
     "judge_openrouter_requests": 1,
     "judge_openrouter_tokens": 65_946,
 }
+OPENROUTER_CSM_DIAGNOSTIC_BATCH_LIMITS = {
+    "openrouter_requests": 5,
+    "openrouter_tokens": 280_000,
+    "openrouter_cost_usd": "0.30",
+    "agent_openrouter_requests": 5,
+    "agent_openrouter_tokens": 280_000,
+    "user_simulator_openrouter_requests": 0,
+    "user_simulator_openrouter_tokens": 0,
+    "judge_openrouter_requests": 0,
+    "judge_openrouter_tokens": 0,
+    "tool_calls": 40,
+    "wall_seconds": 1_800,
+}
+OPENROUTER_CSM_DIAGNOSTIC_RESOURCE_LIMITS = {
+    "agent_model_requests": 5,
+    "agent_tokens": 280_000,
+    "tool_calls": 40,
+    "agent_machine_seconds": 1_800,
+    "tau_steps": 0,
+    "user_simulator_requests": 0,
+    "user_simulator_tokens": 0,
+    "judge_requests": 0,
+    "judge_tokens": 0,
+}
 
 
 def public_batch_limit_stop_reason(snapshot):
